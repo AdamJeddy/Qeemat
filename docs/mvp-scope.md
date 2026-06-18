@@ -46,7 +46,7 @@ The MVP support list is intentionally small:
 
 | Site | Status | Reason |
 | --- | --- | --- |
-| Noon UAE | MVP supported | Broad UAE shopping coverage and high user value. |
+| Noon UAE | MVP supported | Broad UAE shopping coverage and high user value. Product pages currently expose JSON-LD product offers to plain fetch requests. |
 | Nike UAE | MVP supported | Product detail pages expose structured product data with AED price and availability. |
 | Sun & Sand Sports UAE | MVP supported | Product detail pages expose structured product data with AED price and availability. |
 | Level Shoes | MVP supported | Product pages expose product payloads with title, brand, image, stock, SKU, and AED prices. |
@@ -56,6 +56,7 @@ The MVP support list is intentionally small:
 | Site | Status | Reason |
 | --- | --- | --- |
 | Adidas UAE | Experimental/post-MVP | Product pages can expose useful data with browser-like headers, but direct requests showed intermittent access-denied behavior. |
+| Brands For Less UAE | Deferred | Browser-rendered pages expose JSON-LD product data, but direct product-page fetches return Cloudflare 403, so local background checks would not be reliable. |
 | Amazon.ae | Deferred | High value but likely fragile for a fully local app because bot verification can appear. |
 | Carrefour UAE | Deferred | Useful later, but grocery/location-sensitive pricing complicates MVP behavior. |
 | Lulu UAE | Deferred | Useful later, but page behavior needs deeper validation. |

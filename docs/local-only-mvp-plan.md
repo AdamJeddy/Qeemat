@@ -58,7 +58,7 @@ Supported websites for the first MVP:
 - Sun & Sand Sports UAE
 - Level Shoes
 
-Adidas UAE should remain experimental/post-MVP because direct requests showed intermittent access-denied behavior during discovery. Amazon.ae, Carrefour UAE, and Lulu UAE are deferred until the local parser approach is proven.
+Adidas UAE should remain experimental/post-MVP because direct requests showed intermittent access-denied behavior during discovery. Brands For Less UAE should remain deferred for the local-only MVP: browser-rendered product pages expose useful JSON-LD, but direct product-page fetches return Cloudflare 403, which makes unattended local background checks unreliable. Amazon.ae, Carrefour UAE, and Lulu UAE are deferred until the local parser approach is proven.
 
 A website should only be included if a normal unauthenticated product page exposes enough product data in static HTML or embedded structured data.
 
