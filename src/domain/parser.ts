@@ -6,9 +6,11 @@ type JsonRecord = Record<string, unknown>;
 
 const REQUEST_HEADERS = {
   Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-  'Accept-Language': 'en-AE,en;q=0.9',
+  'Accept-Language': 'en-AE,en-US;q=0.9,en;q=0.8',
+  'Cache-Control': 'no-cache',
+  Pragma: 'no-cache',
   'User-Agent':
-    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1'
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
 };
 
 export type ParseProductResult =
@@ -57,6 +59,15 @@ export async function fetchAndParseProduct(rawUrl: string): Promise<ParseProduct
   }
 
   const html = await response.text();
+
+  if (isBlockedHtml(html)) {
+    return {
+      ok: false,
+      code: 'blocked',
+      message: 'The website blocked this check.'
+    };
+  }
+
   const parsed = parseProductHtml(site.key, normalizedUrl, html);
 
   if (!parsed?.title) {
@@ -198,6 +209,18 @@ function findProductJsonLd(html: string): JsonRecord | undefined {
   }
 
   return undefined;
+}
+
+function isBlockedHtml(html: string): boolean {
+  const normalized = html.toLowerCase();
+
+  return (
+    normalized.includes('sec-if-cpt-container') ||
+    normalized.includes('akamai-privacy') ||
+    (normalized.includes('powered and protected by') && normalized.includes('akamai')) ||
+    (normalized.includes('just a moment') && normalized.includes('cloudflare')) ||
+    normalized.includes('challenges.cloudflare.com')
+  );
 }
 
 function parseJsonCandidates(jsonText: string): unknown[] {
