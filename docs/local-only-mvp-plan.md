@@ -51,15 +51,16 @@ The UI should reflect this honestly:
 
 The MVP should not support arbitrary product pages. It should support a short list of websites with explicit parser modules.
 
-Initial candidate websites for a UAE/Gulf-focused MVP:
+Supported websites for the first MVP:
 
-- Amazon.ae
 - Noon
-- Carrefour UAE
-- Sharaf DG
-- Lulu Hypermarket
+- Nike UAE
+- Sun & Sand Sports UAE
+- Level Shoes
 
-The final first batch should be chosen after a parser spike. A website should only be included if a normal unauthenticated product page exposes enough product data in static HTML or embedded structured data.
+Adidas UAE should remain experimental/post-MVP because direct requests showed intermittent access-denied behavior during discovery. Amazon.ae, Carrefour UAE, and Lulu UAE are deferred until the local parser approach is proven.
+
+A website should only be included if a normal unauthenticated product page exposes enough product data in static HTML or embedded structured data.
 
 ### Website Acceptance Rules
 
@@ -89,11 +90,11 @@ Use TypeScript.
 
 TypeScript is the best fit for this MVP because:
 
-- React Native now defaults new projects to TypeScript.
+- React Native supports TypeScript well in bare Android Studio projects.
 - The app needs cross-platform iOS and Android UI from one codebase.
 - Product-page parsing is naturally text/HTML/JSON heavy, which TypeScript handles well.
 - Parser modules can later be reused in a Node.js backend if Qeemat grows beyond local-only.
-- The ecosystem has mature libraries for networking, parsing, testing, local storage, and Expo-native capabilities.
+- The ecosystem has mature libraries for networking, parsing, testing, local storage, and native Android capabilities.
 - Type safety is valuable for parser contracts, price snapshots, supported-site metadata, and database rows.
 
 Flutter with Dart is also a credible option for a polished cross-platform app, but TypeScript plus React Native is more pragmatic for this product because parser code and any future backend code can stay in the same language.
@@ -104,18 +105,18 @@ Kotlin Multiplatform is not recommended for the MVP. It is strong for shared bus
 
 ### Mobile App
 
-- Framework: React Native with Expo
+- Framework: Bare React Native
 - Language: TypeScript
-- Navigation: Expo Router
-- Local database: `expo-sqlite`
-- Background checks: `expo-background-task` with `expo-task-manager`
-- Local notifications: `expo-notifications`
+- Navigation: lightweight in-app navigation for the MVP; React Navigation can be added when the flow grows
+- Local storage: AsyncStorage for the first Android Studio build; SQLite can be added with a native package later
+- Background checks: native Android WorkManager integration after the bare build is stable
+- Local notifications: native Android notification integration after the bare build is stable
 - Networking: built-in `fetch` first; add a small HTTP wrapper if needed
 - HTML parsing: a lightweight parser such as `cheerio` or `node-html-parser`, validated during the first spike
 - Testing: Jest for parser and price-comparison logic
-- Build path: Expo development builds for native background-task and notification testing
+- Build path: Android Studio or `npm run android:device`
 
-Expo is appropriate because the MVP needs standard native capabilities rather than heavy custom native code. If background behavior or parsing requirements later exceed Expo-managed limits, we can move to a prebuild/custom development build without changing the product model.
+The project was moved away from Expo so Android Studio can own native build, device testing, and later background/notification integration.
 
 ### No Backend In MVP
 
