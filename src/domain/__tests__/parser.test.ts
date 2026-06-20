@@ -54,29 +54,46 @@ describe('parseProductHtml', () => {
     );
   });
 
-  it('parses Amazon product JSON-LD', () => {
+  it('parses Amazon product buy-box markup', () => {
     const html = `
       <html>
         <head>
-          <script type="application/ld+json">
-            {
-              "@context": "https://schema.org",
-              "@type": "Product",
-              "name": "Logitech H390 Wired Headset",
-              "sku": "B005BFCNYU",
-              "image": [
-                "https://m.media-amazon.com/images/I/example.jpg"
-              ],
-              "offers": {
-                "@type": "Offer",
-                "price": "699.00",
-                "priceCurrency": "AED",
-                "availability": "https://schema.org/InStock",
-                "url": "https://www.amazon.ae/Logitech-Headphones-Cancelling-Microphone-Chromebook/dp/B005BFCNYU/"
-              }
-            }
-          </script>
+          <link rel="canonical" href="https://www.amazon.ae/Logitech-Headphones-Cancelling-Microphone-Chromebook/dp/B005BFCNYU/" />
         </head>
+        <body>
+          <div id="titleSection">
+            <h1 id="title">
+              <span id="productTitle" class="a-size-large product-title-word-break">
+                Logitech H390 Wired Headset for PC/Laptop, Stereo Headphones with Noise Cancelling Microphone, USB-A, In-Line Controls, Works with Chromebook - Black
+              </span>
+            </h1>
+          </div>
+          <div id="corePriceDisplay_desktop_feature_div">
+            <div class="a-section a-spacing-none aok-align-center aok-relative apex-core-price-identifier">
+              <span class="a-price aok-align-center reinventPricePriceToPayMargin priceToPay apex-pricetopay-value" data-a-size="xl" data-a-color="base">
+                <span class="a-offscreen"></span>
+                <span aria-hidden="true">
+                  <span class="a-price-symbol">AED</span>
+                  <span class="a-price-whole">79<span class="a-price-decimal">.</span></span>
+                  <span class="a-price-fraction">00</span>
+                </span>
+              </span>
+            </div>
+          </div>
+          <div class="image item itemNo0 selected maintain-height cursorPointer variant-MAIN">
+            <div role="button" tabindex="0" id="imgTagWrapperId" class="imgTagWrapper">
+              <img
+                id="landingImage"
+                alt="Logitech H390 Wired Headset for PC/Laptop, Stereo Headphones with Noise Cancelling Microphone, USB-A, In-Line Controls, Works with Chromebook - Black"
+                src="https://m.media-amazon.com/images/I/61NuT5tXQML._AC_SY300_SX300_QL70_ML2_.jpg"
+                data-old-hires="https://m.media-amazon.com/images/I/61NuT5tXQML._AC_SL1500_.jpg"
+              />
+            </div>
+          </div>
+          <div id="availability" class="a-section a-spacing-base a-spacing-top-micro">
+            <span class="a-size-medium a-color-success primary-availability-message"> In Stock </span>
+          </div>
+        </body>
       </html>
     `;
 
@@ -85,9 +102,12 @@ describe('parseProductHtml', () => {
     expect(parsed).toEqual(
       expect.objectContaining({
         siteKey: 'amazon_ae',
-        title: 'Logitech H390 Wired Headset',
+        canonicalUrl: amazonUrl,
+        title:
+          'Logitech H390 Wired Headset for PC/Laptop, Stereo Headphones with Noise Cancelling Microphone, USB-A, In-Line Controls, Works with Chromebook - Black',
         sku: 'B005BFCNYU',
-        priceMinor: 69900,
+        imageUrl: 'https://m.media-amazon.com/images/I/61NuT5tXQML._AC_SL1500_.jpg',
+        priceMinor: 7900,
         currency: 'AED',
         availability: 'in_stock'
       })
@@ -126,6 +146,30 @@ describe('fetchAndParseProduct', () => {
     })) as unknown as typeof fetch;
 
     const result = await fetchAndParseProduct(noonUrl);
+
+    expect(result).toEqual({
+      ok: false,
+      code: 'blocked',
+      message: 'The website blocked this check.'
+    });
+  });
+
+  it('reports Amazon robot-check pages as blocked', async () => {
+    globalThis.fetch = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      text: async () => `
+        <!doctype html>
+        <html>
+          <body>
+            <h1>Sorry, we just need to make sure you're not a robot</h1>
+            <p>Enter the characters you see below</p>
+          </body>
+        </html>
+      `
+    })) as unknown as typeof fetch;
+
+    const result = await fetchAndParseProduct(amazonUrl);
 
     expect(result).toEqual({
       ok: false,

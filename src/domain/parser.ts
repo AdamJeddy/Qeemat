@@ -99,6 +99,10 @@ export function parseProductHtml(siteKey: SiteKey, inputUrl: string, html: strin
     return structured;
   }
 
+  if (siteKey === 'amazon_ae') {
+    return parseAmazonProduct(siteKey, inputUrl, html) ?? structured;
+  }
+
   if (siteKey === 'level_shoes') {
     return parseLevelShoesPayload(siteKey, inputUrl, html) ?? structured;
   }
@@ -136,6 +140,40 @@ function parseStructuredProduct(siteKey: SiteKey, inputUrl: string, html: string
     currency,
     availability,
     rawPriceText: asString(offer?.price) ?? meta.price,
+    sku
+  };
+}
+
+function parseAmazonProduct(siteKey: SiteKey, inputUrl: string, html: string): ParsedProduct | undefined {
+  const meta = extractMeta(html);
+  const title =
+    matchString(html, /id=["']productTitle["'][^>]*>\s*([^<]+?)\s*<\/span>/i) ??
+    meta.title ??
+    matchString(html, /"title"\s*:\s*"([^"]{3,240})"/);
+  const imageUrl =
+    matchString(html, /id=["']landingImage["'][^>]+data-old-hires=["']([^"']+)["']/i) ??
+    matchString(html, /id=["']landingImage["'][^>]+src=["']([^"']+)["']/i) ??
+    meta.imageUrl;
+  const rawPriceText = matchAmazonPriceText(html) ?? meta.price;
+  const availabilityText =
+    matchString(html, /id=["']availability["'][\s\S]{0,500}?primary-availability-message[^>]*>\s*([^<]+?)\s*</i) ??
+    matchString(html, /id=["']availability["'][\s\S]{0,500}?a-color-success[^>]*>\s*([^<]+?)\s*</i) ??
+    matchString(html, /id=["']availability["'][\s\S]{0,500}?a-color-price[^>]*>\s*([^<]+?)\s*</i);
+  const sku = extractAmazonAsin(inputUrl) ?? matchString(html, /data-csa-c-asin=["']([A-Z0-9]{10})["']/i);
+
+  if (!title && !rawPriceText) {
+    return undefined;
+  }
+
+  return {
+    siteKey,
+    canonicalUrl: meta.canonicalUrl ?? inputUrl,
+    title: cleanText(title ?? 'Amazon product'),
+    imageUrl,
+    priceMinor: parsePriceToMinor(rawPriceText),
+    currency: rawPriceText?.toUpperCase().includes('AED') || meta.currency === 'AED' ? 'AED' : meta.currency ?? 'AED',
+    availability: parseAmazonAvailability(availabilityText, html),
+    rawPriceText,
     sku
   };
 }
@@ -219,7 +257,12 @@ function isBlockedHtml(html: string): boolean {
     normalized.includes('akamai-privacy') ||
     (normalized.includes('powered and protected by') && normalized.includes('akamai')) ||
     (normalized.includes('just a moment') && normalized.includes('cloudflare')) ||
-    normalized.includes('challenges.cloudflare.com')
+    normalized.includes('challenges.cloudflare.com') ||
+    normalized.includes("sorry, we just need to make sure you're not a robot") ||
+    normalized.includes('enter the characters you see below') ||
+    normalized.includes('type the characters you see in this image') ||
+    normalized.includes('automated access to amazon data') ||
+    normalized.includes('/errors/validatecaptcha')
   );
 }
 
@@ -320,6 +363,67 @@ function parseAvailability(value?: string): Availability {
   }
 
   return 'unknown';
+}
+
+function parseAmazonAvailability(value: string | undefined, html: string): Availability {
+  const parsed = parseAvailability(value);
+  if (parsed !== 'unknown') {
+    return parsed;
+  }
+
+  const normalizedValue = value?.toLowerCase() ?? '';
+  if (normalizedValue.includes('in stock')) {
+    return 'in_stock';
+  }
+
+  if (normalizedValue.includes('currently unavailable') || normalizedValue.includes('temporarily out of stock')) {
+    return 'out_of_stock';
+  }
+
+  const normalizedHtml = html.toLowerCase();
+  if (normalizedHtml.includes('primary-availability-message') && normalizedHtml.includes('in stock')) {
+    return 'in_stock';
+  }
+
+  if (normalizedHtml.includes('currently unavailable')) {
+    return 'out_of_stock';
+  }
+
+  return 'unknown';
+}
+
+function matchAmazonPriceText(html: string): string | undefined {
+  const corePriceSection = html.match(/id=["']corePriceDisplay_desktop_feature_div["'][\s\S]{0,5000}/i)?.[0] ?? html;
+
+  const priceToPayOffscreen = matchString(
+    corePriceSection,
+    /class=["'][^"']*priceToPay[^"']*["'][^>]*>\s*<span class=["']a-offscreen["']>\s*(AED\s*[0-9.,]+)\s*<\/span>/i
+  );
+  if (priceToPayOffscreen) {
+    return priceToPayOffscreen;
+  }
+
+  const apexPrice = corePriceSection.match(
+    /priceToPay[^>]*>[\s\S]{0,400}?<span class=["']a-price-symbol["']>\s*([^<]*)\s*<\/span>\s*<span class=["']a-price-whole["']>\s*([^<]+?)\s*(?:<span class=["']a-price-decimal["'][^>]*>\s*.\s*<\/span>)?\s*<\/span>\s*<span class=["']a-price-fraction["']>\s*([^<]+)\s*<\/span>/i
+  );
+  if (apexPrice) {
+    const symbol = cleanText(apexPrice[1] ?? 'AED');
+    const whole = cleanText(apexPrice[2] ?? '').replace(/\.$/, '');
+    const fraction = cleanText(apexPrice[3] ?? '');
+    if (whole && fraction) {
+      return `${symbol} ${whole}.${fraction}`;
+    }
+  }
+
+  return (
+    matchString(corePriceSection, /id=["']tp_price_block_total_price_ww["'][\s\S]{0,200}?<span class=["']a-offscreen["']>\s*(AED\s*[0-9.,]+)\s*<\/span>/i) ??
+    matchString(corePriceSection, /<span class=["']a-offscreen["']>\s*(AED\s*[0-9.,]+)\s*<\/span>/i)
+  );
+}
+
+function extractAmazonAsin(inputUrl: string): string | undefined {
+  const match = inputUrl.match(/\/(?:dp|gp\/product)\/([A-Z0-9]{10})(?:[/?]|$)/i);
+  return match?.[1]?.toUpperCase();
 }
 
 function firstString(value: unknown): string | undefined {
