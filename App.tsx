@@ -42,7 +42,7 @@ import {
   updateTrackingSettings
 } from './src/data/database';
 import { runBackgroundCheckOnce, scheduleBackgroundChecks } from './src/domain/backgroundScheduler';
-import { checkProductById } from './src/domain/checker';
+import { checkAllActiveProducts, checkProductById } from './src/domain/checker';
 import { formatRelativeTime, formatSnapshotTime } from './src/domain/dates';
 import { fetchAndParseProduct } from './src/domain/parser';
 import { formatPrice, parseTargetPriceInput } from './src/domain/price';
@@ -152,6 +152,7 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
   const [products, setProducts] = useState<TrackedProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [checkingAll, setCheckingAll] = useState(false);
 
   const loadProducts = useCallback(async () => {
     setProducts(await listTrackedProducts());
@@ -166,6 +167,22 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
     setRefreshing(true);
     await loadProducts();
     setRefreshing(false);
+  }
+
+  async function recheckAllPrices() {
+    if (!products.length) {
+      return;
+    }
+
+    setCheckingAll(true);
+    try {
+      await checkAllActiveProducts(products.length);
+      await loadProducts();
+    } catch {
+      Alert.alert('Recheck failed', 'Qeemat could not recheck all prices right now.');
+    } finally {
+      setCheckingAll(false);
+    }
   }
 
   return (
@@ -189,6 +206,14 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
             </AppText>
           </View>
         </View>
+        <PrimaryButton
+          label="Recheck all prices"
+          variant="outline"
+          onPress={recheckAllPrices}
+          loading={checkingAll}
+          disabled={!products.length || loading}
+          icon={!checkingAll ? <RefreshCcw size={18} color={colors.primary} /> : undefined}
+        />
 
         {loading ? <ActivityIndicator color={colors.primary} /> : null}
         {!loading && products.length === 0 ? <EmptyWatchlist onAdd={() => navigate({ name: 'add' })} /> : null}
