@@ -1,11 +1,22 @@
 # Qeemat
-Tool to keep track of prices
 
-## MVP
+Qeemat is a local-first price tracker for a small set of supported UAE shopping sites. The current app is a bare React Native + TypeScript project with Android-specific native integrations for notifications and best-effort background checks.
 
-Qeemat is a local-first Android app built with bare React Native and TypeScript. The MVP stores tracked products and price history on-device and supports manual price checks for selected stores.
+## Current MVP
 
-Supported MVP stores:
+Current implemented behavior:
+
+- Add a supported product URL and confirm the parsed product before saving.
+- Track products locally on-device with price history snapshots.
+- Manual `Check now` from product detail.
+- Manual `Recheck all prices` from the watchlist.
+- Check preferences per product: `daily`, `every_3_days`, `weekly`.
+- Alert modes per product: `price_drop`, `any_change`, `target_price`.
+- Best-effort Android background checks with a saved preferred time of day.
+- Local Android notifications for price drops, price changes, and target-price hits when permission is allowed.
+- Snapshot history tags that show whether a check came from `Check now`, `Recheck all`, or `Background`.
+
+Supported stores:
 
 - Noon UAE
 - Nike UAE
@@ -13,31 +24,50 @@ Supported MVP stores:
 - Level Shoes
 - Amazon.ae
 
-## Planning
+## Documentation
 
+- [Current state and AI handoff](docs/current-state.md)
 - [MVP scope](docs/mvp-scope.md)
 - [Local-only MVP plan](docs/local-only-mvp-plan.md)
 
+Start with `docs/current-state.md` if you are resuming work in a new AI conversation.
+
 ## Development
+
+Install dependencies:
 
 ```bash
 npm install
+```
+
+Start Metro:
+
+```bash
 npm run start
 ```
 
-Open the `android/` folder in Android Studio to sync, build, and run on a physical Android device.
+Run on Android:
+
+```bash
+npm run android:device
+```
 
 Useful checks:
 
 ```bash
 npm run typecheck
 npm run lint
+npm test -- --runInBand
 ```
 
-Run on a connected Android phone from the terminal:
+## Android Notes
 
-```bash
-npm run android:device
-```
+Open the `android/` folder in Android Studio to sync, build, and run on a physical Android device or emulator.
 
-If Gradle reports an invalid `JAVA_HOME`, set Android Studio's Gradle JDK or update the terminal `JAVA_HOME` to a valid JDK 17+ installation.
+If terminal builds fail:
+
+- Make sure `JAVA_HOME` points to a valid JDK 17+ installation. Android Studio's bundled JBR is acceptable.
+- Make sure `adb` is available from the Android SDK `platform-tools`.
+- Android 13+ requires the runtime notification permission before local alerts can appear.
+
+Background checks use Android WorkManager and are intentionally best-effort. Qeemat does not promise an exact run time.

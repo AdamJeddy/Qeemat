@@ -1,5 +1,7 @@
 # Qeemat MVP Scope
 
+Note: this file is product scope and intent. For the current implemented repo state, read [current-state.md](current-state.md).
+
 ## MVP Goal
 
 Qeemat is a local-first mobile app for tracking product prices from a small set of supported UAE websites. The user pastes a product URL, confirms the detected product details, chooses a practical check preference, and receives local notifications when Qeemat detects a price drop, any price change, or a target-price hit.
@@ -21,21 +23,20 @@ Use this promise in product copy and UI behavior:
 
 > Qeemat checks supported product pages periodically when the device allows it and alerts you when it detects a price change.
 
-Do not promise exact background timing. iOS and Android both control when background work runs.
+Do not promise exact background timing. The current implementation uses Android WorkManager and Android still controls when background work actually runs.
 
 ## Platforms
 
-- iOS
-- Android
-- One shared codebase
+- Android-first MVP in a shared React Native codebase
+- iOS is not a completed native target yet for background checks or notifications
 
 ## Architecture
 
 - Bare React Native
 - TypeScript
-- Local device storage for the first Android Studio build
-- Native background checks after the Android build is stable
-- Native notifications after the Android build is stable
+- Local device storage with AsyncStorage
+- Native Android background checks through WorkManager
+- Native Android local notifications
 - No backend in the MVP
 - No user accounts in the MVP
 - No cloud sync in the MVP
@@ -50,7 +51,7 @@ The MVP support list is intentionally small:
 | Nike UAE | MVP supported | Product detail pages expose structured product data with AED price and availability. |
 | Sun & Sand Sports UAE | MVP supported | Product detail pages expose structured product data with AED price and availability. |
 | Level Shoes | MVP supported | Product pages expose product payloads with title, brand, image, stock, SKU, and AED prices. |
-| Amazon.ae | MVP supported | High user value and compatible with the generic structured-data parser when Amazon serves a normal product page without a challenge. |
+| Amazon.ae | MVP supported | High user value and supported at MVP level when Amazon serves a normal product page without a challenge. |
 
 ## Deferred Websites
 
@@ -69,15 +70,17 @@ The MVP support list is intentionally small:
 - Product detail screen.
 - Price history snapshots.
 - Manual check now.
+- Manual recheck all tracked products.
 - Check preference: `daily`, `every_3_days`, `weekly`.
 - Alert modes: `price_drop`, `any_change`, `target_price`.
 - Optional target price.
 - Supported stores screen.
-- Settings screen with local-only status and data controls.
+- Settings screen with notification status, background time presets, and local data controls.
 - Local persistence.
 - Parser contract and supported-site registry.
-- Native Android background task wiring after the bare build is stable.
-- Native Android notification wiring after the bare build is stable.
+- Native Android background task wiring.
+- Native Android notification wiring.
+- Snapshot history source tags for manual vs background checks.
 
 ## Out Of Scope
 
@@ -92,6 +95,7 @@ The MVP support list is intentionally small:
 - Arbitrary unsupported product pages.
 - Store login/session handling.
 - Exact background check schedules.
+- iOS-native parity for notifications/background behavior.
 
 ## MVP UX Principles
 
@@ -99,6 +103,7 @@ The MVP support list is intentionally small:
 - Keep product cards compact and price-focused.
 - Always show `last checked` and status.
 - Let users manually check a product.
+- Let users manually recheck all products from the watchlist.
 - Be explicit when a URL is unsupported.
 - Make supported stores visible from add flow and settings.
 - Prefer "price drops only" as the default alert mode.
