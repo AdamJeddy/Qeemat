@@ -1,12 +1,14 @@
 # Qeemat Local-Only MVP Plan
 
+Note: this is the product/engineering plan. For the current implemented repo state and handoff details, read [current-state.md](current-state.md).
+
 ## Product Direction
 
 Qeemat is a simple local-first mobile app for tracking product prices from supported shopping websites. A user adds a product link, chooses how often they would like the app to check it, and Qeemat keeps a local history of detected price changes. When the app finds a meaningful change, it sends a local notification.
 
 The MVP should stay intentionally narrow:
 
-- iOS and Android from one codebase.
+- One shared React Native codebase, with Android as the current practical MVP target.
 - No user accounts.
 - No backend service.
 - No cloud database.
@@ -25,7 +27,7 @@ The product should not promise exact schedules like "checks every 30 minutes" be
 
 A local-only build is viable for an MVP because the first version can run all important behavior on the phone:
 
-- Store tracked products in a local SQLite database.
+- Store tracked products in local device storage.
 - Fetch supported product pages directly from the device.
 - Parse title, image, price, currency, and availability locally.
 - Compare each new snapshot with the last saved snapshot.
@@ -42,8 +44,8 @@ On Android, periodic work can be delayed by battery, network, vendor restriction
 
 The UI should reflect this honestly:
 
-- Use labels like "Roughly daily", "A few times per day", and "As often as allowed".
-- Show `lastCheckedAt` and `nextCheckPreference`, not a guaranteed next run time.
+- Use labels like "Once a day", "Once every 3 days", and "Once a week".
+- Show `lastCheckedAt` and check preference, not a guaranteed next run time.
 - Show check status per product: `ok`, `price_changed`, `price_not_found`, `network_error`, `unsupported_page`, `blocked`, or `site_parser_failed`.
 - Include a manual "Check now" action for user-initiated refreshes.
 
@@ -57,8 +59,9 @@ Supported websites for the first MVP:
 - Nike UAE
 - Sun & Sand Sports UAE
 - Level Shoes
+- Amazon.ae
 
-Adidas UAE should remain experimental/post-MVP because direct requests showed intermittent access-denied behavior during discovery. Brands For Less UAE should remain deferred for the local-only MVP: browser-rendered product pages expose useful JSON-LD, but direct product-page fetches return Cloudflare 403, which makes unattended local background checks unreliable. Amazon.ae, Carrefour UAE, and Lulu UAE are deferred until the local parser approach is proven.
+Adidas UAE should remain experimental/post-MVP because direct requests showed intermittent access-denied behavior during discovery. Brands For Less UAE should remain deferred for the local-only MVP: browser-rendered product pages expose useful JSON-LD, but direct product-page fetches return Cloudflare 403, which makes unattended local background checks unreliable. Carrefour UAE and Lulu UAE are deferred until the local parser approach is proven. Amazon.ae is acceptable for the MVP as a best-effort supported store as long as the app surfaces blocked checks clearly when Amazon serves bot verification instead of a normal product page.
 
 A website should only be included if a normal unauthenticated product page exposes enough product data in static HTML or embedded structured data.
 
@@ -108,9 +111,9 @@ Kotlin Multiplatform is not recommended for the MVP. It is strong for shared bus
 - Framework: Bare React Native
 - Language: TypeScript
 - Navigation: lightweight in-app navigation for the MVP; React Navigation can be added when the flow grows
-- Local storage: AsyncStorage for the first Android Studio build; SQLite can be added with a native package later
-- Background checks: native Android WorkManager integration after the bare build is stable
-- Local notifications: native Android notification integration after the bare build is stable
+- Local storage: AsyncStorage for the current MVP; SQLite can be added later if history volume grows
+- Background checks: native Android WorkManager integration
+- Local notifications: native Android notification integration
 - Networking: built-in `fetch` first; add a small HTTP wrapper if needed
 - HTML parsing: a lightweight parser such as `cheerio` or `node-html-parser`, validated during the first spike
 - Testing: Jest for parser and price-comparison logic
@@ -258,11 +261,12 @@ Default should be "price drop only" to avoid noisy notifications.
 - `raw_price_text`
 - `status`
 - `error_code`
+- `source`
 - `checked_at`
 
 ### `site_configs`
 
-This can start as TypeScript constants rather than a database table:
+This can stay as TypeScript constants rather than a database table for the MVP:
 
 - `site_key`
 - `display_name`
@@ -274,9 +278,9 @@ This can start as TypeScript constants rather than a database table:
 
 ### Milestone 1: App Skeleton
 
-- Expo React Native app with TypeScript.
+- Bare React Native app with TypeScript.
 - Basic navigation.
-- SQLite setup and migrations.
+- Local persistence setup.
 - Empty product list screen.
 - Add URL screen.
 
@@ -332,7 +336,6 @@ The MVP should be designed so this is possible later, but it should not build th
 
 ## Reference Notes
 
-- React Native defaults new projects to TypeScript and supports Expo TypeScript templates.
-- Expo SQLite persists a queryable SQLite database across app restarts.
-- Expo Background Task uses Android WorkManager and iOS BGTaskScheduler, and task timing is inexact.
-- Expo Notifications supports local notification scheduling and permission handling on Android and iOS.
+- React Native defaults new projects to TypeScript and works well for a shared parser-heavy codebase.
+- Android WorkManager timing is inexact and should not be presented as a guaranteed schedule.
+- Android 13+ notification delivery requires runtime permission.

@@ -5,15 +5,30 @@
 import { AppRegistry } from 'react-native';
 import App from './App';
 import { name as appName } from './app.json';
-import { checkAllActiveProducts, checkDueProducts } from './src/domain/checker';
+import { checkAllActiveProductsFromBackground, checkDueProducts } from './src/domain/checker';
+import {
+  markBackgroundRunCompleted,
+  markBackgroundRunFailed,
+  markBackgroundRunStarted
+} from './src/domain/backgroundStatus';
 
 AppRegistry.registerComponent(appName, () => App);
 
 AppRegistry.registerHeadlessTask('QeematBackgroundPriceCheck', () => async (taskData) => {
-  if (taskData?.force) {
-    await checkAllActiveProducts();
-    return;
-  }
+  await markBackgroundRunStarted(taskData?.source ?? 'headless', Boolean(taskData?.force));
 
-  await checkDueProducts();
+  try {
+    if (taskData?.force) {
+      await checkAllActiveProductsFromBackground();
+      await markBackgroundRunCompleted();
+      return;
+    }
+
+    await checkDueProducts();
+    await markBackgroundRunCompleted();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Background check failed.';
+    await markBackgroundRunFailed(message);
+    throw error;
+  }
 });

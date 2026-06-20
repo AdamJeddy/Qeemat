@@ -32,6 +32,14 @@ export const SUPPORTED_SITES: SupportedSite[] = [
     hostnames: ['levelshoes.com', 'www.levelshoes.com'],
     status: 'supported',
     notes: 'Product pages expose Next.js product payloads and useful structured metadata.'
+  },
+  {
+    key: 'amazon_ae',
+    displayName: 'Amazon.ae',
+    shortName: 'Amazon',
+    hostnames: ['amazon.ae', 'www.amazon.ae'],
+    status: 'supported',
+    notes: 'Product pages can be parsed from structured product data when Amazon serves a normal product page without a challenge.'
   }
 ];
 

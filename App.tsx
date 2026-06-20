@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  BackHandler,
   Image,
   Pressable,
   RefreshControl,
@@ -32,6 +33,12 @@ import { PrimaryButton } from './src/components/PrimaryButton';
 import { ProductCard } from './src/components/ProductCard';
 import { StatusPill } from './src/components/StatusPill';
 import {
+  getBackgroundStatus,
+  BackgroundStatus,
+  markBackgroundSchedule,
+  setBackgroundPreferredHour
+} from './src/domain/backgroundStatus';
+import {
   createTrackedProduct,
   deleteAllLocalData,
   deleteTrackedProduct,
@@ -42,12 +49,13 @@ import {
   updateTrackingSettings
 } from './src/data/database';
 import { runBackgroundCheckOnce, scheduleBackgroundChecks } from './src/domain/backgroundScheduler';
-import { checkProductById } from './src/domain/checker';
+import { checkAllActiveProducts, checkProductById } from './src/domain/checker';
 import { formatRelativeTime, formatSnapshotTime } from './src/domain/dates';
+import { ensureNotificationPermission, openNotificationSettings } from './src/domain/notifications';
 import { fetchAndParseProduct } from './src/domain/parser';
 import { formatPrice, parseTargetPriceInput } from './src/domain/price';
 import { detectSupportedSite, normalizeUrl, SUPPORTED_SITES } from './src/domain/sites';
-import { AlertMode, CheckPreference, ParsedProduct, PriceSnapshot, ProductWithSnapshots, TrackedProduct } from './src/domain/types';
+import { AlertMode, CheckPreference, ParsedProduct, PriceSnapshot, ProductWithSnapshots, SnapshotSource, TrackedProduct } from './src/domain/types';
 import { colors, radius, shadow } from './src/theme/theme';
 
 type TabKey = 'watchlist' | 'alerts' | 'settings';
@@ -58,9 +66,9 @@ type Route =
   | { name: 'trackingSettings'; id: number };
 
 const CHECK_OPTIONS: { value: CheckPreference; label: string; description: string }[] = [
-  { value: 'daily', label: 'Daily', description: 'Every day' },
-  { value: 'few_times', label: 'Few times', description: '2-3 per day' },
-  { value: 'often', label: 'Often', description: 'As allowed' }
+  { value: 'daily', label: 'Daily', description: 'Once a day' },
+  { value: 'every_3_days', label: 'Every 3 days', description: 'Once every 3 days' },
+  { value: 'weekly', label: 'Weekly', description: 'Once a week' }
 ];
 
 const ALERT_OPTIONS: { value: AlertMode; label: string; description: string }[] = [
@@ -69,15 +77,50 @@ const ALERT_OPTIONS: { value: AlertMode; label: string; description: string }[] 
   { value: 'target_price', label: 'Target', description: 'Below price' }
 ];
 
+const BACKGROUND_TIME_PRESETS = [
+  { label: 'Morning', hour: 9 },
+  { label: 'Afternoon', hour: 14 },
+  { label: 'Evening', hour: 20 }
+];
+
 export default function App() {
   const [route, setRoute] = useState<Route>({ name: 'tabs', tab: 'watchlist' });
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    initializeDatabase()
-      .then(() => scheduleBackgroundChecks().catch(() => false))
-      .finally(() => setReady(true));
+    let active = true;
+
+    (async () => {
+      await initializeDatabase();
+      const backgroundStatus = await getBackgroundStatus();
+      const scheduled = await scheduleBackgroundChecks(backgroundStatus.preferredHour).catch(() => false);
+      if (scheduled) {
+        await markBackgroundSchedule(backgroundStatus.preferredHour);
+      }
+    })().finally(() => {
+      if (active) {
+        setReady(true);
+      }
+    });
+
+    return () => {
+      active = false;
+    };
   }, []);
+
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      const backRoute = getBackRoute(route);
+      if (!backRoute) {
+        return false;
+      }
+
+      setRoute(backRoute);
+      return true;
+    });
+
+    return () => subscription.remove();
+  }, [route]);
 
   if (!ready) {
     return (
@@ -99,6 +142,22 @@ export default function App() {
       </SafeAreaView>
     </SafeAreaProvider>
   );
+}
+
+function getBackRoute(route: Route): Route | undefined {
+  if (route.name === 'add') {
+    return { name: 'tabs', tab: 'watchlist' };
+  }
+
+  if (route.name === 'detail') {
+    return { name: 'tabs', tab: 'watchlist' };
+  }
+
+  if (route.name === 'trackingSettings') {
+    return { name: 'detail', id: route.id };
+  }
+
+  return undefined;
 }
 
 function TabsScreen({ tab, navigate }: { tab: TabKey; navigate: (route: Route) => void }) {
@@ -152,6 +211,7 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
   const [products, setProducts] = useState<TrackedProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [checkingAll, setCheckingAll] = useState(false);
 
   const loadProducts = useCallback(async () => {
     setProducts(await listTrackedProducts());
@@ -166,6 +226,22 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
     setRefreshing(true);
     await loadProducts();
     setRefreshing(false);
+  }
+
+  async function recheckAllPrices() {
+    if (!products.length) {
+      return;
+    }
+
+    setCheckingAll(true);
+    try {
+      await checkAllActiveProducts(products.length);
+      await loadProducts();
+    } catch {
+      Alert.alert('Recheck failed', 'Qeemat could not recheck all prices right now.');
+    } finally {
+      setCheckingAll(false);
+    }
   }
 
   return (
@@ -189,6 +265,14 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
             </AppText>
           </View>
         </View>
+        <PrimaryButton
+          label="Recheck all prices"
+          variant="outline"
+          onPress={recheckAllPrices}
+          loading={checkingAll}
+          disabled={!products.length || loading}
+          icon={!checkingAll ? <RefreshCcw size={18} color={colors.primary} /> : undefined}
+        />
 
         {loading ? <ActivityIndicator color={colors.primary} /> : null}
         {!loading && products.length === 0 ? <EmptyWatchlist onAdd={() => navigate({ name: 'add' })} /> : null}
@@ -215,7 +299,7 @@ function EmptyWatchlist({ onAdd }: { onAdd: () => void }) {
         Track your first product
       </AppText>
       <AppText muted style={styles.emptyCopy}>
-        Paste a Noon, Nike UAE, Sun & Sand Sports, or Level Shoes link to start a local price history.
+        Paste a Noon, Nike UAE, Sun & Sand Sports, Level Shoes, or Amazon.ae link to start a local price history.
       </AppText>
       <PrimaryButton label="Add product" onPress={onAdd} style={styles.emptyButton} />
     </View>
@@ -228,7 +312,7 @@ function AddScreen({ navigate }: { navigate: (route: Route) => void }) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | undefined>();
-  const [checkPreference, setCheckPreference] = useState<CheckPreference>('few_times');
+  const [checkPreference, setCheckPreference] = useState<CheckPreference>('daily');
   const [alertMode, setAlertMode] = useState<AlertMode>('price_drop');
   const [targetPrice, setTargetPrice] = useState('');
 
@@ -454,13 +538,25 @@ function DetailScreen({ productId, navigate }: { productId: number; navigate: (r
         <View style={styles.snapshotList}>
           {snapshots.slice(0, 12).map((snapshot) => (
             <View key={snapshot.id} style={styles.snapshotRow}>
-              <View>
-                <AppText weight="medium">{formatSnapshotTime(snapshot.checkedAt)}</AppText>
+              <View style={styles.flex}>
+                <View style={styles.snapshotMetaRow}>
+                  <AppText weight="medium">{formatSnapshotTime(snapshot.checkedAt)}</AppText>
+                  <View style={[styles.sourceBadge, snapshotSourceBadgeStyle(snapshot.source)]}>
+                    <AppText weight="semibold" style={styles.sourceBadgeText}>
+                      {snapshotSourceLabel(snapshot.source)}
+                    </AppText>
+                  </View>
+                </View>
                 {snapshot.errorCode ? <AppText muted>{snapshot.errorCode}</AppText> : null}
               </View>
-              <AppText weight="bold" style={snapshot.status === 'price_changed' && styles.changedPrice}>
-                {snapshot.priceMinor ? formatPrice(snapshot.priceMinor, snapshot.currency ?? product.currency) : 'Failed'}
-              </AppText>
+              <View style={styles.snapshotPriceBlock}>
+                <AppText weight="bold" style={snapshot.status === 'price_changed' && styles.changedPrice}>
+                  {snapshot.priceMinor !== undefined ? formatPrice(snapshot.priceMinor, snapshot.currency ?? product.currency) : 'Failed'}
+                </AppText>
+                <AppText muted style={styles.snapshotAvailability}>
+                  {snapshot.availability.replace(/_/g, ' ')}
+                </AppText>
+              </View>
             </View>
           ))}
         </View>
@@ -480,7 +576,7 @@ function DetailScreen({ productId, navigate }: { productId: number; navigate: (r
 
 function TrackingSettingsScreen({ productId, navigate }: { productId: number; navigate: (route: Route) => void }) {
   const [product, setProduct] = useState<TrackedProduct | undefined>();
-  const [checkPreference, setCheckPreference] = useState<CheckPreference>('few_times');
+  const [checkPreference, setCheckPreference] = useState<CheckPreference>('daily');
   const [alertMode, setAlertMode] = useState<AlertMode>('price_drop');
   const [targetPrice, setTargetPrice] = useState('');
 
@@ -577,14 +673,85 @@ function AlertsScreen({ navigate }: { navigate: (route: Route) => void }) {
 }
 
 function SettingsScreen() {
+  const [backgroundStatus, setBackgroundStatus] = useState<BackgroundStatus>();
+  const [notificationEnabled, setNotificationEnabled] = useState<boolean>();
+  const [queueingCheck, setQueueingCheck] = useState(false);
+  const [savingSchedule, setSavingSchedule] = useState(false);
+  const [requestingNotifications, setRequestingNotifications] = useState(false);
+
+  const loadStatus = useCallback(async () => {
+    const [status, notificationsAllowed] = await Promise.all([
+      getBackgroundStatus(),
+      ensureNotificationPermission(false)
+    ]);
+
+    setBackgroundStatus(status);
+    setNotificationEnabled(notificationsAllowed);
+  }, []);
+
+  useEffect(() => {
+    loadStatus();
+  }, [loadStatus]);
+
+  const selectedPresetHour = backgroundStatus?.preferredHour ?? 9;
+  const preferredHourLabel = formatPreferredHour(backgroundStatus?.preferredHour ?? 9);
+  const notificationLabel = notificationEnabled === undefined ? 'Checking' : notificationEnabled ? 'Allowed' : 'Blocked';
+
   async function queueBackgroundCheck() {
+    setQueueingCheck(true);
     const queued = await runBackgroundCheckOnce().catch(() => false);
+    setQueueingCheck(false);
     Alert.alert(
       queued ? 'Background check queued' : 'Background check unavailable',
       queued
         ? 'Android WorkManager will run a one-off check through the background task. Reopen the product detail after a moment to see a new snapshot.'
         : 'This build could not reach the Android background scheduler.'
     );
+    await loadStatus();
+  }
+
+  async function requestNotifications() {
+    setRequestingNotifications(true);
+    const granted = await ensureNotificationPermission(true).catch(() => false);
+    setRequestingNotifications(false);
+    setNotificationEnabled(granted);
+
+    if (!granted) {
+      Alert.alert(
+        'Notifications still blocked',
+        'Android is still blocking notifications for Qeemat. Open the app notification settings and allow them there.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open settings', onPress: () => openNotificationSettings() }
+        ]
+      );
+      return;
+    }
+
+    Alert.alert('Notifications enabled', 'Qeemat can now show local price alerts on this device.');
+  }
+
+  async function selectBackgroundSchedule(preferredHour: number) {
+    if (savingSchedule || preferredHour === backgroundStatus?.preferredHour) {
+      return;
+    }
+
+    setSavingSchedule(true);
+
+    try {
+      await setBackgroundPreferredHour(preferredHour);
+      const scheduled = await scheduleBackgroundChecks(preferredHour).catch(() => false);
+      if (!scheduled) {
+        Alert.alert('Background schedule unavailable', 'This build could not update the Android background scheduler.');
+        return;
+      }
+
+      const nextStatus = await markBackgroundSchedule(preferredHour);
+      setBackgroundStatus(nextStatus);
+    } finally {
+      setSavingSchedule(false);
+      await loadStatus();
+    }
   }
 
   return (
@@ -592,23 +759,116 @@ function SettingsScreen() {
       <AppText weight="bold" style={styles.heading}>
         Settings
       </AppText>
+      <AppText muted style={styles.settingsIntro}>
+        Control local alerts, daily background timing, and the stores Qeemat can track in this MVP.
+      </AppText>
       <View style={styles.settingsCard}>
-        <Store size={22} color={colors.primary} />
-        <View style={styles.flex}>
-          <AppText weight="bold">Supported stores</AppText>
-          {SUPPORTED_SITES.map((site) => (
-            <AppText key={site.key} muted>
-              {site.displayName}
-            </AppText>
-          ))}
+        <View style={styles.settingsStack}>
+          <View style={styles.settingsHeaderRow}>
+            <AppText weight="bold">Supported stores</AppText>
+            <View style={styles.settingsBadge}>
+              <AppText weight="semibold" style={styles.settingsBadgeText}>
+                {SUPPORTED_SITES.length} live
+              </AppText>
+            </View>
+          </View>
+          <AppText muted style={styles.settingsBodyText}>
+            Product links are currently supported for these UAE stores. Amazon support is kept intentionally lightweight for the MVP.
+          </AppText>
+          <View style={styles.settingsChipWrap}>
+            {SUPPORTED_SITES.map((site) => (
+              <View key={site.key} style={styles.settingsChip}>
+                <Store size={14} color={colors.primary} />
+                <AppText weight="medium" style={styles.settingsChipText}>
+                  {site.shortName}
+                </AppText>
+              </View>
+            ))}
+          </View>
         </View>
       </View>
       <View style={styles.settingsCard}>
-        <AppText muted>
-          Background tracking uses Android WorkManager. Periodic checks are best-effort and Android decides the exact time.
-        </AppText>
+        <View style={styles.settingsStack}>
+          <View style={styles.settingsHeaderRow}>
+            <AppText weight="bold">Notifications</AppText>
+            <View style={[styles.settingsBadge, notificationEnabled ? styles.settingsBadgeSuccess : styles.settingsBadgeMuted]}>
+              <AppText weight="semibold" style={[styles.settingsBadgeText, notificationEnabled && styles.settingsBadgeSuccessText]}>
+                {notificationLabel}
+              </AppText>
+            </View>
+          </View>
+          <AppText muted style={styles.settingsBodyText}>
+            Local price alerts need Android notification access. If Android still blocks them after the prompt, open the app notification settings directly.
+          </AppText>
+          <PrimaryButton
+            label={notificationEnabled ? 'Open notification settings' : 'Enable notifications'}
+            variant="outline"
+            onPress={notificationEnabled ? openNotificationSettings : requestNotifications}
+            loading={requestingNotifications}
+          />
+        </View>
       </View>
-      <PrimaryButton label="Queue background check once" variant="outline" onPress={queueBackgroundCheck} />
+      <View style={styles.settingsCard}>
+        <View style={styles.settingsStack}>
+          <View style={styles.settingsHeaderRow}>
+            <View style={styles.flex}>
+              <AppText weight="bold">Daily background check time</AppText>
+              <AppText muted style={styles.settingsBodyText}>
+                Android will try to run the worker around the selected hour each day using this device's local time.
+              </AppText>
+            </View>
+            <View style={[styles.settingsBadge, styles.settingsBadgeSuccess]}>
+              <AppText weight="semibold" style={[styles.settingsBadgeText, styles.settingsBadgeSuccessText]}>
+                {preferredHourLabel}
+              </AppText>
+            </View>
+          </View>
+          <AppText weight="semibold" muted>
+            Pick a time
+          </AppText>
+          <View style={styles.settingsPresetRow}>
+            {BACKGROUND_TIME_PRESETS.map((preset) => {
+              const selected = preset.hour === selectedPresetHour;
+              return (
+                <Pressable
+                  key={preset.label}
+                  style={[styles.settingsPreset, selected && styles.settingsPresetActive, savingSchedule && styles.settingsPresetDisabled]}
+                  onPress={() => selectBackgroundSchedule(preset.hour)}
+                  disabled={savingSchedule}
+                >
+                  <AppText weight="semibold" style={[styles.settingsPresetTitle, selected && styles.settingsPresetTitleActive]}>
+                    {preset.label}
+                  </AppText>
+                  <AppText muted style={[styles.settingsPresetValue, selected && styles.settingsPresetValueActive]}>
+                    {formatPreferredHour(preset.hour)}
+                  </AppText>
+                </Pressable>
+              );
+            })}
+          </View>
+          <AppText muted style={styles.settingsHint}>
+            Tap an option to save it immediately. Product check preferences still decide which items are actually due when the worker wakes up.
+          </AppText>
+          <View style={styles.settingsMetaCard}>
+            <InfoRow label="Saved daily target" value={preferredHourLabel} />
+            <InfoRow label="Last scheduled" value={formatStatusTime(backgroundStatus?.lastScheduledAt)} />
+            <InfoRow label="Last started" value={formatStatusTime(backgroundStatus?.lastStartedAt)} />
+            <InfoRow label="Last completed" value={formatStatusTime(backgroundStatus?.lastCompletedAt)} />
+            <InfoRow
+              label="Last source"
+              value={backgroundStatus?.lastSource ? formatRunSource(backgroundStatus.lastSource, backgroundStatus.lastForceRun) : 'No background run yet'}
+            />
+            {backgroundStatus?.lastRunError ? <AppText style={styles.errorText}>Last run error: {backgroundStatus.lastRunError}</AppText> : null}
+          </View>
+          <AppText muted style={styles.settingsHint}>
+            WorkManager is best-effort. Battery saving, idle mode, vendor restrictions, or force-stopping the app can delay future runs.
+          </AppText>
+          <AppText muted style={styles.settingsHint}>
+            No extra background permission is normally required. Notification permission is separate and only affects alerts.
+          </AppText>
+          <PrimaryButton label="Queue background check once" variant="outline" onPress={queueBackgroundCheck} loading={queueingCheck} />
+        </View>
+      </View>
       <PrimaryButton
         label="Delete all local data"
         variant="danger"
@@ -628,6 +888,17 @@ function SectionTitle({ title }: { title: string }) {
     <AppText weight="bold" style={styles.sectionTitle}>
       {title}
     </AppText>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.infoRow}>
+      <AppText muted>{label}</AppText>
+      <AppText weight="medium" style={styles.infoRowValue}>
+        {value}
+      </AppText>
+    </View>
   );
 }
 
@@ -658,6 +929,61 @@ function alertModeLabel(mode: AlertMode): string {
     return 'Target price';
   }
   return 'Price drops only';
+}
+
+function formatStatusTime(iso?: string): string {
+  if (!iso) {
+    return 'Never';
+  }
+
+  return `${formatSnapshotTime(iso)} (${formatRelativeTime(iso)})`;
+}
+
+function formatPreferredHour(hour: number): string {
+  const normalized = Number.isFinite(hour) ? Math.min(23, Math.max(0, Math.round(hour))) : 9;
+  const suffix = normalized >= 12 ? 'PM' : 'AM';
+  const hour12 = normalized % 12 === 0 ? 12 : normalized % 12;
+  return `${hour12}:00 ${suffix}`;
+}
+
+function snapshotSourceLabel(source: SnapshotSource): string {
+  if (source === 'manual_single') {
+    return 'Check now';
+  }
+
+  if (source === 'manual_batch') {
+    return 'Recheck all';
+  }
+
+  if (source === 'background') {
+    return 'Background';
+  }
+
+  return 'Unknown';
+}
+
+function snapshotSourceBadgeStyle(source: SnapshotSource) {
+  if (source === 'manual_single') {
+    return styles.sourceBadgeBlue;
+  }
+
+  if (source === 'manual_batch') {
+    return styles.sourceBadgeAmber;
+  }
+
+  if (source === 'background') {
+    return styles.sourceBadgeGreen;
+  }
+
+  return styles.sourceBadgeMuted;
+}
+
+function formatRunSource(source: string, forced?: boolean): string {
+  if (source === 'work-manager') {
+    return forced ? 'Background (forced once)' : 'Background';
+  }
+
+  return source;
 }
 
 const styles = StyleSheet.create({
@@ -993,6 +1319,40 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 12
   },
+  snapshotMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap'
+  },
+  snapshotPriceBlock: {
+    alignItems: 'flex-end',
+    gap: 4
+  },
+  snapshotAvailability: {
+    fontSize: 12,
+    textTransform: 'capitalize'
+  },
+  sourceBadge: {
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4
+  },
+  sourceBadgeText: {
+    fontSize: 11
+  },
+  sourceBadgeBlue: {
+    backgroundColor: colors.blueSoft
+  },
+  sourceBadgeAmber: {
+    backgroundColor: colors.amberSoft
+  },
+  sourceBadgeGreen: {
+    backgroundColor: colors.greenSoft
+  },
+  sourceBadgeMuted: {
+    backgroundColor: colors.surfaceMuted
+  },
   bottomAction: {
     position: 'absolute',
     left: 0,
@@ -1015,16 +1375,124 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface
   },
   settingsCard: {
-    flexDirection: 'row',
-    gap: 12,
-    padding: 16,
+    padding: 20,
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: colors.surface
+    backgroundColor: colors.surface,
+    ...shadow
+  },
+  settingsHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12
+  },
+  settingsBodyText: {
+    lineHeight: 22
+  },
+  settingsIntro: {
+    marginTop: -4,
+    lineHeight: 22
+  },
+  settingsStack: {
+    gap: 16
+  },
+  settingsBadge: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    backgroundColor: colors.surfaceMuted
+  },
+  settingsBadgeMuted: {
+    backgroundColor: colors.surfaceMuted
+  },
+  settingsBadgeSuccess: {
+    backgroundColor: colors.greenSoft
+  },
+  settingsBadgeText: {
+    fontSize: 12,
+    color: colors.textMuted
+  },
+  settingsBadgeSuccessText: {
+    color: colors.green
+  },
+  settingsChipWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10
+  },
+  settingsChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: '#F7FBFF',
+    borderWidth: 1,
+    borderColor: colors.border
+  },
+  settingsChipText: {
+    fontSize: 13
+  },
+  settingsHint: {
+    fontSize: 12,
+    lineHeight: 18
+  },
+  settingsMetaCard: {
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceMuted,
+    padding: 14,
+    gap: 12
+  },
+  settingsPresetRow: {
+    flexDirection: 'row',
+    gap: 12
+  },
+  settingsPreset: {
+    flex: 1,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 14,
+    paddingVertical: 16,
+    gap: 6
+  },
+  settingsPresetActive: {
+    borderColor: colors.primary,
+    backgroundColor: '#F7FBFF'
+  },
+  settingsPresetDisabled: {
+    opacity: 0.7
+  },
+  settingsPresetTitle: {
+    fontSize: 14
+  },
+  settingsPresetTitleActive: {
+    color: colors.primary
+  },
+  settingsPresetValue: {
+    fontSize: 12
+  },
+  settingsPresetValueActive: {
+    color: colors.primary
+  },
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12
+  },
+  infoRowValue: {
+    flexShrink: 1,
+    textAlign: 'right'
   },
   flex: {
     flex: 1,
     minWidth: 0
+  },
+  errorText: {
+    color: colors.red
   }
 });
