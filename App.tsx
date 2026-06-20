@@ -58,9 +58,9 @@ type Route =
   | { name: 'trackingSettings'; id: number };
 
 const CHECK_OPTIONS: { value: CheckPreference; label: string; description: string }[] = [
-  { value: 'daily', label: 'Daily', description: 'Every day' },
-  { value: 'few_times', label: 'Few times', description: '2-3 per day' },
-  { value: 'often', label: 'Often', description: 'As allowed' }
+  { value: 'daily', label: 'Daily', description: 'Once a day' },
+  { value: 'every_3_days', label: 'Every 3 days', description: 'Once every 3 days' },
+  { value: 'weekly', label: 'Weekly', description: 'Once a week' }
 ];
 
 const ALERT_OPTIONS: { value: AlertMode; label: string; description: string }[] = [
@@ -228,7 +228,7 @@ function AddScreen({ navigate }: { navigate: (route: Route) => void }) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | undefined>();
-  const [checkPreference, setCheckPreference] = useState<CheckPreference>('few_times');
+  const [checkPreference, setCheckPreference] = useState<CheckPreference>('daily');
   const [alertMode, setAlertMode] = useState<AlertMode>('price_drop');
   const [targetPrice, setTargetPrice] = useState('');
 
@@ -480,7 +480,7 @@ function DetailScreen({ productId, navigate }: { productId: number; navigate: (r
 
 function TrackingSettingsScreen({ productId, navigate }: { productId: number; navigate: (route: Route) => void }) {
   const [product, setProduct] = useState<TrackedProduct | undefined>();
-  const [checkPreference, setCheckPreference] = useState<CheckPreference>('few_times');
+  const [checkPreference, setCheckPreference] = useState<CheckPreference>('daily');
   const [alertMode, setAlertMode] = useState<AlertMode>('price_drop');
   const [targetPrice, setTargetPrice] = useState('');
 

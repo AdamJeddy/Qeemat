@@ -11,6 +11,7 @@ import {
   TrackedProduct
 } from '../domain/types';
 import { nowIso } from '../domain/dates';
+import { normalizeCheckPreference } from '../domain/dates';
 
 const STORE_KEY = 'qeemat.local-store.v1';
 
@@ -259,7 +260,15 @@ async function readStore(): Promise<LocalStore> {
   }
 
   try {
-    return JSON.parse(raw) as LocalStore;
+    const parsed = JSON.parse(raw) as LocalStore;
+
+    return {
+      ...parsed,
+      products: parsed.products.map((product) => ({
+        ...product,
+        checkPreference: normalizeCheckPreference(product.checkPreference)
+      }))
+    };
   } catch {
     await writeStore(EMPTY_STORE);
     return EMPTY_STORE;

@@ -2,7 +2,7 @@ export type SiteKey = 'noon' | 'nike_uae' | 'sun_sand_sports' | 'level_shoes' | 
 
 export type Availability = 'in_stock' | 'out_of_stock' | 'unknown';
 
-export type CheckPreference = 'daily' | 'few_times' | 'often';
+export type CheckPreference = 'daily' | 'every_3_days' | 'weekly';
 
 export type AlertMode = 'price_drop' | 'any_change' | 'target_price';
 

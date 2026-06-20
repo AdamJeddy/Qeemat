@@ -42,7 +42,7 @@ On Android, periodic work can be delayed by battery, network, vendor restriction
 
 The UI should reflect this honestly:
 
-- Use labels like "Roughly daily", "A few times per day", and "As often as allowed".
+- Use labels like "Once a day", "Once every 3 days", and "Once a week".
 - Show `lastCheckedAt` and `nextCheckPreference`, not a guaranteed next run time.
 - Show check status per product: `ok`, `price_changed`, `price_not_found`, `network_error`, `unsupported_page`, `blocked`, or `site_parser_failed`.
 - Include a manual "Check now" action for user-initiated refreshes.

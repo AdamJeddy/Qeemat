@@ -1,3 +1,5 @@
+import { CheckPreference } from './types';
+
 export function nowIso(): string {
   return new Date().toISOString();
 }
@@ -48,13 +50,37 @@ export function formatSnapshotTime(iso: string): string {
   });
 }
 
-export function minimumCheckIntervalHours(preference: string): number {
-  if (preference === 'often') {
-    return 3;
+export function normalizeCheckPreference(preference: string | undefined): CheckPreference {
+  if (preference === 'weekly') {
+    return 'weekly';
   }
 
-  if (preference === 'few_times') {
-    return 8;
+  if (preference === 'every_3_days') {
+    return 'every_3_days';
+  }
+
+  if (preference === 'daily') {
+    return 'daily';
+  }
+
+  // Older local builds stored more aggressive frequencies. Normalize them to daily
+  // so existing users do not silently lose check cadence after upgrading.
+  if (preference === 'few_times' || preference === 'often') {
+    return 'daily';
+  }
+
+  return 'daily';
+}
+
+export function minimumCheckIntervalHours(preference: string): number {
+  const normalized = normalizeCheckPreference(preference);
+
+  if (normalized === 'weekly') {
+    return 24 * 7;
+  }
+
+  if (normalized === 'every_3_days') {
+    return 24 * 3;
   }
 
   return 24;

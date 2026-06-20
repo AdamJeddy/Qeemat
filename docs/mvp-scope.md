@@ -69,7 +69,7 @@ The MVP support list is intentionally small:
 - Product detail screen.
 - Price history snapshots.
 - Manual check now.
-- Check preference: `daily`, `few_times`, `often`.
+- Check preference: `daily`, `every_3_days`, `weekly`.
 - Alert modes: `price_drop`, `any_change`, `target_price`.
 - Optional target price.
 - Supported stores screen.
