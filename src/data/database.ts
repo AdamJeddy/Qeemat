@@ -8,6 +8,7 @@ import {
   PriceSnapshot,
   ProductDraft,
   ProductWithSnapshots,
+  SnapshotSource,
   TrackedProduct
 } from '../domain/types';
 import { nowIso } from '../domain/dates';
@@ -99,7 +100,7 @@ export async function createTrackedProduct(draft: ProductDraft): Promise<number>
     updatedAt: now
   };
 
-  const snapshot = createSnapshot(store.nextSnapshotId, productId, parsed, 'ok', undefined, now);
+  const snapshot = createSnapshot(store.nextSnapshotId, productId, parsed, 'ok', 'manual_single', undefined, now);
 
   await writeStore({
     ...store,
@@ -156,7 +157,8 @@ export async function deleteAllLocalData(): Promise<void> {
 
 export async function recordSuccessfulCheck(
   product: TrackedProduct,
-  parsed: ParsedProduct
+  parsed: ParsedProduct,
+  source: SnapshotSource
 ): Promise<{ status: CheckStatus; previousPriceMinor?: number; newPriceMinor?: number }> {
   const store = await readStore();
   const checkedAt = nowIso();
@@ -166,7 +168,7 @@ export async function recordSuccessfulCheck(
     previousPriceMinor !== undefined && newPriceMinor !== undefined && previousPriceMinor !== newPriceMinor
       ? 'price_changed'
       : 'ok';
-  const snapshot = createSnapshot(store.nextSnapshotId, product.id, parsed, status, undefined, checkedAt);
+  const snapshot = createSnapshot(store.nextSnapshotId, product.id, parsed, status, source, undefined, checkedAt);
 
   await writeStore({
     ...store,
@@ -198,7 +200,12 @@ export async function recordSuccessfulCheck(
   };
 }
 
-export async function recordFailedCheck(product: TrackedProduct, code: CheckStatus, rawMessage?: string): Promise<void> {
+export async function recordFailedCheck(
+  product: TrackedProduct,
+  code: CheckStatus,
+  source: SnapshotSource,
+  rawMessage?: string
+): Promise<void> {
   const store = await readStore();
   const checkedAt = nowIso();
 
@@ -210,6 +217,7 @@ export async function recordFailedCheck(product: TrackedProduct, code: CheckStat
     status: code,
     errorCode: code,
     rawPriceText: rawMessage,
+    source,
     checkedAt
   };
 
@@ -236,6 +244,7 @@ function createSnapshot(
   productId: number,
   parsed: ParsedProduct,
   status: CheckStatus,
+  source: SnapshotSource,
   errorCode?: CheckStatus,
   checkedAt = nowIso()
 ): PriceSnapshot {
@@ -248,6 +257,7 @@ function createSnapshot(
     status,
     errorCode,
     rawPriceText: parsed.rawPriceText,
+    source,
     checkedAt
   };
 }
@@ -267,6 +277,10 @@ async function readStore(): Promise<LocalStore> {
       products: parsed.products.map((product) => ({
         ...product,
         checkPreference: normalizeCheckPreference(product.checkPreference)
+      })),
+      snapshots: parsed.snapshots.map((snapshot) => ({
+        ...snapshot,
+        source: snapshot.source ?? 'unknown'
       }))
     };
   } catch {

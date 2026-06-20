@@ -10,6 +10,7 @@ import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
+import java.util.Calendar
 import java.util.concurrent.TimeUnit
 
 private const val PERIODIC_WORK_NAME = "qeemat-price-check-periodic"
@@ -21,11 +22,14 @@ class QeematBackgroundCheckModule(private val reactContext: ReactApplicationCont
   override fun getName(): String = "QeematBackgroundCheck"
 
   @ReactMethod
-  fun schedule(promise: Promise) {
+  fun schedule(preferredHour: Double, promise: Promise) {
     try {
+      val hour = preferredHour.toInt().coerceIn(0, 23)
+      val initialDelayMillis = calculateInitialDelayMillis(hour)
       val request =
-          PeriodicWorkRequestBuilder<QeematBackgroundWorker>(15, TimeUnit.MINUTES)
+          PeriodicWorkRequestBuilder<QeematBackgroundWorker>(24, TimeUnit.HOURS)
               .setInputData(Data.Builder().putBoolean("force", false).build())
+              .setInitialDelay(initialDelayMillis, TimeUnit.MILLISECONDS)
               .addTag(PERIODIC_WORK_NAME)
               .build()
 
@@ -40,6 +44,21 @@ class QeematBackgroundCheckModule(private val reactContext: ReactApplicationCont
     } catch (error: Exception) {
       promise.reject("QBG_SCHEDULE_FAILED", error)
     }
+  }
+
+  private fun calculateInitialDelayMillis(hour: Int): Long {
+    val now = Calendar.getInstance()
+    val nextRun = Calendar.getInstance().apply {
+      set(Calendar.MINUTE, 0)
+      set(Calendar.SECOND, 0)
+      set(Calendar.MILLISECOND, 0)
+      set(Calendar.HOUR_OF_DAY, hour)
+      if (!after(now)) {
+        add(Calendar.DAY_OF_YEAR, 1)
+      }
+    }
+
+    return nextRun.timeInMillis - now.timeInMillis
   }
 
   @ReactMethod

@@ -16,6 +16,8 @@ export type CheckStatus =
   | 'blocked'
   | 'site_parser_failed';
 
+export type SnapshotSource = 'unknown' | 'manual_single' | 'manual_batch' | 'background';
+
 export type SupportedSite = {
   key: SiteKey;
   displayName: string;
@@ -67,6 +69,7 @@ export type PriceSnapshot = {
   status: CheckStatus;
   errorCode?: CheckStatus;
   rawPriceText?: string;
+  source: SnapshotSource;
   checkedAt: string;
 };
 
