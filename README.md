@@ -11,6 +11,7 @@ Supported MVP stores:
 - Nike UAE
 - Sun & Sand Sports UAE
 - Level Shoes
+- Amazon.ae
 
 ## Planning
 
