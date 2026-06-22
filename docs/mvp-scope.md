@@ -51,6 +51,7 @@ The MVP support list is intentionally small:
 | Nike UAE | MVP supported | Product detail pages expose structured product data with AED price and availability. |
 | Sun & Sand Sports UAE | MVP supported | Product detail pages expose structured product data with AED price and availability. |
 | Level Shoes | MVP supported | Product pages expose product payloads with title, brand, image, stock, SKU, and AED prices. |
+| AYM Accessories | MVP supported | WooCommerce product pages expose variation data, images, stock state, and AED pricing on supported product pages. |
 | Amazon.ae | MVP supported | High user value and supported at MVP level when Amazon serves a normal product page without a challenge. |
 
 ## Deferred Websites

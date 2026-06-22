@@ -34,6 +34,14 @@ export const SUPPORTED_SITES: SupportedSite[] = [
     notes: 'Product pages expose Next.js product payloads and useful structured metadata.'
   },
   {
+    key: 'ay_accessories',
+    displayName: 'AYM Accessories',
+    shortName: 'AYM',
+    hostnames: ['ay-accessories.com', 'www.ay-accessories.com'],
+    status: 'supported',
+    notes: 'WooCommerce product pages expose variation JSON, images, and AED pricing for supported product pages.'
+  },
+  {
     key: 'amazon_ae',
     displayName: 'Amazon.ae',
     shortName: 'Amazon',

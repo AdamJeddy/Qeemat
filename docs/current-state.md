@@ -21,6 +21,7 @@ Core loop:
 - Nike UAE
 - Sun & Sand Sports UAE
 - Level Shoes
+- AYM Accessories
 - Amazon.ae
 
 Amazon support is intentionally MVP-level only. It works when Amazon serves a normal product page and should surface `blocked` when Amazon returns robot-check or challenge pages instead.
@@ -124,9 +125,11 @@ If permission is blocked, the app should continue tracking locally without showi
 ## Parser and Site Notes
 
 - Parsers are wired through the site registry in `src/domain/sites.ts`
+- Parser coverage includes AYM WooCommerce variation markup
 - Parser coverage includes Amazon buy-box style markup and challenge-page detection in tests
 - Current parser tests cover:
   - Noon structured data parsing
+  - AYM product page parsing
   - Amazon product page parsing
   - blocked/challenge page detection
 
@@ -211,6 +214,7 @@ If terminal builds fail with invalid `JAVA_HOME` or missing `adb`, fix those loc
 ## Recent Notable Changes
 
 - Added Amazon.ae parser support and blocked-page handling.
+- Added AYM Accessories parser support.
 - Changed per-product check preferences to `daily`, `every_3_days`, and `weekly`.
 - Added `Recheck all prices` on the watchlist.
 - Added Android notification permission handling and native local notifications.

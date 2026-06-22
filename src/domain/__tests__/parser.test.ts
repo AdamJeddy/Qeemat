@@ -3,6 +3,7 @@ import { detectSupportedSite } from '../sites';
 
 const noonUrl =
   'https://www.noon.com/uae-en/galaxy-s25-ultra-ai-dual-sim-titanium-grey-12gb-ram-256gb-5g-middle-east-version/N70140492V/p/';
+const aymUrl = 'https://ay-accessories.com/product/nolan-n120-1-classico-nobile-n-com-modular-helmet/';
 const amazonUrl = 'https://www.amazon.ae/Logitech-Headphones-Cancelling-Microphone-Chromebook/dp/B005BFCNYU/';
 
 describe('parseProductHtml', () => {
@@ -113,9 +114,60 @@ describe('parseProductHtml', () => {
       })
     );
   });
+
+  it('parses AYM WooCommerce variable product markup', () => {
+    const html = `
+      <html>
+        <head>
+          <link rel="canonical" href="https://ay-accessories.com/product/nolan-n120-1-classico-nobile-n-com-modular-helmet/" />
+          <meta property="og:image" content="https://ay-accessories.com/wp-content/uploads/2025/12/N120-1313.jpg" />
+        </head>
+        <body>
+          <div class="single-product-page entry-content product type-product instock product-type-variable">
+            <h1 class="product_title entry-title wd-entities-title">Nolan N120-1 Classico Nobile N-Com Modular Helmet</h1>
+            <div class="wd-single-price">
+              <p class="price">
+                <span class="woocommerce-Price-amount amount" aria-hidden="true">
+                  <bdi>1,519&nbsp;<span class="woocommerce-Price-currencySymbol">&#x62f;.&#x625;</span></bdi>
+                </span>
+                <span aria-hidden="true">&ndash;</span>
+                <span class="woocommerce-Price-amount amount" aria-hidden="true">
+                  <bdi>1,559&nbsp;<span class="woocommerce-Price-currencySymbol">&#x62f;.&#x625;</span></bdi>
+                </span>
+                <span class="screen-reader-text">Price range: 1,519&#x62f;.&#x625; through 1,559&#x62f;.&#x625;</span>
+              </p>
+            </div>
+            <form
+              class="variations_form cart"
+              data-product_variations="[{&quot;availability_html&quot;:&quot;&lt;p class=\\&quot;stock in-stock wd-style-default\\&quot;&gt;In stock&lt;/p&gt;&quot;,&quot;display_price&quot;:1519,&quot;image&quot;:{&quot;full_src&quot;:&quot;https://ay-accessories.com/wp-content/uploads/2025/12/N120-1313.jpg&quot;},&quot;is_in_stock&quot;:true,&quot;sku&quot;:&quot;N120-1[313]L&quot;}]"
+            ></form>
+          </div>
+        </body>
+      </html>
+    `;
+
+    const parsed = parseProductHtml('ay_accessories', aymUrl, html);
+
+    expect(parsed).toEqual(
+      expect.objectContaining({
+        siteKey: 'ay_accessories',
+        canonicalUrl: aymUrl,
+        title: 'Nolan N120-1 Classico Nobile N-Com Modular Helmet',
+        sku: 'N120-1[313]L',
+        imageUrl: 'https://ay-accessories.com/wp-content/uploads/2025/12/N120-1313.jpg',
+        priceMinor: 151900,
+        currency: 'AED',
+        availability: 'in_stock'
+      })
+    );
+  });
 });
 
 describe('detectSupportedSite', () => {
+  it('detects AYM Accessories product URLs', () => {
+    expect(detectSupportedSite(aymUrl)?.key).toBe('ay_accessories');
+  });
+
   it('detects Amazon.ae product URLs', () => {
     expect(detectSupportedSite(amazonUrl)?.key).toBe('amazon_ae');
     expect(detectSupportedSite('https://www.amazon.ae/gp/product/B005BFCNYU')?.key).toBe('amazon_ae');

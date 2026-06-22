@@ -99,6 +99,10 @@ export function parseProductHtml(siteKey: SiteKey, inputUrl: string, html: strin
     return structured;
   }
 
+  if (siteKey === 'ay_accessories') {
+    return parseAymProduct(siteKey, inputUrl, html) ?? structured;
+  }
+
   if (siteKey === 'amazon_ae') {
     return parseAmazonProduct(siteKey, inputUrl, html) ?? structured;
   }
@@ -140,6 +144,36 @@ function parseStructuredProduct(siteKey: SiteKey, inputUrl: string, html: string
     currency,
     availability,
     rawPriceText: asString(offer?.price) ?? meta.price,
+    sku
+  };
+}
+
+function parseAymProduct(siteKey: SiteKey, inputUrl: string, html: string): ParsedProduct | undefined {
+  const meta = extractMeta(html);
+  const variation = firstAymVariation(html);
+  const title =
+    matchString(html, /<h1[^>]*class=["'][^"']*product_title[^"']*["'][^>]*>\s*([^<]+?)\s*<\/h1>/i) ??
+    stripStoreSuffix(meta.title);
+  const imageUrl = extractAymVariationImage(variation) ?? meta.imageUrl;
+  const rawPriceText = asString(variation?.display_price) ?? extractAymPriceText(html) ?? meta.price;
+  const sku =
+    cleanSku(asString(variation?.sku)) ??
+    cleanSku(matchString(html, /<span class=["']sku["'][^>]*>\s*([^<]+?)\s*<\/span>/i)) ??
+    cleanSku(matchString(html, /<span class=["']stl_codenum["'][^>]*>\s*([^<]+?)\s*<\/span>/i));
+
+  if (!title && !rawPriceText) {
+    return undefined;
+  }
+
+  return {
+    siteKey,
+    canonicalUrl: meta.canonicalUrl ?? inputUrl,
+    title: cleanText(title ?? 'AYM product'),
+    imageUrl,
+    priceMinor: parsePriceToMinor(rawPriceText),
+    currency: 'AED',
+    availability: parseAymAvailability(variation, html),
+    rawPriceText,
     sku
   };
 }
@@ -229,6 +263,46 @@ function parseNoonFallback(siteKey: SiteKey, inputUrl: string, html: string): Pa
     rawPriceText: price ? String(price) : undefined,
     sku
   };
+}
+
+function firstAymVariation(html: string): JsonRecord | undefined {
+  const match = html.match(/data-product_variations=(["'])([\s\S]*?)\1/i);
+  if (!match?.[2]) {
+    return undefined;
+  }
+
+  try {
+    const parsed = JSON.parse(decodeHtmlEntities(match[2]));
+    if (!Array.isArray(parsed)) {
+      return undefined;
+    }
+
+    const variations = parsed.filter((item): item is JsonRecord => !!item && typeof item === 'object' && !Array.isArray(item));
+    return variations.find((item) => item['is_in_stock'] === true) ?? variations[0];
+  } catch {
+    return undefined;
+  }
+}
+
+function extractAymVariationImage(variation?: JsonRecord): string | undefined {
+  const image = variation?.['image'];
+  if (!image || typeof image !== 'object' || Array.isArray(image)) {
+    return undefined;
+  }
+
+  const record = image as JsonRecord;
+  return asString(record['full_src']) ?? asString(record['url']) ?? asString(record['src']);
+}
+
+function extractAymPriceText(html: string): string | undefined {
+  return (
+    matchString(html, /Current price is:\s*([0-9,]+(?:\.[0-9]{2})?)/i) ??
+    matchString(html, /Price range:\s*([0-9,]+(?:\.[0-9]{2})?)\s+through/i) ??
+    matchString(
+      html,
+      /<p class=["']price["'][^>]*>[\s\S]{0,600}?<span class=["']woocommerce-Price-amount amount["'][^>]*>\s*<bdi>\s*([^<]+?)\s*<span class=["']woocommerce-Price-currencySymbol["'][^>]*>/i
+    )
+  );
 }
 
 function findProductJsonLd(html: string): JsonRecord | undefined {
@@ -354,15 +428,40 @@ function parseAvailability(value?: string): Availability {
   }
 
   const normalized = value.toLowerCase();
-  if (normalized.includes('instock') || normalized.includes('in_stock')) {
+  if (normalized.includes('instock') || normalized.includes('in_stock') || normalized.includes('in-stock') || normalized.includes('in stock')) {
     return 'in_stock';
   }
 
-  if (normalized.includes('outofstock') || normalized.includes('out_of_stock') || normalized.includes('soldout')) {
+  if (
+    normalized.includes('outofstock') ||
+    normalized.includes('out_of_stock') ||
+    normalized.includes('out-of-stock') ||
+    normalized.includes('out of stock') ||
+    normalized.includes('soldout')
+  ) {
     return 'out_of_stock';
   }
 
   return 'unknown';
+}
+
+function parseAymAvailability(variation: JsonRecord | undefined, html: string): Availability {
+  if (typeof variation?.['is_in_stock'] === 'boolean') {
+    return variation['is_in_stock'] ? 'in_stock' : 'out_of_stock';
+  }
+
+  const variationAvailability = parseAvailability(asString(variation?.['availability_html']));
+  if (variationAvailability !== 'unknown') {
+    return variationAvailability;
+  }
+
+  const stockText = matchString(html, /<p class=["'][^"']*stock[^"']*["'][^>]*>\s*([^<]+?)\s*<\/p>/i);
+  const stockStatus = parseAvailability(stockText);
+  if (stockStatus !== 'unknown') {
+    return stockStatus;
+  }
+
+  return parseAvailability(matchString(html, /class=["'][^"']*\b(instock|outofstock)\b[^"']*["']/i));
 }
 
 function parseAmazonAvailability(value: string | undefined, html: string): Availability {
@@ -490,6 +589,27 @@ function unescapeJsonString(value: string): string {
 
 function cleanText(value: string): string {
   return decodeHtmlEntities(value.replace(/\s+/g, ' ').trim());
+}
+
+function cleanSku(value?: string): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  const cleaned = cleanText(value);
+  if (!cleaned || /^n\/a$/i.test(cleaned)) {
+    return undefined;
+  }
+
+  return cleaned;
+}
+
+function stripStoreSuffix(value?: string): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  return cleanText(value.replace(/\s*-\s*(?:Al Yousuf Accessories|AY Accessories)\s*$/i, ''));
 }
 
 function absoluteUrl(value: string, base: string): string {
