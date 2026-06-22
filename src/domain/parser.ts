@@ -186,6 +186,7 @@ function parseAmazonProduct(siteKey: SiteKey, inputUrl: string, html: string): P
     matchString(html, /"title"\s*:\s*"([^"]{3,240})"/);
   const imageUrl =
     matchString(html, /id=["']landingImage["'][^>]+data-old-hires=["']([^"']+)["']/i) ??
+    extractAmazonDynamicImageUrl(html) ??
     matchString(html, /id=["']landingImage["'][^>]+src=["']([^"']+)["']/i) ??
     meta.imageUrl;
   const rawPriceText = matchAmazonPriceText(html) ?? meta.price;
@@ -518,6 +519,29 @@ function matchAmazonPriceText(html: string): string | undefined {
     matchString(corePriceSection, /id=["']tp_price_block_total_price_ww["'][\s\S]{0,200}?<span class=["']a-offscreen["']>\s*(AED\s*[0-9.,]+)\s*<\/span>/i) ??
     matchString(corePriceSection, /<span class=["']a-offscreen["']>\s*(AED\s*[0-9.,]+)\s*<\/span>/i)
   );
+}
+
+function extractAmazonDynamicImageUrl(html: string): string | undefined {
+  const dynamicImageJson = matchString(html, /id=["']landingImage["'][^>]+data-a-dynamic-image=["']([^"']+)["']/i);
+  if (!dynamicImageJson) {
+    return undefined;
+  }
+
+  try {
+    const parsed = JSON.parse(dynamicImageJson) as Record<string, [number, number]>;
+    const urls = Object.keys(parsed);
+    if (urls.length === 0) {
+      return undefined;
+    }
+
+    return urls.sort((left, right) => {
+      const [leftWidth = 0, leftHeight = 0] = parsed[left] ?? [];
+      const [rightWidth = 0, rightHeight = 0] = parsed[right] ?? [];
+      return rightWidth * rightHeight - leftWidth * leftHeight;
+    })[0];
+  } catch {
+    return undefined;
+  }
 }
 
 function extractAmazonAsin(inputUrl: string): string | undefined {

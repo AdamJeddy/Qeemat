@@ -115,6 +115,52 @@ describe('parseProductHtml', () => {
     );
   });
 
+  it('falls back to Amazon dynamic-image markup when old-hires is missing', () => {
+    const html = `
+      <html>
+        <head>
+          <link rel="canonical" href="https://www.amazon.ae/Logitech-Headphones-Cancelling-Microphone-Chromebook/dp/B005BFCNYU/" />
+        </head>
+        <body>
+          <div id="titleSection">
+            <h1 id="title">
+              <span id="productTitle">Logitech H390 Wired Headset</span>
+            </h1>
+          </div>
+          <div id="corePriceDisplay_desktop_feature_div">
+            <span class="a-price aok-align-center reinventPricePriceToPayMargin priceToPay apex-pricetopay-value">
+              <span aria-hidden="true">
+                <span class="a-price-symbol">AED</span>
+                <span class="a-price-whole">79<span class="a-price-decimal">.</span></span>
+                <span class="a-price-fraction">00</span>
+              </span>
+            </span>
+          </div>
+          <img
+            id="landingImage"
+            src="https://m.media-amazon.com/images/I/61NuT5tXQML._AC_SY300_SX300_QL70_ML2_.jpg"
+            data-a-dynamic-image="{&quot;https://m.media-amazon.com/images/I/61NuT5tXQML._AC_SY355_.jpg&quot;:[355,355],&quot;https://m.media-amazon.com/images/I/61NuT5tXQML._AC_SX679_.jpg&quot;:[679,679]}"
+          />
+          <div id="availability">
+            <span class="a-size-medium a-color-success primary-availability-message"> In Stock </span>
+          </div>
+        </body>
+      </html>
+    `;
+
+    const parsed = parseProductHtml('amazon_ae', amazonUrl, html);
+
+    expect(parsed).toEqual(
+      expect.objectContaining({
+        siteKey: 'amazon_ae',
+        imageUrl: 'https://m.media-amazon.com/images/I/61NuT5tXQML._AC_SX679_.jpg',
+        priceMinor: 7900,
+        currency: 'AED',
+        availability: 'in_stock'
+      })
+    );
+  });
+
   it('parses AYM WooCommerce variable product markup', () => {
     const html = `
       <html>
