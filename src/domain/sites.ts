@@ -28,7 +28,7 @@ export const SUPPORTED_SITES: SupportedSite[] = [
   {
     key: 'level_shoes',
     displayName: 'Level Shoes',
-    shortName: 'Level',
+    shortName: 'Level Shoes',
     hostnames: ['levelshoes.com', 'www.levelshoes.com'],
     status: 'supported',
     notes: 'Product pages expose Next.js product payloads and useful structured metadata.'
