@@ -82,7 +82,7 @@ export async function fetchAndParseProduct(rawUrl: string): Promise<ParseProduct
     return {
       ok: false,
       code: 'price_not_found',
-      message: 'Qeemat found the product but could not find a current AED price.'
+      message: 'Qeemat found the product but could not find a current price.'
     };
   }
 
@@ -196,6 +196,7 @@ function parseAmazonProduct(siteKey: SiteKey, inputUrl: string, html: string): P
     matchString(html, /id=["']availability["'][\s\S]{0,500}?a-color-success[^>]*>\s*([^<]+?)\s*</i) ??
     matchString(html, /id=["']availability["'][\s\S]{0,500}?a-color-price[^>]*>\s*([^<]+?)\s*</i);
   const sku = extractAmazonAsin(inputUrl) ?? matchString(html, /data-csa-c-asin=["']([A-Z0-9]{10})["']/i);
+  const currency = inferAmazonCurrency(inputUrl, rawPriceText, meta.currency);
 
   if (!title && !rawPriceText) {
     return undefined;
@@ -207,7 +208,7 @@ function parseAmazonProduct(siteKey: SiteKey, inputUrl: string, html: string): P
     title: cleanText(title ?? 'Amazon product'),
     imageUrl,
     priceMinor: parsePriceToMinor(rawPriceText),
-    currency: rawPriceText?.toUpperCase().includes('AED') || meta.currency === 'AED' ? 'AED' : meta.currency ?? 'AED',
+    currency,
     availability: parseAmazonAvailability(availabilityText, html),
     rawPriceText,
     sku
@@ -517,17 +518,21 @@ function parseAmazonAvailability(value: string | undefined, html: string): Avail
 }
 
 function matchAmazonPriceText(html: string): string | undefined {
-  const corePriceSection = html.match(/id=["']corePriceDisplay_desktop_feature_div["'][\s\S]{0,5000}/i)?.[0] ?? html;
-
-  const priceToPayOffscreen = matchString(
-    corePriceSection,
-    /class=["'][^"']*priceToPay[^"']*["'][^>]*>\s*<span class=["']a-offscreen["']>\s*(AED\s*[0-9.,]+)\s*<\/span>/i
+  const priceToPayOffscreen = firstAmazonPriceText(
+    matchString(
+      html,
+      /class=["'][^"']*priceToPay[^"']*["'][^>]*>\s*<span class=["']a-offscreen["']>\s*([^<]*\d[^<]*)\s*<\/span>/i
+    ),
+    matchString(
+      html,
+      /class=["'][^"']*apex-pricetopay-value[^"']*["'][\s\S]{0,200}?<span class=["']a-offscreen["']>\s*([^<]*\d[^<]*)\s*<\/span>/i
+    )
   );
   if (priceToPayOffscreen) {
     return priceToPayOffscreen;
   }
 
-  const apexPrice = corePriceSection.match(
+  const apexPrice = html.match(
     /priceToPay[^>]*>[\s\S]{0,400}?<span class=["']a-price-symbol["']>\s*([^<]*)\s*<\/span>\s*<span class=["']a-price-whole["']>\s*([^<]+?)\s*(?:<span class=["']a-price-decimal["'][^>]*>\s*.\s*<\/span>)?\s*<\/span>\s*<span class=["']a-price-fraction["']>\s*([^<]+)\s*<\/span>/i
   );
   if (apexPrice) {
@@ -539,9 +544,10 @@ function matchAmazonPriceText(html: string): string | undefined {
     }
   }
 
-  return (
-    matchString(corePriceSection, /id=["']tp_price_block_total_price_ww["'][\s\S]{0,200}?<span class=["']a-offscreen["']>\s*(AED\s*[0-9.,]+)\s*<\/span>/i) ??
-    matchString(corePriceSection, /<span class=["']a-offscreen["']>\s*(AED\s*[0-9.,]+)\s*<\/span>/i)
+  return firstAmazonPriceText(
+    matchString(html, /id=["']tp_price_block_total_price_ww["'][\s\S]{0,200}?<span class=["']a-offscreen["']>\s*([^<]*\d[^<]*)\s*<\/span>/i),
+    matchString(html, /id=["']corePriceDisplay_desktop_feature_div["'][\s\S]{0,6000}?<span class=["']a-offscreen["']>\s*([^<]*\d[^<]*)\s*<\/span>/i),
+    matchString(html, /<span class=["']a-offscreen["']>\s*([^<]*\d[^<]*)\s*<\/span>/i)
   );
 }
 
@@ -571,6 +577,103 @@ function extractAmazonDynamicImageUrl(html: string): string | undefined {
 function extractAmazonAsin(inputUrl: string): string | undefined {
   const match = inputUrl.match(/\/(?:dp|gp\/product)\/([A-Z0-9]{10})(?:[/?]|$)/i);
   return match?.[1]?.toUpperCase();
+}
+
+function inferAmazonCurrency(inputUrl: string, rawPriceText?: string, fallbackCurrency?: string): string {
+  const codeMatch = rawPriceText?.match(/(?:^|\b)([A-Z]{3})(?=\s|\d|$)/);
+  if (codeMatch?.[1]) {
+    return codeMatch[1];
+  }
+
+  if (rawPriceText?.includes('€')) {
+    return 'EUR';
+  }
+
+  if (rawPriceText?.includes('£')) {
+    return 'GBP';
+  }
+
+  if (rawPriceText?.includes('¥')) {
+    return 'JPY';
+  }
+
+  if (rawPriceText?.includes('₹')) {
+    return 'INR';
+  }
+
+  if (rawPriceText?.includes('zł')) {
+    return 'PLN';
+  }
+
+  if (rawPriceText?.includes('kr')) {
+    const hostname = safeHostname(inputUrl);
+    if (hostname?.endsWith('amazon.se')) {
+      return 'SEK';
+    }
+  }
+
+  if (rawPriceText?.includes('$')) {
+    const hostname = safeHostname(inputUrl);
+    if (hostname?.endsWith('amazon.ca')) {
+      return 'CAD';
+    }
+    if (hostname?.endsWith('amazon.com.au')) {
+      return 'AUD';
+    }
+    if (hostname?.endsWith('amazon.com.mx')) {
+      return 'MXN';
+    }
+    if (hostname?.endsWith('amazon.sg')) {
+      return 'SGD';
+    }
+    if (hostname?.endsWith('amazon.com.br')) {
+      return 'BRL';
+    }
+    return 'USD';
+  }
+
+  const hostname = safeHostname(inputUrl);
+  if (!hostname) {
+    return fallbackCurrency ?? 'AED';
+  }
+
+  if (hostname.endsWith('amazon.ae')) return 'AED';
+  if (hostname.endsWith('amazon.co.uk')) return 'GBP';
+  if (hostname.endsWith('amazon.de')) return 'EUR';
+  if (hostname.endsWith('amazon.fr')) return 'EUR';
+  if (hostname.endsWith('amazon.it')) return 'EUR';
+  if (hostname.endsWith('amazon.es')) return 'EUR';
+  if (hostname.endsWith('amazon.nl')) return 'EUR';
+  if (hostname.endsWith('amazon.com.be')) return 'EUR';
+  if (hostname.endsWith('amazon.pl')) return 'PLN';
+  if (hostname.endsWith('amazon.se')) return 'SEK';
+  if (hostname.endsWith('amazon.eg')) return 'EGP';
+  if (hostname.endsWith('amazon.com.sa')) return 'SAR';
+  if (hostname.endsWith('amazon.com.tr')) return 'TRY';
+  if (hostname.endsWith('amazon.co.jp')) return 'JPY';
+  if (hostname.endsWith('amazon.sg')) return 'SGD';
+  if (hostname.endsWith('amazon.ca')) return 'CAD';
+  if (hostname.endsWith('amazon.com.au')) return 'AUD';
+  if (hostname.endsWith('amazon.com.mx')) return 'MXN';
+  if (hostname.endsWith('amazon.com.br')) return 'BRL';
+  if (hostname.endsWith('amazon.com')) return 'USD';
+
+  return fallbackCurrency ?? 'AED';
+}
+
+function firstAmazonPriceText(...candidates: Array<string | undefined>): string | undefined {
+  for (const candidate of candidates) {
+    const normalized = candidate ? cleanText(candidate) : undefined;
+    if (!normalized || !/\d/.test(normalized)) {
+      continue;
+    }
+
+    if (parsePriceToMinor(normalized) !== undefined) {
+      return normalized;
+    }
+  }
+
+  return undefined;
 }
 
 function firstString(value: unknown): string | undefined {
@@ -637,6 +740,11 @@ function unescapeJsonString(value: string): string {
 
 function cleanText(value: string): string {
   return decodeHtmlEntities(value.replace(/\s+/g, ' ').trim());
+}
+
+function safeHostname(value: string): string | undefined {
+  const match = value.match(/^(?:https?:\/\/)?([^/?#]+)/i);
+  return match?.[1]?.toLowerCase();
 }
 
 function cleanSku(value?: string): string | undefined {

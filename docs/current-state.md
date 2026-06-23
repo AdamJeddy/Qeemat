@@ -4,7 +4,7 @@ This file is the repo handoff for future AI or developer sessions. It describes 
 
 ## Product Summary
 
-Qeemat is a local-first price tracker for supported UAE product pages.
+Qeemat is a local-first price tracker for supported product pages, with a UAE-first MVP plus selected Amazon regional domains.
 
 Core loop:
 
@@ -22,9 +22,9 @@ Core loop:
 - Sun & Sand Sports UAE
 - Level Shoes
 - AYM Accessories
-- Amazon.ae
+- Amazon (selected regions)
 
-Amazon support is intentionally MVP-level only. It works when Amazon serves a normal product page and should surface `blocked` when Amazon returns robot-check or challenge pages instead.
+Amazon support is intentionally MVP-level only. It works across selected Amazon regional product domains when Amazon serves a normal product page and should surface `blocked` when Amazon returns robot-check or challenge pages instead.
 
 ## Current User-Facing Behavior
 
@@ -126,11 +126,11 @@ If permission is blocked, the app should continue tracking locally without showi
 
 - Parsers are wired through the site registry in `src/domain/sites.ts`
 - Parser coverage includes AYM WooCommerce variation markup
-- Parser coverage includes Amazon buy-box style markup and challenge-page detection in tests
+- Parser coverage includes Amazon regional-domain detection, multi-currency price parsing, buy-box style markup, alternate total-price fallback handling, and challenge-page detection in tests
 - Current parser tests cover:
   - Noon structured data parsing
   - AYM product page parsing
-  - Amazon product page parsing
+  - Amazon product page parsing across `.ae`, `.com`, and `.de` price formats
   - blocked/challenge page detection
 
 If a supported site starts requiring login, bot bypassing, or unstable browser-only behavior, it should be downgraded from reliable MVP support.
@@ -207,13 +207,13 @@ If terminal builds fail with invalid `JAVA_HOME` or missing `adb`, fix those loc
 
 - Native background checks and notifications are implemented only for Android right now.
 - Storage is AsyncStorage-based, which is acceptable for the MVP but not ideal long-term for larger history volumes.
-- Amazon.ae can return robot-check/challenge pages, so its support is best-effort.
+- Amazon regional domains can return robot-check/challenge pages, so Amazon support is best-effort.
 - There is no backend, push service, user account system, or cloud sync.
 - Background timing is approximate even after choosing a preferred hour.
 
 ## Recent Notable Changes
 
-- Added Amazon.ae parser support and blocked-page handling.
+- Expanded Amazon support to selected regional domains, multi-currency price parsing, and more resilient Amazon price fallback handling.
 - Added AYM Accessories parser support.
 - Changed per-product check preferences to `daily`, `every_3_days`, and `weekly`.
 - Added `Recheck all prices` on the watchlist.

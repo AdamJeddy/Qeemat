@@ -4,7 +4,7 @@ Note: this file is product scope and intent. For the current implemented repo st
 
 ## MVP Goal
 
-Qeemat is a local-first mobile app for tracking product prices from a small set of supported UAE websites. The user pastes a product URL, confirms the detected product details, chooses a practical check preference, and receives local notifications when Qeemat detects a price drop, any price change, or a target-price hit.
+Qeemat is a local-first mobile app for tracking product prices from a small set of supported websites. The MVP remains UAE-first, but Amazon support now extends to selected regional domains. The user pastes a product URL, confirms the detected product details, chooses a practical check preference, and receives local notifications when Qeemat detects a price drop, any price change, or a target-price hit.
 
 The MVP should prove the core loop:
 
@@ -52,7 +52,7 @@ The MVP support list is intentionally small:
 | Sun & Sand Sports UAE | MVP supported | Product detail pages expose structured product data with AED price and availability. |
 | Level Shoes | MVP supported | Product pages expose product payloads with title, brand, image, stock, SKU, and AED prices. |
 | AYM Accessories | MVP supported | WooCommerce product pages expose variation data, images, stock state, and AED pricing on supported product pages. |
-| Amazon.ae | MVP supported | High user value and supported at MVP level when Amazon serves a normal product page without a challenge. |
+| Amazon (selected regions) | MVP supported | High user value and supported at MVP level across selected Amazon regional domains when Amazon serves a normal product page without a challenge. |
 
 ## Deferred Websites
 
@@ -108,7 +108,7 @@ The MVP support list is intentionally small:
 - Be explicit when a URL is unsupported.
 - Make supported stores visible from add flow and settings.
 - Prefer "price drops only" as the default alert mode.
-- Use AED as the first-class currency for MVP.
+- Use AED as the first-class currency for the UAE-first MVP, while preserving Amazon regional currencies when Amazon exposes them reliably.
 
 ## Validation Needed During Development
 
@@ -121,4 +121,4 @@ Before each site is considered truly supported, keep at least a few fixture URLs
 - Availability when present.
 - Stable SKU or product identifier when present.
 
-If any site starts requiring login, captcha, heavy browser automation, or unstable headers, move it from MVP supported to experimental. Amazon.ae should specifically fall back to blocked/experimental if bot verification becomes common in real device checks.
+If any site starts requiring login, captcha, heavy browser automation, or unstable headers, move it from MVP supported to experimental. Amazon regional domains should specifically fall back to blocked/experimental if bot verification becomes common in real device checks.

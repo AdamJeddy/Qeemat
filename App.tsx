@@ -299,7 +299,7 @@ function EmptyWatchlist({ onAdd }: { onAdd: () => void }) {
         Track your first product
       </AppText>
       <AppText muted style={styles.emptyCopy}>
-        Paste a Noon, Nike UAE, Sun & Sand Sports, Level Shoes, AYM Accessories, or Amazon.ae link to start a local price history.
+        Paste a Noon, Nike UAE, Sun & Sand Sports, Level Shoes, AYM Accessories, or Amazon product link to start a local price history.
       </AppText>
       <PrimaryButton label="Add product" onPress={onAdd} style={styles.emptyButton} />
     </View>
@@ -773,7 +773,7 @@ function SettingsScreen() {
             </View>
           </View>
           <AppText muted style={styles.settingsBodyText}>
-            Product links are currently supported for these UAE stores. Amazon support is kept intentionally lightweight for the MVP.
+            Product links are currently supported for these stores. Amazon support is kept intentionally lightweight for the MVP across selected regional domains.
           </AppText>
           <View style={styles.settingsChipWrap}>
             {SUPPORTED_SITES.map((site) => (

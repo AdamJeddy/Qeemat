@@ -2,7 +2,7 @@
 
 ![Qeemat social preview](docs/assets/qeemat-social-preview-1280x640-v2.png)
 
-Qeemat is an Android-first, local-first price tracker for a small set of supported UAE shopping sites. The current app is a React Native + TypeScript project with AsyncStorage-based local data, Android notifications, and best-effort Android background checks through WorkManager.
+Qeemat is an Android-first, local-first price tracker for a small set of supported shopping sites, with a UAE-first MVP plus selected Amazon regional domains. The current app is a React Native + TypeScript project with AsyncStorage-based local data, Android notifications, and best-effort Android background checks through WorkManager.
 
 ## Current MVP
 
@@ -25,7 +25,7 @@ Supported stores:
 - Sun & Sand Sports UAE
 - Level Shoes
 - AYM Accessories
-- Amazon.ae
+- Amazon (selected regions)
 
 ## Documentation
 
