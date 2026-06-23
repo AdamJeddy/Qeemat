@@ -107,6 +107,10 @@ export function parseProductHtml(siteKey: SiteKey, inputUrl: string, html: strin
     return parseAmazonProduct(siteKey, inputUrl, html) ?? structured;
   }
 
+  if (siteKey === 'ounass') {
+    return parseOunassProduct(siteKey, inputUrl, html) ?? structured;
+  }
+
   if (siteKey === 'level_shoes') {
     return parseLevelShoesPayload(siteKey, inputUrl, html) ?? structured;
   }
@@ -211,6 +215,44 @@ function parseAmazonProduct(siteKey: SiteKey, inputUrl: string, html: string): P
     currency,
     availability: parseAmazonAvailability(availabilityText, html),
     rawPriceText,
+    sku
+  };
+}
+
+function parseOunassProduct(siteKey: SiteKey, inputUrl: string, html: string): ParsedProduct | undefined {
+  const meta = extractMeta(html);
+  const productName = matchString(html, /"pdp":\{[\s\S]{0,12000}?"name":"([^"]+)"/);
+  const designerName =
+    matchString(html, /"pdp":\{[\s\S]{0,12000}?"designerCategoryEnglishName":"([^"]+)"/) ??
+    matchString(html, /"pdp":\{[\s\S]{0,12000}?"designerCategoryName":"([^"]+)"/);
+  const title = buildOunassTitle(designerName, productName) ?? stripOunassTitle(meta.title);
+  const rawPrice = matchNumber(html, /"pdp":\{[\s\S]{0,12000}?"priceInAED":([0-9.]+)/) ?? matchNumber(html, /"pdp":\{[\s\S]{0,12000}?"price":([0-9.]+)/);
+  const imageCandidate =
+    matchString(html, /"pdp":\{[\s\S]{0,20000}?"images":\[\s*\{[\s\S]{0,1200}?"twoX":"([^"]+)"/) ??
+    matchString(html, /"pdp":\{[\s\S]{0,20000}?"images":\[\s*\{[\s\S]{0,1200}?"oneX":"([^"]+)"/) ??
+    matchString(html, /"pdp":\{[\s\S]{0,20000}?"thumbnail":"([^"]+)"/) ??
+    meta.imageUrl;
+  const imageUrl = imageCandidate ? absoluteUrl(imageCandidate, inputUrl) : undefined;
+  const sku =
+    cleanSku(matchString(html, /"pdp":\{[\s\S]{0,12000}?"visibleSku":"([^"]+)"/)) ??
+    cleanSku(matchString(html, /"pdp":\{[\s\S]{0,12000}?"barcode":"([^"]+)"/));
+  const outOfStock = matchBoolean(html, /"pdp":\{[\s\S]{0,12000}?"outOfStock":(true|false)/);
+  const stock = matchNumber(html, /"pdp":\{[\s\S]{0,16000}?"sizes":\[\{[\s\S]{0,1200}?"stock":([0-9.]+)/);
+
+  if (!title && rawPrice === undefined) {
+    return undefined;
+  }
+
+  return {
+    siteKey,
+    canonicalUrl: meta.canonicalUrl ?? inputUrl,
+    title: cleanText(title ?? 'Ounass product'),
+    imageUrl,
+    priceMinor: parsePriceToMinor(rawPrice),
+    currency: 'AED',
+    availability:
+      typeof outOfStock === 'boolean' ? (outOfStock ? 'out_of_stock' : 'in_stock') : stock && stock > 0 ? 'in_stock' : 'unknown',
+    rawPriceText: rawPrice === undefined ? undefined : String(rawPrice),
     sku
   };
 }
@@ -742,6 +784,22 @@ function cleanText(value: string): string {
   return decodeHtmlEntities(value.replace(/\s+/g, ' ').trim());
 }
 
+function buildOunassTitle(designerName?: string, productName?: string): string | undefined {
+  if (!designerName && !productName) {
+    return undefined;
+  }
+
+  if (!designerName) {
+    return productName;
+  }
+
+  if (!productName) {
+    return designerName;
+  }
+
+  return productName.toLowerCase().startsWith(designerName.toLowerCase()) ? productName : `${designerName} ${productName}`;
+}
+
 function safeHostname(value: string): string | undefined {
   const match = value.match(/^(?:https?:\/\/)?([^/?#]+)/i);
   return match?.[1]?.toLowerCase();
@@ -766,6 +824,14 @@ function stripStoreSuffix(value?: string): string | undefined {
   }
 
   return cleanText(value.replace(/\s*-\s*(?:Al Yousuf Accessories|AY Accessories)\s*$/i, ''));
+}
+
+function stripOunassTitle(value?: string): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  return cleanText(value.replace(/^Buy\s+/i, '').replace(/\s+Online\s*\|\s*Ounass UAE\s*$/i, ''));
 }
 
 function absoluteUrl(value: string, base: string): string {

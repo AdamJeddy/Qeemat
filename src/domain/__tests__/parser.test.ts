@@ -5,6 +5,7 @@ import { detectSupportedSite } from '../sites';
 const noonUrl =
   'https://www.noon.com/uae-en/galaxy-s25-ultra-ai-dual-sim-titanium-grey-12gb-ram-256gb-5g-middle-east-version/N70140492V/p/';
 const aymUrl = 'https://ay-accessories.com/product/nolan-n120-1-classico-nobile-n-com-modular-helmet/';
+const ounassUrl = 'https://www.ounass.ae/shop-givenchy-beauty-gentleman-givenchy-eau-de-parfum-boisee-200ml-for-men-1216083751_242.html';
 const amazonUrl = 'https://www.amazon.ae/Logitech-Headphones-Cancelling-Microphone-Chromebook/dp/B005BFCNYU/';
 const amazonUsUrl = 'https://www.amazon.com/Logitech-Headphones-Cancelling-Microphone-Chromebook/dp/B005BFCNYU/';
 const amazonDeUrl = 'https://www.amazon.de/Logitech-Headphones-Cancelling-Microphone-Chromebook/dp/B005BFCNYU/';
@@ -249,6 +250,67 @@ describe('parseProductHtml', () => {
     );
   });
 
+  it('parses Ounass inline PDP payloads', () => {
+    const html = `
+      <html>
+        <head>
+          <title>Buy Givenchy Beauty Gentleman Givenchy Eau De Parfum Boisee, 200ml For Men Online | Ounass UAE</title>
+          <meta property="og:title" content="Buy Givenchy Beauty Gentleman Givenchy Eau De Parfum Boisee, 200ml For Men Online | Ounass UAE" />
+        </head>
+        <body>
+          <script>
+            window.__OUNASS_DATA__ = {
+              "routeType":"new-pdp",
+              "pdp":{
+                "styleColorId":"1216083751_242",
+                "slug":"shop-givenchy-beauty-gentleman-givenchy-eau-de-parfum-boisee-200ml-for-men-1216083751_242",
+                "visibleSku":"216083752",
+                "name":"Gentleman Givenchy Eau De Parfum Boisee, 200ml",
+                "designerCategoryEnglishName":"Givenchy Beauty",
+                "price":846,
+                "priceInAED":846,
+                "outOfStock":false,
+                "images":[
+                  {
+                    "thumbnail":"//ounass-ae.atgcdn.ae/small_light(dw=81,ch=158,cc=fafafa,of=webp)/pub/media/catalog/product/2/1/216083751_nocolor_in.jpg?ts=1688569795.9337",
+                    "oneX":"//ounass-ae.atgcdn.ae/small_light(p=zoom,of=webp,q=65)/pub/media/catalog/product/2/1/216083751_nocolor_in.jpg?ts=1688569795.9337",
+                    "twoX":"//ounass-ae.atgcdn.ae/small_light(of=webp,q=90)/pub/media/catalog/product/2/1/216083751_nocolor_in.jpg?ts=1688569795.9337"
+                  }
+                ],
+                "sizes":[
+                  {
+                    "sku":"216083752",
+                    "sizeCode":"NO SIZE",
+                    "price":846,
+                    "priceInAED":846,
+                    "stock":6,
+                    "disabled":false
+                  }
+                ]
+              }
+            };
+          </script>
+        </body>
+      </html>
+    `;
+
+    const parsed = parseProductHtml('ounass', ounassUrl, html);
+
+    expect(parsed).toEqual(
+      expect.objectContaining({
+        siteKey: 'ounass',
+        canonicalUrl: ounassUrl,
+        title: 'Givenchy Beauty Gentleman Givenchy Eau De Parfum Boisee, 200ml',
+        sku: '216083752',
+        imageUrl:
+          'https://ounass-ae.atgcdn.ae/small_light(of=webp,q=90)/pub/media/catalog/product/2/1/216083751_nocolor_in.jpg?ts=1688569795.9337',
+        priceMinor: 84600,
+        currency: 'AED',
+        availability: 'in_stock'
+      })
+    );
+  });
+
   it('ignores blank Amazon offscreen spans and falls back to the actual total price', () => {
     const html = `
       <html>
@@ -456,6 +518,10 @@ describe('parseProductHtml', () => {
 describe('detectSupportedSite', () => {
   it('detects AYM Accessories product URLs', () => {
     expect(detectSupportedSite(aymUrl)?.key).toBe('ay_accessories');
+  });
+
+  it('detects Ounass product URLs', () => {
+    expect(detectSupportedSite(ounassUrl)?.key).toBe('ounass');
   });
 
   it('detects Amazon.ae product URLs', () => {

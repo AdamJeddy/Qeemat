@@ -25,6 +25,7 @@ Supported stores:
 - Sun & Sand Sports UAE
 - Level Shoes
 - AYM Accessories
+- Ounass UAE
 - Amazon (selected regions)
 
 ## Documentation

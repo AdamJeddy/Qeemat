@@ -1,4 +1,4 @@
-export type SiteKey = 'noon' | 'nike_uae' | 'sun_sand_sports' | 'level_shoes' | 'ay_accessories' | 'amazon_ae';
+export type SiteKey = 'noon' | 'nike_uae' | 'sun_sand_sports' | 'level_shoes' | 'ay_accessories' | 'ounass' | 'amazon_ae';
 
 export type Availability = 'in_stock' | 'out_of_stock' | 'unknown';
 

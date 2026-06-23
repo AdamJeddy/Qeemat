@@ -60,6 +60,7 @@ Supported websites for the first MVP:
 - Sun & Sand Sports UAE
 - Level Shoes
 - AYM Accessories
+- Ounass UAE
 - Amazon (selected regions)
 
 Adidas UAE should remain experimental/post-MVP because direct requests showed intermittent access-denied behavior during discovery. Brands For Less UAE should remain deferred for the local-only MVP: browser-rendered product pages expose useful JSON-LD, but direct product-page fetches return Cloudflare 403, which makes unattended local background checks unreliable. Carrefour UAE and Lulu UAE are deferred until the local parser approach is proven. Amazon regional domains are acceptable for the MVP as a best-effort supported store family as long as the app surfaces blocked checks clearly when Amazon serves bot verification instead of a normal product page.

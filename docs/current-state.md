@@ -22,6 +22,7 @@ Core loop:
 - Sun & Sand Sports UAE
 - Level Shoes
 - AYM Accessories
+- Ounass UAE
 - Amazon (selected regions)
 
 Amazon support is intentionally MVP-level only. It works across selected Amazon regional product domains when Amazon serves a normal product page and should surface `blocked` when Amazon returns robot-check or challenge pages instead.
@@ -126,10 +127,12 @@ If permission is blocked, the app should continue tracking locally without showi
 
 - Parsers are wired through the site registry in `src/domain/sites.ts`
 - Parser coverage includes AYM WooCommerce variation markup
+- Parser coverage includes Ounass inline PDP payload parsing
 - Parser coverage includes Amazon regional-domain detection, multi-currency price parsing, buy-box style markup, alternate total-price fallback handling, and challenge-page detection in tests
 - Current parser tests cover:
   - Noon structured data parsing
   - AYM product page parsing
+  - Ounass product page parsing
   - Amazon product page parsing across `.ae`, `.com`, and `.de` price formats
   - blocked/challenge page detection
 
@@ -215,6 +218,7 @@ If terminal builds fail with invalid `JAVA_HOME` or missing `adb`, fix those loc
 
 - Expanded Amazon support to selected regional domains, multi-currency price parsing, and more resilient Amazon price fallback handling.
 - Added AYM Accessories parser support.
+- Added Ounass UAE parser support.
 - Changed per-product check preferences to `daily`, `every_3_days`, and `weekly`.
 - Added `Recheck all prices` on the watchlist.
 - Added Android notification permission handling and native local notifications.

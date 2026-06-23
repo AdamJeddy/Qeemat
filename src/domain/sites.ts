@@ -42,6 +42,14 @@ export const SUPPORTED_SITES: SupportedSite[] = [
     notes: 'WooCommerce product pages expose variation JSON, images, and AED pricing for supported product pages.'
   },
   {
+    key: 'ounass',
+    displayName: 'Ounass UAE',
+    shortName: 'Ounass',
+    hostnames: ['ounass.ae', 'www.ounass.ae'],
+    status: 'supported',
+    notes: 'Product pages expose inline PDP payloads with title, image, stock state, and AED pricing.'
+  },
+  {
     key: 'amazon_ae',
     displayName: 'Amazon',
     shortName: 'Amazon',
