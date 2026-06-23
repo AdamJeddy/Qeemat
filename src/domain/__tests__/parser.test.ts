@@ -207,6 +207,106 @@ describe('parseProductHtml', () => {
       })
     );
   });
+
+  it('parses the main AYM product price instead of earlier related-product prices', () => {
+    const html = `
+      <html>
+        <head>
+          <link rel="canonical" href="https://ay-accessories.com/product/axxis-ff122-hawk-sv-evo-sick-joke/" />
+          <meta property="og:image" content="https://ay-accessories.com/wp-content/uploads/2024/09/Untitled-design-8.png" />
+        </head>
+        <body>
+          <span class="price">
+            <del aria-hidden="true"><span class="woocommerce-Price-amount amount"><bdi>359&nbsp;<span class="woocommerce-Price-currencySymbol">&#x62f;.&#x625;</span></bdi></span></del>
+            <span class="screen-reader-text">Original price was: 359&nbsp;&#x62f;.&#x625;.</span>
+            <ins aria-hidden="true"><span class="woocommerce-Price-amount amount"><bdi>269&nbsp;<span class="woocommerce-Price-currencySymbol">&#x62f;.&#x625;</span></bdi></span></ins>
+            <span class="screen-reader-text">Current price is: 269&nbsp;&#x62f;.&#x625;.</span>
+          </span>
+          <h1 class="product_title entry-title wd-entities-title">AXXIS - FF122 HAWK SV EVO SICK JOKE</h1>
+          <div class="vc_row wpb_row vc_inner vc_row-fluid">
+            <div class="wpb_column vc_column_container vc_col-sm-12 wd-enabled-flex">
+              <div class="vc_column-inner">
+                <div class="wpb_wrapper">
+                  <div class="wd-single-price wd-wpb text-left">
+                    <p class="price">
+                      <del aria-hidden="true"><span class="woocommerce-Price-amount amount"><bdi>549&nbsp;<span class="woocommerce-Price-currencySymbol">&#x62f;.&#x625;</span></bdi></span></del>
+                      <span class="screen-reader-text">Original price was: 549&nbsp;&#x62f;.&#x625;.</span>
+                      <ins aria-hidden="true"><span class="woocommerce-Price-amount amount"><bdi>412&nbsp;<span class="woocommerce-Price-currencySymbol">&#x62f;.&#x625;</span></bdi></span></ins>
+                      <span class="screen-reader-text">Current price is: 412&nbsp;&#x62f;.&#x625;.</span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+
+    const parsed = parseProductHtml('ay_accessories', 'https://ay-accessories.com/product/axxis-ff122-hawk-sv-evo-sick-joke/', html);
+
+    expect(parsed).toEqual(
+      expect.objectContaining({
+        siteKey: 'ay_accessories',
+        title: 'AXXIS - FF122 HAWK SV EVO SICK JOKE',
+        imageUrl: 'https://ay-accessories.com/wp-content/uploads/2024/09/Untitled-design-8.png',
+        priceMinor: 41200,
+        currency: 'AED'
+      })
+    );
+  });
+
+  it('uses JSON-LD priceSpecification instead of unrelated twitter metadata', () => {
+    const html = `
+      <html>
+        <head>
+          <meta property="og:title" content="AXXIS - FF122 HAWK SV EVO SICK JOKE - Al Yousuf Accessories" />
+          <meta property="og:image" content="https://ay-accessories.com/wp-content/uploads/2024/09/Untitled-design-8.png" />
+          <meta name="twitter:data1" content="1 minute" />
+          <script type="application/ld+json">
+            {
+              "@context": "https://schema.org/",
+              "@graph": [
+                {
+                  "@type": "Product",
+                  "name": "AXXIS - FF122 HAWK SV EVO SICK JOKE",
+                  "image": "https://ay-accessories.com/wp-content/uploads/2024/09/Untitled-design-8.png",
+                  "sku": 29044,
+                  "offers": [
+                    {
+                      "@type": "Offer",
+                      "priceSpecification": [
+                        {
+                          "@type": "UnitPriceSpecification",
+                          "price": "412",
+                          "priceCurrency": "AED"
+                        }
+                      ],
+                      "availability": "https://schema.org/InStock",
+                      "url": "https://ay-accessories.com/product/axxis-ff122-hawk-sv-evo-sick-joke/"
+                    }
+                  ]
+                }
+              ]
+            }
+          </script>
+        </head>
+      </html>
+    `;
+
+    const parsed = parseProductHtml('ay_accessories', 'https://ay-accessories.com/product/axxis-ff122-hawk-sv-evo-sick-joke/', html);
+
+    expect(parsed).toEqual(
+      expect.objectContaining({
+        siteKey: 'ay_accessories',
+        title: 'AXXIS - FF122 HAWK SV EVO SICK JOKE',
+        imageUrl: 'https://ay-accessories.com/wp-content/uploads/2024/09/Untitled-design-8.png',
+        priceMinor: 41200,
+        currency: 'AED',
+        availability: 'in_stock'
+      })
+    );
+  });
 });
 
 describe('detectSupportedSite', () => {

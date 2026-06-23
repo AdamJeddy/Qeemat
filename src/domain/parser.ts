@@ -125,8 +125,9 @@ function parseStructuredProduct(siteKey: SiteKey, inputUrl: string, html: string
   const title = asString(product?.name) ?? meta.title;
   const imageUrl = firstString(product?.image) ?? meta.imageUrl;
   const offer = firstOffer(product?.offers);
-  const priceMinor = parsePriceToMinor(asString(offer?.price) ?? meta.price);
-  const currency = asString(offer?.priceCurrency) ?? meta.currency ?? 'AED';
+  const priceSpecification = firstPriceSpecification(offer?.priceSpecification);
+  const priceMinor = parsePriceToMinor(asString(offer?.price) ?? asString(priceSpecification?.price) ?? meta.price);
+  const currency = asString(offer?.priceCurrency) ?? asString(priceSpecification?.priceCurrency) ?? meta.currency ?? 'AED';
   const availability = parseAvailability(asString(offer?.availability));
   const canonicalUrl = asString(offer?.url) ?? meta.canonicalUrl ?? inputUrl;
   const sku = asString(product?.sku) ?? asString(product?.mpn);
@@ -143,7 +144,7 @@ function parseStructuredProduct(siteKey: SiteKey, inputUrl: string, html: string
     priceMinor,
     currency,
     availability,
-    rawPriceText: asString(offer?.price) ?? meta.price,
+    rawPriceText: asString(offer?.price) ?? asString(priceSpecification?.price) ?? meta.price,
     sku
   };
 }
@@ -296,11 +297,19 @@ function extractAymVariationImage(variation?: JsonRecord): string | undefined {
 }
 
 function extractAymPriceText(html: string): string | undefined {
+  const summarySection =
+    matchString(html, /<div class=["'][^"']*wd-single-price[^"']*["'][^>]*>([\s\S]{0,1500}?)<\/div>\s*<\/div>/i) ??
+    html;
+
   return (
-    matchString(html, /Current price is:\s*([0-9,]+(?:\.[0-9]{2})?)/i) ??
-    matchString(html, /Price range:\s*([0-9,]+(?:\.[0-9]{2})?)\s+through/i) ??
+    matchString(summarySection, /Current price is:\s*([0-9,]+(?:\.[0-9]{2})?)/i) ??
     matchString(
-      html,
+      summarySection,
+      /<ins[^>]*>[\s\S]{0,300}?<span class=["']woocommerce-Price-amount amount["'][^>]*>\s*<bdi>\s*([^<]+?)\s*<span class=["']woocommerce-Price-currencySymbol["'][^>]*>/i
+    ) ??
+    matchString(summarySection, /Price range:\s*([0-9,]+(?:\.[0-9]{2})?)\s+through/i) ??
+    matchString(
+      summarySection,
       /<p class=["']price["'][^>]*>[\s\S]{0,600}?<span class=["']woocommerce-Price-amount amount["'][^>]*>\s*<bdi>\s*([^<]+?)\s*<span class=["']woocommerce-Price-currencySymbol["'][^>]*>/i
     )
   );
@@ -396,6 +405,22 @@ function firstOffer(value: unknown): JsonRecord | undefined {
   return undefined;
 }
 
+function firstPriceSpecification(value: unknown): JsonRecord | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  if (Array.isArray(value)) {
+    return value.find((item) => item && typeof item === 'object') as JsonRecord | undefined;
+  }
+
+  if (typeof value === 'object') {
+    return value as JsonRecord;
+  }
+
+  return undefined;
+}
+
 function extractMeta(html: string) {
   return {
     title:
@@ -408,7 +433,6 @@ function extractMeta(html: string) {
       getMetaContent(html, 'property', 'og:image:secure_url'),
     price:
       getMetaContent(html, 'property', 'product:price:amount') ??
-      getMetaContent(html, 'name', 'twitter:data1') ??
       matchString(html, /AED\s?[0-9,]+(?:\.[0-9]{2})?/i),
     currency:
       getMetaContent(html, 'property', 'product:price:currency') ??
