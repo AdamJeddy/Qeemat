@@ -7,11 +7,10 @@ export function parsePriceToMinor(value: string | number | undefined): number | 
     return undefined;
   }
 
-  const normalized = String(value)
-    .replace(/AED/gi, '')
-    .replace(/[^\d.,-]/g, '')
-    .replace(/,/g, '')
-    .trim();
+  const normalized = normalizePriceNumberString(String(value));
+  if (!normalized) {
+    return undefined;
+  }
 
   const amount = Number.parseFloat(normalized);
   if (!Number.isFinite(amount)) {
@@ -49,4 +48,47 @@ export function parseTargetPriceInput(value: string): number | undefined {
   }
 
   return parsePriceToMinor(trimmed);
+}
+
+function normalizePriceNumberString(value: string): string | undefined {
+  const sanitized = value.replace(/[^\d.,-]/g, '').trim();
+  if (!sanitized) {
+    return undefined;
+  }
+
+  const dotCount = (sanitized.match(/\./g) ?? []).length;
+  const commaCount = (sanitized.match(/,/g) ?? []).length;
+
+  if (dotCount > 0 && commaCount > 0) {
+    const lastDot = sanitized.lastIndexOf('.');
+    const lastComma = sanitized.lastIndexOf(',');
+    const decimalSeparator = lastDot > lastComma ? '.' : ',';
+    const thousandsSeparator = decimalSeparator === '.' ? ',' : '.';
+
+    const withoutThousands = sanitized.replace(new RegExp(`\\${thousandsSeparator}`, 'g'), '');
+    return decimalSeparator === ',' ? withoutThousands.replace(',', '.') : withoutThousands;
+  }
+
+  if (commaCount > 0) {
+    return normalizeSingleSeparatorNumber(sanitized, ',');
+  }
+
+  if (dotCount > 0) {
+    return normalizeSingleSeparatorNumber(sanitized, '.');
+  }
+
+  return sanitized;
+}
+
+function normalizeSingleSeparatorNumber(value: string, separator: ',' | '.'): string {
+  const parts = value.split(separator);
+
+  if (parts.length === 2) {
+    const fractional = parts[1] ?? '';
+    if (fractional.length > 0 && fractional.length <= 2) {
+      return separator === ',' ? `${parts[0]}.${fractional}` : value;
+    }
+  }
+
+  return value.replace(new RegExp(`\\${separator}`, 'g'), '');
 }
