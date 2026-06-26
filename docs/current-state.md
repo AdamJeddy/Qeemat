@@ -49,6 +49,7 @@ Amazon support is intentionally MVP-level only. It works across selected Amazon 
 
 - Shows current price, chart, and stats.
 - Supports manual `Check now`.
+- `Open link` button opens the product URL in the system browser.
 - Shows price snapshots with source tags:
   - `Check now`
   - `Recheck all`
@@ -58,6 +59,7 @@ Amazon support is intentionally MVP-level only. It works across selected Amazon 
 
 - Shows supported stores.
 - Shows notification status and deep-links to Android notification settings.
+- Shows battery optimization status (exempt/restricted) with a button to open app system settings.
 - Shows daily background check time presets:
   - Morning: `9:00 AM`
   - Afternoon: `2:00 PM`
@@ -71,6 +73,13 @@ Amazon support is intentionally MVP-level only. It works across selected Amazon 
   - last error
 - Supports `Queue background check once`.
 - Supports deleting all local data.
+
+### Onboarding (first launch)
+
+- First-time users see a two-step overlay on app launch:
+  - Step 1: Enable notifications for price alerts.
+  - Step 2: Open system settings to disable battery optimization for reliable background checks.
+- Each step can be skipped. The overlay never appears again after completing.
 
 ### Navigation
 
@@ -107,7 +116,9 @@ Important constraint:
 
 - WorkManager is best-effort only
 - battery saver, vendor restrictions, idle mode, missing connectivity, or force-stopping the app can delay or pause future runs
-- there is no user-facing Android "background permission" flow implemented because normal WorkManager usage does not require a separate permission prompt
+- the settings screen includes a battery optimization card that checks exemption status and can open system app settings
+- the first-launch onboarding prompts users to disable battery optimization
+- REQUEST_IGNORE_BATTERY_OPTIMIZATIONS permission is declared in the manifest
 
 ## Notifications
 
@@ -152,6 +163,7 @@ Domain and storage:
 - `src/domain/types.ts`
 - `src/domain/backgroundStatus.ts`
 - `src/domain/backgroundScheduler.ts`
+- `src/domain/onboarding.ts`
 - `src/domain/notifications.ts`
 - `src/domain/parser.ts`
 
@@ -159,6 +171,7 @@ Android native integration:
 
 - `android/app/src/main/java/com/qeemat/QeematBackgroundCheckModule.kt`
 - `android/app/src/main/java/com/qeemat/QeematBackgroundWorker.kt`
+- `android/app/src/main/java/com/qeemat/QeematBackgroundTaskService.kt`
 - `android/app/src/main/java/com/qeemat/QeematNotificationsModule.kt`
 - `android/app/src/main/java/com/qeemat/QeematNotificationsPackage.kt`
 - `android/app/src/main/java/com/qeemat/MainApplication.kt`
@@ -225,3 +238,10 @@ If terminal builds fail with invalid `JAVA_HOME` or missing `adb`, fix those loc
 - Added Android background run status tracking and preferred time-of-day scheduling.
 - Added snapshot source tagging for manual vs background checks.
 - Fixed Android back navigation so the hardware back gesture returns through app screens instead of always leaving the app.
+- Improved Android background worker reliability: proper error classification with logging, increased headless timeout to 5 min, WorkManager configuration with debug logging, ProGuard keep rules, and `foregroundServiceType` for Android 14+.
+- Added battery optimization support: permission declaration, native exemption check/request, app system settings opener, and settings UI card with exempt/restricted status.
+- Added first-launch onboarding overlay prompting users to enable notifications and disable battery optimization (shown once, stored in AsyncStorage).
+- Added `Open link` button on product detail that opens the product URL in the system browser.
+- Fixed status bar text color to dark-content for visibility against the light app background.
+- Removed dead 3-dot menu icon from product card tiles.
+- Condensed background check settings card layout and added step indicator dots to onboarding.

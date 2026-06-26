@@ -11,10 +11,13 @@ Current implemented behavior:
 - Add a supported product URL and confirm the parsed product before saving.
 - Track products locally on-device with price history snapshots.
 - Manual `Check now` from product detail.
+- `Open link` from product detail to view the product in the system browser.
 - Manual `Recheck all prices` from the watchlist.
 - Check preferences per product: `daily`, `every_3_days`, `weekly`.
 - Alert modes per product: `price_drop`, `any_change`, `target_price`.
 - Best-effort Android background checks with a saved preferred time of day.
+- Battery optimization status check and guidance in settings to improve background reliability.
+- First-launch onboarding for notification permission and battery optimization.
 - Local Android notifications for price drops, price changes, and target-price hits when permission is allowed.
 - Snapshot history tags that show whether a check came from `Check now`, `Recheck all`, or `Background`.
 
