@@ -180,7 +180,21 @@ Shows:
 - Last failed check, if any
 - Manual "Check now" action
 
-### 4. Background Price Checker
+### 4. Activity Feed
+
+Shows a chronological, newest-first feed of all price-change events across tracked products:
+
+- Product thumbnail, title, old price (strikethrough), and new price (color-coded: green for drops, red for increases, primary blue for first-recorded).
+- Direction arrows for price changes (TrendingDown / TrendingUp) and a blue dot for first-recorded prices.
+- "Started tracking" label for first-recorded price events.
+- Source badges indicating whether the check came from `Check now`, `Recheck all`, or `Background`.
+- Date grouping with relative labels (Today, Yesterday, date).
+- Tapping an event navigates to the product detail screen.
+- Events survive product deletion (denormalized title stored on each event).
+- One-time migration from existing snapshot history on first launch after upgrade.
+- Capped at 100 most recent events to keep AsyncStorage payload reasonable.
+
+### 5. Background Price Checker
 
 Runs periodically when the OS allows it:
 

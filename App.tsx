@@ -19,13 +19,16 @@ import {
   Bell,
   Check,
   CircleAlert,
+  Clock,
   Link2,
   Plus,
   RefreshCcw,
   Settings as SettingsIcon,
   SquareStack,
   Store,
-  Trash2
+  Trash2,
+  TrendingDown,
+  TrendingUp
 } from 'lucide-react-native';
 
 import { AppText } from './src/components/AppText';
@@ -47,6 +50,7 @@ import {
   getProductWithSnapshots,
   getTrackedProduct,
   initializeDatabase,
+  listActivityEvents,
   listTrackedProducts,
   updateTrackingSettings
 } from './src/data/database';
@@ -58,10 +62,10 @@ import { ensureNotificationPermission, openNotificationSettings } from './src/do
 import { fetchAndParseProduct } from './src/domain/parser';
 import { formatPrice, parseTargetPriceInput } from './src/domain/price';
 import { detectSupportedSite, normalizeUrl, SUPPORTED_SITES } from './src/domain/sites';
-import { AlertMode, CheckPreference, ParsedProduct, PriceSnapshot, ProductWithSnapshots, SnapshotSource, TrackedProduct } from './src/domain/types';
+import { ActivityEvent, AlertMode, CheckPreference, ParsedProduct, PriceSnapshot, ProductWithSnapshots, SnapshotSource, TrackedProduct } from './src/domain/types';
 import { colors, radius, shadow } from './src/theme/theme';
 
-type TabKey = 'watchlist' | 'alerts' | 'settings';
+type TabKey = 'watchlist' | 'activity' | 'settings';
 type Route =
   | { name: 'tabs'; tab: TabKey }
   | { name: 'add' }
@@ -261,11 +265,11 @@ function TabsScreen({ tab, navigate }: { tab: TabKey; navigate: (route: Route) =
   return (
     <View style={styles.app}>
       {tab === 'watchlist' ? <WatchlistScreen navigate={navigate} /> : null}
-      {tab === 'alerts' ? <AlertsScreen navigate={navigate} /> : null}
+      {tab === 'activity' ? <ActivityScreen navigate={navigate} /> : null}
       {tab === 'settings' ? <SettingsScreen /> : null}
       <View style={styles.tabBar}>
         <TabButton active={tab === 'watchlist'} label="Watchlist" icon={<SquareStack />} onPress={() => navigate({ name: 'tabs', tab: 'watchlist' })} />
-        <TabButton active={tab === 'alerts'} label="Alerts" icon={<Bell />} onPress={() => navigate({ name: 'tabs', tab: 'alerts' })} />
+        <TabButton active={tab === 'activity'} label="Activity" icon={<Clock />} onPress={() => navigate({ name: 'tabs', tab: 'activity' })} />
         <TabButton active={tab === 'settings'} label="Settings" icon={<SettingsIcon />} onPress={() => navigate({ name: 'tabs', tab: 'settings' })} />
       </View>
     </View>
@@ -736,33 +740,162 @@ function TrackingSettingsScreen({ productId, navigate }: { productId: number; na
   );
 }
 
-function AlertsScreen({ navigate }: { navigate: (route: Route) => void }) {
+function ActivityScreen({ navigate }: { navigate: (route: Route) => void }) {
+  const [events, setEvents] = useState<ActivityEvent[]>([]);
   const [products, setProducts] = useState<TrackedProduct[]>([]);
+  const [loading, setLoading] = useState(true);
+
   useEffect(() => {
-    listTrackedProducts().then(setProducts);
+    (async () => {
+      const [loadedEvents, loadedProducts] = await Promise.all([
+        listActivityEvents(),
+        listTrackedProducts()
+      ]);
+      setEvents(loadedEvents);
+      setProducts(loadedProducts);
+      setLoading(false);
+    })();
   }, []);
+
+  const existingProductIds = useMemo(() => new Set(products.map((p) => p.id)), [products]);
+
+  const groupedEvents = useMemo(() => {
+    const groups: { label: string; events: ActivityEvent[] }[] = [];
+    for (const event of events) {
+      const label = formatRelativeTime(event.checkedAt);
+      const lastGroup = groups[groups.length - 1];
+      if (lastGroup && lastGroup.label === label) {
+        lastGroup.events.push(event);
+      } else {
+        groups.push({ label, events: [event] });
+      }
+    }
+    return groups;
+  }, [events]);
+
+  if (loading) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator color={colors.primary} />
+      </View>
+    );
+  }
 
   return (
     <ScrollView contentContainerStyle={styles.screenContent} showsVerticalScrollIndicator={false}>
       <AppText weight="bold" style={styles.heading}>
-        Local alerts
+        Activity
       </AppText>
-      <AppText muted>Alert rules are stored on this device. Native notification delivery will be added after the Android build is stable.</AppText>
-      {products.length === 0 ? <EmptyWatchlist onAdd={() => navigate({ name: 'add' })} /> : null}
-      <View style={styles.cardList}>
-        {products.map((product) => (
-          <View key={product.id} style={styles.ruleCard}>
-            <Bell size={20} color={colors.primary} />
-            <View style={styles.flex}>
-              <AppText weight="semibold" numberOfLines={1}>
-                {product.title}
-              </AppText>
-              <AppText muted>{alertModeLabel(product.alertMode)}</AppText>
-            </View>
+      <AppText muted>Recent price changes across all tracked products.</AppText>
+      {events.length === 0 ? <EmptyActivity /> : null}
+      {groupedEvents.map((group) => (
+        <View key={group.label}>
+          <View style={styles.activityDateHeader}>
+            <AppText weight="semibold" style={styles.activityDateHeaderText}>
+              {group.label}
+            </AppText>
           </View>
-        ))}
-      </View>
+          <View style={styles.cardList}>
+            {group.events.map((event) => {
+              const productExists = existingProductIds.has(event.trackedProductId);
+              const cardContent = (
+                <View style={styles.activityCard}>
+                  {event.productImageUrl ? (
+                    <Image source={{ uri: event.productImageUrl }} style={styles.activityThumb} resizeMode="contain" />
+                  ) : (
+                    <View style={styles.activityThumbPlaceholder}>
+                      <Store size={18} color={colors.textMuted} />
+                    </View>
+                  )}
+                  <View style={styles.activityBody}>
+                    <AppText weight="semibold" numberOfLines={2} style={styles.activityTitle}>
+                      {event.productTitle}
+                    </AppText>
+                    <View style={styles.activityPriceRow}>
+                      {event.previousPriceMinor !== undefined ? (
+                        <AppText muted style={styles.activityOldPrice}>
+                          {formatPrice(event.previousPriceMinor, event.currency)}
+                        </AppText>
+                      ) : null}
+                      <View style={styles.activityDirectionIcon}>
+                        {event.priceDirection === 'down' ? (
+                          <TrendingDown size={16} color={colors.green} />
+                        ) : event.priceDirection === 'up' ? (
+                          <TrendingUp size={16} color={colors.red} />
+                        ) : (
+                          <View style={styles.activityFirstDot} />
+                        )}
+                      </View>
+                      {event.priceDirection === 'first' ? (
+                        <AppText weight="bold" style={styles.activityFirstPrice}>
+                          {formatPrice(event.newPriceMinor, event.currency)}
+                        </AppText>
+                      ) : (
+                        <AppText weight="bold" style={[
+                          styles.activityNewPrice,
+                          event.priceDirection === 'down' && styles.activityPriceDown,
+                          event.priceDirection === 'up' && styles.activityPriceUp
+                        ]}>
+                          {formatPrice(event.newPriceMinor, event.currency)}
+                        </AppText>
+                      )}
+                    </View>
+                    <View style={styles.activityMetaRow}>
+                      {event.priceDirection === 'first' ? (
+                        <View style={styles.activityFirstBadge}>
+                          <AppText weight="semibold" style={styles.activityFirstBadgeText}>
+                            Started tracking
+                          </AppText>
+                        </View>
+                      ) : null}
+                      <View style={[styles.sourceBadge, snapshotSourceBadgeStyle(event.source)]}>
+                        <AppText weight="semibold" style={styles.sourceBadgeText}>
+                          {snapshotSourceLabel(event.source)}
+                        </AppText>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+              );
+
+              if (!productExists) {
+                return (
+                  <View key={event.id}>
+                    {cardContent}
+                  </View>
+                );
+              }
+
+              return (
+                <Pressable
+                  key={event.id}
+                  onPress={() => navigate({ name: 'detail', id: event.trackedProductId })}
+                  style={({ pressed }) => pressed && { opacity: 0.7 }}
+                >
+                  {cardContent}
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      ))}
     </ScrollView>
+  );
+}
+
+function EmptyActivity() {
+  return (
+    <View style={styles.emptyCard}>
+      <View style={styles.emptyIcon}>
+        <Clock size={24} color={colors.primary} />
+      </View>
+      <AppText weight="bold" style={styles.emptyTitle}>
+        No price changes yet
+      </AppText>
+      <AppText muted style={styles.emptyCopy}>
+        Tracked product prices will appear here when they change.
+      </AppText>
+    </View>
   );
 }
 
@@ -1065,16 +1198,6 @@ function getPriceStats(snapshots: PriceSnapshot[]) {
     lowest: prices.length ? Math.min(...prices) : undefined,
     highest: prices.length ? Math.max(...prices) : undefined
   };
-}
-
-function alertModeLabel(mode: AlertMode): string {
-  if (mode === 'any_change') {
-    return 'Any price change';
-  }
-  if (mode === 'target_price') {
-    return 'Target price';
-  }
-  return 'Price drops only';
 }
 
 function formatStatusTime(iso?: string): string {
@@ -1528,7 +1651,7 @@ const styles = StyleSheet.create({
   bottomActionHalf: {
     flex: 1
   },
-  ruleCard: {
+  activityCard: {
     flexDirection: 'row',
     gap: 12,
     padding: 14,
@@ -1536,6 +1659,85 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface
+  },
+  activityThumb: {
+    width: 48,
+    height: 56,
+    borderRadius: radius.sm,
+    backgroundColor: colors.surfaceMuted
+  },
+  activityThumbPlaceholder: {
+    width: 48,
+    height: 56,
+    borderRadius: radius.sm,
+    backgroundColor: colors.surfaceMuted,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  activityBody: {
+    flex: 1,
+    minWidth: 0,
+    gap: 6
+  },
+  activityTitle: {
+    fontSize: 15,
+    lineHeight: 20
+  },
+  activityPriceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6
+  },
+  activityOldPrice: {
+    fontSize: 13,
+    textDecorationLine: 'line-through'
+  },
+  activityNewPrice: {
+    fontSize: 16
+  },
+  activityFirstPrice: {
+    fontSize: 16,
+    color: colors.primary
+  },
+  activityPriceDown: {
+    color: colors.green
+  },
+  activityPriceUp: {
+    color: colors.red
+  },
+  activityMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6
+  },
+  activityDirectionIcon: {
+    width: 18,
+    alignItems: 'center'
+  },
+  activityFirstDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.primary
+  },
+  activityFirstBadge: {
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    backgroundColor: colors.blueSoft
+  },
+  activityFirstBadgeText: {
+    fontSize: 11,
+    color: colors.primary
+  },
+  activityDateHeader: {
+    paddingVertical: 10,
+    paddingHorizontal: 2,
+    marginTop: 4
+  },
+  activityDateHeaderText: {
+    fontSize: 13,
+    color: colors.textMuted
   },
   settingsCard: {
     padding: 20,

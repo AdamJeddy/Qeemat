@@ -10,6 +10,7 @@ Current implemented behavior:
 
 - Add a supported product URL and confirm the parsed product before saving.
 - Track products locally on-device with price history snapshots.
+- Activity feed showing all price-change events across tracked products, with date grouping, price direction indicators, and source badges.
 - Manual `Check now` from product detail.
 - `Open link` from product detail to view the product in the system browser.
 - Manual `Recheck all prices` from the watchlist.

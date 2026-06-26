@@ -85,3 +85,18 @@ export type ProductDraft = {
   alertMode: AlertMode;
   targetPriceMinor?: number;
 };
+
+export type PriceDirection = 'up' | 'down' | 'first';
+
+export type ActivityEvent = {
+  id: number;
+  trackedProductId: number;
+  productTitle: string;
+  productImageUrl?: string;
+  previousPriceMinor?: number;
+  newPriceMinor: number;
+  currency: string;
+  priceDirection: PriceDirection;
+  source: SnapshotSource;
+  checkedAt: string;
+};

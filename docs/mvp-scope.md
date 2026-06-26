@@ -71,6 +71,7 @@ The MVP support list is intentionally small:
 - Parsed product preview before saving.
 - Product detail screen.
 - Price history snapshots.
+- Activity feed showing chronological price-change events across all tracked products, with date grouping, direction indicators, and source badges.
 - Manual check now.
 - Manual recheck all tracked products.
 - Check preference: `daily`, `every_3_days`, `weekly`.
