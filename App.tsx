@@ -4,6 +4,7 @@ import {
   Alert,
   BackHandler,
   Image,
+  Linking,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -655,14 +656,11 @@ function DetailScreen({ productId, navigate }: { productId: number; navigate: (r
           ))}
         </View>
       </ScrollView>
-      <View style={styles.bottomAction}>
-        <PrimaryButton
-          label="Check now"
-          variant="outline"
-          onPress={checkNow}
-          loading={checking}
-          icon={!checking ? <RefreshCcw size={18} color={colors.primary} /> : undefined}
-        />
+      <View style={styles.bottomActionRow}>
+        <PrimaryButton label="Check now" variant="outline" onPress={checkNow} loading={checking} style={styles.bottomActionHalf}
+          icon={!checking ? <RefreshCcw size={18} color={colors.primary} /> : undefined} />
+        <PrimaryButton label="Open link" variant="outline" onPress={() => Linking.openURL(product.canonicalUrl || product.url)} style={styles.bottomActionHalf}
+          icon={<Link2 size={18} color={colors.primary} />} />
       </View>
     </View>
   );
@@ -1510,6 +1508,23 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border
+  },
+  bottomActionRow: {
+    flexDirection: 'row',
+    gap: 12,
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 18,
+    backgroundColor: colors.background,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border
+  },
+  bottomActionHalf: {
+    flex: 1
   },
   ruleCard: {
     flexDirection: 'row',
