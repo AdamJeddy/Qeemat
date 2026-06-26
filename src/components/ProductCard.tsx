@@ -1,5 +1,5 @@
 import { Image, Pressable, StyleSheet, View } from 'react-native';
-import { MoreVertical, TrendingDown } from 'lucide-react-native';
+import { TrendingDown } from 'lucide-react-native';
 
 import { AppText } from './AppText';
 import { StatusPill } from './StatusPill';
@@ -28,7 +28,6 @@ export function ProductCard({ product, onPress }: ProductCardProps) {
           <AppText weight="semibold" numberOfLines={2} style={styles.title}>
             {product.title}
           </AppText>
-          <MoreVertical size={18} color={colors.textMuted} />
         </View>
         <View style={styles.badge}>
           <AppText style={styles.badgeText}>{site.shortName}</AppText>
