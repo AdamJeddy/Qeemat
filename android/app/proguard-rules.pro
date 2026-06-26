@@ -8,3 +8,16 @@
 #   http://developer.android.com/guide/developing/tools/proguard.html
 
 # Add any project specific keep options here:
+
+# WorkManager — keep Worker subclasses and related classes
+-keep class * extends androidx.work.Worker
+-keep class * extends com.facebook.react.HeadlessJsTaskService
+-dontwarn androidx.work.**
+
+# React Native — preserve native module classes
+-keep class com.facebook.react.bridge.** { *; }
+-keep class com.facebook.react.** { *; }
+
+# Qeemat native modules
+-keep class com.qeemat.** { *; }
+
