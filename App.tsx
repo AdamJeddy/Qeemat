@@ -51,6 +51,7 @@ import {
 import { runBackgroundCheckOnce, scheduleBackgroundChecks, checkBatteryOptimizationExempt, requestBatteryOptimizationExemption, openAppSystemSettings } from './src/domain/backgroundScheduler';
 import { checkAllActiveProducts, checkProductById } from './src/domain/checker';
 import { formatRelativeTime, formatSnapshotTime } from './src/domain/dates';
+import { getOnboardingState, markOnboardingCompleted } from './src/domain/onboarding';
 import { ensureNotificationPermission, openNotificationSettings } from './src/domain/notifications';
 import { fetchAndParseProduct } from './src/domain/parser';
 import { formatPrice, parseTargetPriceInput } from './src/domain/price';
@@ -86,13 +87,26 @@ const BACKGROUND_TIME_PRESETS = [
 export default function App() {
   const [route, setRoute] = useState<Route>({ name: 'tabs', tab: 'watchlist' });
   const [ready, setReady] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [onboardingStep, setOnboardingStep] = useState(0);
+  const [onboardingLoading, setOnboardingLoading] = useState(false);
 
   useEffect(() => {
     let active = true;
 
     (async () => {
       await initializeDatabase();
-      const backgroundStatus = await getBackgroundStatus();
+      const [backgroundStatus, onboarding] = await Promise.all([
+        getBackgroundStatus(),
+        getOnboardingState()
+      ]);
+
+      if (!onboarding.completed) {
+        if (active) {
+          setShowOnboarding(true);
+        }
+      }
+
       const scheduled = await scheduleBackgroundChecks(backgroundStatus.preferredHour).catch(() => false);
       if (scheduled) {
         await markBackgroundSchedule(backgroundStatus.preferredHour);
@@ -139,8 +153,78 @@ export default function App() {
         {route.name === 'add' ? <AddScreen navigate={setRoute} /> : null}
         {route.name === 'detail' ? <DetailScreen productId={route.id} navigate={setRoute} /> : null}
         {route.name === 'trackingSettings' ? <TrackingSettingsScreen productId={route.id} navigate={setRoute} /> : null}
+        {showOnboarding ? <OnboardingOverlay onClose={() => setShowOnboarding(false)} /> : null}
       </SafeAreaView>
     </SafeAreaProvider>
+  );
+}
+
+function OnboardingOverlay({ onClose }: { onClose: () => void }) {
+  const [step, setStep] = useState(0);
+  const [loading, setLoading] = useState(false);
+
+  async function handleNotifications() {
+    setLoading(true);
+    await ensureNotificationPermission(true).catch(() => false);
+    setLoading(false);
+    setStep(1);
+  }
+
+  async function skipNotifications() {
+    setStep(1);
+  }
+
+  async function handleBattery() {
+    setLoading(true);
+    const exempt = await checkBatteryOptimizationExempt().catch(() => false);
+    if (exempt) {
+      setLoading(false);
+      await markOnboardingCompleted();
+      onClose();
+      return;
+    }
+    await openAppSystemSettings().catch(() => false);
+    setLoading(false);
+    Alert.alert(
+      'Battery optimization',
+      'Find Qeemat in the list and set it to "Don\'t optimize".\n\nThen tap "Done" below.',
+      [{ text: 'Done', onPress: async () => {
+        await markOnboardingCompleted();
+        onClose();
+      }}]
+    );
+  }
+
+  async function skipBattery() {
+    await markOnboardingCompleted();
+    onClose();
+  }
+
+  return (
+    <View style={onboardingStyles.overlay}>
+      <View style={onboardingStyles.card}>
+        <Bell size={32} color={colors.primary} />
+        <AppText weight="bold" style={onboardingStyles.title}>
+          Welcome to Qeemat
+        </AppText>
+        <AppText muted style={onboardingStyles.body}>
+          {step === 0
+            ? 'Get notified when prices drop. Enable notifications to receive price alerts in the background.'
+            : 'Android may block background checks when the app is closed. Disable battery optimization so Qeemat can run daily price checks.'}
+        </AppText>
+        {step === 0 ? (
+          <View style={onboardingStyles.actions}>
+            <PrimaryButton label="Enable notifications" onPress={handleNotifications} loading={loading} />
+            <PrimaryButton label="Skip" variant="outline" onPress={skipNotifications} disabled={loading} />
+          </View>
+        ) : (
+          <View style={onboardingStyles.actions}>
+            <PrimaryButton label="Open system settings" onPress={handleBattery} loading={loading} />
+            <PrimaryButton label="Skip" variant="outline" onPress={skipBattery} disabled={loading} />
+          </View>
+        )}
+      </View>
+    </View>
   );
 }
 
@@ -1551,5 +1635,39 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: colors.border,
     marginVertical: 4
+  }
+});
+
+const onboardingStyles = StyleSheet.create({
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 100
+  },
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: 28,
+    marginHorizontal: 32,
+    alignItems: 'center',
+    gap: 16,
+    ...shadow
+  },
+  title: {
+    fontSize: 20,
+    textAlign: 'center'
+  },
+  body: {
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center'
+  },
+  actions: {
+    flexDirection: 'column',
+    gap: 10,
+    width: '100%',
+    marginTop: 4
   }
 });
