@@ -8,6 +8,7 @@ import {
   Pressable,
   RefreshControl,
   ScrollView,
+  StatusBar,
   StyleSheet,
   TextInput,
   View
@@ -149,6 +150,7 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
+      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
       <SafeAreaView style={styles.app}>
         {route.name === 'tabs' ? <TabsScreen tab={route.tab} navigate={setRoute} /> : null}
         {route.name === 'add' ? <AddScreen navigate={setRoute} /> : null}
