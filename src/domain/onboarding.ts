@@ -34,3 +34,7 @@ export async function markOnboardingCompleted(): Promise<void> {
     JSON.stringify({ completed: true, completedAt: new Date().toISOString() })
   );
 }
+
+export async function resetOnboarding(): Promise<void> {
+  await AsyncStorage.removeItem(ONBOARDING_KEY);
+}

@@ -203,24 +203,34 @@ function OnboardingOverlay({ onClose }: { onClose: () => void }) {
   return (
     <View style={onboardingStyles.overlay}>
       <View style={onboardingStyles.card}>
-        <Bell size={32} color={colors.primary} />
+        <View style={onboardingStyles.iconCircle}>
+          {step === 0 ? <Bell size={28} color={colors.primary} /> : <SettingsIcon size={28} color={colors.primary} />}
+        </View>
         <AppText weight="bold" style={onboardingStyles.title}>
-          Welcome to Qeemat
+          {step === 0 ? 'Stay on top of prices' : 'Run checks in background'}
         </AppText>
         <AppText muted style={onboardingStyles.body}>
           {step === 0
-            ? 'Get notified when prices drop. Enable notifications to receive price alerts in the background.'
-            : 'Android may block background checks when the app is closed. Disable battery optimization so Qeemat can run daily price checks.'}
+            ? 'Get notified when a tracked product drops in price or hits your target.'
+            : 'Android can block checks when the app is closed. Disable battery restrictions so Qeemat runs daily.'}
         </AppText>
+        <View style={onboardingStyles.dots}>
+          <View style={[onboardingStyles.dot, step === 0 && onboardingStyles.dotActive]} />
+          <View style={[onboardingStyles.dot, step === 1 && onboardingStyles.dotActive]} />
+        </View>
         {step === 0 ? (
           <View style={onboardingStyles.actions}>
             <PrimaryButton label="Enable notifications" onPress={handleNotifications} loading={loading} />
-            <PrimaryButton label="Skip" variant="outline" onPress={skipNotifications} disabled={loading} />
+            <Pressable onPress={skipNotifications} disabled={loading} style={({ pressed }) => [onboardingStyles.skipBtn, pressed && { opacity: 0.6 }]}>
+              <AppText style={onboardingStyles.skipLabel}>Skip</AppText>
+            </Pressable>
           </View>
         ) : (
           <View style={onboardingStyles.actions}>
             <PrimaryButton label="Open system settings" onPress={handleBattery} loading={loading} />
-            <PrimaryButton label="Skip" variant="outline" onPress={skipBattery} disabled={loading} />
+            <Pressable onPress={skipBattery} disabled={loading} style={({ pressed }) => [onboardingStyles.skipBtn, pressed && { opacity: 0.6 }]}>
+              <AppText style={onboardingStyles.skipLabel}>Skip</AppText>
+            </Pressable>
           </View>
         )}
       </View>
@@ -1641,33 +1651,71 @@ const styles = StyleSheet.create({
 const onboardingStyles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.45)',
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 100
+    zIndex: 100,
+    paddingHorizontal: 24
   },
   card: {
     backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: 28,
-    marginHorizontal: 32,
+    borderRadius: 16,
+    paddingVertical: 36,
+    paddingHorizontal: 28,
     alignItems: 'center',
-    gap: 16,
+    gap: 14,
+    width: '100%',
     ...shadow
   },
+  iconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.blueSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4
+  },
   title: {
-    fontSize: 20,
-    textAlign: 'center'
+    fontSize: 22,
+    textAlign: 'center',
+    letterSpacing: -0.3
   },
   body: {
-    fontSize: 14,
-    lineHeight: 20,
-    textAlign: 'center'
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: 'center',
+    paddingHorizontal: 8
+  },
+  dots: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 2
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.border
+  },
+  dotActive: {
+    backgroundColor: colors.primary,
+    width: 24,
+    borderRadius: 4
   },
   actions: {
-    flexDirection: 'column',
-    gap: 10,
+    gap: 6,
     width: '100%',
-    marginTop: 4
+    marginTop: 8,
+    alignItems: 'center'
+  },
+  skipBtn: {
+    paddingVertical: 12,
+    paddingHorizontal: 10
+  },
+  skipLabel: {
+    color: colors.textMuted,
+    fontSize: 15,
+    fontWeight: '500'
   }
 });
