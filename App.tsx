@@ -48,7 +48,7 @@ import {
   listTrackedProducts,
   updateTrackingSettings
 } from './src/data/database';
-import { runBackgroundCheckOnce, scheduleBackgroundChecks } from './src/domain/backgroundScheduler';
+import { runBackgroundCheckOnce, scheduleBackgroundChecks, checkBatteryOptimizationExempt, requestBatteryOptimizationExemption, openAppSystemSettings } from './src/domain/backgroundScheduler';
 import { checkAllActiveProducts, checkProductById } from './src/domain/checker';
 import { formatRelativeTime, formatSnapshotTime } from './src/domain/dates';
 import { ensureNotificationPermission, openNotificationSettings } from './src/domain/notifications';
@@ -678,15 +678,19 @@ function SettingsScreen() {
   const [queueingCheck, setQueueingCheck] = useState(false);
   const [savingSchedule, setSavingSchedule] = useState(false);
   const [requestingNotifications, setRequestingNotifications] = useState(false);
+  const [batteryExempt, setBatteryExempt] = useState<boolean>();
+  const [requestingBattery, setRequestingBattery] = useState(false);
 
   const loadStatus = useCallback(async () => {
-    const [status, notificationsAllowed] = await Promise.all([
+    const [status, notificationsAllowed, batteryOptExempt] = await Promise.all([
       getBackgroundStatus(),
-      ensureNotificationPermission(false)
+      ensureNotificationPermission(false),
+      checkBatteryOptimizationExempt().catch(() => false),
     ]);
 
     setBackgroundStatus(status);
     setNotificationEnabled(notificationsAllowed);
+    setBatteryExempt(batteryOptExempt);
   }, []);
 
   useEffect(() => {
@@ -729,6 +733,42 @@ function SettingsScreen() {
     }
 
     Alert.alert('Notifications enabled', 'Qeemat can now show local price alerts on this device.');
+  }
+
+  async function requestBatteryOptimize() {
+    setRequestingBattery(true);
+
+    // Try the standard API first
+    const alreadyExempt = await requestBatteryOptimizationExemption().catch(() => false);
+    if (alreadyExempt) {
+      setRequestingBattery(false);
+      setBatteryExempt(true);
+      return;
+    }
+
+    // Then open the app system settings page as a reliable fallback
+    const opened = await openAppSystemSettings().catch(() => false);
+    setRequestingBattery(false);
+
+    if (!opened) {
+      Alert.alert('Could not open system settings');
+      return;
+    }
+
+    Alert.alert(
+      'App system settings opened',
+      'Find "Battery" or "Battery optimization" in the app info screen and set Qeemat to "Unrestricted" / "Don\'t optimize".\n\nOn Samsung: Battery → Background usage limits → Never auto-disable.\nOn Xiaomi: Battery → App battery saver → No restrictions.\nOn other devices: Look for "Battery optimization" or "App power management".',
+      [
+        { text: 'Check status', onPress: async () => {
+          const exempt = await checkBatteryOptimizationExempt().catch(() => false);
+          setBatteryExempt(exempt);
+          if (exempt) {
+            Alert.alert('Qeemat is now exempt from battery optimization.');
+          }
+        }},
+        { text: 'Done' }
+      ]
+    );
   }
 
   async function selectBackgroundSchedule(preferredHour: number) {
@@ -811,10 +851,31 @@ function SettingsScreen() {
       <View style={styles.settingsCard}>
         <View style={styles.settingsStack}>
           <View style={styles.settingsHeaderRow}>
+            <AppText weight="bold">Battery optimization</AppText>
+            <View style={[styles.settingsBadge, batteryExempt ? styles.settingsBadgeSuccess : styles.settingsBadgeMuted]}>
+              <AppText weight="semibold" style={[styles.settingsBadgeText, batteryExempt && styles.settingsBadgeSuccessText]}>
+                {batteryExempt === undefined ? 'Checking' : batteryExempt ? 'Exempt' : 'Restricted'}
+              </AppText>
+            </View>
+          </View>
+          <AppText muted style={styles.settingsBodyText}>
+            Android may block background checks when the app is closed. Exempt Qeemat from battery optimization so WorkManager can wake up the device for daily price checks.
+          </AppText>
+          <PrimaryButton
+            label={batteryExempt === undefined ? 'Checking' : 'Open app system settings'}
+            variant="outline"
+            onPress={requestBatteryOptimize}
+            loading={requestingBattery}
+          />
+        </View>
+      </View>
+      <View style={styles.settingsCard}>
+        <View style={styles.settingsStack}>
+          <View style={styles.settingsHeaderRow}>
             <View style={styles.flex}>
               <AppText weight="bold">Daily background check time</AppText>
               <AppText muted style={styles.settingsBodyText}>
-                Android will try to run the worker around the selected hour each day using this device's local time.
+                Choose when Android runs the daily price check.
               </AppText>
             </View>
             <View style={[styles.settingsBadge, styles.settingsBadgeSuccess]}>
@@ -823,9 +884,6 @@ function SettingsScreen() {
               </AppText>
             </View>
           </View>
-          <AppText weight="semibold" muted>
-            Pick a time
-          </AppText>
           <View style={styles.settingsPresetRow}>
             {BACKGROUND_TIME_PRESETS.map((preset) => {
               const selected = preset.hour === selectedPresetHour;
@@ -846,25 +904,19 @@ function SettingsScreen() {
               );
             })}
           </View>
-          <AppText muted style={styles.settingsHint}>
-            Tap an option to save it immediately. Product check preferences still decide which items are actually due when the worker wakes up.
-          </AppText>
           <View style={styles.settingsMetaCard}>
-            <InfoRow label="Saved daily target" value={preferredHourLabel} />
-            <InfoRow label="Last scheduled" value={formatStatusTime(backgroundStatus?.lastScheduledAt)} />
-            <InfoRow label="Last started" value={formatStatusTime(backgroundStatus?.lastStartedAt)} />
-            <InfoRow label="Last completed" value={formatStatusTime(backgroundStatus?.lastCompletedAt)} />
+            <InfoRow label="Target" value={preferredHourLabel} />
+            <InfoRow label="Scheduled" value={formatStatusTime(backgroundStatus?.lastScheduledAt)} />
+            <InfoRow label="Started" value={formatStatusTime(backgroundStatus?.lastStartedAt)} />
+            <InfoRow label="Completed" value={formatStatusTime(backgroundStatus?.lastCompletedAt)} />
             <InfoRow
-              label="Last source"
+              label="Source"
               value={backgroundStatus?.lastSource ? formatRunSource(backgroundStatus.lastSource, backgroundStatus.lastForceRun) : 'No background run yet'}
             />
             {backgroundStatus?.lastRunError ? <AppText style={styles.errorText}>Last run error: {backgroundStatus.lastRunError}</AppText> : null}
           </View>
           <AppText muted style={styles.settingsHint}>
-            WorkManager is best-effort. Battery saving, idle mode, vendor restrictions, or force-stopping the app can delay future runs.
-          </AppText>
-          <AppText muted style={styles.settingsHint}>
-            No extra background permission is normally required. Notification permission is separate and only affects alerts.
+            Best-effort — enable battery exemption above for reliability.
           </AppText>
           <PrimaryButton label="Queue background check once" variant="outline" onPress={queueBackgroundCheck} loading={queueingCheck} />
         </View>
@@ -1494,5 +1546,10 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: colors.red
+  },
+  settingsDivider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginVertical: 4
   }
 });
