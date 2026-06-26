@@ -13,7 +13,7 @@ class QeematBackgroundTaskService : HeadlessJsTaskService() {
     return HeadlessJsTaskConfig(
         "QeematBackgroundPriceCheck",
         data,
-        120000,
+        300000,
         true,
     )
   }

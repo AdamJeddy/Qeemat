@@ -1,10 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {
+  ActivityEvent,
   AlertMode,
   CheckPreference,
   CheckStatus,
   ParsedProduct,
+  PriceDirection,
   PriceSnapshot,
   ProductDraft,
   ProductWithSnapshots,
@@ -19,15 +21,19 @@ const STORE_KEY = 'qeemat.local-store.v1';
 type LocalStore = {
   nextProductId: number;
   nextSnapshotId: number;
+  nextActivityId: number;
   products: TrackedProduct[];
   snapshots: PriceSnapshot[];
+  activity: ActivityEvent[];
 };
 
 const EMPTY_STORE: LocalStore = {
   nextProductId: 1,
   nextSnapshotId: 1,
+  nextActivityId: 1,
   products: [],
-  snapshots: []
+  snapshots: [],
+  activity: []
 };
 
 let initialized = false;
@@ -43,6 +49,9 @@ export async function initializeDatabase(): Promise<void> {
   }
 
   initialized = true;
+
+  // One-time migration: backfill activity events from existing snapshot data
+  await migrateActivityEventsIfNeeded();
 }
 
 export async function listTrackedProducts(): Promise<TrackedProduct[]> {
@@ -110,6 +119,20 @@ export async function createTrackedProduct(draft: ProductDraft): Promise<number>
     snapshots: [snapshot, ...store.snapshots]
   });
 
+  // Record initial price as first activity event
+  if (product.currentPriceMinor !== undefined) {
+    await recordActivityEvent({
+      trackedProductId: productId,
+      productTitle: product.title,
+      productImageUrl: product.imageUrl,
+      newPriceMinor: product.currentPriceMinor,
+      currency: product.currency,
+      priceDirection: 'first',
+      source: 'manual_single',
+      checkedAt: now
+    });
+  }
+
   return productId;
 }
 
@@ -153,6 +176,118 @@ export async function deleteTrackedProduct(id: number): Promise<void> {
 
 export async function deleteAllLocalData(): Promise<void> {
   await writeStore(EMPTY_STORE);
+}
+
+const MAX_ACTIVITY_EVENTS = 100;
+
+export async function recordActivityEvent(
+  event: Omit<ActivityEvent, 'id'>
+): Promise<void> {
+  const store = await readStore();
+  const entry: ActivityEvent = {
+    ...event,
+    id: store.nextActivityId
+  };
+
+  const trimmed = [entry, ...store.activity].slice(0, MAX_ACTIVITY_EVENTS);
+
+  await writeStore({
+    ...store,
+    nextActivityId: store.nextActivityId + 1,
+    activity: trimmed
+  });
+}
+
+export async function listActivityEvents(limit = 50): Promise<ActivityEvent[]> {
+  const store = await readStore();
+  return [...store.activity]
+    .sort((a, b) => b.checkedAt.localeCompare(a.checkedAt))
+    .slice(0, limit);
+}
+
+const MIGRATION_KEY = 'qeemat.migrated-activity.v1';
+
+async function migrateActivityEventsIfNeeded(): Promise<void> {
+  const alreadyMigrated = await AsyncStorage.getItem(MIGRATION_KEY);
+  if (alreadyMigrated) {
+    return;
+  }
+
+  const store = await readStore();
+
+  // Only migrate if there's snapshot data and no activity events yet
+  if (store.snapshots.length === 0 || store.activity.length > 0) {
+    return;
+  }
+
+  const events: ActivityEvent[] = [];
+  let nextId = store.nextActivityId;
+
+  for (const product of store.products) {
+    const productSnapshots = store.snapshots
+      .filter((s) => s.trackedProductId === product.id)
+      .sort((a, b) => a.checkedAt.localeCompare(b.checkedAt));
+
+    let lastPriceMinor: number | undefined;
+
+    for (const snapshot of productSnapshots) {
+      if (snapshot.priceMinor === undefined) {
+        continue;
+      }
+
+      const direction = resolveMigrationDirection(lastPriceMinor, snapshot.priceMinor);
+      if (!direction) {
+        lastPriceMinor = snapshot.priceMinor;
+        continue;
+      }
+
+      events.push({
+        id: nextId++,
+        trackedProductId: product.id,
+        productTitle: product.title,
+        productImageUrl: product.imageUrl,
+        previousPriceMinor: lastPriceMinor,
+        newPriceMinor: snapshot.priceMinor,
+        currency: snapshot.currency ?? product.currency,
+        priceDirection: direction,
+        source: snapshot.source,
+        checkedAt: snapshot.checkedAt
+      });
+
+      lastPriceMinor = snapshot.priceMinor;
+    }
+  }
+
+  // Sort events newest-first and cap at MAX_ACTIVITY_EVENTS
+  events.sort((a, b) => b.checkedAt.localeCompare(a.checkedAt));
+  const trimmed = events.slice(0, MAX_ACTIVITY_EVENTS);
+
+  await writeStore({
+    ...store,
+    nextActivityId: nextId,
+    activity: trimmed
+  });
+
+  await AsyncStorage.setItem(MIGRATION_KEY, 'done');
+}
+
+function resolveMigrationDirection(
+  previousPriceMinor: number | undefined,
+  newPriceMinor: number
+): PriceDirection | undefined {
+  if (previousPriceMinor === undefined) {
+    return 'first';
+  }
+
+  if (newPriceMinor < previousPriceMinor) {
+    return 'down';
+  }
+
+  if (newPriceMinor > previousPriceMinor) {
+    return 'up';
+  }
+
+  return undefined;
 }
 
 export async function recordSuccessfulCheck(
@@ -274,6 +409,7 @@ async function readStore(): Promise<LocalStore> {
 
     return {
       ...parsed,
+      nextActivityId: parsed.nextActivityId ?? 1,
       products: parsed.products.map((product) => ({
         ...product,
         checkPreference: normalizeCheckPreference(product.checkPreference)
@@ -281,7 +417,8 @@ async function readStore(): Promise<LocalStore> {
       snapshots: parsed.snapshots.map((snapshot) => ({
         ...snapshot,
         source: snapshot.source ?? 'unknown'
-      }))
+      })),
+      activity: parsed.activity ?? []
     };
   } catch {
     await writeStore(EMPTY_STORE);

@@ -14,6 +14,7 @@ Core loop:
 4. View the watchlist, product detail, price chart, and snapshot history.
 5. Recheck a single product manually or recheck all tracked products.
 6. Let Android run best-effort background checks and send local alerts when rules match.
+7. Browse a chronological activity feed of price changes across all tracked products.
 
 ## Current Supported Stores
 
@@ -49,6 +50,7 @@ Amazon support is intentionally MVP-level only. It works across selected Amazon 
 
 - Shows current price, chart, and stats.
 - Supports manual `Check now`.
+- `Open link` button opens the product URL in the system browser.
 - Shows price snapshots with source tags:
   - `Check now`
   - `Recheck all`
@@ -58,6 +60,7 @@ Amazon support is intentionally MVP-level only. It works across selected Amazon 
 
 - Shows supported stores.
 - Shows notification status and deep-links to Android notification settings.
+- Shows battery optimization status (exempt/restricted) with a button to open app system settings.
 - Shows daily background check time presets:
   - Morning: `9:00 AM`
   - Afternoon: `2:00 PM`
@@ -72,9 +75,37 @@ Amazon support is intentionally MVP-level only. It works across selected Amazon 
 - Supports `Queue background check once`.
 - Supports deleting all local data.
 
+### Onboarding (first launch)
+
+- First-time users see a two-step overlay on app launch:
+  - Step 1: Enable notifications for price alerts.
+  - Step 2: Open system settings to disable battery optimization for reliable background checks.
+- Each step can be skipped. The overlay never appears again after completing.
+
 ### Navigation
 
+- Bottom tab bar with **Watchlist**, **Activity**, and **Settings** tabs.
+- Activity tab shows a chronological feed of price-change events across all tracked products, with date grouping, price direction indicators (trend arrows for up/down), old price (strikethrough), source badges, and a "Started tracking" label for first-recorded prices.
+- Tapping an activity event navigates to the product detail view.
+- Deleted product events remain visible but become non-tappable.
 - Android hardware back gesture/button is handled inside the app for the current lightweight route stack instead of immediately exiting the app.
+
+### Activity Tab
+
+- Shows a chronological, newest-first feed of price-change events across all tracked products.
+- Events are grouped by relative date (Today / Yesterday / date label).
+- Each event card shows:
+  - Product thumbnail or placeholder icon.
+  - Product title.
+  - Old price (strikethrough) and new price (bold, coloured: green for drops, red for increases, primary blue for first-recorded).
+  - Direction arrow: `TrendingDown` for price drops, `TrendingUp` for increases, a blue dot for first-recorded prices.
+  - "Started tracking" label shown for first-recorded price events.
+  - Source badge indicating whether the check came from `Check now`, `Recheck all`, or `Background`.
+- Tapping a card navigates to that product's detail screen.
+- Events survive product deletion (denormalized product title is stored on the event).
+- Empty state shown when no price changes have been recorded yet.
+
+### Onboarding (first launch)
 
 ## Current Storage Model
 
@@ -84,6 +115,7 @@ Important stored entities:
 
 - `tracked products`
 - `price snapshots`
+- `activity events` — chronological log of price-change events with direction, old/new prices, and denormalized product data
 - `background status`
 
 Current snapshot source values:
@@ -107,7 +139,9 @@ Important constraint:
 
 - WorkManager is best-effort only
 - battery saver, vendor restrictions, idle mode, missing connectivity, or force-stopping the app can delay or pause future runs
-- there is no user-facing Android "background permission" flow implemented because normal WorkManager usage does not require a separate permission prompt
+- the settings screen includes a battery optimization card that checks exemption status and can open system app settings
+- the first-launch onboarding prompts users to disable battery optimization
+- REQUEST_IGNORE_BATTERY_OPTIMIZATIONS permission is declared in the manifest
 
 ## Notifications
 
@@ -152,6 +186,7 @@ Domain and storage:
 - `src/domain/types.ts`
 - `src/domain/backgroundStatus.ts`
 - `src/domain/backgroundScheduler.ts`
+- `src/domain/onboarding.ts`
 - `src/domain/notifications.ts`
 - `src/domain/parser.ts`
 
@@ -159,6 +194,7 @@ Android native integration:
 
 - `android/app/src/main/java/com/qeemat/QeematBackgroundCheckModule.kt`
 - `android/app/src/main/java/com/qeemat/QeematBackgroundWorker.kt`
+- `android/app/src/main/java/com/qeemat/QeematBackgroundTaskService.kt`
 - `android/app/src/main/java/com/qeemat/QeematNotificationsModule.kt`
 - `android/app/src/main/java/com/qeemat/QeematNotificationsPackage.kt`
 - `android/app/src/main/java/com/qeemat/MainApplication.kt`
@@ -225,3 +261,14 @@ If terminal builds fail with invalid `JAVA_HOME` or missing `adb`, fix those loc
 - Added Android background run status tracking and preferred time-of-day scheduling.
 - Added snapshot source tagging for manual vs background checks.
 - Fixed Android back navigation so the hardware back gesture returns through app screens instead of always leaving the app.
+- Improved Android background worker reliability: proper error classification with logging, increased headless timeout to 5 min, WorkManager configuration with debug logging, ProGuard keep rules, and `foregroundServiceType` for Android 14+.
+- Added battery optimization support: permission declaration, native exemption check/request, app system settings opener, and settings UI card with exempt/restricted status.
+- Added first-launch onboarding overlay prompting users to enable notifications and disable battery optimization (shown once, stored in AsyncStorage).
+- Added `Open link` button on product detail that opens the product URL in the system browser.
+- Fixed status bar text color to dark-content for visibility against the light app background.
+- Removed dead 3-dot menu icon from product card tiles.
+- Condensed background check settings card layout and added step indicator dots to onboarding.
+- Replaced the read-only "Alerts" tab with a dynamic "Activity" tab showing a chronological feed of actual price-change events across all products, with date grouping, price direction indicators, source badges, and one-time backfill migration from existing snapshot history.
+- Added `ActivityEvent` data model and `PriceDirection` type (`up`, `down`, `first`) for the activity feed.
+- Activity events survive product deletion (denormalized title/image stored on each event).
+- One-time migration backfills activity events from existing snapshot data on first launch after upgrade.

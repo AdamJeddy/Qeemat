@@ -1,5 +1,7 @@
 package com.qeemat
 
+import android.os.PowerManager
+import android.provider.Settings
 import androidx.work.Data
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
@@ -84,6 +86,30 @@ class QeematBackgroundCheckModule(private val reactContext: ReactApplicationCont
   }
 
   @ReactMethod
+  fun runTestOnce(delayMinutes: Double, promise: Promise) {
+    try {
+      val minutes = delayMinutes.toLong().coerceIn(1, 60)
+      val request =
+          OneTimeWorkRequestBuilder<QeematBackgroundWorker>()
+              .setInitialDelay(minutes, TimeUnit.MINUTES)
+              .setInputData(Data.Builder().putBoolean("force", true).build())
+              .addTag("qeemat-price-check-test")
+              .build()
+
+      WorkManager.getInstance(reactContext)
+          .enqueueUniqueWork(
+              "qeemat-price-check-test",
+              ExistingWorkPolicy.REPLACE,
+              request,
+          )
+
+      promise.resolve(true)
+    } catch (error: Exception) {
+      promise.reject("QBG_TEST_FAILED", error)
+    }
+  }
+
+  @ReactMethod
   fun cancel(promise: Promise) {
     try {
       WorkManager.getInstance(reactContext).cancelUniqueWork(PERIODIC_WORK_NAME)
@@ -91,6 +117,51 @@ class QeematBackgroundCheckModule(private val reactContext: ReactApplicationCont
       promise.resolve(true)
     } catch (error: Exception) {
       promise.reject("QBG_CANCEL_FAILED", error)
+    }
+  }
+
+  @ReactMethod
+  fun isBatteryOptimizationExempt(promise: Promise) {
+    try {
+      val powerManager = reactContext.getSystemService(PowerManager::class.java)
+      promise.resolve(powerManager.isIgnoringBatteryOptimizations(reactContext.packageName))
+    } catch (error: Exception) {
+      promise.reject("QBG_BATTERY_CHECK_FAILED", error)
+    }
+  }
+
+  @ReactMethod
+  fun requestBatteryOptimizationExemption(promise: Promise) {
+    try {
+      val powerManager = reactContext.getSystemService(PowerManager::class.java)
+      if (powerManager.isIgnoringBatteryOptimizations(reactContext.packageName)) {
+        promise.resolve(true)
+        return
+      }
+
+      // Try the standard API first
+      val intent = android.content.Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+        data = android.net.Uri.parse("package:${reactContext.packageName}")
+        addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+      }
+      reactContext.startActivity(intent)
+      promise.resolve(false)
+    } catch (error: Exception) {
+      promise.reject("QBG_BATTERY_REQUEST_FAILED", error)
+    }
+  }
+
+  @ReactMethod
+  fun openAppSystemSettings(promise: Promise) {
+    try {
+      val intent = android.content.Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+        data = android.net.Uri.parse("package:${reactContext.packageName}")
+        addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+      }
+      reactContext.startActivity(intent)
+      promise.resolve(true)
+    } catch (error: Exception) {
+      promise.reject("QBG_APP_SETTINGS_FAILED", error)
     }
   }
 }

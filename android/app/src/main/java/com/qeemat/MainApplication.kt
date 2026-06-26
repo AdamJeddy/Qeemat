@@ -1,6 +1,9 @@
 package com.qeemat
 
 import android.app.Application
+import android.util.Log
+import androidx.work.Configuration
+import androidx.work.WorkManager
 import com.facebook.react.PackageList
 import com.facebook.react.ReactApplication
 import com.facebook.react.ReactHost
@@ -10,7 +13,12 @@ import com.facebook.react.ReactPackage
 import com.facebook.react.defaults.DefaultReactHost.getDefaultReactHost
 import com.facebook.react.defaults.DefaultReactNativeHost
 
-class MainApplication : Application(), ReactApplication {
+class MainApplication : Application(), ReactApplication, Configuration.Provider {
+
+  override val workManagerConfiguration: Configuration
+    get() = Configuration.Builder()
+        .setMinimumLoggingLevel(if (BuildConfig.DEBUG) Log.DEBUG else Log.INFO)
+        .build()
 
   override val reactNativeHost: ReactNativeHost =
       object : DefaultReactNativeHost(this) {
