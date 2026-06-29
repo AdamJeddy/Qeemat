@@ -56,7 +56,7 @@ import {
 } from './src/data/database';
 import { runBackgroundCheckOnce, scheduleBackgroundChecks, checkBatteryOptimizationExempt, requestBatteryOptimizationExemption, openAppSystemSettings } from './src/domain/backgroundScheduler';
 import { checkAllActiveProducts, checkProductById } from './src/domain/checker';
-import { formatRelativeTime, formatSnapshotTime } from './src/domain/dates';
+import { availableCheckPreferences, formatRelativeTime, formatSnapshotTime } from './src/domain/dates';
 import { getOnboardingState, markOnboardingCompleted } from './src/domain/onboarding';
 import { ensureNotificationPermission, openNotificationSettings } from './src/domain/notifications';
 import { fetchAndParseProduct } from './src/domain/parser';
@@ -421,6 +421,20 @@ function AddScreen({ navigate }: { navigate: (route: Route) => void }) {
   const detectedSite = useMemo(() => detectSupportedSite(normalizedUrl), [normalizedUrl]);
   const targetPriceMinor = parseTargetPriceInput(targetPrice);
 
+  const siteKeyForPrefs = parsedProduct?.siteKey ?? detectedSite?.key;
+  const checkOptions = useMemo(
+    () => CHECK_OPTIONS.filter((opt) => availableCheckPreferences(siteKeyForPrefs).includes(opt.value)),
+    [siteKeyForPrefs]
+  );
+
+  // Reset check preference if the current one is no longer valid for the site
+  useEffect(() => {
+    const valid = availableCheckPreferences(siteKeyForPrefs);
+    if (valid.length > 0 && !valid.includes(checkPreference)) {
+      setCheckPreference(valid[0]);
+    }
+  }, [siteKeyForPrefs]); // eslint-disable-line react-hooks/exhaustive-deps
+
   async function parseUrl() {
     setError(undefined);
     setParsedProduct(undefined);
@@ -513,7 +527,7 @@ function AddScreen({ navigate }: { navigate: (route: Route) => void }) {
             <AppText weight="semibold" style={styles.formLabel}>
               Check preference
             </AppText>
-            <OptionGroup value={checkPreference} options={CHECK_OPTIONS} onChange={setCheckPreference} />
+            <OptionGroup value={checkPreference} options={checkOptions} onChange={setCheckPreference} />
             <AppText weight="semibold" style={styles.formLabel}>
               Alert mode
             </AppText>
@@ -684,7 +698,12 @@ function TrackingSettingsScreen({ productId, navigate }: { productId: number; na
         return;
       }
       setProduct(row);
-      setCheckPreference(row.checkPreference);
+
+      // Clamp check preference to valid options for this site
+      const valid = availableCheckPreferences(row.siteKey);
+      const clampedPref = valid.includes(row.checkPreference) ? row.checkPreference : valid[0] ?? row.checkPreference;
+      setCheckPreference(clampedPref);
+
       setAlertMode(row.alertMode);
       setTargetPrice(row.targetPriceMinor ? String(row.targetPriceMinor / 100) : '');
     });
@@ -722,7 +741,7 @@ function TrackingSettingsScreen({ productId, navigate }: { productId: number; na
           {product?.title ?? 'Product'}
         </AppText>
         <AppText weight="semibold">Check preference</AppText>
-        <OptionGroup value={checkPreference} options={CHECK_OPTIONS} onChange={setCheckPreference} />
+        <OptionGroup value={checkPreference} options={CHECK_OPTIONS.filter((opt) => availableCheckPreferences(product?.siteKey).includes(opt.value))} onChange={setCheckPreference} />
         <AppText weight="semibold">Alert mode</AppText>
         <OptionGroup value={alertMode} options={ALERT_OPTIONS} onChange={setAlertMode} />
         {alertMode === 'target_price' ? (

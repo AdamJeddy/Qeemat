@@ -96,7 +96,7 @@ async function checkActiveProducts(limit: number, force: boolean, source: Snapsh
   const products = await listTrackedProducts();
   const dueProducts = products
     .filter((product) => product.isActive)
-    .filter((product) => force || isDueForCheck(product.lastCheckedAt, product.checkPreference))
+    .filter((product) => force || isDueForCheck(product.lastCheckedAt, product.checkPreference, product.siteKey))
     .slice(0, limit);
 
   const staggerMs = staggerDelayMs(source);

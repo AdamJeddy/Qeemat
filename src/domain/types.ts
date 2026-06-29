@@ -25,6 +25,9 @@ export type SupportedSite = {
   hostnames: string[];
   status: 'supported' | 'experimental';
   notes: string;
+  /** Minimum hours that must elapse between checks for this site.
+   *  When set, overrides shorter user check preferences. */
+  minimumIntervalHours?: number;
 };
 
 export type ParsedProduct = {

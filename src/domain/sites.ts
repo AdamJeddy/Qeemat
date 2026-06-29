@@ -39,7 +39,8 @@ export const SUPPORTED_SITES: SupportedSite[] = [
     shortName: 'AYM',
     hostnames: ['ay-accessories.com', 'www.ay-accessories.com'],
     status: 'supported',
-    notes: 'WooCommerce product pages expose variation JSON, images, and AED pricing for supported product pages.'
+    notes: 'WooCommerce product pages expose variation JSON, images, and AED pricing for supported product pages.',
+    minimumIntervalHours: 72
   },
   {
     key: 'ounass',
