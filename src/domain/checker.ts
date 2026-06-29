@@ -4,6 +4,24 @@ import { PriceDirection, SnapshotSource, TrackedProduct } from './types';
 import { recordFailedCheck, recordSuccessfulCheck, recordActivityEvent, listTrackedProducts, getTrackedProduct } from '../data/database';
 import { maybeNotifyForCheck } from './notifications';
 
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Returns the minimum delay (ms) between individual product checks
+ * for a given bulk-check source. Background checks use a longer
+ * stagger to avoid rate limits; manual batch checks use a shorter
+ * stagger to stay responsive.
+ */
+function staggerDelayMs(source: SnapshotSource): number {
+  if (source === 'background') {
+    return 15000; // 15s between background checks
+  }
+
+  return 1500; // 1.5s between manual-batch checks
+}
+
 export async function checkProductNow(product: TrackedProduct, source: SnapshotSource): Promise<void> {
   const result = await fetchAndParseProduct(product.canonicalUrl || product.url);
 
@@ -81,7 +99,13 @@ async function checkActiveProducts(limit: number, force: boolean, source: Snapsh
     .filter((product) => force || isDueForCheck(product.lastCheckedAt, product.checkPreference))
     .slice(0, limit);
 
-  for (const product of dueProducts) {
-    await checkProductNow(product, source);
+  const staggerMs = staggerDelayMs(source);
+
+  for (let i = 0; i < dueProducts.length; i++) {
+    if (i > 0) {
+      await delay(staggerMs);
+    }
+
+    await checkProductNow(dueProducts[i], source);
   }
 }
