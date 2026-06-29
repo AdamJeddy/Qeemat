@@ -45,6 +45,7 @@ Amazon support is intentionally MVP-level only. It works across selected Amazon 
   - check preference: `daily`, `every_3_days`, `weekly`
   - alert mode: `price_drop`, `any_change`, `target_price`
   - optional target price
+- AYM Accessories excludes `daily` from the check-preference picker (site enforces a 72-hour minimum interval to avoid rate limiting). Existing AYM products saved with `daily` are automatically clamped on the tracking-settings screen.
 
 ### Product Detail
 
@@ -134,6 +135,7 @@ Background work is currently Android-specific.
 - Time targeting: preferred hour of day with initial delay aligned to the next selected hour
 - Due logic: per-product check preference still decides whether a product is checked during a given worker run
 - Force run: settings screen can queue a one-off background run
+- **Staggered checks**: individual product checks during a background run are spaced 15 seconds apart to avoid triggering rate limits on supported stores. Manual "Recheck all" uses a shorter 1.5-second stagger.
 
 Important constraint:
 
@@ -160,6 +162,7 @@ If permission is blocked, the app should continue tracking locally without showi
 ## Parser and Site Notes
 
 - Parsers are wired through the site registry in `src/domain/sites.ts`
+- Each `SupportedSite` can declare a `minimumIntervalHours` that clamps the effective check interval regardless of the user's check-preference. Currently AYM Accessories uses this (72 hours) to reduce load on their rate-limited WooCommerce backend.
 - Parser coverage includes AYM WooCommerce variation markup
 - Parser coverage includes Ounass inline PDP payload parsing
 - Parser coverage includes Amazon regional-domain detection, multi-currency price parsing, buy-box style markup, alternate total-price fallback handling, and challenge-page detection in tests
@@ -182,6 +185,7 @@ Domain and storage:
 
 - `src/data/database.ts`
 - `src/domain/checker.ts`
+- `src/domain/dates.ts`
 - `src/domain/sites.ts`
 - `src/domain/types.ts`
 - `src/domain/backgroundStatus.ts`
