@@ -32,14 +32,14 @@ Amazon support is intentionally MVP-level only. It works across selected Amazon 
 
 ### Watchlist
 
-- Shows tracked products with price and status.
+- Shows tracked products with price, status, and a per-store mini icon next to the store name.
 - Supports pull-to-refresh.
 - Has a `Recheck all prices` button.
 - Has a floating add button.
 
 ### Add Flow
 
-- Detects supported stores from the URL.
+- Detects supported stores from the URL and displays a site icon next to the store name in the confirmation preview and supported-site chip list.
 - Parses the product before save.
 - Lets the user choose:
   - check preference: `daily`, `every_3_days`, `weekly`
@@ -59,7 +59,7 @@ Amazon support is intentionally MVP-level only. It works across selected Amazon 
 
 ### Settings
 
-- Shows supported stores.
+- Shows supported stores with per-store mini favicon icons.
 - Shows notification status and deep-links to Android notification settings.
 - Shows battery optimization status (exempt/restricted) with a button to open app system settings.
 - Shows daily background check time presets:
@@ -163,6 +163,7 @@ If permission is blocked, the app should continue tracking locally without showi
 
 - Parsers are wired through the site registry in `src/domain/sites.ts`
 - Each `SupportedSite` can declare a `minimumIntervalHours` that clamps the effective check interval regardless of the user's check-preference. Currently AYM Accessories uses this (72 hours) to reduce load on their rate-limited WooCommerce backend.
+- Each `SupportedSite` now carries an `iconAsset` field pointing to a bundled favicon PNG in `assets/site-icons/`. The `<SiteIcon>` component renders this icon; if the asset is missing it falls back to a coloured letter-circle using the site's first initial and a brand-appropriate colour from `SITE_COLORS` in `src/components/SiteIcon.tsx`.
 - Parser coverage includes AYM WooCommerce variation markup
 - Parser coverage includes Ounass inline PDP payload parsing
 - Parser coverage includes Amazon regional-domain detection, multi-currency price parsing, buy-box style markup, alternate total-price fallback handling, and challenge-page detection in tests
@@ -175,11 +176,26 @@ If permission is blocked, the app should continue tracking locally without showi
 
 If a supported site starts requiring login, bot bypassing, or unstable browser-only behavior, it should be downgraded from reliable MVP support.
 
+### Adding a New Website
+
+When adding a new supported store, follow this checklist:
+
+1. **`src/domain/types.ts`** — add the new site key to the `SiteKey` union type.
+2. **`src/domain/sites.ts`** — add a `SupportedSite` entry to `SUPPORTED_SITES` with `key`, `displayName`, `shortName`, `hostnames`, `status`, `notes`, and `iconAsset`.
+3. **`assets/site-icons/{key}.png`** — download the site's favicon as a PNG and place it in `assets/site-icons/`. Use Google's favicon service (`https://www.google.com/s2/favicons?domain=<hostname>&sz=64`) or download directly from the site. React Native's `Image` component needs a PNG (not `.ico`). A 32–64px square is sufficient. Register the asset in `sites.ts` via `require('../../assets/site-icons/{key}.png')`.
+4. **`src/components/SiteIcon.tsx`** — add the new site key to the `SITE_COLORS` record with a brand-appropriate hex colour. This is the fallback letter-circle shown when the favicon asset can't load.
+5. **`src/domain/parser.ts`** — add parser logic (or a new parser module) for the site's product page structure.
+6. **`src/domain/__tests__/parser.test.ts`** — add fixture-based parser tests with saved sample HTML.
+7. **`App.tsx`** — the site icon automatically appears in all 5 UI surfaces (product cards, add-flow detection & chips, product preview, settings store list) because they all use `<SiteIcon siteKey={...} />` — no manual UI wiring needed for new sites.
+8. Verify: `npm run typecheck` and `npm run lint` pass.
+
 ## Important Files
 
 App and screens:
 
 - `App.tsx`
+- `src/components/SiteIcon.tsx` — per-store mini icon component (favicon PNG or letter-circle fallback)
+- `assets/site-icons/` — favicon PNGs for each supported store
 
 Domain and storage:
 
@@ -256,6 +272,7 @@ If terminal builds fail with invalid `JAVA_HOME` or missing `adb`, fix those loc
 
 ## Recent Notable Changes
 
+- Added per-store mini favicon icons — each supported site now has a bundled PNG favicon in `assets/site-icons/` and a `<SiteIcon>` component renders them across all 5 UI surfaces (product cards, add flow, product preview, settings). Falls back to a coloured letter-circle if the icon asset is missing. See "Adding a New Website" checklist above for the steps required when adding a new store.
 - Expanded Amazon support to selected regional domains, multi-currency price parsing, and more resilient Amazon price fallback handling.
 - Added AYM Accessories parser support.
 - Added Ounass UAE parser support.
