@@ -28,6 +28,8 @@ export type SupportedSite = {
   /** Minimum hours that must elapse between checks for this site.
    *  When set, overrides shorter user check preferences. */
   minimumIntervalHours?: number;
+  /** Local favicon asset for displaying a mini site icon in the UI. */
+  iconAsset?: ReturnType<typeof require>;
 };
 
 export type ParsedProduct = {

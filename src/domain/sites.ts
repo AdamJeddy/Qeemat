@@ -7,7 +7,8 @@ export const SUPPORTED_SITES: SupportedSite[] = [
     shortName: 'Noon',
     hostnames: ['noon.com', 'www.noon.com'],
     status: 'supported',
-    notes: 'Broad UAE marketplace coverage. Parser uses product metadata and embedded page data when available.'
+    notes: 'Broad UAE marketplace coverage. Parser uses product metadata and embedded page data when available.',
+    iconAsset: require('../../assets/site-icons/noon.png')
   },
   {
     key: 'nike_uae',
@@ -15,7 +16,8 @@ export const SUPPORTED_SITES: SupportedSite[] = [
     shortName: 'Nike',
     hostnames: ['nike.ae', 'www.nike.ae'],
     status: 'supported',
-    notes: 'Product pages expose schema.org product data with AED price and availability.'
+    notes: 'Product pages expose schema.org product data with AED price and availability.',
+    iconAsset: require('../../assets/site-icons/nike_uae.png')
   },
   {
     key: 'sun_sand_sports',
@@ -23,7 +25,8 @@ export const SUPPORTED_SITES: SupportedSite[] = [
     shortName: 'Sun & Sand',
     hostnames: ['en-ae.sssports.com', 'sssports.com', 'www.sssports.com'],
     status: 'supported',
-    notes: 'Product pages expose structured product data and predictable product URLs.'
+    notes: 'Product pages expose structured product data and predictable product URLs.',
+    iconAsset: require('../../assets/site-icons/sun_sand_sports.png')
   },
   {
     key: 'level_shoes',
@@ -31,7 +34,8 @@ export const SUPPORTED_SITES: SupportedSite[] = [
     shortName: 'Level Shoes',
     hostnames: ['levelshoes.com', 'www.levelshoes.com'],
     status: 'supported',
-    notes: 'Product pages expose Next.js product payloads and useful structured metadata.'
+    notes: 'Product pages expose Next.js product payloads and useful structured metadata.',
+    iconAsset: require('../../assets/site-icons/level_shoes.png')
   },
   {
     key: 'ay_accessories',
@@ -40,7 +44,8 @@ export const SUPPORTED_SITES: SupportedSite[] = [
     hostnames: ['ay-accessories.com', 'www.ay-accessories.com'],
     status: 'supported',
     notes: 'WooCommerce product pages expose variation JSON, images, and AED pricing for supported product pages.',
-    minimumIntervalHours: 72
+    minimumIntervalHours: 72,
+    iconAsset: require('../../assets/site-icons/ay_accessories.png')
   },
   {
     key: 'ounass',
@@ -48,7 +53,8 @@ export const SUPPORTED_SITES: SupportedSite[] = [
     shortName: 'Ounass',
     hostnames: ['ounass.ae', 'www.ounass.ae'],
     status: 'supported',
-    notes: 'Product pages expose inline PDP payloads with title, image, stock state, and AED pricing.'
+    notes: 'Product pages expose inline PDP payloads with title, image, stock state, and AED pricing.',
+    iconAsset: require('../../assets/site-icons/ounass.png')
   },
   {
     key: 'amazon_ae',
@@ -97,7 +103,8 @@ export const SUPPORTED_SITES: SupportedSite[] = [
       'www.amazon.sg'
     ],
     status: 'supported',
-    notes: 'Product pages can be parsed across selected Amazon regional domains when Amazon serves a normal product page without a challenge.'
+    notes: 'Product pages can be parsed across selected Amazon regional domains when Amazon serves a normal product page without a challenge.',
+    iconAsset: require('../../assets/site-icons/amazon_ae.png')
   }
 ];
 

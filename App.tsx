@@ -33,6 +33,7 @@ import {
 
 import { AppText } from './src/components/AppText';
 import { OptionGroup } from './src/components/OptionGroup';
+import { SiteIcon } from './src/components/SiteIcon';
 import { PriceChart } from './src/components/PriceChart';
 import { PrimaryButton } from './src/components/PrimaryButton';
 import { ProductCard } from './src/components/ProductCard';
@@ -498,6 +499,7 @@ function AddScreen({ navigate }: { navigate: (route: Route) => void }) {
           </View>
           {detectedSite ? (
             <View style={styles.inlineStatus}>
+              <SiteIcon siteKey={detectedSite.key} size={16} />
               <Check size={15} color={colors.green} />
               <AppText weight="medium" style={styles.detectedText}>
                 {detectedSite.displayName}
@@ -508,6 +510,7 @@ function AddScreen({ navigate }: { navigate: (route: Route) => void }) {
         <View style={styles.chips}>
           {SUPPORTED_SITES.map((site) => (
             <View key={site.key} style={[styles.chip, detectedSite?.key === site.key && styles.chipSelected]}>
+              <SiteIcon siteKey={site.key} size={14} />
               <AppText weight="medium" style={[styles.chipText, detectedSite?.key === site.key && styles.chipTextSelected]}>
                 {site.shortName}
               </AppText>
@@ -523,7 +526,7 @@ function AddScreen({ navigate }: { navigate: (route: Route) => void }) {
         ) : null}
         {parsedProduct ? (
           <View style={styles.previewSection}>
-            <ProductPreview product={parsedProduct} storeName={detectedSite?.shortName ?? 'Store'} />
+            <ProductPreview product={parsedProduct} storeName={detectedSite?.shortName ?? 'Store'} siteKey={parsedProduct.siteKey} />
             <AppText weight="semibold" style={styles.formLabel}>
               Check preference
             </AppText>
@@ -560,7 +563,7 @@ function AddScreen({ navigate }: { navigate: (route: Route) => void }) {
   );
 }
 
-function ProductPreview({ product, storeName }: { product: ParsedProduct; storeName: string }) {
+function ProductPreview({ product, storeName, siteKey }: { product: ParsedProduct; storeName: string; siteKey: string }) {
   return (
     <View style={styles.previewCard}>
       <View style={styles.previewImageWrap}>
@@ -571,6 +574,7 @@ function ProductPreview({ product, storeName }: { product: ParsedProduct; storeN
           {product.title}
         </AppText>
         <View style={styles.storePill}>
+          <SiteIcon siteKey={siteKey as import('./src/domain/types').SiteKey} size={14} />
           <AppText style={styles.storePillText}>{storeName}</AppText>
         </View>
         <AppText muted style={styles.caption}>
@@ -1064,7 +1068,7 @@ function SettingsScreen() {
           <View style={styles.settingsChipWrap}>
             {SUPPORTED_SITES.map((site) => (
               <View key={site.key} style={styles.settingsChip}>
-                <Store size={14} color={colors.primary} />
+                <SiteIcon siteKey={site.key} size={14} />
                 <AppText weight="medium" style={styles.settingsChipText}>
                   {site.shortName}
                 </AppText>
@@ -1442,6 +1446,9 @@ const styles = StyleSheet.create({
     gap: 10
   },
   chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: colors.border,
@@ -1502,6 +1509,9 @@ const styles = StyleSheet.create({
   },
   storePill: {
     alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
     marginTop: 6,
     borderRadius: radius.sm,
     backgroundColor: colors.surfaceMuted,

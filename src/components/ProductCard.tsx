@@ -2,6 +2,7 @@ import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { TrendingDown } from 'lucide-react-native';
 
 import { AppText } from './AppText';
+import { SiteIcon } from './SiteIcon';
 import { StatusPill } from './StatusPill';
 import { formatRelativeTime } from '../domain/dates';
 import { formatPrice } from '../domain/price';
@@ -30,6 +31,7 @@ export function ProductCard({ product, onPress }: ProductCardProps) {
           </AppText>
         </View>
         <View style={styles.badge}>
+          <SiteIcon siteKey={product.siteKey} size={14} />
           <AppText style={styles.badgeText}>{site.shortName}</AppText>
         </View>
         <View style={styles.priceRow}>
@@ -94,6 +96,9 @@ const styles = StyleSheet.create({
   },
   badge: {
     alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
     backgroundColor: colors.surfaceMuted,
     borderRadius: radius.sm,
     paddingVertical: 4,
