@@ -1,4 +1,4 @@
-import { detectSupportedSite, normalizeUrl } from './sites';
+import { cleanUrl, detectSupportedSite, normalizeUrl } from './sites';
 import { Availability, ParsedProduct, SiteKey } from './types';
 import { parsePriceToMinor } from './price';
 
@@ -18,7 +18,7 @@ export type ParseProductResult =
   | { ok: false; code: 'invalid_url' | 'unsupported_page' | 'network_error' | 'blocked' | 'price_not_found' | 'site_parser_failed'; message: string };
 
 export async function fetchAndParseProduct(rawUrl: string): Promise<ParseProductResult> {
-  const normalizedUrl = normalizeUrl(rawUrl);
+  const normalizedUrl = cleanUrl(normalizeUrl(rawUrl));
   const site = detectSupportedSite(normalizedUrl);
 
   if (!site) {

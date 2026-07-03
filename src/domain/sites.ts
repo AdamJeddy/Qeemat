@@ -124,6 +124,74 @@ export function detectSupportedSite(urlValue: string): SupportedSite | undefined
   return undefined;
 }
 
+/**
+ * Common tracking/analytics query parameters to strip from product URLs.
+ */
+const TRACKING_PARAMS = new Set([
+  'utm_source',
+  'utm_medium',
+  'utm_campaign',
+  'utm_term',
+  'utm_content',
+  'fbclid',
+  'gclid',
+  'gbraid',
+  'wbraid',
+  'msclkid',
+  'ref',
+  'ref_',
+  'tag'
+]);
+
+/**
+ * Strip tracking/analytics query parameters and URL fragments from a product URL.
+ *
+ * For Amazon URLs, all query parameters are stripped because the ASIN in the path
+ * (`/dp/ASIN`) uniquely identifies the product. For other sites, only known
+ * tracking/analytics parameters are removed to avoid breaking URLs that use
+ * query params for product identification.
+ */
+export function cleanUrl(urlValue: string): string {
+  const trimmed = urlValue.trim();
+  if (!trimmed) {
+    return trimmed;
+  }
+
+  // Split off the fragment (#...)
+  const fragmentIdx = trimmed.indexOf('#');
+  const beforeFragment = fragmentIdx >= 0 ? trimmed.slice(0, fragmentIdx) : trimmed;
+
+  // Find the query string start
+  const qIdx = beforeFragment.indexOf('?');
+  if (qIdx < 0) {
+    // No query params — just return without fragment
+    return beforeFragment;
+  }
+
+  const pathPart = beforeFragment.slice(0, qIdx);
+  const queryPart = beforeFragment.slice(qIdx + 1);
+
+  const isAmazon = /(?:^|\.)amazon\./.test(beforeFragment);
+
+  if (isAmazon) {
+    // Amazon: strip all query params — the ASIN in /dp/ASIN or /gp/product/ASIN
+    // is the only product identifier
+    return pathPart;
+  }
+
+  // Other sites: strip only known tracking/analytics params
+  const kept: string[] = [];
+  for (const pair of queryPart.split('&')) {
+    const eqIdx = pair.indexOf('=');
+    const key = eqIdx >= 0 ? pair.slice(0, eqIdx) : pair;
+    if (!TRACKING_PARAMS.has(key)) {
+      kept.push(pair);
+    }
+  }
+
+  return kept.length > 0 ? `${pathPart}?${kept.join('&')}` : pathPart;
+}
+
 export function normalizeUrl(urlValue: string): string {
   const trimmed = urlValue.trim();
   if (!trimmed) {

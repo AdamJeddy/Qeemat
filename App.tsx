@@ -62,7 +62,7 @@ import { getOnboardingState, markOnboardingCompleted } from './src/domain/onboar
 import { ensureNotificationPermission, openNotificationSettings } from './src/domain/notifications';
 import { fetchAndParseProduct } from './src/domain/parser';
 import { formatPrice, parseTargetPriceInput } from './src/domain/price';
-import { detectSupportedSite, normalizeUrl, SUPPORTED_SITES } from './src/domain/sites';
+import { cleanUrl, detectSupportedSite, normalizeUrl, SUPPORTED_SITES } from './src/domain/sites';
 import { ActivityEvent, AlertMode, CheckPreference, ParsedProduct, PriceSnapshot, ProductWithSnapshots, SnapshotSource, TrackedProduct } from './src/domain/types';
 import { colors, radius, shadow } from './src/theme/theme';
 
@@ -418,7 +418,7 @@ function AddScreen({ navigate }: { navigate: (route: Route) => void }) {
   const [alertMode, setAlertMode] = useState<AlertMode>('price_drop');
   const [targetPrice, setTargetPrice] = useState('');
 
-  const normalizedUrl = normalizeUrl(url);
+  const normalizedUrl = cleanUrl(normalizeUrl(url));
   const detectedSite = useMemo(() => detectSupportedSite(normalizedUrl), [normalizedUrl]);
   const targetPriceMinor = parseTargetPriceInput(targetPrice);
 
