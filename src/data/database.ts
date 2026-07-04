@@ -105,6 +105,7 @@ export async function createTrackedProduct(draft: ProductDraft): Promise<number>
     isActive: true,
     lastCheckedAt: now,
     lastSuccessAt: now,
+    lastAvailability: parsed.availability,
     createdAt: now,
     updatedAt: now
   };
@@ -298,7 +299,15 @@ export async function recordSuccessfulCheck(
   const store = await readStore();
   const checkedAt = nowIso();
   const previousPriceMinor = product.currentPriceMinor;
-  const newPriceMinor = parsed.priceMinor;
+
+  // When OOS and no price is available, preserve the last known price on the product
+  // record so the UI still shows a price. The snapshot correctly records no price.
+  const isOosWithoutPrice = parsed.availability === 'out_of_stock' && parsed.priceMinor === undefined;
+  const effectivePriceMinor = isOosWithoutPrice
+    ? product.currentPriceMinor  // preserve last known price
+    : parsed.priceMinor;
+
+  const newPriceMinor = effectivePriceMinor;
   const status: CheckStatus =
     previousPriceMinor !== undefined && newPriceMinor !== undefined && previousPriceMinor !== newPriceMinor
       ? 'price_changed'
@@ -317,6 +326,7 @@ export async function recordSuccessfulCheck(
             imageUrl: parsed.imageUrl ?? item.imageUrl,
             currency: parsed.currency ?? item.currency,
             currentPriceMinor: newPriceMinor,
+            lastAvailability: parsed.availability,
             lastCheckedAt: checkedAt,
             lastSuccessAt: checkedAt,
             lastErrorAt: undefined,
@@ -412,7 +422,8 @@ async function readStore(): Promise<LocalStore> {
       nextActivityId: parsed.nextActivityId ?? 1,
       products: parsed.products.map((product) => ({
         ...product,
-        checkPreference: normalizeCheckPreference(product.checkPreference)
+        checkPreference: normalizeCheckPreference(product.checkPreference),
+        lastAvailability: product.lastAvailability ?? 'unknown'
       })),
       snapshots: parsed.snapshots.map((snapshot) => ({
         ...snapshot,
