@@ -95,8 +95,6 @@ export default function App() {
   const [route, setRoute] = useState<Route>({ name: 'tabs', tab: 'watchlist' });
   const [ready, setReady] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
-  const [onboardingStep, setOnboardingStep] = useState(0);
-  const [onboardingLoading, setOnboardingLoading] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -644,9 +642,23 @@ function DetailScreen({ productId, navigate }: { productId: number; navigate: (r
             {product.targetPriceMinor ? (
               <AppText weight="semibold">Target {formatPrice(product.targetPriceMinor, product.currency)}</AppText>
             ) : null}
-            <StatusPill status={product.lastErrorCode ?? snapshots[0]?.status ?? 'ok'} label={`Checked ${formatRelativeTime(product.lastCheckedAt)}`} />
+            <StatusPill
+              status={product.lastErrorCode ?? snapshots[0]?.status ?? 'ok'}
+              label={`Checked ${formatRelativeTime(product.lastCheckedAt)}`}
+              availability={product.lastAvailability}
+            />
           </View>
         </View>
+        {product.lastAvailability === 'out_of_stock' ? (
+          <View style={styles.oosBanner}>
+            <CircleAlert size={16} color={colors.amber} />
+            <AppText weight="medium" style={styles.oosBannerText}>
+              {product.currentPriceMinor !== undefined
+                ? 'Out of stock — last known price shown'
+                : 'Out of stock — no price recorded'}
+            </AppText>
+          </View>
+        ) : null}
         <SectionTitle title="Price History" />
         <PriceChart snapshots={snapshots} />
         <View style={styles.statsRow}>
@@ -1569,6 +1581,21 @@ const styles = StyleSheet.create({
   currentPrice: {
     fontSize: 26,
     lineHeight: 32
+  },
+  oosBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: colors.amberSoft,
+    borderRadius: radius.md,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 8
+  },
+  oosBannerText: {
+    color: colors.amber,
+    fontSize: 13,
+    flex: 1
   },
   sectionTitle: {
     fontSize: 18

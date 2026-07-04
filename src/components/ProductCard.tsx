@@ -1,5 +1,5 @@
 import { Image, Pressable, StyleSheet, View } from 'react-native';
-import { TrendingDown } from 'lucide-react-native';
+import { PackageX, TrendingDown } from 'lucide-react-native';
 
 import { AppText } from './AppText';
 import { SiteIcon } from './SiteIcon';
@@ -18,11 +18,12 @@ type ProductCardProps = {
 export function ProductCard({ product, onPress }: ProductCardProps) {
   const site = getSiteByKey(product.siteKey);
   const status = product.lastErrorCode ?? 'ok';
+  const isOos = product.lastAvailability === 'out_of_stock';
 
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
       <View style={styles.imageWrap}>
-        {product.imageUrl ? <Image source={{ uri: product.imageUrl }} style={styles.image} resizeMode="contain" /> : null}
+        {product.imageUrl ? <Image source={{ uri: product.imageUrl }} style={[styles.image, isOos && styles.imageMuted]} resizeMode="contain" /> : null}
       </View>
       <View style={styles.content}>
         <View style={styles.titleRow}>
@@ -35,21 +36,30 @@ export function ProductCard({ product, onPress }: ProductCardProps) {
           <AppText style={styles.badgeText}>{site.shortName}</AppText>
         </View>
         <View style={styles.priceRow}>
-          <AppText weight="bold" style={styles.price}>
+          <AppText weight="bold" style={[styles.price, isOos && styles.priceMuted]}>
             {formatPrice(product.currentPriceMinor, product.currency)}
           </AppText>
-          <View style={styles.dropBadge}>
-            <TrendingDown size={13} color={colors.green} />
-            <AppText weight="semibold" style={styles.dropText}>
-              Tracking
-            </AppText>
-          </View>
+          {isOos ? (
+            <View style={styles.oosBadge}>
+              <PackageX size={13} color={colors.amber} />
+              <AppText weight="semibold" style={styles.oosText}>
+                Out of stock
+              </AppText>
+            </View>
+          ) : (
+            <View style={styles.dropBadge}>
+              <TrendingDown size={13} color={colors.green} />
+              <AppText weight="semibold" style={styles.dropText}>
+                Tracking
+              </AppText>
+            </View>
+          )}
         </View>
         <View style={styles.footer}>
           <AppText muted style={styles.caption}>
             Last checked: {formatRelativeTime(product.lastCheckedAt)}
           </AppText>
-          <StatusPill status={status} />
+          <StatusPill status={status} availability={product.lastAvailability} />
         </View>
       </View>
     </Pressable>
@@ -130,6 +140,26 @@ const styles = StyleSheet.create({
   dropText: {
     color: colors.green,
     fontSize: 12
+  },
+  oosBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.amberSoft,
+    borderRadius: radius.sm,
+    paddingHorizontal: 8,
+    paddingVertical: 5
+  },
+  oosText: {
+    color: colors.amber,
+    fontSize: 12
+  },
+  priceMuted: {
+    color: colors.textMuted,
+    textDecorationLine: 'line-through'
+  },
+  imageMuted: {
+    opacity: 0.6
   },
   footer: {
     marginTop: 9,
