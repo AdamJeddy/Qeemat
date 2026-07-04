@@ -78,7 +78,14 @@ export async function fetchAndParseProduct(rawUrl: string): Promise<ParseProduct
     };
   }
 
+  // OOS products may legitimately lack a price — allow success with just title + OOS availability
   if (!parsed.priceMinor || !parsed.currency) {
+    if (parsed.availability === 'out_of_stock') {
+      return {
+        ok: true,
+        product: parsed
+      };
+    }
     return {
       ok: false,
       code: 'price_not_found',
@@ -93,9 +100,17 @@ export async function fetchAndParseProduct(rawUrl: string): Promise<ParseProduct
 }
 
 export function parseProductHtml(siteKey: SiteKey, inputUrl: string, html: string): ParsedProduct | undefined {
+  // Detect 404 / product-not-found pages that still serve product meta
+  if (isProduct404Page(html)) {
+    return undefined;
+  }
+
   const structured = parseStructuredProduct(siteKey, inputUrl, html);
 
-  if (structured?.priceMinor && structured.title) {
+  // Only short-circuit on structured data when it has explicit availability info.
+  // If availability is unknown, fall through to site-specific parsers which may
+  // have better OOS detection (e.g. Amazon availability div, Noon embedded JSON).
+  if (structured?.priceMinor && structured.title && structured.availability !== 'unknown') {
     return structured;
   }
 
@@ -196,9 +211,9 @@ function parseAmazonProduct(siteKey: SiteKey, inputUrl: string, html: string): P
     meta.imageUrl;
   const rawPriceText = matchAmazonPriceText(html) ?? meta.price;
   const availabilityText =
-    matchString(html, /id=["']availability["'][\s\S]{0,500}?primary-availability-message[^>]*>\s*([^<]+?)\s*</i) ??
-    matchString(html, /id=["']availability["'][\s\S]{0,500}?a-color-success[^>]*>\s*([^<]+?)\s*</i) ??
-    matchString(html, /id=["']availability["'][\s\S]{0,500}?a-color-price[^>]*>\s*([^<]+?)\s*</i);
+    matchString(html, /id=["']availability["'][\s\S]{0,8000}?primary-availability-message[^>]*>\s*([^<]+?)\s*</i) ??
+    matchString(html, /id=["']availability["'][\s\S]{0,8000}?a-color-success[^>]*>\s*([^<]+?)\s*</i) ??
+    matchString(html, /id=["']availability["'][\s\S]{0,8000}?a-color-price[^>]*>\s*([^<]+?)\s*</i);
   const sku = extractAmazonAsin(inputUrl) ?? matchString(html, /data-csa-c-asin=["']([A-Z0-9]{10})["']/i);
   const currency = inferAmazonCurrency(inputUrl, rawPriceText, meta.currency);
 
@@ -304,10 +319,49 @@ function parseNoonFallback(siteKey: SiteKey, inputUrl: string, html: string): Pa
     imageUrl: imageUrl ? unescapeJsonString(imageUrl) : undefined,
     priceMinor: parsePriceToMinor(price),
     currency: 'AED',
-    availability: 'unknown',
+    availability: detectNoonOos(html),
     rawPriceText: price ? String(price) : undefined,
     sku
   };
+}
+
+/**
+ * Detect out-of-stock signals in Noon HTML when JSON-LD structured data
+ * is missing or incomplete. Checks embedded JSON payloads and common
+ * OOS text patterns.
+ */
+function detectNoonOos(html: string): Availability {
+  const normalized = html.toLowerCase();
+
+  // Check embedded JSON for explicit OOS flags
+  if (/"availability"\s*:\s*"out_of_stock"/i.test(html)) return 'out_of_stock';
+  if (/"is_out_of_stock"\s*:\s*true/i.test(html)) return 'out_of_stock';
+  if (/"stock_status"\s*:\s*"out_of_stock"/i.test(html)) return 'out_of_stock';
+
+  // Check for "Sold out" text patterns (common in Noon's UI)
+  if (normalized.includes('sold out') && !normalized.includes('almost sold out')) {
+    return 'out_of_stock';
+  }
+
+  if (
+    normalized.includes('out of stock') &&
+    !normalized.includes('almost out of stock')
+  ) {
+    return 'out_of_stock';
+  }
+
+  // Check for missing "Add to cart" / "Buy now" when product data exists
+  // (Noon always shows these on in-stock products)
+  const hasTitle = /"name"\s*:\s*"/.test(html) || /"title"\s*:\s*"/.test(html);
+  const hasAddToCart = /add.?to.?cart/i.test(normalized) || /add.?to.?bag/i.test(normalized) || /buy.?now/i.test(normalized);
+  const hasPrice = /"sale_price"\s*:\s*[0-9]/.test(html) || /"price"\s*:\s*[0-9]/.test(html);
+
+  // If we have product data but no add-to-cart button and no price, likely OOS
+  if (hasTitle && !hasAddToCart && !hasPrice) {
+    return 'out_of_stock';
+  }
+
+  return 'unknown';
 }
 
 function firstAymVariation(html: string): JsonRecord | undefined {
@@ -323,20 +377,20 @@ function firstAymVariation(html: string): JsonRecord | undefined {
     }
 
     const variations = parsed.filter((item): item is JsonRecord => !!item && typeof item === 'object' && !Array.isArray(item));
-    return variations.find((item) => item['is_in_stock'] === true) ?? variations[0];
+    return variations.find((item) => item.is_in_stock === true) ?? variations[0];
   } catch {
     return undefined;
   }
 }
 
 function extractAymVariationImage(variation?: JsonRecord): string | undefined {
-  const image = variation?.['image'];
+  const image = variation?.image;
   if (!image || typeof image !== 'object' || Array.isArray(image)) {
     return undefined;
   }
 
   const record = image as JsonRecord;
-  return asString(record['full_src']) ?? asString(record['url']) ?? asString(record['src']);
+  return asString(record.full_src) ?? asString(record.url) ?? asString(record.src);
 }
 
 function extractAymPriceText(html: string): string | undefined {
@@ -391,6 +445,31 @@ function isBlockedHtml(html: string): boolean {
     normalized.includes('automated access to amazon data') ||
     normalized.includes('/errors/validatecaptcha')
   );
+}
+
+/**
+ * Detect product pages that are actually 404 / product-not-found pages.
+ * Some sites (e.g. Sun & Sand Sports) serve a 200 status with a 404 template
+ * that still includes cached product meta tags.
+ */
+function isProduct404Page(html: string): boolean {
+  const normalized = html.toLowerCase();
+
+  // Sun & Sand Sports 404 page pattern
+  if (normalized.includes('data-gtm-event-action="404') && normalized.includes('class="error__image"')) {
+    return true;
+  }
+
+  // Generic 404 page indicators (use sparingly to avoid false positives)
+  const has404Image = /<img[^>]+404[^>]*>/i.test(html);
+  const has404Heading = /<h[1-3][^>]*>\s*404\b/i.test(html);
+  const hasProductNotFound = /product.{0,15}not\s*found/i.test(normalized);
+
+  if (has404Image && (has404Heading || hasProductNotFound)) {
+    return true;
+  }
+
+  return false;
 }
 
 function parseJsonCandidates(jsonText: string): unknown[] {
@@ -514,11 +593,11 @@ function parseAvailability(value?: string): Availability {
 }
 
 function parseAymAvailability(variation: JsonRecord | undefined, html: string): Availability {
-  if (typeof variation?.['is_in_stock'] === 'boolean') {
-    return variation['is_in_stock'] ? 'in_stock' : 'out_of_stock';
+  if (typeof variation?.is_in_stock === 'boolean') {
+    return variation.is_in_stock ? 'in_stock' : 'out_of_stock';
   }
 
-  const variationAvailability = parseAvailability(asString(variation?.['availability_html']));
+  const variationAvailability = parseAvailability(asString(variation?.availability_html));
   if (variationAvailability !== 'unknown') {
     return variationAvailability;
   }
@@ -543,17 +622,53 @@ function parseAmazonAvailability(value: string | undefined, html: string): Avail
     return 'in_stock';
   }
 
-  if (normalizedValue.includes('currently unavailable') || normalizedValue.includes('temporarily out of stock')) {
+  // Explicit OOS messages in the extracted availability text
+  if (
+    normalizedValue.includes('currently unavailable') ||
+    normalizedValue.includes('temporarily out of stock') ||
+    normalizedValue.includes("we don't know when or if this item will be back in stock")
+  ) {
     return 'out_of_stock';
   }
 
   const normalizedHtml = html.toLowerCase();
+
+  // Definitive OOS signals — check BEFORE the vague whole-page "in stock" heuristic
+  // since OOS pages with recommendation carousels often contain "In Stock" labels
+  // on recommended products
+  if (
+    normalizedHtml.includes('currently unavailable') ||
+    normalizedHtml.includes('temporarily out of stock') ||
+    normalizedHtml.includes("we don't know when or if this item will be back in stock")
+  ) {
+    return 'out_of_stock';
+  }
+
+  // Amazon occasionally uses id="outOfStock" on the availability div
+  if (/id=["']outOfStock["']/i.test(html)) {
+    return 'out_of_stock';
+  }
+
+  // In-stock heuristic: primary-availability-message with "in stock" sentinel nearby.
+  // Only trigger this when no definitive OOS signal was found above.
   if (normalizedHtml.includes('primary-availability-message') && normalizedHtml.includes('in stock')) {
     return 'in_stock';
   }
 
-  if (normalizedHtml.includes('currently unavailable')) {
-    return 'out_of_stock';
+  // Edge case: availability div with a-price class (not green) but no a-color-success
+  // Often indicates unavailable items listed by third-party sellers
+  const availabilityDiv = html.match(
+    /id=["']availability["'][\s\S]{0,800}?<\/div>/i
+  );
+  if (availabilityDiv?.[0]) {
+    const avDiv = availabilityDiv[0].toLowerCase();
+    const hasSuccess = avDiv.includes('a-color-success');
+    const hasPrice = avDiv.includes('a-color-price');
+    const hasAtAGlance = avDiv.includes('a-color-attained');
+    if (!hasSuccess && !hasAtAGlance && hasPrice) {
+      // Price-styled availability without green success often means unavailable
+      return 'out_of_stock';
+    }
   }
 
   return 'unknown';

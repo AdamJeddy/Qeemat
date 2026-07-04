@@ -61,6 +61,8 @@ export type TrackedProduct = {
   lastSuccessAt?: string;
   lastErrorAt?: string;
   lastErrorCode?: CheckStatus;
+  /** Availability from the most recent successful check. Used to show OOS state on cards. */
+  lastAvailability?: Availability;
   createdAt: string;
   updatedAt: string;
 };
