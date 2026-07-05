@@ -105,6 +105,15 @@ export const SUPPORTED_SITES: SupportedSite[] = [
     status: 'supported',
     notes: 'Product pages can be parsed across selected Amazon regional domains when Amazon serves a normal product page without a challenge.',
     iconAsset: require('../../assets/site-icons/amazon_ae.png')
+  },
+  {
+    key: 'adidas',
+    displayName: 'Adidas UAE',
+    shortName: 'Adidas',
+    hostnames: ['adidas.ae', 'www.adidas.ae'],
+    status: 'supported',
+    notes: 'Product pages expose JSON-LD structured data and meta tags with AED pricing and availability.',
+    iconAsset: require('../../assets/site-icons/adidas.png')
   }
 ];
 

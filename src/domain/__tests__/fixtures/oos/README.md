@@ -40,6 +40,7 @@ npm test -- --runInBand oos-parser
 | `level_shoes.html` | `level_shoes` | levelshoes.com |
 | `nike_uae.html` | `nike_uae` | nike.ae |
 | `sun_sand_sports.html` | `sun_sand_sports` | sssports.com |
+| `adidas.html` | `adidas` | adidas.ae |
 
 ## Notes
 

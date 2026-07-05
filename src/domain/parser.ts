@@ -134,6 +134,10 @@ export function parseProductHtml(siteKey: SiteKey, inputUrl: string, html: strin
     return parseNoonFallback(siteKey, inputUrl, html) ?? structured;
   }
 
+  if (siteKey === 'adidas') {
+    return parseAdidasProduct(siteKey, inputUrl, html) ?? structured;
+  }
+
   return structured;
 }
 
@@ -323,6 +327,107 @@ function parseNoonFallback(siteKey: SiteKey, inputUrl: string, html: string): Pa
     rawPriceText: price ? String(price) : undefined,
     sku
   };
+}
+
+/**
+ * Adidas.ae (Salesforce Commerce Cloud) product parser.
+ * Falls back to meta tags and inline JSON when JSON-LD structured data
+ * is missing or incomplete.
+ */
+function parseAdidasProduct(siteKey: SiteKey, inputUrl: string, html: string): ParsedProduct | undefined {
+  const meta = extractMeta(html);
+  const sdkData = extractAdidasSdkData(html);
+
+  const title =
+    sdkData?.name ??
+    matchString(html, /class=["'][^"']*product-name[^"']*["'][^>]*>\s*([^<]+?)\s*</i) ??
+    meta.title;
+  const imageUrl =
+    sdkData?.image ??
+    matchString(html, /<meta\s+property=["']og:image["']\s+content=["']([^"']+)["']/i) ??
+    matchString(html, /class=["'][^"']*primary-image[^"']*["'][^>]+src=["']([^"']+)["']/i) ??
+    meta.imageUrl;
+  const rawPriceText =
+    sdkData?.price ??
+    matchString(html, /class=["'][^"']*sales-price[^"']*["'][^>]*>\s*([^<]+?)\s*</i) ??
+    meta.price;
+  const sku =
+    cleanSku(sdkData?.id) ??
+    cleanSku(matchString(html, /data-pid=["']([^"']+)["']/i)) ??
+    cleanSku(matchString(html, /data-master-id=["']([^"']+)["']/i));
+
+  if (!title && !rawPriceText) {
+    return undefined;
+  }
+
+  return {
+    siteKey,
+    canonicalUrl: meta.canonicalUrl ?? inputUrl,
+    title: cleanText(title ?? 'Adidas product'),
+    imageUrl,
+    priceMinor: parsePriceToMinor(rawPriceText),
+    currency: 'AED',
+    availability: parseAdidasAvailability(html, sdkData?.availability),
+    rawPriceText: rawPriceText ? String(rawPriceText) : undefined,
+    sku
+  };
+}
+
+/**
+ * Extract product data from embedded Salesforce Commerce Cloud JSON payloads
+ * that Adidas.ae injects into the page.
+ */
+function extractAdidasSdkData(html: string): Record<string, string> | undefined {
+  // SFCC product pages often inject product data into a script tag
+  // Try several common variable names
+  const patterns = [
+    /"product"\s*:\s*\{[\s\S]{0,2000}?"name"\s*:\s*"([^"]+)"/,
+    /window\.__INITIAL_STATE__[\s\S]{0,3000}?"name"\s*:\s*"([^"]+)"/,
+    /"analytics"\s*:\s*\{[\s\S]{0,3000}?"productName"\s*:\s*"([^"]+)"/,
+  ];
+
+  for (const pattern of patterns) {
+    const name = matchString(html, pattern);
+    if (name) {
+      return { name };
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * Determine availability from Adidas.ae product page signals.
+ */
+function parseAdidasAvailability(html: string, sdkAvailability?: string): Availability {
+  // Check SFCC stock status classes / text
+  const normalized = html.toLowerCase();
+
+  // Explicit OOS indicators
+  if (
+    normalized.includes('class="out-of-stock"') ||
+    normalized.includes('data-available="false"') ||
+    normalized.includes('data-stock="0"') ||
+    normalized.includes('sold out') ||
+    normalized.includes('out of stock') ||
+    normalized.includes('currently unavailable')
+  ) {
+    return 'out_of_stock';
+  }
+
+  // In-stock indicators
+  if (
+    normalized.includes('data-available="true"') ||
+    normalized.includes('class="in-stock"') ||
+    normalized.includes('in stock') ||
+    normalized.includes('add to bag') ||
+    normalized.includes('add to cart')
+  ) {
+    return 'in_stock';
+  }
+
+  // SDK availability string
+  return parseAvailability(sdkAvailability);
 }
 
 /**

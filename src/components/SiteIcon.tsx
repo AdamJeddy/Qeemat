@@ -18,6 +18,7 @@ const SITE_COLORS: Record<SiteKey, string> = {
   ay_accessories: '#D4A574',
   ounass: '#000000',
   amazon_ae: '#FF9900',
+  adidas: '#000000',
 };
 
 /** First letter to display in the fallback circle. */

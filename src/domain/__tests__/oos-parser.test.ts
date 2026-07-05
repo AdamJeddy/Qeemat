@@ -44,6 +44,7 @@ const FIXTURE_MAP: Record<string, FixtureConfig> = {
   level_shoes: { siteKey: 'level_shoes', url: 'https://www.levelshoes.com/test-oos.html', expect: 'out_of_stock' },
   nike_uae: { siteKey: 'nike_uae', url: 'https://www.nike.ae/t/test-oos.html', expect: 'out_of_stock' },
   sun_sand_sports: { siteKey: 'sun_sand_sports', url: 'https://en-ae.sssports.com/test-oos.html', expect: 'page_not_found' },
+  adidas: { siteKey: 'adidas', url: 'https://www.adidas.ae/en/test-oos-product/ABC123.html', expect: 'out_of_stock' },
 };
 
 // ---------------------------------------------------------------------------
