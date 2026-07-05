@@ -4,11 +4,19 @@ import { parsePriceToMinor } from './price';
 
 type JsonRecord = Record<string, unknown>;
 
-const REQUEST_HEADERS = {
-  Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+const REQUEST_HEADERS: Record<string, string> = {
+  Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
   'Accept-Language': 'en-AE,en-US;q=0.9,en;q=0.8',
   'Cache-Control': 'no-cache',
   Pragma: 'no-cache',
+  'Sec-Ch-Ua': '"Google Chrome";v="125", "Chromium";v="125", "Not.A/Brand";v="24"',
+  'Sec-Ch-Ua-Mobile': '?0',
+  'Sec-Ch-Ua-Platform': '"Windows"',
+  'Sec-Fetch-Dest': 'document',
+  'Sec-Fetch-Mode': 'navigate',
+  'Sec-Fetch-Site': 'none',
+  'Sec-Fetch-User': '?1',
+  'Upgrade-Insecure-Requests': '1',
   'User-Agent':
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
 };
@@ -544,11 +552,18 @@ function isBlockedHtml(html: string): boolean {
     (normalized.includes('powered and protected by') && normalized.includes('akamai')) ||
     (normalized.includes('just a moment') && normalized.includes('cloudflare')) ||
     normalized.includes('challenges.cloudflare.com') ||
-    normalized.includes("sorry, we just need to make sure you're not a robot") ||
+    normalized.includes('attention required') ||  // Imperva / Cloudflare variant
+    normalized.includes('sorry, we just need to make sure you\'re not a robot') ||
     normalized.includes('enter the characters you see below') ||
     normalized.includes('type the characters you see in this image') ||
     normalized.includes('automated access to amazon data') ||
-    normalized.includes('/errors/validatecaptcha')
+    normalized.includes('/errors/validatecaptcha') ||
+    // Akamai "Access Denied" page (common on SFCC / Adidas)
+    (normalized.includes('access denied') && normalized.includes('reference #')) ||
+    // Imperva/Incapsula WAF block
+    normalized.includes('incapsula') && normalized.includes('blocked') ||
+    // Generic JavaScript challenge page (many WAFs use this)
+    (normalized.includes('please enable javascript') && normalized.includes('continue'))
   );
 }
 
