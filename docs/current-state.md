@@ -106,8 +106,6 @@ Amazon support is intentionally MVP-level only. It works across selected Amazon 
 - Events survive product deletion (denormalized product title is stored on the event).
 - Empty state shown when no price changes have been recorded yet.
 
-### Onboarding (first launch)
-
 ## Current Storage Model
 
 Storage is local-only and currently uses AsyncStorage, not SQLite.
@@ -167,14 +165,55 @@ If permission is blocked, the app should continue tracking locally without showi
 - Parser coverage includes AYM WooCommerce variation markup
 - Parser coverage includes Ounass inline PDP payload parsing
 - Parser coverage includes Amazon regional-domain detection, multi-currency price parsing, buy-box style markup, alternate total-price fallback handling, and challenge-page detection in tests
+- Parser coverage includes **out-of-stock (OOS) detection** for all 7 supported stores, with a relaxed validation path: if a product is confirmed OOS, the check succeeds even without a price (the last known price is preserved on the product record). See **Out-of-Stock Detection** below for full details.
 - Current parser tests cover:
   - Noon structured data parsing
   - AYM product page parsing
   - Ounass product page parsing
   - Amazon product page parsing across `.ae`, `.com`, and `.de` price formats
   - blocked/challenge page detection
+  - OOS detection via synthetic HTML fixtures for all 7 supported stores
 
 If a supported site starts requiring login, bot bypassing, or unstable browser-only behavior, it should be downgraded from reliable MVP support.
+
+### Out-of-Stock Detection
+
+When a tracked product goes out of stock, Qeemat detects the OOS state, preserves the last known price, and displays the OOS status in the UI rather than reporting a `price_not_found` error.
+
+**Core logic** (`src/domain/parser.ts`):
+
+- The `fetchAndParseProduct` orchestrator was relaxed: OOS products without a price now succeed (`ok: true`) instead of returning `price_not_found`. Products that are not OOS and have no price still fail as before.
+- `parseProductHtml` detects 404/product-not-found pages (e.g. Sun & Sand Sports serves a 200 with a 404 template) via `isProduct404Page()` and returns `undefined`, which maps to `site_parser_failed`.
+- Structured data short-circuit was refined: when structured data says `availability: 'unknown'`, the parser falls through to site-specific parsers which have better OOS detection.
+
+**Site-specific OOS detection**:
+
+| Site | Mechanism | Patterns |
+|------|-----------|----------|
+| Noon | `detectNoonOos()` — checks embedded JSON, text patterns, and add-to-cart heuristics | `"availability":"out_of_stock"`, `"is_out_of_stock":true`, `"stock_status":"out_of_stock"`, "sold out" / "out of stock" text, missing add-to-cart + no price fallback |
+| Nike UAE | JSON-LD `parseAvailability()` | Schema.org `OutOfStock` / `InStock` |
+| Sun & Sand Sports | JSON-LD + 404 detection | Schema.org + `data-gtm-event-action="404"` + `class="error__image"` |
+| Level Shoes | `isInStock` boolean from embedded JS payload | |
+| AYM Accessories | `parseAymAvailability()` | WooCommerce `is_in_stock` on variations, stock text, CSS class |
+| Ounass | `outOfStock` / `stock` count from inline PDP payload | |
+| Amazon | `parseAmazonAvailability()` — expanded patterns | "Currently unavailable", "Temporarily out of stock", "We don't know when or if...", `id="outOfStock"`, `a-color-price` w/o `a-color-success` edge case |
+
+**Price preservation** (`src/data/database.ts`):
+
+- `recordSuccessfulCheck`: When a check returns OOS with no price, `currentPriceMinor` on the product record is **preserved** (keeps the last known price). When OOS with a price (e.g. Amazon still shows a price), the price updates normally.
+- `createTrackedProduct`: New products start with `lastAvailability: parsed.availability`.
+- `readStore` migration: Existing products missing `lastAvailability` are defaulted to `'unknown'`.
+
+**No notification spam**: `maybeNotifyForCheck` returns `undefined` when `newPriceMinor` is undefined, so no notifications fire for OOS-without-price. Activity events are also guarded by `saved.newPriceMinor !== undefined`.
+
+**UI changes**:
+
+- **`StatusPill`**: New optional `availability` prop. When `availability === 'out_of_stock'`, renders an amber pill with `CircleAlert` icon and "Out of stock" label, overriding the normal status display.
+- **`ProductCard`**: When OOS, the product image is dimmed (`opacity: 0.6`), price is struck-through in muted colour, and the badge shows an amber "Out of stock" (`PackageX` icon) instead of the green "Tracking" badge.
+- **`DetailScreen`** (App.tsx): Amber banner with `CircleAlert` saying "Out of stock — last known price shown" (or "Out of stock — no price recorded" when no price was ever captured).
+- **Snapshot list**: Already renders `snapshot.availability.replace(/_/g, ' ')` — naturally shows "out of stock" for OOS snapshots.
+
+**Test coverage**: OOS detection is tested via synthetic HTML fixtures in `src/domain/__tests__/oos-parser.test.ts` — one fixture per store. Fixtures are gitignored and fetched via `scripts/fetch-oos-fixture.mjs`. Tests auto-skip when fixtures are missing. The existing parser test suite (20 tests) is untouched.
 
 ### Adding a New Website
 
@@ -249,7 +288,9 @@ Checks:
 ```bash
 npm run typecheck
 npm run lint
-npm test -- --runInBand
+npm test -- --runInBand        # all tests (parser + OOS fixtures)
+npm test -- --runInBand parser  # parser tests only
+npm test -- --runInBand oos     # OOS fixture tests only (skips when fixtures missing)
 ```
 
 ## Android Environment Notes
@@ -272,6 +313,10 @@ If terminal builds fail with invalid `JAVA_HOME` or missing `adb`, fix those loc
 
 ## Recent Notable Changes
 
+- **Out-of-stock (OOS) detection across all 7 stores** — added OOS detection to every site parser, relaxed the price-required validation for OOS products, and preserved last known prices. UI shows OOS state on cards (dimmed image, struck-through price, amber badge) and detail screen (amber banner). See **Out-of-Stock Detection** section above for full architecture.
+- Added AGENTS.md — project guidelines for LLM agent sessions, codifying conventions, build commands, and store-addition checklist.
+- Added `.zero/` specialist profiles and spec documents for future AI sessions.
+- Added fixture-based OOS parser tests (`oos-parser.test.ts`) with synthetic HTML per store and a `fetch-oos-fixture.mjs` helper script.
 - Added per-store mini favicon icons — each supported site now has a bundled PNG favicon in `assets/site-icons/` and a `<SiteIcon>` component renders them across all 5 UI surfaces (product cards, add flow, product preview, settings). Falls back to a coloured letter-circle if the icon asset is missing. See "Adding a New Website" checklist above for the steps required when adding a new store.
 - Expanded Amazon support to selected regional domains, multi-currency price parsing, and more resilient Amazon price fallback handling.
 - Added AYM Accessories parser support.

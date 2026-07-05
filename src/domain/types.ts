@@ -106,4 +106,6 @@ export type ActivityEvent = {
   priceDirection: PriceDirection;
   source: SnapshotSource;
   checkedAt: string;
+  /** When set, this event represents an availability change rather than a price change. */
+  availability?: Availability;
 };

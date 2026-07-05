@@ -21,6 +21,7 @@ import {
   CircleAlert,
   Clock,
   Link2,
+  PackageX,
   Plus,
   RefreshCcw,
   Settings as SettingsIcon,
@@ -847,39 +848,62 @@ function ActivityScreen({ navigate }: { navigate: (route: Route) => void }) {
                       {event.productTitle}
                     </AppText>
                     <View style={styles.activityPriceRow}>
-                      {event.previousPriceMinor !== undefined ? (
-                        <AppText muted style={styles.activityOldPrice}>
-                          {formatPrice(event.previousPriceMinor, event.currency)}
-                        </AppText>
-                      ) : null}
-                      <View style={styles.activityDirectionIcon}>
-                        {event.priceDirection === 'down' ? (
-                          <TrendingDown size={16} color={colors.green} />
-                        ) : event.priceDirection === 'up' ? (
-                          <TrendingUp size={16} color={colors.red} />
-                        ) : (
-                          <View style={styles.activityFirstDot} />
-                        )}
-                      </View>
-                      {event.priceDirection === 'first' ? (
-                        <AppText weight="bold" style={styles.activityFirstPrice}>
-                          {formatPrice(event.newPriceMinor, event.currency)}
-                        </AppText>
+                      {event.availability === 'out_of_stock' ? (
+                        <>
+                          <PackageX size={18} color={colors.amber} />
+                          <AppText weight="semibold" style={styles.oosActivityLabel}>
+                            Out of stock
+                          </AppText>
+                          {event.previousPriceMinor !== undefined ? (
+                            <AppText muted style={styles.activityOldPrice}>
+                              {formatPrice(event.previousPriceMinor, event.currency)}
+                            </AppText>
+                          ) : null}
+                        </>
                       ) : (
-                        <AppText weight="bold" style={[
-                          styles.activityNewPrice,
-                          event.priceDirection === 'down' && styles.activityPriceDown,
-                          event.priceDirection === 'up' && styles.activityPriceUp
-                        ]}>
-                          {formatPrice(event.newPriceMinor, event.currency)}
-                        </AppText>
+                        <>
+                          {event.previousPriceMinor !== undefined ? (
+                            <AppText muted style={styles.activityOldPrice}>
+                              {formatPrice(event.previousPriceMinor, event.currency)}
+                            </AppText>
+                          ) : null}
+                          <View style={styles.activityDirectionIcon}>
+                            {event.priceDirection === 'down' ? (
+                              <TrendingDown size={16} color={colors.green} />
+                            ) : event.priceDirection === 'up' ? (
+                              <TrendingUp size={16} color={colors.red} />
+                            ) : (
+                              <View style={styles.activityFirstDot} />
+                            )}
+                          </View>
+                          {event.priceDirection === 'first' ? (
+                            <AppText weight="bold" style={styles.activityFirstPrice}>
+                              {formatPrice(event.newPriceMinor, event.currency)}
+                            </AppText>
+                          ) : (
+                            <AppText weight="bold" style={[
+                              styles.activityNewPrice,
+                              event.priceDirection === 'down' && styles.activityPriceDown,
+                              event.priceDirection === 'up' && styles.activityPriceUp
+                            ]}>
+                              {formatPrice(event.newPriceMinor, event.currency)}
+                            </AppText>
+                          )}
+                        </>
                       )}
                     </View>
                     <View style={styles.activityMetaRow}>
-                      {event.priceDirection === 'first' ? (
+                      {event.priceDirection === 'first' && event.availability !== 'out_of_stock' ? (
                         <View style={styles.activityFirstBadge}>
                           <AppText weight="semibold" style={styles.activityFirstBadgeText}>
                             Started tracking
+                          </AppText>
+                        </View>
+                      ) : null}
+                      {event.availability === 'out_of_stock' ? (
+                        <View style={styles.oosActivityBadge}>
+                          <AppText weight="semibold" style={styles.oosActivityBadgeText}>
+                            Out of stock
                           </AppText>
                         </View>
                       ) : null}
@@ -1794,6 +1818,21 @@ const styles = StyleSheet.create({
   activityDateHeaderText: {
     fontSize: 13,
     color: colors.textMuted
+  },
+  oosActivityLabel: {
+    fontSize: 13,
+    color: colors.amber,
+    flex: 1
+  },
+  oosActivityBadge: {
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    backgroundColor: colors.amberSoft
+  },
+  oosActivityBadgeText: {
+    fontSize: 11,
+    color: colors.amber
   },
   settingsCard: {
     padding: 20,

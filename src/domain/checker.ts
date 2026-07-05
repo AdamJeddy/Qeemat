@@ -30,11 +30,32 @@ export async function checkProductNow(product: TrackedProduct, source: SnapshotS
     return;
   }
 
-  const saved = await recordSuccessfulCheck(product, result.product, source);
-  await maybeNotifyForCheck(product, result.product, saved.previousPriceMinor, saved.newPriceMinor);
+  const parsed = result.product;
+  const saved = await recordSuccessfulCheck(product, parsed, source);
 
-  // Record price-change activity event
-  if (saved.newPriceMinor !== undefined) {
+  // Detect availability transition (e.g. in_stock → out_of_stock)
+  const previousAvailability = product.lastAvailability;
+  const newAvailability = parsed.availability;
+
+  await maybeNotifyForCheck(product, parsed, saved.previousPriceMinor, saved.newPriceMinor, previousAvailability);
+
+  // Record activity events
+  if (newAvailability === 'out_of_stock' && previousAvailability !== 'out_of_stock') {
+    // OOS transition event
+    await recordActivityEvent({
+      trackedProductId: product.id,
+      productTitle: product.title,
+      productImageUrl: product.imageUrl,
+      previousPriceMinor: saved.previousPriceMinor,
+      newPriceMinor: saved.newPriceMinor ?? 0,
+      currency: parsed.currency ?? product.currency,
+      priceDirection: 'first',
+      availability: 'out_of_stock',
+      source,
+      checkedAt: new Date().toISOString()
+    });
+  } else if (saved.newPriceMinor !== undefined) {
+    // Price-change activity event (only when not OOS)
     const direction = resolvePriceDirection(saved.previousPriceMinor, saved.newPriceMinor);
     if (direction) {
       await recordActivityEvent({
@@ -43,7 +64,7 @@ export async function checkProductNow(product: TrackedProduct, source: SnapshotS
         productImageUrl: product.imageUrl,
         previousPriceMinor: saved.previousPriceMinor,
         newPriceMinor: saved.newPriceMinor,
-        currency: result.product.currency ?? product.currency,
+        currency: parsed.currency ?? product.currency,
         priceDirection: direction,
         source,
         checkedAt: new Date().toISOString()
