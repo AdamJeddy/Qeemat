@@ -1,24 +1,51 @@
-import { Image, Pressable, StyleSheet, View } from 'react-native';
-import { PackageX, TrendingDown } from 'lucide-react-native';
+import { Image, Pressable, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { CheckCircle2, CircleAlert, Clock3, PackageX, TrendingDown, TrendingUp, X } from 'lucide-react-native';
 
 import { AppText } from './AppText';
 import { SiteIcon } from './SiteIcon';
-import { StatusPill } from './StatusPill';
 import { formatRelativeTime } from '../domain/dates';
 import { formatPrice } from '../domain/price';
 import { getSiteByKey } from '../domain/sites';
-import { TrackedProduct } from '../domain/types';
+import { CheckStatus, TrackedProduct } from '../domain/types';
 import { colors, radius, shadow } from '../theme/theme';
 
 type ProductCardProps = {
   product: TrackedProduct;
   onPress: () => void;
+  onRemove?: () => void;
 };
 
-export function ProductCard({ product, onPress }: ProductCardProps) {
+export function ProductCard({ product, onPress, onRemove }: ProductCardProps) {
   const site = getSiteByKey(product.siteKey);
-  const status = product.lastErrorCode ?? 'ok';
   const isOos = product.lastAvailability === 'out_of_stock';
+  const status: CheckStatus = product.lastErrorCode ?? 'ok';
+
+  // Price change indicator
+  const priceChanged = status === 'price_changed';
+  const previousPrice = product.previousPriceMinor;
+  const currentPrice = product.currentPriceMinor;
+  const delta =
+    priceChanged && previousPrice !== undefined && currentPrice !== undefined
+      ? currentPrice - previousPrice
+      : 0;
+  const showPriceDrop = delta < 0;
+  const showPriceUp = delta > 0;
+
+  // Status icon for the price row (replaces the old green dot)
+  function renderStatusIcon() {
+    if (isOos) {return null;}
+    if (showPriceDrop || showPriceUp) {return null;} // price change badge takes priority
+    if (status === 'ok' || status === 'price_changed') {
+      return <CheckCircle2 size={15} color={colors.green} />;
+    }
+    if (status === 'network_error') {
+      return <Clock3 size={15} color={colors.amber} />;
+    }
+    return <CircleAlert size={15} color={colors.red} />;
+  }
+
+  // Show error pill in footer only for actual errors (not ok/price_changed/OOS)
+  const showErrorPill = status !== 'ok' && status !== 'price_changed' && !isOos;
 
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
@@ -46,21 +73,52 @@ export function ProductCard({ product, onPress }: ProductCardProps) {
                 Out of stock
               </AppText>
             </View>
-          ) : (
-            <View style={styles.dropBadge}>
+          ) : showPriceDrop ? (
+            <View style={styles.priceDropBadge}>
               <TrendingDown size={13} color={colors.green} />
-              <AppText weight="semibold" style={styles.dropText}>
-                Tracking
+              <AppText weight="semibold" style={styles.priceDropText}>
+                ↓ {formatPrice(Math.abs(delta), product.currency)}
               </AppText>
             </View>
+          ) : showPriceUp ? (
+            <View style={styles.priceUpBadge}>
+              <TrendingUp size={13} color={colors.red} />
+              <AppText weight="semibold" style={styles.priceUpText}>
+                ↑ {formatPrice(delta, product.currency)}
+              </AppText>
+            </View>
+          ) : (
+            renderStatusIcon()
           )}
         </View>
         <View style={styles.footer}>
           <AppText muted style={styles.caption}>
             Last checked: {formatRelativeTime(product.lastCheckedAt)}
           </AppText>
-          <StatusPill status={status} availability={product.lastAvailability} />
+          {showErrorPill ? (
+            <View style={styles.errorBadge}>
+              {status === 'network_error' ? (
+                <Clock3 size={12} color={colors.amber} />
+              ) : (
+                <CircleAlert size={12} color={colors.red} />
+              )}
+              <AppText weight="medium" style={status === 'network_error' ? styles.errorTextAmber : styles.errorTextRed}>
+                {status === 'network_error' ? 'Network error' : status === 'blocked' ? 'Blocked' : 'Failed'}
+              </AppText>
+            </View>
+          ) : null}
         </View>
+        {isOos && onRemove ? (
+          <TouchableOpacity style={styles.oosRemoveRow} onPress={onRemove}>
+            <AppText muted style={styles.oosRemoveHint}>
+              Still unavailable ·{' '}
+            </AppText>
+            <X size={12} color={colors.red} />
+            <AppText weight="semibold" style={styles.oosRemoveAction}>
+              {' '}Remove
+            </AppText>
+          </TouchableOpacity>
+        ) : null}
       </View>
     </Pressable>
   );
@@ -128,7 +186,7 @@ const styles = StyleSheet.create({
   price: {
     fontSize: 18
   },
-  dropBadge: {
+  priceDropBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
@@ -137,8 +195,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 5
   },
-  dropText: {
+  priceDropText: {
     color: colors.green,
+    fontSize: 12
+  },
+  priceUpBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.redSoft,
+    borderRadius: radius.sm,
+    paddingHorizontal: 8,
+    paddingVertical: 5
+  },
+  priceUpText: {
+    color: colors.red,
     fontSize: 12
   },
   oosBadge: {
@@ -167,5 +238,33 @@ const styles = StyleSheet.create({
   },
   caption: {
     fontSize: 12
+  },
+  errorBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4
+  },
+  errorTextRed: {
+    color: colors.red,
+    fontSize: 11
+  },
+  errorTextAmber: {
+    color: colors.amber,
+    fontSize: 11
+  },
+  oosRemoveRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border
+  },
+  oosRemoveHint: {
+    fontSize: 11
+  },
+  oosRemoveAction: {
+    fontSize: 11,
+    color: colors.red
   }
 });
