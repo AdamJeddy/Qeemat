@@ -667,37 +667,100 @@ function DetailScreen({ productId, navigate }: { productId: number; navigate: (r
           <StatCard label="Highest price" price={stats.highest} currency={product.currency} tone="red" />
         </View>
         <SectionTitle title="Price Snapshots" />
-        <View style={styles.snapshotList}>
-          {snapshots.slice(0, 12).map((snapshot) => (
-            <View key={snapshot.id} style={styles.snapshotRow}>
-              <View style={styles.flex}>
-                <View style={styles.snapshotMetaRow}>
-                  <AppText weight="medium">{formatSnapshotTime(snapshot.checkedAt)}</AppText>
-                  <View style={[styles.sourceBadge, snapshotSourceBadgeStyle(snapshot.source)]}>
-                    <AppText weight="semibold" style={styles.sourceBadgeText}>
-                      {snapshotSourceLabel(snapshot.source)}
-                    </AppText>
-                  </View>
-                </View>
-                {snapshot.errorCode ? <AppText muted>{snapshot.errorCode}</AppText> : null}
-              </View>
-              <View style={styles.snapshotPriceBlock}>
-                <AppText weight="bold" style={snapshot.status === 'price_changed' && styles.changedPrice}>
-                  {snapshot.priceMinor !== undefined ? formatPrice(snapshot.priceMinor, snapshot.currency ?? product.currency) : 'Failed'}
-                </AppText>
-                <AppText muted style={styles.snapshotAvailability}>
-                  {snapshot.availability.replace(/_/g, ' ')}
-                </AppText>
-              </View>
-            </View>
-          ))}
-        </View>
+        <SnapshotList snapshots={snapshots} currency={product.currency} />
       </ScrollView>
       <View style={styles.bottomActionRow}>
         <PrimaryButton label="Check now" variant="outline" onPress={checkNow} loading={checking} style={styles.bottomActionHalf}
           icon={!checking ? <RefreshCcw size={18} color={colors.primary} /> : undefined} />
         <PrimaryButton label="Open link" variant="outline" onPress={() => Linking.openURL(product.canonicalUrl || product.url)} style={styles.bottomActionHalf}
           icon={<Link2 size={18} color={colors.primary} />} />
+      </View>
+    </View>
+  );
+}
+
+function SnapshotList({ snapshots, currency }: { snapshots: PriceSnapshot[]; currency: string }) {
+  const groups = useMemo(() => groupSnapshots(snapshots.slice(0, 30)), [snapshots]);
+  const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set());
+
+  function toggle(key: string) {
+    setExpandedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  return (
+    <View style={styles.snapshotList}>
+      {groups.map((group) => {
+        const first = group.snapshots[0];
+        const rest = group.snapshots.slice(1);
+        const isExpanded = expandedKeys.has(group.key);
+
+        return (
+          <View key={group.key}>
+            <SnapshotRow snapshot={first} currency={currency} />
+            {rest.length > 0 && !isExpanded && (
+              <Pressable style={styles.snapshotCollapsed} onPress={() => toggle(group.key)}>
+                <AppText muted style={styles.snapshotCollapsedText}>
+                  +{rest.length} earlier {rest.length === 1 ? 'check' : 'checks'}, no change
+                </AppText>
+              </Pressable>
+            )}
+            {rest.length > 0 && isExpanded && (
+              <>
+                {rest.map((s) => (
+                  <SnapshotRow key={s.id} snapshot={s} currency={currency} subtle />
+                ))}
+                <Pressable style={styles.snapshotCollapsed} onPress={() => toggle(group.key)}>
+                  <AppText muted style={styles.snapshotCollapsedText}>
+                    Collapse
+                  </AppText>
+                </Pressable>
+              </>
+            )}
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+function SnapshotRow({
+  snapshot,
+  currency,
+  subtle,
+}: {
+  snapshot: PriceSnapshot;
+  currency: string;
+  subtle?: boolean;
+}) {
+  return (
+    <View style={[styles.snapshotRow, subtle && styles.snapshotRowSubtle]}>
+      <View style={styles.flex}>
+        <View style={styles.snapshotMetaRow}>
+          <AppText weight={subtle ? 'regular' : 'medium'} muted={subtle}>
+            {formatSnapshotTime(snapshot.checkedAt)}
+          </AppText>
+          <View style={[styles.sourceBadge, snapshotSourceBadgeStyle(snapshot.source)]}>
+            <AppText weight="semibold" style={styles.sourceBadgeText}>
+              {snapshotSourceLabel(snapshot.source)}
+            </AppText>
+          </View>
+        </View>
+        {snapshot.errorCode ? <AppText muted>{snapshot.errorCode}</AppText> : null}
+      </View>
+      <View style={styles.snapshotPriceBlock}>
+        <AppText weight="bold" muted={subtle} style={snapshot.status === 'price_changed' && !subtle && styles.changedPrice}>
+          {snapshot.priceMinor !== undefined
+            ? formatPrice(snapshot.priceMinor, snapshot.currency ?? currency)
+            : 'Failed'}
+        </AppText>
+        <AppText muted style={styles.snapshotAvailability}>
+          {snapshot.availability.replace(/_/g, ' ')}
+        </AppText>
       </View>
     </View>
   );
@@ -1259,6 +1322,32 @@ function getPriceStats(snapshots: PriceSnapshot[]) {
   };
 }
 
+type SnapshotGroup = {
+  snapshots: PriceSnapshot[];
+  key: string;
+};
+
+/** Group consecutive snapshots with identical price + availability into a single row. */
+function groupSnapshots(snapshots: PriceSnapshot[]): SnapshotGroup[] {
+  const groups: SnapshotGroup[] = [];
+  for (const s of snapshots) {
+    const prev = groups.length > 0 ? groups[groups.length - 1].snapshots[0] : undefined;
+    const same =
+      prev &&
+      prev.priceMinor === s.priceMinor &&
+      prev.availability === s.availability &&
+      prev.source === s.source &&
+      !prev.errorCode &&
+      !s.errorCode;
+    if (same) {
+      groups[groups.length - 1].snapshots.push(s);
+    } else {
+      groups.push({ snapshots: [s], key: String(s.id) });
+    }
+  }
+  return groups;
+}
+
 function formatStatusTime(iso?: string): string {
   if (!iso) {
     return 'Never';
@@ -1667,6 +1756,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12
+  },
+  snapshotRowSubtle: {
+    opacity: 0.5,
+    minHeight: 42,
+    paddingVertical: 6,
+  },
+  snapshotCollapsed: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+    backgroundColor: colors.background,
+  },
+  snapshotCollapsedText: {
+    fontSize: 12,
   },
   snapshotMetaRow: {
     flexDirection: 'row',
