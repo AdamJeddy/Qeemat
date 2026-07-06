@@ -26,6 +26,7 @@ class MainApplication : Application(), ReactApplication, Configuration.Provider 
             PackageList(this).packages.apply {
               add(QeematBackgroundCheckPackage())
               add(QeematNotificationsPackage())
+              add(QeematWebViewFetcherPackage())
             }
 
         override fun getJSMainModuleName(): String = "index"

@@ -120,8 +120,8 @@ export const SUPPORTED_SITES: SupportedSite[] = [
     displayName: 'Brands For Less UAE',
     shortName: 'BFL',
     hostnames: ['brandsforless.com', 'www.brandsforless.com'],
-    status: 'supported',
-    notes: 'Next.js product pages with __NEXT_DATA__ SSR payloads and meta tags. Cloudflare protection may block some checks.',
+    status: 'experimental',
+    notes: 'Next.js product pages with __NEXT_DATA__ SSR payloads and meta tags. Cloudflare protection blocks non-browser HTTP clients (TLS fingerprint mismatch). Parser implemented but fetch path blocked — see docs/bfl-integration.md.',
     iconAsset: require('../../assets/site-icons/brands_for_less.png')
   }
 ];

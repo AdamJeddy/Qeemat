@@ -1,6 +1,7 @@
 import { cleanUrl, detectSupportedSite, normalizeUrl } from './sites';
 import { Availability, ParsedProduct, SiteKey } from './types';
 import { parsePriceToMinor } from './price';
+import { fetchPageHtmlViaWebView } from './webViewFetcher';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -21,6 +22,33 @@ const REQUEST_HEADERS: Record<string, string> = {
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
 };
 
+/**
+ * BFL is behind Cloudflare which detects non-browser TLS fingerprints.
+ * We try two strategies:
+ *   1. Standard fetch with Chrome-on-Android headers that are self-consistent
+ *   2. If blocked, fall back to native WebView (uses real Chrome TLS)
+ *
+ * Chrome-on-Android headers are used (instead of iOS Safari) because the
+ * app runs on Android and Cloudflare may find a cross-platform UA suspicious
+ * when combined with Android's OkHttp TLS fingerprint.
+ */
+const BFL_REQUEST_HEADERS: Record<string, string> = {
+  Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+  'Accept-Language': 'en-AE,en-US;q=0.9,en;q=0.8',
+  'Sec-Ch-Ua': '"Google Chrome";v="125", "Chromium";v="125", "Not.A/Brand";v="24"',
+  'Sec-Ch-Ua-Mobile': '?1',
+  'Sec-Ch-Ua-Platform': '"Android"',
+  'User-Agent':
+    'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.6422.165 Mobile Safari/537.36'
+};
+
+function getRequestHeaders(siteKey: SiteKey): Record<string, string> {
+  if (siteKey === 'brands_for_less') {
+    return BFL_REQUEST_HEADERS;
+  }
+  return REQUEST_HEADERS;
+}
+
 export type ParseProductResult =
   | { ok: true; product: ParsedProduct }
   | { ok: false; code: 'invalid_url' | 'unsupported_page' | 'network_error' | 'blocked' | 'price_not_found' | 'site_parser_failed'; message: string };
@@ -37,10 +65,49 @@ export async function fetchAndParseProduct(rawUrl: string): Promise<ParseProduct
     };
   }
 
+  // Primary path: standard fetch (fast, works for most sites)
+  const fetchResult = await fetchAndParseWithFetch(normalizedUrl, site.key);
+
+  // If fetch succeeded or failed with a non-block error, return immediately
+  if (fetchResult.ok || fetchResult.code !== 'blocked') {
+    return fetchResult;
+  }
+
+  // Fetch was blocked — try WebView fallback for Cloudflare-protected sites
+  const webViewHtml = await fetchPageHtmlViaWebView(normalizedUrl);
+  if (!webViewHtml) {
+    return fetchResult; // WebView unavailable, return original block error
+  }
+
+  const parsed = parseProductHtml(site.key, normalizedUrl, webViewHtml);
+
+  if (!parsed?.title) {
+    return {
+      ok: false,
+      code: 'site_parser_failed',
+      message: 'Qeemat could not find product details on this page.'
+    };
+  }
+
+  if (!parsed.priceMinor || !parsed.currency) {
+    if (parsed.availability === 'out_of_stock') {
+      return { ok: true, product: parsed };
+    }
+    return {
+      ok: false,
+      code: 'price_not_found',
+      message: 'Qeemat found the product but could not find a current price.'
+    };
+  }
+
+  return { ok: true, product: parsed };
+}
+
+async function fetchAndParseWithFetch(normalizedUrl: string, siteKey: SiteKey): Promise<ParseProductResult> {
   let response: Response;
   try {
     response = await fetch(normalizedUrl, {
-      headers: REQUEST_HEADERS
+      headers: getRequestHeaders(siteKey)
     });
   } catch {
     return {
@@ -76,7 +143,7 @@ export async function fetchAndParseProduct(rawUrl: string): Promise<ParseProduct
     };
   }
 
-  const parsed = parseProductHtml(site.key, normalizedUrl, html);
+  const parsed = parseProductHtml(siteKey, normalizedUrl, html);
 
   if (!parsed?.title) {
     return {

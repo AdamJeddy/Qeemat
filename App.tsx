@@ -507,7 +507,7 @@ function AddScreen({ navigate }: { navigate: (route: Route) => void }) {
           ) : null}
         </View>
         <View style={styles.chips}>
-          {SUPPORTED_SITES.map((site) => (
+          {SUPPORTED_SITES.filter(s => s.status === 'supported').map((site) => (
             <View key={site.key} style={[styles.chip, detectedSite?.key === site.key && styles.chipSelected]}>
               <SiteIcon siteKey={site.key} size={14} />
               <AppText weight="medium" style={[styles.chipText, detectedSite?.key === site.key && styles.chipTextSelected]}>
@@ -1094,7 +1094,7 @@ function SettingsScreen() {
             <AppText weight="bold">Supported stores</AppText>
             <View style={styles.settingsBadge}>
               <AppText weight="semibold" style={styles.settingsBadgeText}>
-                {SUPPORTED_SITES.length} live
+                {SUPPORTED_SITES.filter(s => s.status === 'supported').length} live
               </AppText>
             </View>
           </View>
@@ -1102,7 +1102,7 @@ function SettingsScreen() {
             Product links are currently supported for these stores. Amazon support is kept intentionally lightweight for the MVP across selected regional domains.
           </AppText>
           <View style={styles.settingsChipWrap}>
-            {SUPPORTED_SITES.map((site) => (
+            {SUPPORTED_SITES.filter(s => s.status === 'supported').map((site) => (
               <View key={site.key} style={styles.settingsChip}>
                 <SiteIcon siteKey={site.key} size={14} />
                 <AppText weight="medium" style={styles.settingsChipText}>
