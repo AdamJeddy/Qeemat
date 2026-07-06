@@ -114,6 +114,15 @@ export const SUPPORTED_SITES: SupportedSite[] = [
     status: 'supported',
     notes: 'Product pages expose JSON-LD structured data and meta tags with AED pricing and availability.',
     iconAsset: require('../../assets/site-icons/adidas.png')
+  },
+  {
+    key: 'brands_for_less',
+    displayName: 'Brands For Less UAE',
+    shortName: 'BFL',
+    hostnames: ['brandsforless.com', 'www.brandsforless.com'],
+    status: 'supported',
+    notes: 'Next.js product pages with __NEXT_DATA__ SSR payloads and meta tags. Cloudflare protection may block some checks.',
+    iconAsset: require('../../assets/site-icons/brands_for_less.png')
   }
 ];
 

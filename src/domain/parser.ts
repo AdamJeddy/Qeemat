@@ -146,6 +146,10 @@ export function parseProductHtml(siteKey: SiteKey, inputUrl: string, html: strin
     return parseAdidasProduct(siteKey, inputUrl, html) ?? structured;
   }
 
+  if (siteKey === 'brands_for_less') {
+    return parseBFLProduct(siteKey, inputUrl, html) ?? structured;
+  }
+
   return structured;
 }
 
@@ -436,6 +440,112 @@ function parseAdidasAvailability(html: string, sdkAvailability?: string): Availa
 
   // SDK availability string
   return parseAvailability(sdkAvailability);
+}
+
+/**
+ * Brands For Less (Next.js) product page parser.
+ *
+ * BFL is a Next.js SPA served behind Cloudflare. When the page is served
+ * via SSR, product data is embedded in __NEXT_DATA__ and standard meta tags.
+ * The generic JSON-LD parser covers structured data; this handler adds
+ * Next.js-specific extraction and BFL HTML fallbacks.
+ */
+function parseBFLProduct(siteKey: SiteKey, inputUrl: string, html: string): ParsedProduct | undefined {
+  const meta = extractMeta(html);
+  const nextData = extractNextData(html);
+  const productProps = (nextData as JsonRecord | undefined)?.props as JsonRecord | undefined;
+  const pageProps = productProps?.pageProps as JsonRecord | undefined;
+  const product = pageProps?.product as JsonRecord | undefined;
+
+  const title =
+    asString(product?.name) ??
+    asString(product?.title) ??
+    matchString(html, /<h1[^>]*class=["'][^"']*product[^"']*title[^"']*["'][^>]*>([^<]+?)<\/h1>/i) ??
+    meta.title;
+  const imageUrl =
+    firstString(product?.image) ??
+    firstString((product?.images as unknown[])?.[0]) ??
+    asString(((product?.images as unknown[])?.[0] as JsonRecord)?.url) ??
+    meta.imageUrl;
+  const rawPriceText =
+    asString(product?.price) ??
+    asString(product?.priceInAED) ??
+    meta.price;
+  const currency = 'AED';
+  const sku =
+    cleanSku(asString(product?.id)) ??
+    cleanSku(asString(product?.sku)) ??
+    cleanSku(matchString(html, /data-product-id=["']([^"']+)["']/i));
+  const availability =
+    product
+      ? typeof product?.inStock === 'boolean'
+        ? product.inStock ? 'in_stock' : 'out_of_stock'
+        : typeof product?.stock === 'number'
+          ? product.stock > 0 ? 'in_stock' : 'out_of_stock'
+          : typeof product?.available === 'boolean'
+            ? product.available ? 'in_stock' : 'out_of_stock'
+            : 'unknown'
+      : detectBFLOutOfStock(html);
+
+  if (!title && !rawPriceText) {
+    return undefined;
+  }
+
+  return {
+    siteKey,
+    canonicalUrl: meta.canonicalUrl ?? inputUrl,
+    title: cleanText(title ?? 'Brands For Less product'),
+    imageUrl,
+    priceMinor: parsePriceToMinor(rawPriceText),
+    currency,
+    availability,
+    rawPriceText: rawPriceText ? String(rawPriceText) : undefined,
+    sku
+  };
+}
+
+/**
+ * Extract Next.js SSR data from __NEXT_DATA__ script tag.
+ */
+function extractNextData(html: string): JsonRecord | undefined {
+  const match = html.match(/<script\s+id=["']__NEXT_DATA__["'][^>]*>([\s\S]*?)<\/script>/i);
+  if (!match?.[1]) {
+    return undefined;
+  }
+
+  try {
+    return JSON.parse(match[1]) as JsonRecord;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Detect out-of-stock signals in BFL HTML.
+ */
+function detectBFLOutOfStock(html: string): Availability {
+  const normalized = html.toLowerCase();
+
+  // Explicit OOS indicators
+  if (
+    normalized.includes('out of stock') ||
+    normalized.includes('sold out') ||
+    normalized.includes('notify me when available') ||
+    normalized.includes('currently unavailable')
+  ) {
+    return 'out_of_stock';
+  }
+
+  // In-stock indicators
+  if (
+    normalized.includes('add to bag') ||
+    normalized.includes('add to cart') ||
+    normalized.includes('in stock')
+  ) {
+    return 'in_stock';
+  }
+
+  return 'unknown';
 }
 
 /**
