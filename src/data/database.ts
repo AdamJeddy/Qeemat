@@ -99,6 +99,7 @@ export async function createTrackedProduct(draft: ProductDraft): Promise<number>
     imageUrl: parsed.imageUrl,
     currency: parsed.currency ?? 'AED',
     currentPriceMinor: parsed.priceMinor,
+    previousPriceMinor: undefined,
     targetPriceMinor: draft.targetPriceMinor,
     alertMode: draft.alertMode,
     checkPreference: draft.checkPreference,
@@ -327,10 +328,11 @@ export async function recordSuccessfulCheck(
             currency: parsed.currency ?? item.currency,
             currentPriceMinor: newPriceMinor,
             lastAvailability: parsed.availability,
+            previousPriceMinor,
             lastCheckedAt: checkedAt,
             lastSuccessAt: checkedAt,
             lastErrorAt: undefined,
-            lastErrorCode: undefined,
+            lastErrorCode: status,
             updatedAt: checkedAt
           }
         : item

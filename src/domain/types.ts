@@ -53,6 +53,8 @@ export type TrackedProduct = {
   imageUrl?: string;
   currency: string;
   currentPriceMinor?: number;
+  /** Previous price from the check before the most recent one. Used to compute price direction on cards. */
+  previousPriceMinor?: number;
   targetPriceMinor?: number;
   alertMode: AlertMode;
   checkPreference: CheckPreference;
