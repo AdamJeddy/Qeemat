@@ -18,6 +18,8 @@ import {
   ArrowLeft,
   Bell,
   Check,
+  ChevronDown,
+  ChevronUp,
   CircleAlert,
   Clock,
   Link2,
@@ -345,6 +347,25 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
     }
   }
 
+  function handleRemoveProduct(product: TrackedProduct) {
+    Alert.alert('Remove product?', `Remove "${product.title}" from your watchlist?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: async () => {
+          await deleteTrackedProduct(product.id);
+          await loadProducts();
+        }
+      }
+    ]);
+  }
+
+  const [oosExpanded, setOosExpanded] = useState(false);
+
+  const inStock = products.filter((p) => p.lastAvailability !== 'out_of_stock');
+  const oos = products.filter((p) => p.lastAvailability === 'out_of_stock');
+
   return (
     <View style={styles.app}>
       <Header title="Qeemat" />
@@ -377,8 +398,53 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
 
         {loading ? <ActivityIndicator color={colors.primary} /> : null}
         {!loading && products.length === 0 ? <EmptyWatchlist onAdd={() => navigate({ name: 'add' })} /> : null}
+
+        {oos.length > 0 ? (
+          <Pressable style={styles.oosSection} onPress={() => setOosExpanded((v) => !v)}>
+            <View style={styles.oosHeader}>
+              <View style={styles.oosDot} />
+              <AppText weight="semibold" style={styles.oosLabel}>
+                Out of Stock
+              </AppText>
+              <AppText muted style={styles.oosCount}>
+                {oos.length} {oos.length === 1 ? 'item' : 'items'}
+              </AppText>
+              <View style={styles.oosThumbnails}>
+                {oos.slice(0, 4).map((p, i) => (
+                  p.imageUrl ? (
+                    <Image
+                      key={p.id}
+                      source={{ uri: p.imageUrl }}
+                      style={[styles.oosThumb, i > 0 && { marginLeft: -8 }]}
+                      resizeMode="cover"
+                    />
+                  ) : null
+                ))}
+              </View>
+              {oosExpanded ? (
+                <ChevronUp size={16} color={colors.textMuted} />
+              ) : (
+                <ChevronDown size={16} color={colors.textMuted} />
+              )}
+            </View>
+          </Pressable>
+        ) : null}
+
+        {oos.length > 0 && oosExpanded ? (
+          <View style={styles.cardList}>
+            {oos.map((product) => (
+              <ProductCard
+                key={product.id}
+                product={product}
+                onPress={() => navigate({ name: 'detail', id: product.id })}
+                onRemove={() => handleRemoveProduct(product)}
+              />
+            ))}
+          </View>
+        ) : null}
+
         <View style={styles.cardList}>
-          {products.map((product) => (
+          {inStock.map((product) => (
             <ProductCard key={product.id} product={product} onPress={() => navigate({ name: 'detail', id: product.id })} />
           ))}
         </View>
@@ -1466,6 +1532,45 @@ const styles = StyleSheet.create({
   },
   cardList: {
     gap: 12
+  },
+  oosSection: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 12,
+    marginBottom: 4
+  },
+  oosHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8
+  },
+  oosDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.amber
+  },
+  oosLabel: {
+    fontSize: 13
+  },
+  oosCount: {
+    fontSize: 13,
+    flex: 1
+  },
+  oosThumbnails: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 4
+  },
+  oosThumb: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 1.5,
+    borderColor: colors.surface,
+    backgroundColor: colors.surfaceMuted
   },
   emptyCard: {
     backgroundColor: colors.surface,
