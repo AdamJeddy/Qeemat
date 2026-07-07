@@ -185,7 +185,16 @@ export function parseProductHtml(siteKey: SiteKey, inputUrl: string, html: strin
   // Only short-circuit on structured data when it has explicit availability info.
   // If availability is unknown, fall through to site-specific parsers which may
   // have better OOS detection (e.g. Amazon availability div, Noon embedded JSON).
-  if (structured?.priceMinor && structured.title && structured.availability !== 'unknown') {
+  //
+  // Level Shoes JSON-LD only reflects the default/selected variant and is
+  // unreliable for multi-variant products — always fall through to the
+  // site-specific parser which checks all variants.
+  if (
+    structured?.priceMinor &&
+    structured.title &&
+    structured.availability !== 'unknown' &&
+    siteKey !== 'level_shoes'
+  ) {
     return structured;
   }
 
@@ -356,14 +365,32 @@ function parseOunassProduct(siteKey: SiteKey, inputUrl: string, html: string): P
 }
 
 function parseLevelShoesPayload(siteKey: SiteKey, inputUrl: string, html: string): ParsedProduct | undefined {
-  const rawSalePrice = matchNumber(html, /"rawSalePrice"\s*:\s*([0-9.]+)/);
-  const rawOriginalPrice = matchNumber(html, /"rawOriginalPrice"\s*:\s*([0-9.]+)/);
+  // Prefer __NEXT_DATA__ productDetails for accurate price/name — loose regex
+  // on the full HTML picks up sizeOption prices (e.g. 590 vs actual 470).
+  const pdp = extractLevelShoesPdp(html);
+
+  // Price: try productDetails, then JSON-LD (more reliable than loose regex),
+  // then full-HTML regex as last resort.
+  const rawSalePrice =
+    pdp?.rawSalePrice ??
+    extractJsonLdPrice(html) ??
+    matchNumber(html, /"rawSalePrice"\s*:\s*([0-9.]+)/);
+  const rawOriginalPrice =
+    pdp?.rawOriginalPrice ??
+    matchNumber(html, /"rawOriginalPrice"\s*:\s*([0-9.]+)/);
   const priceMinor = parsePriceToMinor(rawSalePrice ?? rawOriginalPrice);
-  const title = matchString(html, /"name"\s*:\s*"([^"]+)"/);
-  const imageUrl = matchString(html, /"image"\s*:\s*\{[^}]*"url"\s*:\s*"([^"]+)"/);
-  const actionUrl = matchString(html, /"action"\s*:\s*\{[^}]*"url"\s*:\s*"([^"]+)"/);
-  const sku = matchString(html, /"sku"\s*:\s*"([^"]+)"/);
-  const inStock = matchBoolean(html, /"isInStock"\s*:\s*(true|false)/);
+
+  const title = pdp?.name ?? matchString(html, /"name"\s*:\s*"([^"]+)"/);
+  const imageUrl =
+    pdp?.imageUrl ??
+    matchString(html, /"image"\s*:\s*\{[^}]*"url"\s*:\s*"([^"]+)"/);
+  const actionUrl = pdp?.canonicalUrl ?? matchString(html, /"action"\s*:\s*\{[^}]*"url"\s*:\s*"([^"]+)"/);
+  const sku = pdp?.sku ?? matchString(html, /"sku"\s*:\s*"([^"]+)"/);
+  const stockValues = pdp?.stockValues ?? [...html.matchAll(/"isInStock"\s*:\s*(true|false)/g)];
+  const anyInStock = stockValues.some(m => typeof m === 'string' ? m === 'true' : m[1] === 'true');
+  const anyOos = stockValues.some(m => typeof m === 'string' ? m === 'false' : m[1] === 'false');
+  const inStock: boolean | undefined =
+    stockValues.length === 0 ? undefined : anyInStock ? true : anyOos ? false : undefined;
 
   if (!title && !priceMinor) {
     return undefined;
@@ -380,6 +407,80 @@ function parseLevelShoesPayload(siteKey: SiteKey, inputUrl: string, html: string
     rawPriceText: rawSalePrice ? String(rawSalePrice) : undefined,
     sku
   };
+}
+
+/** Extract the price from JSON-LD Offer (schema.org structured data). More
+ *  reliable than loose regex because it's scoped to the Offer block. */
+function extractJsonLdPrice(html: string): number | undefined {
+  const ldMatch = html.match(/"@type"\s*:\s*"Offer"[\s\S]{0,800}?"price"\s*:\s*([0-9.]+)/);
+  return ldMatch ? Number(ldMatch[1]) : undefined;
+}
+
+function extractLevelShoesPdp(html: string): {
+  rawSalePrice?: number;
+  rawOriginalPrice?: number;
+  name?: string;
+  imageUrl?: string;
+  canonicalUrl?: string;
+  sku?: string;
+  stockValues?: (string | RegExpMatchArray)[];
+} | undefined {
+  const ndMatch = html.match(/<script[^>]+id="__NEXT_DATA__"[^>]+type="application\/json"[^>]*>([\s\S]+?)<\/script>/);
+  if (!ndMatch) return undefined;
+
+  try {
+    const json = JSON.parse(ndMatch[1]);
+    const pd = json?.props?.pageProps?.productDetails;
+    if (!pd) return undefined;
+
+    const name = typeof pd.name === 'string' ? pd.name : undefined;
+    const sku = typeof pd.sku === 'string' ? pd.sku : typeof pd.vpn === 'string' ? pd.vpn : undefined;
+    const imageUrl = pd.image?.url ?? pd.imagePreviewGallery?.[0]?.url ?? undefined;
+    const canonicalUrl = pd.action?.url ?? undefined;
+
+    // Collect sizeOptions for variant-level stock + price fallback
+    const sizeOptions: unknown[] = Array.isArray(pd.sizeOptions) ? pd.sizeOptions : [];
+    const stockValues: string[] = [];
+
+    // Primary price from productDetails
+    let rawSalePrice: number | undefined =
+      typeof pd.rawSalePrice === 'number' ? pd.rawSalePrice : undefined;
+    let rawOriginalPrice: number | undefined =
+      typeof pd.rawOriginalPrice === 'number' ? pd.rawOriginalPrice : undefined;
+
+    for (const opt of sizeOptions) {
+      if (opt && typeof opt === 'object' && 'isInStock' in opt) {
+        const rec = opt as Record<string, unknown>;
+        stockValues.push(rec.isInStock ? 'true' : 'false');
+
+        // Fallback: if productDetails lacks a price, use the first in-stock
+        // variant's price (sizeOption prices can differ from the top-level
+        // product price but are still valid).
+        if (rawSalePrice === undefined && rec.isInStock && typeof rec.rawSalePrice === 'number') {
+          rawSalePrice = rec.rawSalePrice as number;
+        }
+        if (rawOriginalPrice === undefined && typeof rec.rawOriginalPrice === 'number') {
+          rawOriginalPrice = rec.rawOriginalPrice as number;
+        }
+      }
+    }
+
+    const htmlStockValues = stockValues.length === 0
+      ? [...html.matchAll(/"isInStock"\s*:\s*(true|false)/g)]
+      : undefined;
+
+    return {
+      rawSalePrice,
+      rawOriginalPrice,
+      name,
+      imageUrl: typeof imageUrl === 'string' ? imageUrl : undefined,
+      canonicalUrl: typeof canonicalUrl === 'string' ? canonicalUrl : undefined,
+      sku,
+      stockValues: htmlStockValues ?? stockValues,
+    };
+  } catch {
+    return undefined;
+  }
 }
 
 function parseNoonFallback(siteKey: SiteKey, inputUrl: string, html: string): ParsedProduct | undefined {

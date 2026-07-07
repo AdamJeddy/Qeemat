@@ -26,7 +26,7 @@ function loadFixture(siteKey: string): string | undefined {
   }
 }
 
-type FixtureExpectation = 'out_of_stock' | 'page_not_found';
+type FixtureExpectation = 'out_of_stock' | 'in_stock' | 'page_not_found';
 
 interface FixtureConfig {
   siteKey: string;
@@ -41,7 +41,9 @@ const FIXTURE_MAP: Record<string, FixtureConfig> = {
   amazon_com: { siteKey: 'amazon_ae', url: 'https://www.amazon.com/dp/B000000000/', expect: 'out_of_stock' },
   ounass: { siteKey: 'ounass', url: 'https://www.ounass.ae/shop-test-product-123.html', expect: 'out_of_stock' },
   ay_accessories: { siteKey: 'ay_accessories', url: 'https://ay-accessories.com/product/test-oos/', expect: 'out_of_stock' },
-  level_shoes: { siteKey: 'level_shoes', url: 'https://www.levelshoes.com/test-oos.html', expect: 'out_of_stock' },
+  // Fixture is a product page with mixed variant availability (some sizes OOS, some in stock).
+  // The parser should report in_stock when any variant is available.
+  level_shoes: { siteKey: 'level_shoes', url: 'https://www.levelshoes.com/mizuno-hyperwarp-pro-sneakers-white-mesh-hiking-zwu1ac.html', expect: 'in_stock' },
   nike_uae: { siteKey: 'nike_uae', url: 'https://www.nike.ae/t/test-oos.html', expect: 'out_of_stock' },
   sun_sand_sports: { siteKey: 'sun_sand_sports', url: 'https://en-ae.sssports.com/test-oos.html', expect: 'page_not_found' },
   adidas: { siteKey: 'adidas', url: 'https://www.adidas.ae/en/test-oos-product/ABC123.html', expect: 'out_of_stock' },
@@ -62,10 +64,11 @@ describe('OOS fixture tests', () => {
         expect(result).toBeUndefined();
       });
     } else {
-      run(`detects OOS on ${fixture}`, () => {
+      const label = expected === 'in_stock' ? 'detects in-stock' : 'detects OOS';
+      run(`${label} on ${fixture}`, () => {
         const result = parseProductHtml(siteKey, url, html);
         expect(result).toBeDefined();
-        expect(result!.availability).toBe('out_of_stock');
+        expect(result!.availability).toBe(expected);
       });
     }
   }
