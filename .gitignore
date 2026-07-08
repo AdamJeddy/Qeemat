@@ -21,3 +21,6 @@ logs/
 !.env.example
 /.gradle-local
 keystore
+
+# OOS test fixtures — large HTML files fetched from product pages
+src/domain/__tests__/fixtures/oos/*.html

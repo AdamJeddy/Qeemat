@@ -9,14 +9,18 @@ Qeemat is an Android-first, local-first price tracker for a small set of support
 Current implemented behavior:
 
 - Add a supported product URL and confirm the parsed product before saving.
+- URLs are automatically cleaned — tracking query params and fragments are stripped.
 - Track products locally on-device with price history snapshots.
+- **Out-of-stock detection** for all stores: OOS state shown on cards (amber badge, dimmed image) and detail screen (amber banner), with last known price preserved.
+- Per-store mini favicon icons on cards, add flow, product preview, and settings.
 - Activity feed showing all price-change events across tracked products, with date grouping, price direction indicators, and source badges.
+- Price change indicator arrows (`TrendingDown`/`TrendingUp`) on product cards.
 - Manual `Check now` from product detail.
 - `Open link` from product detail to view the product in the system browser.
 - Manual `Recheck all prices` from the watchlist.
 - Check preferences per product: `daily`, `every_3_days`, `weekly`.
 - Alert modes per product: `price_drop`, `any_change`, `target_price`.
-- Best-effort Android background checks with a saved preferred time of day.
+- Best-effort Android background checks with staggered 15-second delays between products.
 - Battery optimization status check and guidance in settings to improve background reliability.
 - First-launch onboarding for notification permission and battery optimization.
 - Local Android notifications for price drops, price changes, and target-price hits when permission is allowed.
@@ -31,12 +35,15 @@ Supported stores:
 - AYM Accessories
 - Ounass UAE
 - Amazon (selected regions)
+- Adidas UAE (experimental — parser done, blocked by bot detection)
+- Brands For Less (experimental — parser done, blocked by Cloudflare; see `docs/bfl-integration.md`)
 
 ## Documentation
 
 - [Current state and AI handoff](docs/current-state.md)
 - [MVP scope](docs/mvp-scope.md)
 - [Local-only MVP plan](docs/local-only-mvp-plan.md)
+- [Brands For Less integration](docs/bfl-integration.md)
 
 Start with `docs/current-state.md` if you are resuming work in a new AI conversation or need the repo's current implemented behavior.
 

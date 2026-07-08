@@ -2,15 +2,28 @@ import { StyleSheet, View } from 'react-native';
 import { CheckCircle2, CircleAlert, Clock3, TrendingDown } from 'lucide-react-native';
 
 import { AppText } from './AppText';
-import { CheckStatus } from '../domain/types';
+import { Availability, CheckStatus } from '../domain/types';
 import { colors, radius } from '../theme/theme';
 
 type StatusPillProps = {
   status?: CheckStatus;
   label?: string;
+  availability?: Availability;
 };
 
-export function StatusPill({ status = 'ok', label }: StatusPillProps) {
+export function StatusPill({ status = 'ok', label, availability }: StatusPillProps) {
+  // OOS overrides the normal status display
+  if (availability === 'out_of_stock') {
+    return (
+      <View style={[styles.base, styles.amber]}>
+        <CircleAlert size={14} color={colors.amber} />
+        <AppText weight="medium" style={[styles.label, styles.amberText]}>
+          Out of stock
+        </AppText>
+      </View>
+    );
+  }
+
   const tone = status === 'ok' || status === 'price_changed' ? 'green' : status === 'network_error' ? 'amber' : 'red';
   const Icon = status === 'price_changed' ? TrendingDown : status === 'ok' ? CheckCircle2 : status === 'network_error' ? Clock3 : CircleAlert;
 

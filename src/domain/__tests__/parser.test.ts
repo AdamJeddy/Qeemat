@@ -9,6 +9,8 @@ const ounassUrl = 'https://www.ounass.ae/shop-givenchy-beauty-gentleman-givenchy
 const amazonUrl = 'https://www.amazon.ae/Logitech-Headphones-Cancelling-Microphone-Chromebook/dp/B005BFCNYU/';
 const amazonUsUrl = 'https://www.amazon.com/Logitech-Headphones-Cancelling-Microphone-Chromebook/dp/B005BFCNYU/';
 const amazonDeUrl = 'https://www.amazon.de/Logitech-Headphones-Cancelling-Microphone-Chromebook/dp/B005BFCNYU/';
+const adidasUrl = 'https://www.adidas.ae/en/adicolor-classics-3-stripes-hoodie/IX7573.html';
+const bflUrl = 'https://www.brandsforless.com/en-ae/women-paisley-print-tiered-dress-multicolor/1966137/p/';
 
 describe('parseProductHtml', () => {
   it('parses Noon product JSON-LD with multiple offers', () => {
@@ -462,54 +464,211 @@ describe('parseProductHtml', () => {
     );
   });
 
-  it('uses JSON-LD priceSpecification instead of unrelated twitter metadata', () => {
+  it('parses Adidas.ae JSON-LD product data', () => {
     const html = `
       <html>
         <head>
-          <meta property="og:title" content="AXXIS - FF122 HAWK SV EVO SICK JOKE - Al Yousuf Accessories" />
-          <meta property="og:image" content="https://ay-accessories.com/wp-content/uploads/2024/09/Untitled-design-8.png" />
-          <meta name="twitter:data1" content="1 minute" />
+          <meta property="og:title" content="adidas Adicolor Classics 3-Stripes Hoodie - Black | adidas UAE" />
+          <meta property="og:image" content="https://assets.adidas.com/images/h_840,f_auto,q_auto,fl_lossy,c_fill,g_auto/abc123def456_9366/Adicolor_Classics_3-Stripes_Hoodie_Black_IX7573_01_laydown.jpg" />
+          <link rel="canonical" href="https://www.adidas.ae/en/adicolor-classics-3-stripes-hoodie/IX7573.html" />
           <script type="application/ld+json">
             {
-              "@context": "https://schema.org/",
-              "@graph": [
-                {
-                  "@type": "Product",
-                  "name": "AXXIS - FF122 HAWK SV EVO SICK JOKE",
-                  "image": "https://ay-accessories.com/wp-content/uploads/2024/09/Untitled-design-8.png",
-                  "sku": 29044,
-                  "offers": [
-                    {
-                      "@type": "Offer",
-                      "priceSpecification": [
-                        {
-                          "@type": "UnitPriceSpecification",
-                          "price": "412",
-                          "priceCurrency": "AED"
-                        }
-                      ],
-                      "availability": "https://schema.org/InStock",
-                      "url": "https://ay-accessories.com/product/axxis-ff122-hawk-sv-evo-sick-joke/"
-                    }
-                  ]
-                }
-              ]
+              "@context": "https://schema.org",
+              "@type": "Product",
+              "name": "Adicolor Classics 3-Stripes Hoodie",
+              "sku": "IX7573",
+              "image": "https://assets.adidas.com/images/h_840,f_auto,q_auto,fl_lossy,c_fill,g_auto/abc123def456_9366/Adicolor_Classics_3-Stripes_Hoodie_Black_IX7573_01_laydown.jpg",
+              "offers": {
+                "@type": "Offer",
+                "price": "299.00",
+                "priceCurrency": "AED",
+                "availability": "https://schema.org/InStock",
+                "url": "https://www.adidas.ae/en/adicolor-classics-3-stripes-hoodie/IX7573.html"
+              }
             }
           </script>
         </head>
       </html>
     `;
 
-    const parsed = parseProductHtml('ay_accessories', 'https://ay-accessories.com/product/axxis-ff122-hawk-sv-evo-sick-joke/', html);
+    const parsed = parseProductHtml('adidas', adidasUrl, html);
 
     expect(parsed).toEqual(
       expect.objectContaining({
-        siteKey: 'ay_accessories',
-        title: 'AXXIS - FF122 HAWK SV EVO SICK JOKE',
-        imageUrl: 'https://ay-accessories.com/wp-content/uploads/2024/09/Untitled-design-8.png',
-        priceMinor: 41200,
+        siteKey: 'adidas',
+        canonicalUrl: adidasUrl,
+        title: 'Adicolor Classics 3-Stripes Hoodie',
+        sku: 'IX7573',
+        imageUrl: 'https://assets.adidas.com/images/h_840,f_auto,q_auto,fl_lossy,c_fill,g_auto/abc123def456_9366/Adicolor_Classics_3-Stripes_Hoodie_Black_IX7573_01_laydown.jpg',
+        priceMinor: 29900,
         currency: 'AED',
         availability: 'in_stock'
+      })
+    );
+  });
+
+  it('falls back to adidas-specific parser when structured data availability is unknown', () => {
+    const html = `
+      <html>
+        <head>
+          <meta property="og:title" content="Adicolor Classics 3-Stripes Hoodie - Black" />
+          <meta property="og:image" content="https://assets.adidas.com/images/abc123.jpg" />
+          <link rel="canonical" href="https://www.adidas.ae/en/adicolor-classics-3-stripes-hoodie/IX7573.html" />
+        </head>
+        <body>
+          <h1 class="product-name">Adicolor Classics 3-Stripes Hoodie</h1>
+          <div class="sales-price">AED 299.00</div>
+          <div data-pid="IX7573" data-available="true">
+            <button class="add-to-bag">Add to Bag</button>
+          </div>
+        </body>
+      </html>
+    `;
+
+    const parsed = parseProductHtml('adidas', adidasUrl, html);
+
+    expect(parsed).toEqual(
+      expect.objectContaining({
+        siteKey: 'adidas',
+        title: 'Adicolor Classics 3-Stripes Hoodie',
+        sku: 'IX7573',
+        priceMinor: 29900,
+        currency: 'AED',
+        availability: 'in_stock'
+      })
+    );
+  });
+
+  it('parses an adidas OOS product from JSON-LD', () => {
+    const html = `
+      <html>
+        <head>
+          <link rel="canonical" href="https://www.adidas.ae/en/ultraboost-1-0-shoes/IH1234.html" />
+          <script type="application/ld+json">
+            {
+              "@context": "https://schema.org",
+              "@type": "Product",
+              "name": "Ultraboost 1.0 Shoes",
+              "sku": "IH1234",
+              "offers": {
+                "@type": "Offer",
+                "price": "699.00",
+                "priceCurrency": "AED",
+                "availability": "https://schema.org/OutOfStock"
+              }
+            }
+          </script>
+        </head>
+      </html>
+    `;
+
+    const parsed = parseProductHtml('adidas', 'https://www.adidas.ae/en/ultraboost-1-0-shoes/IH1234.html', html);
+
+    expect(parsed).toEqual(
+      expect.objectContaining({
+        siteKey: 'adidas',
+        title: 'Ultraboost 1.0 Shoes',
+        availability: 'out_of_stock'
+      })
+    );
+  });
+
+  it('parses BFL product from __NEXT_DATA__ SSR payload', () => {
+    const html = `
+      <html>
+        <head>
+          <meta property="og:title" content="Women Paisley Print Tiered Dress, Multicolor | Brands For Less" />
+          <meta property="og:image" content="https://f.bflcdn.com/t_pl/f_auto,q_auto/products/26/3/3607171932634_1.JPG" />
+          <link rel="canonical" href="https://www.brandsforless.com/en-ae/women-paisley-print-tiered-dress-multicolor/1966137/p/" />
+        </head>
+        <body>
+          <script id="__NEXT_DATA__" type="application/json">
+            {
+              "props": {
+                "pageProps": {
+                  "product": {
+                    "id": "1966137",
+                    "name": "Women Paisley Print Tiered Dress, Multicolor",
+                    "price": "397",
+                    "priceInAED": "397",
+                    "inStock": true,
+                    "images": [{"url": "https://f.bflcdn.com/t_pl/f_auto,q_auto/products/26/3/3607171932634_1.JPG"}]
+                  }
+                }
+              }
+            }
+          </script>
+        </body>
+      </html>
+    `;
+
+    const parsed = parseProductHtml('brands_for_less', bflUrl, html);
+
+    expect(parsed).toEqual(
+      expect.objectContaining({
+        siteKey: 'brands_for_less',
+        title: 'Women Paisley Print Tiered Dress, Multicolor',
+        sku: '1966137',
+        imageUrl: 'https://f.bflcdn.com/t_pl/f_auto,q_auto/products/26/3/3607171932634_1.JPG',
+        priceMinor: 39700,
+        currency: 'AED',
+        availability: 'in_stock'
+      })
+    );
+  });
+
+  it('falls back to meta tags when BFL __NEXT_DATA__ is missing', () => {
+    const html = `
+      <html>
+        <head>
+          <meta property="og:title" content="Women Velvet Mini Dress, Black | Brands For Less" />
+          <meta property="og:image" content="https://f.bflcdn.com/products/26/3/3607171841233_1.JPG" />
+          <meta property="product:price:amount" content="224" />
+          <meta property="product:price:currency" content="AED" />
+          <link rel="canonical" href="https://www.brandsforless.com/en-ae/women-velvet-mini-dress-black/1967170/p/" />
+        </head>
+        <body>
+          <h1 class="product_title">Women Velvet Mini Dress, Black</h1>
+          <button>Add to Bag</button>
+        </body>
+      </html>
+    `;
+
+    const parsed = parseProductHtml('brands_for_less', 'https://www.brandsforless.com/en-ae/women-velvet-mini-dress-black/1967170/p/', html);
+
+    expect(parsed).toEqual(
+      expect.objectContaining({
+        siteKey: 'brands_for_less',
+        title: 'Women Velvet Mini Dress, Black',
+        priceMinor: 22400,
+        currency: 'AED',
+        availability: 'in_stock'
+      })
+    );
+  });
+
+  it('detects BFL out-of-stock products', () => {
+    const html = `
+      <html>
+        <head>
+          <meta property="og:title" content="Women Knitted Bodycon Dress, Olive" />
+          <link rel="canonical" href="https://www.brandsforless.com/en-ae/women-knitted-bodycon-dress-olive/1967052/p/" />
+          <meta property="product:price:amount" content="292" />
+        </head>
+        <body>
+          <h1>Women Knitted Bodycon Dress, Olive</h1>
+          <p class="stock out-of-stock">Sold out</p>
+        </body>
+      </html>
+    `;
+
+    const parsed = parseProductHtml('brands_for_less', 'https://www.brandsforless.com/en-ae/women-knitted-bodycon-dress-olive/1967052/p/', html);
+
+    expect(parsed).toEqual(
+      expect.objectContaining({
+        siteKey: 'brands_for_less',
+        title: 'Women Knitted Bodycon Dress, Olive',
+        availability: 'out_of_stock'
       })
     );
   });
@@ -533,6 +692,18 @@ describe('detectSupportedSite', () => {
     expect(detectSupportedSite(amazonUsUrl)?.key).toBe('amazon_ae');
     expect(detectSupportedSite(amazonDeUrl)?.key).toBe('amazon_ae');
     expect(detectSupportedSite('https://www.amazon.co.uk/gp/product/B005BFCNYU')?.key).toBe('amazon_ae');
+  });
+
+  it('detects Adidas.ae product URLs', () => {
+    expect(detectSupportedSite(adidasUrl)?.key).toBe('adidas');
+    expect(detectSupportedSite('https://adidas.ae/en/ultraboost-1-0-shoes/IH1234.html')?.key).toBe('adidas');
+    expect(detectSupportedSite('https://www.adidas.ae/en/product.html')?.key).toBe('adidas');
+  });
+
+  it('detects Brands For Less product URLs', () => {
+    expect(detectSupportedSite(bflUrl)?.key).toBe('brands_for_less');
+    expect(detectSupportedSite('https://brandsforless.com/en-ae/women-shoes/12345/p/')?.key).toBe('brands_for_less');
+    expect(detectSupportedSite('https://www.brandsforless.com/en-ae/product/')?.key).toBe('brands_for_less');
   });
 });
 

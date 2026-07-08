@@ -1,24 +1,60 @@
-import { detectSupportedSite, normalizeUrl } from './sites';
+import { cleanUrl, detectSupportedSite, normalizeUrl } from './sites';
 import { Availability, ParsedProduct, SiteKey } from './types';
 import { parsePriceToMinor } from './price';
+import { fetchPageHtmlViaWebView } from './webViewFetcher';
 
 type JsonRecord = Record<string, unknown>;
 
-const REQUEST_HEADERS = {
-  Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+const REQUEST_HEADERS: Record<string, string> = {
+  Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
   'Accept-Language': 'en-AE,en-US;q=0.9,en;q=0.8',
   'Cache-Control': 'no-cache',
   Pragma: 'no-cache',
+  'Sec-Ch-Ua': '"Google Chrome";v="125", "Chromium";v="125", "Not.A/Brand";v="24"',
+  'Sec-Ch-Ua-Mobile': '?0',
+  'Sec-Ch-Ua-Platform': '"Windows"',
+  'Sec-Fetch-Dest': 'document',
+  'Sec-Fetch-Mode': 'navigate',
+  'Sec-Fetch-Site': 'none',
+  'Sec-Fetch-User': '?1',
+  'Upgrade-Insecure-Requests': '1',
   'User-Agent':
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
 };
+
+/**
+ * BFL is behind Cloudflare which detects non-browser TLS fingerprints.
+ * We try two strategies:
+ *   1. Standard fetch with Chrome-on-Android headers that are self-consistent
+ *   2. If blocked, fall back to native WebView (uses real Chrome TLS)
+ *
+ * Chrome-on-Android headers are used (instead of iOS Safari) because the
+ * app runs on Android and Cloudflare may find a cross-platform UA suspicious
+ * when combined with Android's OkHttp TLS fingerprint.
+ */
+const BFL_REQUEST_HEADERS: Record<string, string> = {
+  Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+  'Accept-Language': 'en-AE,en-US;q=0.9,en;q=0.8',
+  'Sec-Ch-Ua': '"Google Chrome";v="125", "Chromium";v="125", "Not.A/Brand";v="24"',
+  'Sec-Ch-Ua-Mobile': '?1',
+  'Sec-Ch-Ua-Platform': '"Android"',
+  'User-Agent':
+    'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.6422.165 Mobile Safari/537.36'
+};
+
+function getRequestHeaders(siteKey: SiteKey): Record<string, string> {
+  if (siteKey === 'brands_for_less') {
+    return BFL_REQUEST_HEADERS;
+  }
+  return REQUEST_HEADERS;
+}
 
 export type ParseProductResult =
   | { ok: true; product: ParsedProduct }
   | { ok: false; code: 'invalid_url' | 'unsupported_page' | 'network_error' | 'blocked' | 'price_not_found' | 'site_parser_failed'; message: string };
 
 export async function fetchAndParseProduct(rawUrl: string): Promise<ParseProductResult> {
-  const normalizedUrl = normalizeUrl(rawUrl);
+  const normalizedUrl = cleanUrl(normalizeUrl(rawUrl));
   const site = detectSupportedSite(normalizedUrl);
 
   if (!site) {
@@ -29,10 +65,49 @@ export async function fetchAndParseProduct(rawUrl: string): Promise<ParseProduct
     };
   }
 
+  // Primary path: standard fetch (fast, works for most sites)
+  const fetchResult = await fetchAndParseWithFetch(normalizedUrl, site.key);
+
+  // If fetch succeeded or failed with a non-block error, return immediately
+  if (fetchResult.ok || fetchResult.code !== 'blocked') {
+    return fetchResult;
+  }
+
+  // Fetch was blocked — try WebView fallback for Cloudflare-protected sites
+  const webViewHtml = await fetchPageHtmlViaWebView(normalizedUrl);
+  if (!webViewHtml) {
+    return fetchResult; // WebView unavailable, return original block error
+  }
+
+  const parsed = parseProductHtml(site.key, normalizedUrl, webViewHtml);
+
+  if (!parsed?.title) {
+    return {
+      ok: false,
+      code: 'site_parser_failed',
+      message: 'Qeemat could not find product details on this page.'
+    };
+  }
+
+  if (!parsed.priceMinor || !parsed.currency) {
+    if (parsed.availability === 'out_of_stock') {
+      return { ok: true, product: parsed };
+    }
+    return {
+      ok: false,
+      code: 'price_not_found',
+      message: 'Qeemat found the product but could not find a current price.'
+    };
+  }
+
+  return { ok: true, product: parsed };
+}
+
+async function fetchAndParseWithFetch(normalizedUrl: string, siteKey: SiteKey): Promise<ParseProductResult> {
   let response: Response;
   try {
     response = await fetch(normalizedUrl, {
-      headers: REQUEST_HEADERS
+      headers: getRequestHeaders(siteKey)
     });
   } catch {
     return {
@@ -68,7 +143,7 @@ export async function fetchAndParseProduct(rawUrl: string): Promise<ParseProduct
     };
   }
 
-  const parsed = parseProductHtml(site.key, normalizedUrl, html);
+  const parsed = parseProductHtml(siteKey, normalizedUrl, html);
 
   if (!parsed?.title) {
     return {
@@ -78,7 +153,14 @@ export async function fetchAndParseProduct(rawUrl: string): Promise<ParseProduct
     };
   }
 
+  // OOS products may legitimately lack a price — allow success with just title + OOS availability
   if (!parsed.priceMinor || !parsed.currency) {
+    if (parsed.availability === 'out_of_stock') {
+      return {
+        ok: true,
+        product: parsed
+      };
+    }
     return {
       ok: false,
       code: 'price_not_found',
@@ -93,9 +175,26 @@ export async function fetchAndParseProduct(rawUrl: string): Promise<ParseProduct
 }
 
 export function parseProductHtml(siteKey: SiteKey, inputUrl: string, html: string): ParsedProduct | undefined {
+  // Detect 404 / product-not-found pages that still serve product meta
+  if (isProduct404Page(html)) {
+    return undefined;
+  }
+
   const structured = parseStructuredProduct(siteKey, inputUrl, html);
 
-  if (structured?.priceMinor && structured.title) {
+  // Only short-circuit on structured data when it has explicit availability info.
+  // If availability is unknown, fall through to site-specific parsers which may
+  // have better OOS detection (e.g. Amazon availability div, Noon embedded JSON).
+  //
+  // Level Shoes JSON-LD only reflects the default/selected variant and is
+  // unreliable for multi-variant products — always fall through to the
+  // site-specific parser which checks all variants.
+  if (
+    structured?.priceMinor &&
+    structured.title &&
+    structured.availability !== 'unknown' &&
+    siteKey !== 'level_shoes'
+  ) {
     return structured;
   }
 
@@ -117,6 +216,14 @@ export function parseProductHtml(siteKey: SiteKey, inputUrl: string, html: strin
 
   if (siteKey === 'noon') {
     return parseNoonFallback(siteKey, inputUrl, html) ?? structured;
+  }
+
+  if (siteKey === 'adidas') {
+    return parseAdidasProduct(siteKey, inputUrl, html) ?? structured;
+  }
+
+  if (siteKey === 'brands_for_less') {
+    return parseBFLProduct(siteKey, inputUrl, html) ?? structured;
   }
 
   return structured;
@@ -196,9 +303,9 @@ function parseAmazonProduct(siteKey: SiteKey, inputUrl: string, html: string): P
     meta.imageUrl;
   const rawPriceText = matchAmazonPriceText(html) ?? meta.price;
   const availabilityText =
-    matchString(html, /id=["']availability["'][\s\S]{0,500}?primary-availability-message[^>]*>\s*([^<]+?)\s*</i) ??
-    matchString(html, /id=["']availability["'][\s\S]{0,500}?a-color-success[^>]*>\s*([^<]+?)\s*</i) ??
-    matchString(html, /id=["']availability["'][\s\S]{0,500}?a-color-price[^>]*>\s*([^<]+?)\s*</i);
+    matchString(html, /id=["']availability["'][\s\S]{0,8000}?primary-availability-message[^>]*>\s*([^<]+?)\s*</i) ??
+    matchString(html, /id=["']availability["'][\s\S]{0,8000}?a-color-success[^>]*>\s*([^<]+?)\s*</i) ??
+    matchString(html, /id=["']availability["'][\s\S]{0,8000}?a-color-price[^>]*>\s*([^<]+?)\s*</i);
   const sku = extractAmazonAsin(inputUrl) ?? matchString(html, /data-csa-c-asin=["']([A-Z0-9]{10})["']/i);
   const currency = inferAmazonCurrency(inputUrl, rawPriceText, meta.currency);
 
@@ -258,14 +365,32 @@ function parseOunassProduct(siteKey: SiteKey, inputUrl: string, html: string): P
 }
 
 function parseLevelShoesPayload(siteKey: SiteKey, inputUrl: string, html: string): ParsedProduct | undefined {
-  const rawSalePrice = matchNumber(html, /"rawSalePrice"\s*:\s*([0-9.]+)/);
-  const rawOriginalPrice = matchNumber(html, /"rawOriginalPrice"\s*:\s*([0-9.]+)/);
+  // Prefer __NEXT_DATA__ productDetails for accurate price/name — loose regex
+  // on the full HTML picks up sizeOption prices (e.g. 590 vs actual 470).
+  const pdp = extractLevelShoesPdp(html);
+
+  // Price: try productDetails, then JSON-LD (more reliable than loose regex),
+  // then full-HTML regex as last resort.
+  const rawSalePrice =
+    pdp?.rawSalePrice ??
+    extractJsonLdPrice(html) ??
+    matchNumber(html, /"rawSalePrice"\s*:\s*([0-9.]+)/);
+  const rawOriginalPrice =
+    pdp?.rawOriginalPrice ??
+    matchNumber(html, /"rawOriginalPrice"\s*:\s*([0-9.]+)/);
   const priceMinor = parsePriceToMinor(rawSalePrice ?? rawOriginalPrice);
-  const title = matchString(html, /"name"\s*:\s*"([^"]+)"/);
-  const imageUrl = matchString(html, /"image"\s*:\s*\{[^}]*"url"\s*:\s*"([^"]+)"/);
-  const actionUrl = matchString(html, /"action"\s*:\s*\{[^}]*"url"\s*:\s*"([^"]+)"/);
-  const sku = matchString(html, /"sku"\s*:\s*"([^"]+)"/);
-  const inStock = matchBoolean(html, /"isInStock"\s*:\s*(true|false)/);
+
+  const title = pdp?.name ?? matchString(html, /"name"\s*:\s*"([^"]+)"/);
+  const imageUrl =
+    pdp?.imageUrl ??
+    matchString(html, /"image"\s*:\s*\{[^}]*"url"\s*:\s*"([^"]+)"/);
+  const actionUrl = pdp?.canonicalUrl ?? matchString(html, /"action"\s*:\s*\{[^}]*"url"\s*:\s*"([^"]+)"/);
+  const sku = pdp?.sku ?? matchString(html, /"sku"\s*:\s*"([^"]+)"/);
+  const stockValues = pdp?.stockValues ?? [...html.matchAll(/"isInStock"\s*:\s*(true|false)/g)];
+  const anyInStock = stockValues.some(m => typeof m === 'string' ? m === 'true' : m[1] === 'true');
+  const anyOos = stockValues.some(m => typeof m === 'string' ? m === 'false' : m[1] === 'false');
+  const inStock: boolean | undefined =
+    stockValues.length === 0 ? undefined : anyInStock ? true : anyOos ? false : undefined;
 
   if (!title && !priceMinor) {
     return undefined;
@@ -282,6 +407,80 @@ function parseLevelShoesPayload(siteKey: SiteKey, inputUrl: string, html: string
     rawPriceText: rawSalePrice ? String(rawSalePrice) : undefined,
     sku
   };
+}
+
+/** Extract the price from JSON-LD Offer (schema.org structured data). More
+ *  reliable than loose regex because it's scoped to the Offer block. */
+function extractJsonLdPrice(html: string): number | undefined {
+  const ldMatch = html.match(/"@type"\s*:\s*"Offer"[\s\S]{0,800}?"price"\s*:\s*([0-9.]+)/);
+  return ldMatch ? Number(ldMatch[1]) : undefined;
+}
+
+function extractLevelShoesPdp(html: string): {
+  rawSalePrice?: number;
+  rawOriginalPrice?: number;
+  name?: string;
+  imageUrl?: string;
+  canonicalUrl?: string;
+  sku?: string;
+  stockValues?: (string | RegExpMatchArray)[];
+} | undefined {
+  const ndMatch = html.match(/<script[^>]+id="__NEXT_DATA__"[^>]+type="application\/json"[^>]*>([\s\S]+?)<\/script>/);
+  if (!ndMatch) return undefined;
+
+  try {
+    const json = JSON.parse(ndMatch[1]);
+    const pd = json?.props?.pageProps?.productDetails;
+    if (!pd) return undefined;
+
+    const name = typeof pd.name === 'string' ? pd.name : undefined;
+    const sku = typeof pd.sku === 'string' ? pd.sku : typeof pd.vpn === 'string' ? pd.vpn : undefined;
+    const imageUrl = pd.image?.url ?? pd.imagePreviewGallery?.[0]?.url ?? undefined;
+    const canonicalUrl = pd.action?.url ?? undefined;
+
+    // Collect sizeOptions for variant-level stock + price fallback
+    const sizeOptions: unknown[] = Array.isArray(pd.sizeOptions) ? pd.sizeOptions : [];
+    const stockValues: string[] = [];
+
+    // Primary price from productDetails
+    let rawSalePrice: number | undefined =
+      typeof pd.rawSalePrice === 'number' ? pd.rawSalePrice : undefined;
+    let rawOriginalPrice: number | undefined =
+      typeof pd.rawOriginalPrice === 'number' ? pd.rawOriginalPrice : undefined;
+
+    for (const opt of sizeOptions) {
+      if (opt && typeof opt === 'object' && 'isInStock' in opt) {
+        const rec = opt as Record<string, unknown>;
+        stockValues.push(rec.isInStock ? 'true' : 'false');
+
+        // Fallback: if productDetails lacks a price, use the first in-stock
+        // variant's price (sizeOption prices can differ from the top-level
+        // product price but are still valid).
+        if (rawSalePrice === undefined && rec.isInStock && typeof rec.rawSalePrice === 'number') {
+          rawSalePrice = rec.rawSalePrice as number;
+        }
+        if (rawOriginalPrice === undefined && typeof rec.rawOriginalPrice === 'number') {
+          rawOriginalPrice = rec.rawOriginalPrice as number;
+        }
+      }
+    }
+
+    const htmlStockValues = stockValues.length === 0
+      ? [...html.matchAll(/"isInStock"\s*:\s*(true|false)/g)]
+      : undefined;
+
+    return {
+      rawSalePrice,
+      rawOriginalPrice,
+      name,
+      imageUrl: typeof imageUrl === 'string' ? imageUrl : undefined,
+      canonicalUrl: typeof canonicalUrl === 'string' ? canonicalUrl : undefined,
+      sku,
+      stockValues: htmlStockValues ?? stockValues,
+    };
+  } catch {
+    return undefined;
+  }
 }
 
 function parseNoonFallback(siteKey: SiteKey, inputUrl: string, html: string): ParsedProduct | undefined {
@@ -304,10 +503,256 @@ function parseNoonFallback(siteKey: SiteKey, inputUrl: string, html: string): Pa
     imageUrl: imageUrl ? unescapeJsonString(imageUrl) : undefined,
     priceMinor: parsePriceToMinor(price),
     currency: 'AED',
-    availability: 'unknown',
+    availability: detectNoonOos(html),
     rawPriceText: price ? String(price) : undefined,
     sku
   };
+}
+
+/**
+ * Adidas.ae (Salesforce Commerce Cloud) product parser.
+ * Falls back to meta tags and inline JSON when JSON-LD structured data
+ * is missing or incomplete.
+ */
+function parseAdidasProduct(siteKey: SiteKey, inputUrl: string, html: string): ParsedProduct | undefined {
+  const meta = extractMeta(html);
+  const sdkData = extractAdidasSdkData(html);
+
+  const title =
+    sdkData?.name ??
+    matchString(html, /class=["'][^"']*product-name[^"']*["'][^>]*>\s*([^<]+?)\s*</i) ??
+    meta.title;
+  const imageUrl =
+    sdkData?.image ??
+    matchString(html, /<meta\s+property=["']og:image["']\s+content=["']([^"']+)["']/i) ??
+    matchString(html, /class=["'][^"']*primary-image[^"']*["'][^>]+src=["']([^"']+)["']/i) ??
+    meta.imageUrl;
+  const rawPriceText =
+    sdkData?.price ??
+    matchString(html, /class=["'][^"']*sales-price[^"']*["'][^>]*>\s*([^<]+?)\s*</i) ??
+    meta.price;
+  const sku =
+    cleanSku(sdkData?.id) ??
+    cleanSku(matchString(html, /data-pid=["']([^"']+)["']/i)) ??
+    cleanSku(matchString(html, /data-master-id=["']([^"']+)["']/i));
+
+  if (!title && !rawPriceText) {
+    return undefined;
+  }
+
+  return {
+    siteKey,
+    canonicalUrl: meta.canonicalUrl ?? inputUrl,
+    title: cleanText(title ?? 'Adidas product'),
+    imageUrl,
+    priceMinor: parsePriceToMinor(rawPriceText),
+    currency: 'AED',
+    availability: parseAdidasAvailability(html, sdkData?.availability),
+    rawPriceText: rawPriceText ? String(rawPriceText) : undefined,
+    sku
+  };
+}
+
+/**
+ * Extract product data from embedded Salesforce Commerce Cloud JSON payloads
+ * that Adidas.ae injects into the page.
+ */
+function extractAdidasSdkData(html: string): Record<string, string> | undefined {
+  // SFCC product pages often inject product data into a script tag
+  // Try several common variable names
+  const patterns = [
+    /"product"\s*:\s*\{[\s\S]{0,2000}?"name"\s*:\s*"([^"]+)"/,
+    /window\.__INITIAL_STATE__[\s\S]{0,3000}?"name"\s*:\s*"([^"]+)"/,
+    /"analytics"\s*:\s*\{[\s\S]{0,3000}?"productName"\s*:\s*"([^"]+)"/,
+  ];
+
+  for (const pattern of patterns) {
+    const name = matchString(html, pattern);
+    if (name) {
+      return { name };
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * Determine availability from Adidas.ae product page signals.
+ */
+function parseAdidasAvailability(html: string, sdkAvailability?: string): Availability {
+  // Check SFCC stock status classes / text
+  const normalized = html.toLowerCase();
+
+  // Explicit OOS indicators
+  if (
+    normalized.includes('class="out-of-stock"') ||
+    normalized.includes('data-available="false"') ||
+    normalized.includes('data-stock="0"') ||
+    normalized.includes('sold out') ||
+    normalized.includes('out of stock') ||
+    normalized.includes('currently unavailable')
+  ) {
+    return 'out_of_stock';
+  }
+
+  // In-stock indicators
+  if (
+    normalized.includes('data-available="true"') ||
+    normalized.includes('class="in-stock"') ||
+    normalized.includes('in stock') ||
+    normalized.includes('add to bag') ||
+    normalized.includes('add to cart')
+  ) {
+    return 'in_stock';
+  }
+
+  // SDK availability string
+  return parseAvailability(sdkAvailability);
+}
+
+/**
+ * Brands For Less (Next.js) product page parser.
+ *
+ * BFL is a Next.js SPA served behind Cloudflare. When the page is served
+ * via SSR, product data is embedded in __NEXT_DATA__ and standard meta tags.
+ * The generic JSON-LD parser covers structured data; this handler adds
+ * Next.js-specific extraction and BFL HTML fallbacks.
+ */
+function parseBFLProduct(siteKey: SiteKey, inputUrl: string, html: string): ParsedProduct | undefined {
+  const meta = extractMeta(html);
+  const nextData = extractNextData(html);
+  const productProps = (nextData as JsonRecord | undefined)?.props as JsonRecord | undefined;
+  const pageProps = productProps?.pageProps as JsonRecord | undefined;
+  const product = pageProps?.product as JsonRecord | undefined;
+
+  const title =
+    asString(product?.name) ??
+    asString(product?.title) ??
+    matchString(html, /<h1[^>]*class=["'][^"']*product[^"']*title[^"']*["'][^>]*>([^<]+?)<\/h1>/i) ??
+    meta.title;
+  const imageUrl =
+    firstString(product?.image) ??
+    firstString((product?.images as unknown[])?.[0]) ??
+    asString(((product?.images as unknown[])?.[0] as JsonRecord)?.url) ??
+    meta.imageUrl;
+  const rawPriceText =
+    asString(product?.price) ??
+    asString(product?.priceInAED) ??
+    meta.price;
+  const currency = 'AED';
+  const sku =
+    cleanSku(asString(product?.id)) ??
+    cleanSku(asString(product?.sku)) ??
+    cleanSku(matchString(html, /data-product-id=["']([^"']+)["']/i));
+  const availability =
+    product
+      ? typeof product?.inStock === 'boolean'
+        ? product.inStock ? 'in_stock' : 'out_of_stock'
+        : typeof product?.stock === 'number'
+          ? product.stock > 0 ? 'in_stock' : 'out_of_stock'
+          : typeof product?.available === 'boolean'
+            ? product.available ? 'in_stock' : 'out_of_stock'
+            : 'unknown'
+      : detectBFLOutOfStock(html);
+
+  if (!title && !rawPriceText) {
+    return undefined;
+  }
+
+  return {
+    siteKey,
+    canonicalUrl: meta.canonicalUrl ?? inputUrl,
+    title: cleanText(title ?? 'Brands For Less product'),
+    imageUrl,
+    priceMinor: parsePriceToMinor(rawPriceText),
+    currency,
+    availability,
+    rawPriceText: rawPriceText ? String(rawPriceText) : undefined,
+    sku
+  };
+}
+
+/**
+ * Extract Next.js SSR data from __NEXT_DATA__ script tag.
+ */
+function extractNextData(html: string): JsonRecord | undefined {
+  const match = html.match(/<script\s+id=["']__NEXT_DATA__["'][^>]*>([\s\S]*?)<\/script>/i);
+  if (!match?.[1]) {
+    return undefined;
+  }
+
+  try {
+    return JSON.parse(match[1]) as JsonRecord;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Detect out-of-stock signals in BFL HTML.
+ */
+function detectBFLOutOfStock(html: string): Availability {
+  const normalized = html.toLowerCase();
+
+  // Explicit OOS indicators
+  if (
+    normalized.includes('out of stock') ||
+    normalized.includes('sold out') ||
+    normalized.includes('notify me when available') ||
+    normalized.includes('currently unavailable')
+  ) {
+    return 'out_of_stock';
+  }
+
+  // In-stock indicators
+  if (
+    normalized.includes('add to bag') ||
+    normalized.includes('add to cart') ||
+    normalized.includes('in stock')
+  ) {
+    return 'in_stock';
+  }
+
+  return 'unknown';
+}
+
+/**
+ * Detect out-of-stock signals in Noon HTML when JSON-LD structured data
+ * is missing or incomplete. Checks embedded JSON payloads and common
+ * OOS text patterns.
+ */
+function detectNoonOos(html: string): Availability {
+  const normalized = html.toLowerCase();
+
+  // Check embedded JSON for explicit OOS flags
+  if (/"availability"\s*:\s*"out_of_stock"/i.test(html)) return 'out_of_stock';
+  if (/"is_out_of_stock"\s*:\s*true/i.test(html)) return 'out_of_stock';
+  if (/"stock_status"\s*:\s*"out_of_stock"/i.test(html)) return 'out_of_stock';
+
+  // Check for "Sold out" text patterns (common in Noon's UI)
+  if (normalized.includes('sold out') && !normalized.includes('almost sold out')) {
+    return 'out_of_stock';
+  }
+
+  if (
+    normalized.includes('out of stock') &&
+    !normalized.includes('almost out of stock')
+  ) {
+    return 'out_of_stock';
+  }
+
+  // Check for missing "Add to cart" / "Buy now" when product data exists
+  // (Noon always shows these on in-stock products)
+  const hasTitle = /"name"\s*:\s*"/.test(html) || /"title"\s*:\s*"/.test(html);
+  const hasAddToCart = /add.?to.?cart/i.test(normalized) || /add.?to.?bag/i.test(normalized) || /buy.?now/i.test(normalized);
+  const hasPrice = /"sale_price"\s*:\s*[0-9]/.test(html) || /"price"\s*:\s*[0-9]/.test(html);
+
+  // If we have product data but no add-to-cart button and no price, likely OOS
+  if (hasTitle && !hasAddToCart && !hasPrice) {
+    return 'out_of_stock';
+  }
+
+  return 'unknown';
 }
 
 function firstAymVariation(html: string): JsonRecord | undefined {
@@ -323,20 +768,20 @@ function firstAymVariation(html: string): JsonRecord | undefined {
     }
 
     const variations = parsed.filter((item): item is JsonRecord => !!item && typeof item === 'object' && !Array.isArray(item));
-    return variations.find((item) => item['is_in_stock'] === true) ?? variations[0];
+    return variations.find((item) => item.is_in_stock === true) ?? variations[0];
   } catch {
     return undefined;
   }
 }
 
 function extractAymVariationImage(variation?: JsonRecord): string | undefined {
-  const image = variation?.['image'];
+  const image = variation?.image;
   if (!image || typeof image !== 'object' || Array.isArray(image)) {
     return undefined;
   }
 
   const record = image as JsonRecord;
-  return asString(record['full_src']) ?? asString(record['url']) ?? asString(record['src']);
+  return asString(record.full_src) ?? asString(record.url) ?? asString(record.src);
 }
 
 function extractAymPriceText(html: string): string | undefined {
@@ -385,12 +830,44 @@ function isBlockedHtml(html: string): boolean {
     (normalized.includes('powered and protected by') && normalized.includes('akamai')) ||
     (normalized.includes('just a moment') && normalized.includes('cloudflare')) ||
     normalized.includes('challenges.cloudflare.com') ||
-    normalized.includes("sorry, we just need to make sure you're not a robot") ||
+    normalized.includes('attention required') ||  // Imperva / Cloudflare variant
+    normalized.includes('sorry, we just need to make sure you\'re not a robot') ||
     normalized.includes('enter the characters you see below') ||
     normalized.includes('type the characters you see in this image') ||
     normalized.includes('automated access to amazon data') ||
-    normalized.includes('/errors/validatecaptcha')
+    normalized.includes('/errors/validatecaptcha') ||
+    // Akamai "Access Denied" page (common on SFCC / Adidas)
+    (normalized.includes('access denied') && normalized.includes('reference #')) ||
+    // Imperva/Incapsula WAF block
+    normalized.includes('incapsula') && normalized.includes('blocked') ||
+    // Generic JavaScript challenge page (many WAFs use this)
+    (normalized.includes('please enable javascript') && normalized.includes('continue'))
   );
+}
+
+/**
+ * Detect product pages that are actually 404 / product-not-found pages.
+ * Some sites (e.g. Sun & Sand Sports) serve a 200 status with a 404 template
+ * that still includes cached product meta tags.
+ */
+function isProduct404Page(html: string): boolean {
+  const normalized = html.toLowerCase();
+
+  // Sun & Sand Sports 404 page pattern
+  if (normalized.includes('data-gtm-event-action="404') && normalized.includes('class="error__image"')) {
+    return true;
+  }
+
+  // Generic 404 page indicators (use sparingly to avoid false positives)
+  const has404Image = /<img[^>]+404[^>]*>/i.test(html);
+  const has404Heading = /<h[1-3][^>]*>\s*404\b/i.test(html);
+  const hasProductNotFound = /product.{0,15}not\s*found/i.test(normalized);
+
+  if (has404Image && (has404Heading || hasProductNotFound)) {
+    return true;
+  }
+
+  return false;
 }
 
 function parseJsonCandidates(jsonText: string): unknown[] {
@@ -514,11 +991,11 @@ function parseAvailability(value?: string): Availability {
 }
 
 function parseAymAvailability(variation: JsonRecord | undefined, html: string): Availability {
-  if (typeof variation?.['is_in_stock'] === 'boolean') {
-    return variation['is_in_stock'] ? 'in_stock' : 'out_of_stock';
+  if (typeof variation?.is_in_stock === 'boolean') {
+    return variation.is_in_stock ? 'in_stock' : 'out_of_stock';
   }
 
-  const variationAvailability = parseAvailability(asString(variation?.['availability_html']));
+  const variationAvailability = parseAvailability(asString(variation?.availability_html));
   if (variationAvailability !== 'unknown') {
     return variationAvailability;
   }
@@ -543,17 +1020,53 @@ function parseAmazonAvailability(value: string | undefined, html: string): Avail
     return 'in_stock';
   }
 
-  if (normalizedValue.includes('currently unavailable') || normalizedValue.includes('temporarily out of stock')) {
+  // Explicit OOS messages in the extracted availability text
+  if (
+    normalizedValue.includes('currently unavailable') ||
+    normalizedValue.includes('temporarily out of stock') ||
+    normalizedValue.includes("we don't know when or if this item will be back in stock")
+  ) {
     return 'out_of_stock';
   }
 
   const normalizedHtml = html.toLowerCase();
+
+  // Definitive OOS signals — check BEFORE the vague whole-page "in stock" heuristic
+  // since OOS pages with recommendation carousels often contain "In Stock" labels
+  // on recommended products
+  if (
+    normalizedHtml.includes('currently unavailable') ||
+    normalizedHtml.includes('temporarily out of stock') ||
+    normalizedHtml.includes("we don't know when or if this item will be back in stock")
+  ) {
+    return 'out_of_stock';
+  }
+
+  // Amazon occasionally uses id="outOfStock" on the availability div
+  if (/id=["']outOfStock["']/i.test(html)) {
+    return 'out_of_stock';
+  }
+
+  // In-stock heuristic: primary-availability-message with "in stock" sentinel nearby.
+  // Only trigger this when no definitive OOS signal was found above.
   if (normalizedHtml.includes('primary-availability-message') && normalizedHtml.includes('in stock')) {
     return 'in_stock';
   }
 
-  if (normalizedHtml.includes('currently unavailable')) {
-    return 'out_of_stock';
+  // Edge case: availability div with a-price class (not green) but no a-color-success
+  // Often indicates unavailable items listed by third-party sellers
+  const availabilityDiv = html.match(
+    /id=["']availability["'][\s\S]{0,800}?<\/div>/i
+  );
+  if (availabilityDiv?.[0]) {
+    const avDiv = availabilityDiv[0].toLowerCase();
+    const hasSuccess = avDiv.includes('a-color-success');
+    const hasPrice = avDiv.includes('a-color-price');
+    const hasAtAGlance = avDiv.includes('a-color-attained');
+    if (!hasSuccess && !hasAtAGlance && hasPrice) {
+      // Price-styled availability without green success often means unavailable
+      return 'out_of_stock';
+    }
   }
 
   return 'unknown';

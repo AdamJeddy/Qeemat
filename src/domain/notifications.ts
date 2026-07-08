@@ -1,7 +1,7 @@
 import { Linking, NativeModules, PermissionsAndroid, Platform } from 'react-native';
 
 import { formatPrice } from './price';
-import { ParsedProduct, TrackedProduct } from './types';
+import { Availability, ParsedProduct, TrackedProduct } from './types';
 
 type NotificationModule = {
   areEnabled?: () => Promise<boolean>;
@@ -53,13 +53,25 @@ export async function maybeNotifyForCheck(
   product: TrackedProduct,
   parsed: ParsedProduct,
   previousPriceMinor?: number,
-  newPriceMinor?: number
+  newPriceMinor?: number,
+  previousAvailability?: Availability
 ): Promise<void> {
   if (Platform.OS !== 'android' || !notificationModule?.notifyPriceAlert) {
     return;
   }
 
   if (!(await ensureNotificationPermission(false))) {
+    return;
+  }
+
+  // OOS transition notification — fires regardless of price changes
+  if (previousAvailability !== 'out_of_stock' && parsed.availability === 'out_of_stock') {
+    const productLabel = product.title || parsed.title;
+    await notificationModule.notifyPriceAlert(
+      'Out of stock',
+      `${productLabel} is currently out of stock.`,
+      product.id
+    ).catch(() => false);
     return;
   }
 

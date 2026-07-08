@@ -25,26 +25,34 @@ Core loop:
 - AYM Accessories
 - Ounass UAE
 - Amazon (selected regions)
+- Adidas UAE (experimental — parser implemented, blocked by bot detection)
+- Brands For Less (experimental — parser complete, blocked by Cloudflare; see `docs/bfl-integration.md`)
 
 Amazon support is intentionally MVP-level only. It works across selected Amazon regional product domains when Amazon serves a normal product page and should surface `blocked` when Amazon returns robot-check or challenge pages instead.
+
+Adidas and BFL are implemented but parked as experimental: their parsers and site registrations are complete but fetch paths are blocked by bot detection (Adidas) or Cloudflare TLS fingerprinting (BFL). They are not shown in the UI when `status` is `'experimental'`.
 
 ## Current User-Facing Behavior
 
 ### Watchlist
 
-- Shows tracked products with price and status.
+- Shows tracked products with price, status, and a per-store mini icon next to the store name.
 - Supports pull-to-refresh.
 - Has a `Recheck all prices` button.
 - Has a floating add button.
+- **Collapsible OOS section**: products that are out of stock are grouped into a collapsible section below in-stock products, showing thumbnails and an OOS count. Tapping expands/collapses the section.
+- **Price change indicators**: product cards show `TrendingDown` (green) or `TrendingUp` (red) arrows when the most recent check detected a price change vs. the previous snapshot.
 
 ### Add Flow
 
-- Detects supported stores from the URL.
+- Detects supported stores from the URL and displays a site icon next to the store name in the confirmation preview and supported-site chip list.
 - Parses the product before save.
+- **URL cleaning**: tracking query params (e.g. `pd_rd_w`, `ref`, `utm_*`) and URL fragments are stripped from product URLs before save and before every fetch, keeping stored URLs canonical and avoiding cache-busting or tracking noise.
 - Lets the user choose:
   - check preference: `daily`, `every_3_days`, `weekly`
   - alert mode: `price_drop`, `any_change`, `target_price`
   - optional target price
+- AYM Accessories excludes `daily` from the check-preference picker (site enforces a 72-hour minimum interval to avoid rate limiting). Existing AYM products saved with `daily` are automatically clamped on the tracking-settings screen.
 
 ### Product Detail
 
@@ -58,7 +66,7 @@ Amazon support is intentionally MVP-level only. It works across selected Amazon 
 
 ### Settings
 
-- Shows supported stores.
+- Shows supported stores with per-store mini favicon icons.
 - Shows notification status and deep-links to Android notification settings.
 - Shows battery optimization status (exempt/restricted) with a button to open app system settings.
 - Shows daily background check time presets:
@@ -105,8 +113,6 @@ Amazon support is intentionally MVP-level only. It works across selected Amazon 
 - Events survive product deletion (denormalized product title is stored on the event).
 - Empty state shown when no price changes have been recorded yet.
 
-### Onboarding (first launch)
-
 ## Current Storage Model
 
 Storage is local-only and currently uses AsyncStorage, not SQLite.
@@ -134,6 +140,7 @@ Background work is currently Android-specific.
 - Time targeting: preferred hour of day with initial delay aligned to the next selected hour
 - Due logic: per-product check preference still decides whether a product is checked during a given worker run
 - Force run: settings screen can queue a one-off background run
+- **Staggered checks**: individual product checks during a background run are spaced 15 seconds apart to avoid triggering rate limits on supported stores. Manual "Recheck all" uses a shorter 1.5-second stagger.
 
 Important constraint:
 
@@ -160,28 +167,87 @@ If permission is blocked, the app should continue tracking locally without showi
 ## Parser and Site Notes
 
 - Parsers are wired through the site registry in `src/domain/sites.ts`
+- Each `SupportedSite` can declare a `minimumIntervalHours` that clamps the effective check interval regardless of the user's check-preference. Currently AYM Accessories uses this (72 hours) to reduce load on their rate-limited WooCommerce backend.
+- Each `SupportedSite` now carries an `iconAsset` field pointing to a bundled favicon PNG in `assets/site-icons/`. The `<SiteIcon>` component renders this icon; if the asset is missing it falls back to a coloured letter-circle using the site's first initial and a brand-appropriate colour from `SITE_COLORS` in `src/components/SiteIcon.tsx`.
 - Parser coverage includes AYM WooCommerce variation markup
 - Parser coverage includes Ounass inline PDP payload parsing
 - Parser coverage includes Amazon regional-domain detection, multi-currency price parsing, buy-box style markup, alternate total-price fallback handling, and challenge-page detection in tests
+- Parser coverage includes **out-of-stock (OOS) detection** for all 7 supported stores, with a relaxed validation path: if a product is confirmed OOS, the check succeeds even without a price (the last known price is preserved on the product record). See **Out-of-Stock Detection** below for full details.
 - Current parser tests cover:
   - Noon structured data parsing
   - AYM product page parsing
   - Ounass product page parsing
   - Amazon product page parsing across `.ae`, `.com`, and `.de` price formats
   - blocked/challenge page detection
+  - OOS detection via synthetic HTML fixtures for all 7 supported stores
 
 If a supported site starts requiring login, bot bypassing, or unstable browser-only behavior, it should be downgraded from reliable MVP support.
+
+### Out-of-Stock Detection
+
+When a tracked product goes out of stock, Qeemat detects the OOS state, preserves the last known price, and displays the OOS status in the UI rather than reporting a `price_not_found` error.
+
+**Core logic** (`src/domain/parser.ts`):
+
+- The `fetchAndParseProduct` orchestrator was relaxed: OOS products without a price now succeed (`ok: true`) instead of returning `price_not_found`. Products that are not OOS and have no price still fail as before.
+- `parseProductHtml` detects 404/product-not-found pages (e.g. Sun & Sand Sports serves a 200 with a 404 template) via `isProduct404Page()` and returns `undefined`, which maps to `site_parser_failed`.
+- Structured data short-circuit was refined: when structured data says `availability: 'unknown'`, the parser falls through to site-specific parsers which have better OOS detection.
+
+**Site-specific OOS detection**:
+
+| Site | Mechanism | Patterns |
+|------|-----------|----------|
+| Noon | `detectNoonOos()` — checks embedded JSON, text patterns, and add-to-cart heuristics | `"availability":"out_of_stock"`, `"is_out_of_stock":true`, `"stock_status":"out_of_stock"`, "sold out" / "out of stock" text, missing add-to-cart + no price fallback |
+| Nike UAE | JSON-LD `parseAvailability()` | Schema.org `OutOfStock` / `InStock` |
+| Sun & Sand Sports | JSON-LD + 404 detection | Schema.org + `data-gtm-event-action="404"` + `class="error__image"` |
+| Level Shoes | `isInStock` boolean from embedded JS payload | |
+| AYM Accessories | `parseAymAvailability()` | WooCommerce `is_in_stock` on variations, stock text, CSS class |
+| Ounass | `outOfStock` / `stock` count from inline PDP payload | |
+| Amazon | `parseAmazonAvailability()` — expanded patterns | "Currently unavailable", "Temporarily out of stock", "We don't know when or if...", `id="outOfStock"`, `a-color-price` w/o `a-color-success` edge case |
+
+**Price preservation** (`src/data/database.ts`):
+
+- `recordSuccessfulCheck`: When a check returns OOS with no price, `currentPriceMinor` on the product record is **preserved** (keeps the last known price). When OOS with a price (e.g. Amazon still shows a price), the price updates normally.
+- `createTrackedProduct`: New products start with `lastAvailability: parsed.availability`.
+- `readStore` migration: Existing products missing `lastAvailability` are defaulted to `'unknown'`.
+
+**No notification spam**: `maybeNotifyForCheck` returns `undefined` when `newPriceMinor` is undefined, so no notifications fire for OOS-without-price. Activity events are also guarded by `saved.newPriceMinor !== undefined`.
+
+**UI changes**:
+
+- **`StatusPill`**: New optional `availability` prop. When `availability === 'out_of_stock'`, renders an amber pill with `CircleAlert` icon and "Out of stock" label, overriding the normal status display.
+- **`ProductCard`**: When OOS, the product image is dimmed (`opacity: 0.6`), price is struck-through in muted colour, and the badge shows an amber "Out of stock" (`PackageX` icon) instead of the green "Tracking" badge.
+- **`DetailScreen`** (App.tsx): Amber banner with `CircleAlert` saying "Out of stock — last known price shown" (or "Out of stock — no price recorded" when no price was ever captured).
+- **Snapshot list**: Already renders `snapshot.availability.replace(/_/g, ' ')` — naturally shows "out of stock" for OOS snapshots.
+
+**Test coverage**: OOS detection is tested via synthetic HTML fixtures in `src/domain/__tests__/oos-parser.test.ts` — one fixture per store. Fixtures are gitignored and fetched via `scripts/fetch-oos-fixture.mjs`. Tests auto-skip when fixtures are missing. The existing parser test suite (20 tests) is untouched.
+
+### Adding a New Website
+
+When adding a new supported store, follow this checklist:
+
+1. **`src/domain/types.ts`** — add the new site key to the `SiteKey` union type.
+2. **`src/domain/sites.ts`** — add a `SupportedSite` entry to `SUPPORTED_SITES` with `key`, `displayName`, `shortName`, `hostnames`, `status`, `notes`, and `iconAsset`.
+3. **`assets/site-icons/{key}.png`** — download the site's favicon as a PNG and place it in `assets/site-icons/`. Use Google's favicon service (`https://www.google.com/s2/favicons?domain=<hostname>&sz=64`) or download directly from the site. React Native's `Image` component needs a PNG (not `.ico`). A 32–64px square is sufficient. Register the asset in `sites.ts` via `require('../../assets/site-icons/{key}.png')`.
+4. **`src/components/SiteIcon.tsx`** — add the new site key to the `SITE_COLORS` record with a brand-appropriate hex colour. This is the fallback letter-circle shown when the favicon asset can't load.
+5. **`src/domain/parser.ts`** — add parser logic (or a new parser module) for the site's product page structure.
+6. **`src/domain/__tests__/parser.test.ts`** — add fixture-based parser tests with saved sample HTML.
+7. **`App.tsx`** — the site icon automatically appears in all 5 UI surfaces (product cards, add-flow detection & chips, product preview, settings store list) because they all use `<SiteIcon siteKey={...} />` — no manual UI wiring needed for new sites.
+8. Verify: `npm run typecheck` and `npm run lint` pass.
 
 ## Important Files
 
 App and screens:
 
 - `App.tsx`
+- `src/components/SiteIcon.tsx` — per-store mini icon component (favicon PNG or letter-circle fallback)
+- `assets/site-icons/` — favicon PNGs for each supported store
 
 Domain and storage:
 
 - `src/data/database.ts`
 - `src/domain/checker.ts`
+- `src/domain/dates.ts`
 - `src/domain/sites.ts`
 - `src/domain/types.ts`
 - `src/domain/backgroundStatus.ts`
@@ -189,6 +255,7 @@ Domain and storage:
 - `src/domain/onboarding.ts`
 - `src/domain/notifications.ts`
 - `src/domain/parser.ts`
+- `src/domain/webViewFetcher.ts` — native WebView-based fetcher for Cloudflare-protected sites (experimental; used by BFL fallback)
 
 Android native integration:
 
@@ -197,6 +264,8 @@ Android native integration:
 - `android/app/src/main/java/com/qeemat/QeematBackgroundTaskService.kt`
 - `android/app/src/main/java/com/qeemat/QeematNotificationsModule.kt`
 - `android/app/src/main/java/com/qeemat/QeematNotificationsPackage.kt`
+- `android/app/src/main/java/com/qeemat/QeematWebViewFetcherModule.kt`
+- `android/app/src/main/java/com/qeemat/QeematWebViewFetcherPackage.kt`
 - `android/app/src/main/java/com/qeemat/MainApplication.kt`
 - `android/app/src/main/AndroidManifest.xml`
 
@@ -229,7 +298,9 @@ Checks:
 ```bash
 npm run typecheck
 npm run lint
-npm test -- --runInBand
+npm test -- --runInBand        # all tests (parser + OOS fixtures)
+npm test -- --runInBand parser  # parser tests only
+npm test -- --runInBand oos     # OOS fixture tests only (skips when fixtures missing)
 ```
 
 ## Android Environment Notes
@@ -252,6 +323,15 @@ If terminal builds fail with invalid `JAVA_HOME` or missing `adb`, fix those loc
 
 ## Recent Notable Changes
 
+- **Adidas store (#18)** — parser implemented but site blocks checks with bot detection; anti-bot browser headers and block-pattern detection added.
+- **Brands For Less (BFL) store (#9)** — full parser, WebView-based Cloudflare bypass attempted, parked as experimental. Documented in `docs/bfl-integration.md`.
+- **Out-of-stock (OOS) detection across all 7 stores** — added OOS detection to every site parser, relaxed the price-required validation for OOS products, and preserved last known prices. UI shows OOS state on cards (dimmed image, struck-through price, amber badge) and detail screen (amber banner). Collapsible OOS section on watchlist groups OOS products below in-stock ones. See **Out-of-Stock Detection** section above for full architecture.
+- **Price change indicators on product cards** — `TrendingDown` (green) and `TrendingUp` (red) arrows appear on cards when a price change is detected vs. the previous snapshot.
+- **URL cleaning (#13)** — tracking query params and URL fragments stripped from product URLs before save and before every fetch.
+- Added AGENTS.md — project guidelines for LLM agent sessions, codifying conventions, build commands, and store-addition checklist.
+- Added `.zero/` specialist profiles and spec documents for future AI sessions.
+- Added fixture-based OOS parser tests (`oos-parser.test.ts`) with synthetic HTML per store and a `fetch-oos-fixture.mjs` helper script.
+- Added per-store mini favicon icons — each supported site now has a bundled PNG favicon in `assets/site-icons/` and a `<SiteIcon>` component renders them across all 5 UI surfaces (product cards, add flow, product preview, settings). Falls back to a coloured letter-circle if the icon asset is missing. See "Adding a New Website" checklist above for the steps required when adding a new store.
 - Expanded Amazon support to selected regional domains, multi-currency price parsing, and more resilient Amazon price fallback handling.
 - Added AYM Accessories parser support.
 - Added Ounass UAE parser support.
@@ -272,3 +352,7 @@ If terminal builds fail with invalid `JAVA_HOME` or missing `adb`, fix those loc
 - Added `ActivityEvent` data model and `PriceDirection` type (`up`, `down`, `first`) for the activity feed.
 - Activity events survive product deletion (denormalized title/image stored on each event).
 - One-time migration backfills activity events from existing snapshot data on first launch after upgrade.
+- **`lastErrorCode` preservation**: the last check error code is persisted on the product record so the UI can show accurate status even after app restart.
+- **`previousPriceMinor` persistence**: the price before the most recent change is stored on the product record, enabling price-change indicators and direction detection.
+- **SnapshotList refactor**: extracted snapshot rendering from `DetailScreen` into a dedicated `SnapshotList` component for readability.
+- Adjusted FAB (floating action button) position for improved layout.

@@ -1,4 +1,5 @@
-import { CheckPreference } from './types';
+import { CheckPreference, SiteKey } from './types';
+import { getSiteByKey } from './sites';
 
 export function nowIso(): string {
   return new Date().toISOString();
@@ -72,25 +73,53 @@ export function normalizeCheckPreference(preference: string | undefined): CheckP
   return 'daily';
 }
 
-export function minimumCheckIntervalHours(preference: string): number {
+/** Returns the minimum hours between checks based on the user's
+ *  check-preference, clamped to the site's minimum if one exists. */
+export function minimumCheckIntervalHours(preference: string, siteKey?: SiteKey): number {
   const normalized = normalizeCheckPreference(preference);
 
+  let interval: number;
   if (normalized === 'weekly') {
-    return 24 * 7;
+    interval = 24 * 7;
+  } else if (normalized === 'every_3_days') {
+    interval = 24 * 3;
+  } else {
+    interval = 24;
   }
 
-  if (normalized === 'every_3_days') {
-    return 24 * 3;
+  // Clamp to the site's minimum if it's higher
+  if (siteKey) {
+    const site = getSiteByKey(siteKey);
+    if (site.minimumIntervalHours && site.minimumIntervalHours > interval) {
+      interval = site.minimumIntervalHours;
+    }
   }
 
-  return 24;
+  return interval;
 }
 
-export function isDueForCheck(lastCheckedAt: string | undefined, preference: string): boolean {
+/** Returns the check preferences that are valid for a given site.
+ *  Options whose interval would be shorter than the site minimum are excluded. */
+export function availableCheckPreferences(siteKey?: SiteKey): CheckPreference[] {
+  const all: CheckPreference[] = ['daily', 'every_3_days', 'weekly'];
+
+  if (!siteKey) {
+    return all;
+  }
+
+  const site = getSiteByKey(siteKey);
+  if (!site.minimumIntervalHours) {
+    return all;
+  }
+
+  return all.filter((pref) => minimumCheckIntervalHours(pref, siteKey) >= site.minimumIntervalHours!);
+}
+
+export function isDueForCheck(lastCheckedAt: string | undefined, preference: string, siteKey?: SiteKey): boolean {
   if (!lastCheckedAt) {
     return true;
   }
 
   const elapsedHours = (Date.now() - new Date(lastCheckedAt).getTime()) / 3600000;
-  return elapsedHours >= minimumCheckIntervalHours(preference);
+  return elapsedHours >= minimumCheckIntervalHours(preference, siteKey);
 }

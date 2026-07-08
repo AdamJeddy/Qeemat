@@ -1,4 +1,4 @@
-export type SiteKey = 'noon' | 'nike_uae' | 'sun_sand_sports' | 'level_shoes' | 'ay_accessories' | 'ounass' | 'amazon_ae';
+export type SiteKey = 'noon' | 'nike_uae' | 'sun_sand_sports' | 'level_shoes' | 'ay_accessories' | 'ounass' | 'amazon_ae' | 'adidas' | 'brands_for_less';
 
 export type Availability = 'in_stock' | 'out_of_stock' | 'unknown';
 
@@ -25,6 +25,11 @@ export type SupportedSite = {
   hostnames: string[];
   status: 'supported' | 'experimental';
   notes: string;
+  /** Minimum hours that must elapse between checks for this site.
+   *  When set, overrides shorter user check preferences. */
+  minimumIntervalHours?: number;
+  /** Local favicon asset for displaying a mini site icon in the UI. */
+  iconAsset?: ReturnType<typeof require>;
 };
 
 export type ParsedProduct = {
@@ -48,6 +53,8 @@ export type TrackedProduct = {
   imageUrl?: string;
   currency: string;
   currentPriceMinor?: number;
+  /** Previous price from the check before the most recent one. Used to compute price direction on cards. */
+  previousPriceMinor?: number;
   targetPriceMinor?: number;
   alertMode: AlertMode;
   checkPreference: CheckPreference;
@@ -56,6 +63,8 @@ export type TrackedProduct = {
   lastSuccessAt?: string;
   lastErrorAt?: string;
   lastErrorCode?: CheckStatus;
+  /** Availability from the most recent successful check. Used to show OOS state on cards. */
+  lastAvailability?: Availability;
   createdAt: string;
   updatedAt: string;
 };
@@ -99,4 +108,6 @@ export type ActivityEvent = {
   priceDirection: PriceDirection;
   source: SnapshotSource;
   checkedAt: string;
+  /** When set, this event represents an availability change rather than a price change. */
+  availability?: Availability;
 };

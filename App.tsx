@@ -18,9 +18,12 @@ import {
   ArrowLeft,
   Bell,
   Check,
+  ChevronDown,
+  ChevronUp,
   CircleAlert,
   Clock,
   Link2,
+  PackageX,
   Plus,
   RefreshCcw,
   Settings as SettingsIcon,
@@ -33,6 +36,7 @@ import {
 
 import { AppText } from './src/components/AppText';
 import { OptionGroup } from './src/components/OptionGroup';
+import { SiteIcon } from './src/components/SiteIcon';
 import { PriceChart } from './src/components/PriceChart';
 import { PrimaryButton } from './src/components/PrimaryButton';
 import { ProductCard } from './src/components/ProductCard';
@@ -56,12 +60,12 @@ import {
 } from './src/data/database';
 import { runBackgroundCheckOnce, scheduleBackgroundChecks, checkBatteryOptimizationExempt, requestBatteryOptimizationExemption, openAppSystemSettings } from './src/domain/backgroundScheduler';
 import { checkAllActiveProducts, checkProductById } from './src/domain/checker';
-import { formatRelativeTime, formatSnapshotTime } from './src/domain/dates';
+import { availableCheckPreferences, formatRelativeTime, formatSnapshotTime } from './src/domain/dates';
 import { getOnboardingState, markOnboardingCompleted } from './src/domain/onboarding';
 import { ensureNotificationPermission, openNotificationSettings } from './src/domain/notifications';
 import { fetchAndParseProduct } from './src/domain/parser';
 import { formatPrice, parseTargetPriceInput } from './src/domain/price';
-import { detectSupportedSite, normalizeUrl, SUPPORTED_SITES } from './src/domain/sites';
+import { cleanUrl, detectSupportedSite, normalizeUrl, SUPPORTED_SITES } from './src/domain/sites';
 import { ActivityEvent, AlertMode, CheckPreference, ParsedProduct, PriceSnapshot, ProductWithSnapshots, SnapshotSource, TrackedProduct } from './src/domain/types';
 import { colors, radius, shadow } from './src/theme/theme';
 
@@ -94,8 +98,6 @@ export default function App() {
   const [route, setRoute] = useState<Route>({ name: 'tabs', tab: 'watchlist' });
   const [ready, setReady] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
-  const [onboardingStep, setOnboardingStep] = useState(0);
-  const [onboardingLoading, setOnboardingLoading] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -345,6 +347,25 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
     }
   }
 
+  function handleRemoveProduct(product: TrackedProduct) {
+    Alert.alert('Remove product?', `Remove "${product.title}" from your watchlist?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: async () => {
+          await deleteTrackedProduct(product.id);
+          await loadProducts();
+        }
+      }
+    ]);
+  }
+
+  const [oosExpanded, setOosExpanded] = useState(false);
+
+  const inStock = products.filter((p) => p.lastAvailability !== 'out_of_stock');
+  const oos = products.filter((p) => p.lastAvailability === 'out_of_stock');
+
   return (
     <View style={styles.app}>
       <Header title="Qeemat" />
@@ -377,8 +398,53 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
 
         {loading ? <ActivityIndicator color={colors.primary} /> : null}
         {!loading && products.length === 0 ? <EmptyWatchlist onAdd={() => navigate({ name: 'add' })} /> : null}
+
+        {oos.length > 0 ? (
+          <Pressable style={styles.oosSection} onPress={() => setOosExpanded((v) => !v)}>
+            <View style={styles.oosHeader}>
+              <View style={styles.oosDot} />
+              <AppText weight="semibold" style={styles.oosLabel}>
+                Out of Stock
+              </AppText>
+              <AppText muted style={styles.oosCount}>
+                {oos.length} {oos.length === 1 ? 'item' : 'items'}
+              </AppText>
+              <View style={styles.oosThumbnails}>
+                {oos.slice(0, 4).map((p, i) => (
+                  p.imageUrl ? (
+                    <Image
+                      key={p.id}
+                      source={{ uri: p.imageUrl }}
+                      style={[styles.oosThumb, i > 0 && { marginLeft: -8 }]}
+                      resizeMode="cover"
+                    />
+                  ) : null
+                ))}
+              </View>
+              {oosExpanded ? (
+                <ChevronUp size={16} color={colors.textMuted} />
+              ) : (
+                <ChevronDown size={16} color={colors.textMuted} />
+              )}
+            </View>
+          </Pressable>
+        ) : null}
+
+        {oos.length > 0 && oosExpanded ? (
+          <View style={styles.cardList}>
+            {oos.map((product) => (
+              <ProductCard
+                key={product.id}
+                product={product}
+                onPress={() => navigate({ name: 'detail', id: product.id })}
+                onRemove={() => handleRemoveProduct(product)}
+              />
+            ))}
+          </View>
+        ) : null}
+
         <View style={styles.cardList}>
-          {products.map((product) => (
+          {inStock.map((product) => (
             <ProductCard key={product.id} product={product} onPress={() => navigate({ name: 'detail', id: product.id })} />
           ))}
         </View>
@@ -417,9 +483,23 @@ function AddScreen({ navigate }: { navigate: (route: Route) => void }) {
   const [alertMode, setAlertMode] = useState<AlertMode>('price_drop');
   const [targetPrice, setTargetPrice] = useState('');
 
-  const normalizedUrl = normalizeUrl(url);
+  const normalizedUrl = cleanUrl(normalizeUrl(url));
   const detectedSite = useMemo(() => detectSupportedSite(normalizedUrl), [normalizedUrl]);
   const targetPriceMinor = parseTargetPriceInput(targetPrice);
+
+  const siteKeyForPrefs = parsedProduct?.siteKey ?? detectedSite?.key;
+  const checkOptions = useMemo(
+    () => CHECK_OPTIONS.filter((opt) => availableCheckPreferences(siteKeyForPrefs).includes(opt.value)),
+    [siteKeyForPrefs]
+  );
+
+  // Reset check preference if the current one is no longer valid for the site
+  useEffect(() => {
+    const valid = availableCheckPreferences(siteKeyForPrefs);
+    if (valid.length > 0 && !valid.includes(checkPreference)) {
+      setCheckPreference(valid[0]);
+    }
+  }, [siteKeyForPrefs]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function parseUrl() {
     setError(undefined);
@@ -484,6 +564,7 @@ function AddScreen({ navigate }: { navigate: (route: Route) => void }) {
           </View>
           {detectedSite ? (
             <View style={styles.inlineStatus}>
+              <SiteIcon siteKey={detectedSite.key} size={16} />
               <Check size={15} color={colors.green} />
               <AppText weight="medium" style={styles.detectedText}>
                 {detectedSite.displayName}
@@ -492,8 +573,9 @@ function AddScreen({ navigate }: { navigate: (route: Route) => void }) {
           ) : null}
         </View>
         <View style={styles.chips}>
-          {SUPPORTED_SITES.map((site) => (
+          {SUPPORTED_SITES.filter(s => s.status === 'supported').map((site) => (
             <View key={site.key} style={[styles.chip, detectedSite?.key === site.key && styles.chipSelected]}>
+              <SiteIcon siteKey={site.key} size={14} />
               <AppText weight="medium" style={[styles.chipText, detectedSite?.key === site.key && styles.chipTextSelected]}>
                 {site.shortName}
               </AppText>
@@ -509,11 +591,11 @@ function AddScreen({ navigate }: { navigate: (route: Route) => void }) {
         ) : null}
         {parsedProduct ? (
           <View style={styles.previewSection}>
-            <ProductPreview product={parsedProduct} storeName={detectedSite?.shortName ?? 'Store'} />
+            <ProductPreview product={parsedProduct} storeName={detectedSite?.shortName ?? 'Store'} siteKey={parsedProduct.siteKey} />
             <AppText weight="semibold" style={styles.formLabel}>
               Check preference
             </AppText>
-            <OptionGroup value={checkPreference} options={CHECK_OPTIONS} onChange={setCheckPreference} />
+            <OptionGroup value={checkPreference} options={checkOptions} onChange={setCheckPreference} />
             <AppText weight="semibold" style={styles.formLabel}>
               Alert mode
             </AppText>
@@ -546,7 +628,7 @@ function AddScreen({ navigate }: { navigate: (route: Route) => void }) {
   );
 }
 
-function ProductPreview({ product, storeName }: { product: ParsedProduct; storeName: string }) {
+function ProductPreview({ product, storeName, siteKey }: { product: ParsedProduct; storeName: string; siteKey: string }) {
   return (
     <View style={styles.previewCard}>
       <View style={styles.previewImageWrap}>
@@ -557,6 +639,7 @@ function ProductPreview({ product, storeName }: { product: ParsedProduct; storeN
           {product.title}
         </AppText>
         <View style={styles.storePill}>
+          <SiteIcon siteKey={siteKey as import('./src/domain/types').SiteKey} size={14} />
           <AppText style={styles.storePillText}>{storeName}</AppText>
         </View>
         <AppText muted style={styles.caption}>
@@ -626,9 +709,23 @@ function DetailScreen({ productId, navigate }: { productId: number; navigate: (r
             {product.targetPriceMinor ? (
               <AppText weight="semibold">Target {formatPrice(product.targetPriceMinor, product.currency)}</AppText>
             ) : null}
-            <StatusPill status={product.lastErrorCode ?? snapshots[0]?.status ?? 'ok'} label={`Checked ${formatRelativeTime(product.lastCheckedAt)}`} />
+            <StatusPill
+              status={product.lastErrorCode ?? snapshots[0]?.status ?? 'ok'}
+              label={`Checked ${formatRelativeTime(product.lastCheckedAt)}`}
+              availability={product.lastAvailability}
+            />
           </View>
         </View>
+        {product.lastAvailability === 'out_of_stock' ? (
+          <View style={styles.oosBanner}>
+            <CircleAlert size={16} color={colors.amber} />
+            <AppText weight="medium" style={styles.oosBannerText}>
+              {product.currentPriceMinor !== undefined
+                ? 'Out of stock — last known price shown'
+                : 'Out of stock — no price recorded'}
+            </AppText>
+          </View>
+        ) : null}
         <SectionTitle title="Price History" />
         <PriceChart snapshots={snapshots} />
         <View style={styles.statsRow}>
@@ -636,37 +733,100 @@ function DetailScreen({ productId, navigate }: { productId: number; navigate: (r
           <StatCard label="Highest price" price={stats.highest} currency={product.currency} tone="red" />
         </View>
         <SectionTitle title="Price Snapshots" />
-        <View style={styles.snapshotList}>
-          {snapshots.slice(0, 12).map((snapshot) => (
-            <View key={snapshot.id} style={styles.snapshotRow}>
-              <View style={styles.flex}>
-                <View style={styles.snapshotMetaRow}>
-                  <AppText weight="medium">{formatSnapshotTime(snapshot.checkedAt)}</AppText>
-                  <View style={[styles.sourceBadge, snapshotSourceBadgeStyle(snapshot.source)]}>
-                    <AppText weight="semibold" style={styles.sourceBadgeText}>
-                      {snapshotSourceLabel(snapshot.source)}
-                    </AppText>
-                  </View>
-                </View>
-                {snapshot.errorCode ? <AppText muted>{snapshot.errorCode}</AppText> : null}
-              </View>
-              <View style={styles.snapshotPriceBlock}>
-                <AppText weight="bold" style={snapshot.status === 'price_changed' && styles.changedPrice}>
-                  {snapshot.priceMinor !== undefined ? formatPrice(snapshot.priceMinor, snapshot.currency ?? product.currency) : 'Failed'}
-                </AppText>
-                <AppText muted style={styles.snapshotAvailability}>
-                  {snapshot.availability.replace(/_/g, ' ')}
-                </AppText>
-              </View>
-            </View>
-          ))}
-        </View>
+        <SnapshotList snapshots={snapshots} currency={product.currency} />
       </ScrollView>
       <View style={styles.bottomActionRow}>
         <PrimaryButton label="Check now" variant="outline" onPress={checkNow} loading={checking} style={styles.bottomActionHalf}
           icon={!checking ? <RefreshCcw size={18} color={colors.primary} /> : undefined} />
         <PrimaryButton label="Open link" variant="outline" onPress={() => Linking.openURL(product.canonicalUrl || product.url)} style={styles.bottomActionHalf}
           icon={<Link2 size={18} color={colors.primary} />} />
+      </View>
+    </View>
+  );
+}
+
+function SnapshotList({ snapshots, currency }: { snapshots: PriceSnapshot[]; currency: string }) {
+  const groups = useMemo(() => groupSnapshots(snapshots.slice(0, 30)), [snapshots]);
+  const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set());
+
+  function toggle(key: string) {
+    setExpandedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  return (
+    <View style={styles.snapshotList}>
+      {groups.map((group) => {
+        const first = group.snapshots[0];
+        const rest = group.snapshots.slice(1);
+        const isExpanded = expandedKeys.has(group.key);
+
+        return (
+          <View key={group.key}>
+            <SnapshotRow snapshot={first} currency={currency} />
+            {rest.length > 0 && !isExpanded && (
+              <Pressable style={styles.snapshotCollapsed} onPress={() => toggle(group.key)}>
+                <AppText muted style={styles.snapshotCollapsedText}>
+                  +{rest.length} earlier {rest.length === 1 ? 'check' : 'checks'}, no change
+                </AppText>
+              </Pressable>
+            )}
+            {rest.length > 0 && isExpanded && (
+              <>
+                {rest.map((s) => (
+                  <SnapshotRow key={s.id} snapshot={s} currency={currency} subtle />
+                ))}
+                <Pressable style={styles.snapshotCollapsed} onPress={() => toggle(group.key)}>
+                  <AppText muted style={styles.snapshotCollapsedText}>
+                    Collapse
+                  </AppText>
+                </Pressable>
+              </>
+            )}
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+function SnapshotRow({
+  snapshot,
+  currency,
+  subtle,
+}: {
+  snapshot: PriceSnapshot;
+  currency: string;
+  subtle?: boolean;
+}) {
+  return (
+    <View style={[styles.snapshotRow, subtle && styles.snapshotRowSubtle]}>
+      <View style={styles.flex}>
+        <View style={styles.snapshotMetaRow}>
+          <AppText weight={subtle ? 'regular' : 'medium'} muted={subtle}>
+            {formatSnapshotTime(snapshot.checkedAt)}
+          </AppText>
+          <View style={[styles.sourceBadge, snapshotSourceBadgeStyle(snapshot.source)]}>
+            <AppText weight="semibold" style={styles.sourceBadgeText}>
+              {snapshotSourceLabel(snapshot.source)}
+            </AppText>
+          </View>
+        </View>
+        {snapshot.errorCode ? <AppText muted>{snapshot.errorCode}</AppText> : null}
+      </View>
+      <View style={styles.snapshotPriceBlock}>
+        <AppText weight="bold" muted={subtle} style={snapshot.status === 'price_changed' && !subtle && styles.changedPrice}>
+          {snapshot.priceMinor !== undefined
+            ? formatPrice(snapshot.priceMinor, snapshot.currency ?? currency)
+            : 'Failed'}
+        </AppText>
+        <AppText muted style={styles.snapshotAvailability}>
+          {snapshot.availability.replace(/_/g, ' ')}
+        </AppText>
       </View>
     </View>
   );
@@ -684,7 +844,12 @@ function TrackingSettingsScreen({ productId, navigate }: { productId: number; na
         return;
       }
       setProduct(row);
-      setCheckPreference(row.checkPreference);
+
+      // Clamp check preference to valid options for this site
+      const valid = availableCheckPreferences(row.siteKey);
+      const clampedPref = valid.includes(row.checkPreference) ? row.checkPreference : valid[0] ?? row.checkPreference;
+      setCheckPreference(clampedPref);
+
       setAlertMode(row.alertMode);
       setTargetPrice(row.targetPriceMinor ? String(row.targetPriceMinor / 100) : '');
     });
@@ -722,7 +887,7 @@ function TrackingSettingsScreen({ productId, navigate }: { productId: number; na
           {product?.title ?? 'Product'}
         </AppText>
         <AppText weight="semibold">Check preference</AppText>
-        <OptionGroup value={checkPreference} options={CHECK_OPTIONS} onChange={setCheckPreference} />
+        <OptionGroup value={checkPreference} options={CHECK_OPTIONS.filter((opt) => availableCheckPreferences(product?.siteKey).includes(opt.value))} onChange={setCheckPreference} />
         <AppText weight="semibold">Alert mode</AppText>
         <OptionGroup value={alertMode} options={ALERT_OPTIONS} onChange={setAlertMode} />
         {alertMode === 'target_price' ? (
@@ -812,39 +977,62 @@ function ActivityScreen({ navigate }: { navigate: (route: Route) => void }) {
                       {event.productTitle}
                     </AppText>
                     <View style={styles.activityPriceRow}>
-                      {event.previousPriceMinor !== undefined ? (
-                        <AppText muted style={styles.activityOldPrice}>
-                          {formatPrice(event.previousPriceMinor, event.currency)}
-                        </AppText>
-                      ) : null}
-                      <View style={styles.activityDirectionIcon}>
-                        {event.priceDirection === 'down' ? (
-                          <TrendingDown size={16} color={colors.green} />
-                        ) : event.priceDirection === 'up' ? (
-                          <TrendingUp size={16} color={colors.red} />
-                        ) : (
-                          <View style={styles.activityFirstDot} />
-                        )}
-                      </View>
-                      {event.priceDirection === 'first' ? (
-                        <AppText weight="bold" style={styles.activityFirstPrice}>
-                          {formatPrice(event.newPriceMinor, event.currency)}
-                        </AppText>
+                      {event.availability === 'out_of_stock' ? (
+                        <>
+                          <PackageX size={18} color={colors.amber} />
+                          <AppText weight="semibold" style={styles.oosActivityLabel}>
+                            Out of stock
+                          </AppText>
+                          {event.previousPriceMinor !== undefined ? (
+                            <AppText muted style={styles.activityOldPrice}>
+                              {formatPrice(event.previousPriceMinor, event.currency)}
+                            </AppText>
+                          ) : null}
+                        </>
                       ) : (
-                        <AppText weight="bold" style={[
-                          styles.activityNewPrice,
-                          event.priceDirection === 'down' && styles.activityPriceDown,
-                          event.priceDirection === 'up' && styles.activityPriceUp
-                        ]}>
-                          {formatPrice(event.newPriceMinor, event.currency)}
-                        </AppText>
+                        <>
+                          {event.previousPriceMinor !== undefined ? (
+                            <AppText muted style={styles.activityOldPrice}>
+                              {formatPrice(event.previousPriceMinor, event.currency)}
+                            </AppText>
+                          ) : null}
+                          <View style={styles.activityDirectionIcon}>
+                            {event.priceDirection === 'down' ? (
+                              <TrendingDown size={16} color={colors.green} />
+                            ) : event.priceDirection === 'up' ? (
+                              <TrendingUp size={16} color={colors.red} />
+                            ) : (
+                              <View style={styles.activityFirstDot} />
+                            )}
+                          </View>
+                          {event.priceDirection === 'first' ? (
+                            <AppText weight="bold" style={styles.activityFirstPrice}>
+                              {formatPrice(event.newPriceMinor, event.currency)}
+                            </AppText>
+                          ) : (
+                            <AppText weight="bold" style={[
+                              styles.activityNewPrice,
+                              event.priceDirection === 'down' && styles.activityPriceDown,
+                              event.priceDirection === 'up' && styles.activityPriceUp
+                            ]}>
+                              {formatPrice(event.newPriceMinor, event.currency)}
+                            </AppText>
+                          )}
+                        </>
                       )}
                     </View>
                     <View style={styles.activityMetaRow}>
-                      {event.priceDirection === 'first' ? (
+                      {event.priceDirection === 'first' && event.availability !== 'out_of_stock' ? (
                         <View style={styles.activityFirstBadge}>
                           <AppText weight="semibold" style={styles.activityFirstBadgeText}>
                             Started tracking
+                          </AppText>
+                        </View>
+                      ) : null}
+                      {event.availability === 'out_of_stock' ? (
+                        <View style={styles.oosActivityBadge}>
+                          <AppText weight="semibold" style={styles.oosActivityBadgeText}>
+                            Out of stock
                           </AppText>
                         </View>
                       ) : null}
@@ -1035,7 +1223,7 @@ function SettingsScreen() {
             <AppText weight="bold">Supported stores</AppText>
             <View style={styles.settingsBadge}>
               <AppText weight="semibold" style={styles.settingsBadgeText}>
-                {SUPPORTED_SITES.length} live
+                {SUPPORTED_SITES.filter(s => s.status === 'supported').length} live
               </AppText>
             </View>
           </View>
@@ -1043,9 +1231,9 @@ function SettingsScreen() {
             Product links are currently supported for these stores. Amazon support is kept intentionally lightweight for the MVP across selected regional domains.
           </AppText>
           <View style={styles.settingsChipWrap}>
-            {SUPPORTED_SITES.map((site) => (
+            {SUPPORTED_SITES.filter(s => s.status === 'supported').map((site) => (
               <View key={site.key} style={styles.settingsChip}>
-                <Store size={14} color={colors.primary} />
+                <SiteIcon siteKey={site.key} size={14} />
                 <AppText weight="medium" style={styles.settingsChipText}>
                   {site.shortName}
                 </AppText>
@@ -1200,6 +1388,32 @@ function getPriceStats(snapshots: PriceSnapshot[]) {
   };
 }
 
+type SnapshotGroup = {
+  snapshots: PriceSnapshot[];
+  key: string;
+};
+
+/** Group consecutive snapshots with identical price + availability into a single row. */
+function groupSnapshots(snapshots: PriceSnapshot[]): SnapshotGroup[] {
+  const groups: SnapshotGroup[] = [];
+  for (const s of snapshots) {
+    const prev = groups.length > 0 ? groups[groups.length - 1].snapshots[0] : undefined;
+    const same =
+      prev &&
+      prev.priceMinor === s.priceMinor &&
+      prev.availability === s.availability &&
+      prev.source === s.source &&
+      !prev.errorCode &&
+      !s.errorCode;
+    if (same) {
+      groups[groups.length - 1].snapshots.push(s);
+    } else {
+      groups.push({ snapshots: [s], key: String(s.id) });
+    }
+  }
+  return groups;
+}
+
 function formatStatusTime(iso?: string): string {
   if (!iso) {
     return 'Never';
@@ -1319,6 +1533,45 @@ const styles = StyleSheet.create({
   cardList: {
     gap: 12
   },
+  oosSection: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 12,
+    marginBottom: 4
+  },
+  oosHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8
+  },
+  oosDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.amber
+  },
+  oosLabel: {
+    fontSize: 13
+  },
+  oosCount: {
+    fontSize: 13,
+    flex: 1
+  },
+  oosThumbnails: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 4
+  },
+  oosThumb: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 1.5,
+    borderColor: colors.surface,
+    backgroundColor: colors.surfaceMuted
+  },
   emptyCard: {
     backgroundColor: colors.surface,
     borderRadius: radius.md,
@@ -1349,8 +1602,8 @@ const styles = StyleSheet.create({
   },
   fab: {
     position: 'absolute',
-    right: 22,
-    bottom: 86,
+    right: 20,
+    bottom: 20,
     width: 58,
     height: 58,
     borderRadius: 29,
@@ -1423,6 +1676,9 @@ const styles = StyleSheet.create({
     gap: 10
   },
   chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: colors.border,
@@ -1483,6 +1739,9 @@ const styles = StyleSheet.create({
   },
   storePill: {
     alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
     marginTop: 6,
     borderRadius: radius.sm,
     backgroundColor: colors.surfaceMuted,
@@ -1541,6 +1800,21 @@ const styles = StyleSheet.create({
     fontSize: 26,
     lineHeight: 32
   },
+  oosBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: colors.amberSoft,
+    borderRadius: radius.md,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 8
+  },
+  oosBannerText: {
+    color: colors.amber,
+    fontSize: 13,
+    flex: 1
+  },
   sectionTitle: {
     fontSize: 18
   },
@@ -1587,6 +1861,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12
+  },
+  snapshotRowSubtle: {
+    opacity: 0.5,
+    minHeight: 42,
+    paddingVertical: 6,
+  },
+  snapshotCollapsed: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+    backgroundColor: colors.background,
+  },
+  snapshotCollapsedText: {
+    fontSize: 12,
   },
   snapshotMetaRow: {
     flexDirection: 'row',
@@ -1738,6 +2027,21 @@ const styles = StyleSheet.create({
   activityDateHeaderText: {
     fontSize: 13,
     color: colors.textMuted
+  },
+  oosActivityLabel: {
+    fontSize: 13,
+    color: colors.amber,
+    flex: 1
+  },
+  oosActivityBadge: {
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    backgroundColor: colors.amberSoft
+  },
+  oosActivityBadgeText: {
+    fontSize: 11,
+    color: colors.amber
   },
   settingsCard: {
     padding: 20,

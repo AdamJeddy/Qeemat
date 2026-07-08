@@ -7,7 +7,8 @@ export const SUPPORTED_SITES: SupportedSite[] = [
     shortName: 'Noon',
     hostnames: ['noon.com', 'www.noon.com'],
     status: 'supported',
-    notes: 'Broad UAE marketplace coverage. Parser uses product metadata and embedded page data when available.'
+    notes: 'Broad UAE marketplace coverage. Parser uses product metadata and embedded page data when available.',
+    iconAsset: require('../../assets/site-icons/noon.png')
   },
   {
     key: 'nike_uae',
@@ -15,7 +16,8 @@ export const SUPPORTED_SITES: SupportedSite[] = [
     shortName: 'Nike',
     hostnames: ['nike.ae', 'www.nike.ae'],
     status: 'supported',
-    notes: 'Product pages expose schema.org product data with AED price and availability.'
+    notes: 'Product pages expose schema.org product data with AED price and availability.',
+    iconAsset: require('../../assets/site-icons/nike_uae.png')
   },
   {
     key: 'sun_sand_sports',
@@ -23,7 +25,8 @@ export const SUPPORTED_SITES: SupportedSite[] = [
     shortName: 'Sun & Sand',
     hostnames: ['en-ae.sssports.com', 'sssports.com', 'www.sssports.com'],
     status: 'supported',
-    notes: 'Product pages expose structured product data and predictable product URLs.'
+    notes: 'Product pages expose structured product data and predictable product URLs.',
+    iconAsset: require('../../assets/site-icons/sun_sand_sports.png')
   },
   {
     key: 'level_shoes',
@@ -31,7 +34,8 @@ export const SUPPORTED_SITES: SupportedSite[] = [
     shortName: 'Level Shoes',
     hostnames: ['levelshoes.com', 'www.levelshoes.com'],
     status: 'supported',
-    notes: 'Product pages expose Next.js product payloads and useful structured metadata.'
+    notes: 'Product pages expose Next.js product payloads and useful structured metadata.',
+    iconAsset: require('../../assets/site-icons/level_shoes.png')
   },
   {
     key: 'ay_accessories',
@@ -39,7 +43,9 @@ export const SUPPORTED_SITES: SupportedSite[] = [
     shortName: 'AYM',
     hostnames: ['ay-accessories.com', 'www.ay-accessories.com'],
     status: 'supported',
-    notes: 'WooCommerce product pages expose variation JSON, images, and AED pricing for supported product pages.'
+    notes: 'WooCommerce product pages expose variation JSON, images, and AED pricing for supported product pages.',
+    minimumIntervalHours: 72,
+    iconAsset: require('../../assets/site-icons/ay_accessories.png')
   },
   {
     key: 'ounass',
@@ -47,7 +53,8 @@ export const SUPPORTED_SITES: SupportedSite[] = [
     shortName: 'Ounass',
     hostnames: ['ounass.ae', 'www.ounass.ae'],
     status: 'supported',
-    notes: 'Product pages expose inline PDP payloads with title, image, stock state, and AED pricing.'
+    notes: 'Product pages expose inline PDP payloads with title, image, stock state, and AED pricing.',
+    iconAsset: require('../../assets/site-icons/ounass.png')
   },
   {
     key: 'amazon_ae',
@@ -96,7 +103,26 @@ export const SUPPORTED_SITES: SupportedSite[] = [
       'www.amazon.sg'
     ],
     status: 'supported',
-    notes: 'Product pages can be parsed across selected Amazon regional domains when Amazon serves a normal product page without a challenge.'
+    notes: 'Product pages can be parsed across selected Amazon regional domains when Amazon serves a normal product page without a challenge.',
+    iconAsset: require('../../assets/site-icons/amazon_ae.png')
+  },
+  {
+    key: 'adidas',
+    displayName: 'Adidas UAE',
+    shortName: 'Adidas',
+    hostnames: ['adidas.ae', 'www.adidas.ae'],
+    status: 'supported',
+    notes: 'Product pages expose JSON-LD structured data and meta tags with AED pricing and availability.',
+    iconAsset: require('../../assets/site-icons/adidas.png')
+  },
+  {
+    key: 'brands_for_less',
+    displayName: 'Brands For Less UAE',
+    shortName: 'BFL',
+    hostnames: ['brandsforless.com', 'www.brandsforless.com'],
+    status: 'experimental',
+    notes: 'Next.js product pages with __NEXT_DATA__ SSR payloads and meta tags. Cloudflare protection blocks non-browser HTTP clients (TLS fingerprint mismatch). Parser implemented but fetch path blocked — see docs/bfl-integration.md.',
+    iconAsset: require('../../assets/site-icons/brands_for_less.png')
   }
 ];
 
@@ -114,6 +140,74 @@ export function detectSupportedSite(urlValue: string): SupportedSite | undefined
   }
 
   return undefined;
+}
+
+/**
+ * Common tracking/analytics query parameters to strip from product URLs.
+ */
+const TRACKING_PARAMS = new Set([
+  'utm_source',
+  'utm_medium',
+  'utm_campaign',
+  'utm_term',
+  'utm_content',
+  'fbclid',
+  'gclid',
+  'gbraid',
+  'wbraid',
+  'msclkid',
+  'ref',
+  'ref_',
+  'tag'
+]);
+
+/**
+ * Strip tracking/analytics query parameters and URL fragments from a product URL.
+ *
+ * For Amazon URLs, all query parameters are stripped because the ASIN in the path
+ * (`/dp/ASIN`) uniquely identifies the product. For other sites, only known
+ * tracking/analytics parameters are removed to avoid breaking URLs that use
+ * query params for product identification.
+ */
+export function cleanUrl(urlValue: string): string {
+  const trimmed = urlValue.trim();
+  if (!trimmed) {
+    return trimmed;
+  }
+
+  // Split off the fragment (#...)
+  const fragmentIdx = trimmed.indexOf('#');
+  const beforeFragment = fragmentIdx >= 0 ? trimmed.slice(0, fragmentIdx) : trimmed;
+
+  // Find the query string start
+  const qIdx = beforeFragment.indexOf('?');
+  if (qIdx < 0) {
+    // No query params — just return without fragment
+    return beforeFragment;
+  }
+
+  const pathPart = beforeFragment.slice(0, qIdx);
+  const queryPart = beforeFragment.slice(qIdx + 1);
+
+  const isAmazon = /(?:^|\.)amazon\./.test(beforeFragment);
+
+  if (isAmazon) {
+    // Amazon: strip all query params — the ASIN in /dp/ASIN or /gp/product/ASIN
+    // is the only product identifier
+    return pathPart;
+  }
+
+  // Other sites: strip only known tracking/analytics params
+  const kept: string[] = [];
+  for (const pair of queryPart.split('&')) {
+    const eqIdx = pair.indexOf('=');
+    const key = eqIdx >= 0 ? pair.slice(0, eqIdx) : pair;
+    if (!TRACKING_PARAMS.has(key)) {
+      kept.push(pair);
+    }
+  }
+
+  return kept.length > 0 ? `${pathPart}?${kept.join('&')}` : pathPart;
 }
 
 export function normalizeUrl(urlValue: string): string {
