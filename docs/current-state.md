@@ -25,8 +25,12 @@ Core loop:
 - AYM Accessories
 - Ounass UAE
 - Amazon (selected regions)
+- Adidas UAE (experimental — parser implemented, blocked by bot detection)
+- Brands For Less (experimental — parser complete, blocked by Cloudflare; see `docs/bfl-integration.md`)
 
 Amazon support is intentionally MVP-level only. It works across selected Amazon regional product domains when Amazon serves a normal product page and should surface `blocked` when Amazon returns robot-check or challenge pages instead.
+
+Adidas and BFL are implemented but parked as experimental: their parsers and site registrations are complete but fetch paths are blocked by bot detection (Adidas) or Cloudflare TLS fingerprinting (BFL). They are not shown in the UI when `status` is `'experimental'`.
 
 ## Current User-Facing Behavior
 
@@ -36,11 +40,14 @@ Amazon support is intentionally MVP-level only. It works across selected Amazon 
 - Supports pull-to-refresh.
 - Has a `Recheck all prices` button.
 - Has a floating add button.
+- **Collapsible OOS section**: products that are out of stock are grouped into a collapsible section below in-stock products, showing thumbnails and an OOS count. Tapping expands/collapses the section.
+- **Price change indicators**: product cards show `TrendingDown` (green) or `TrendingUp` (red) arrows when the most recent check detected a price change vs. the previous snapshot.
 
 ### Add Flow
 
 - Detects supported stores from the URL and displays a site icon next to the store name in the confirmation preview and supported-site chip list.
 - Parses the product before save.
+- **URL cleaning**: tracking query params (e.g. `pd_rd_w`, `ref`, `utm_*`) and URL fragments are stripped from product URLs before save and before every fetch, keeping stored URLs canonical and avoiding cache-busting or tracking noise.
 - Lets the user choose:
   - check preference: `daily`, `every_3_days`, `weekly`
   - alert mode: `price_drop`, `any_change`, `target_price`
@@ -248,6 +255,7 @@ Domain and storage:
 - `src/domain/onboarding.ts`
 - `src/domain/notifications.ts`
 - `src/domain/parser.ts`
+- `src/domain/webViewFetcher.ts` — native WebView-based fetcher for Cloudflare-protected sites (experimental; used by BFL fallback)
 
 Android native integration:
 
@@ -256,6 +264,8 @@ Android native integration:
 - `android/app/src/main/java/com/qeemat/QeematBackgroundTaskService.kt`
 - `android/app/src/main/java/com/qeemat/QeematNotificationsModule.kt`
 - `android/app/src/main/java/com/qeemat/QeematNotificationsPackage.kt`
+- `android/app/src/main/java/com/qeemat/QeematWebViewFetcherModule.kt`
+- `android/app/src/main/java/com/qeemat/QeematWebViewFetcherPackage.kt`
 - `android/app/src/main/java/com/qeemat/MainApplication.kt`
 - `android/app/src/main/AndroidManifest.xml`
 
@@ -313,7 +323,11 @@ If terminal builds fail with invalid `JAVA_HOME` or missing `adb`, fix those loc
 
 ## Recent Notable Changes
 
-- **Out-of-stock (OOS) detection across all 7 stores** — added OOS detection to every site parser, relaxed the price-required validation for OOS products, and preserved last known prices. UI shows OOS state on cards (dimmed image, struck-through price, amber badge) and detail screen (amber banner). See **Out-of-Stock Detection** section above for full architecture.
+- **Adidas store (#18)** — parser implemented but site blocks checks with bot detection; anti-bot browser headers and block-pattern detection added.
+- **Brands For Less (BFL) store (#9)** — full parser, WebView-based Cloudflare bypass attempted, parked as experimental. Documented in `docs/bfl-integration.md`.
+- **Out-of-stock (OOS) detection across all 7 stores** — added OOS detection to every site parser, relaxed the price-required validation for OOS products, and preserved last known prices. UI shows OOS state on cards (dimmed image, struck-through price, amber badge) and detail screen (amber banner). Collapsible OOS section on watchlist groups OOS products below in-stock ones. See **Out-of-Stock Detection** section above for full architecture.
+- **Price change indicators on product cards** — `TrendingDown` (green) and `TrendingUp` (red) arrows appear on cards when a price change is detected vs. the previous snapshot.
+- **URL cleaning (#13)** — tracking query params and URL fragments stripped from product URLs before save and before every fetch.
 - Added AGENTS.md — project guidelines for LLM agent sessions, codifying conventions, build commands, and store-addition checklist.
 - Added `.zero/` specialist profiles and spec documents for future AI sessions.
 - Added fixture-based OOS parser tests (`oos-parser.test.ts`) with synthetic HTML per store and a `fetch-oos-fixture.mjs` helper script.
@@ -338,3 +352,7 @@ If terminal builds fail with invalid `JAVA_HOME` or missing `adb`, fix those loc
 - Added `ActivityEvent` data model and `PriceDirection` type (`up`, `down`, `first`) for the activity feed.
 - Activity events survive product deletion (denormalized title/image stored on each event).
 - One-time migration backfills activity events from existing snapshot data on first launch after upgrade.
+- **`lastErrorCode` preservation**: the last check error code is persisted on the product record so the UI can show accurate status even after app restart.
+- **`previousPriceMinor` persistence**: the price before the most recent change is stored on the product record, enabling price-change indicators and direction detection.
+- **SnapshotList refactor**: extracted snapshot rendering from `DetailScreen` into a dedicated `SnapshotList` component for readability.
+- Adjusted FAB (floating action button) position for improved layout.
