@@ -301,11 +301,15 @@ function parseAmazonProduct(siteKey: SiteKey, inputUrl: string, html: string): P
     extractAmazonDynamicImageUrl(html) ??
     matchString(html, /id=["']landingImage["'][^>]+src=["']([^"']+)["']/i) ??
     meta.imageUrl;
-  const rawPriceText = matchAmazonPriceText(html) ?? meta.price;
   const availabilityText =
     matchString(html, /id=["']availability["'][\s\S]{0,8000}?primary-availability-message[^>]*>\s*([^<]+?)\s*</i) ??
     matchString(html, /id=["']availability["'][\s\S]{0,8000}?a-color-success[^>]*>\s*([^<]+?)\s*</i) ??
     matchString(html, /id=["']availability["'][\s\S]{0,8000}?a-color-price[^>]*>\s*([^<]+?)\s*</i);
+  const availability = parseAmazonAvailability(availabilityText, html);
+  // An OOS page can include prices from recommendation carousels. They do not
+  // describe the tracked product, so leave the price unset and preserve the
+  // product's last known value in storage.
+  const rawPriceText = availability === 'out_of_stock' ? undefined : matchAmazonPriceText(html) ?? meta.price;
   const sku = extractAmazonAsin(inputUrl) ?? matchString(html, /data-csa-c-asin=["']([A-Z0-9]{10})["']/i);
   const currency = inferAmazonCurrency(inputUrl, rawPriceText, meta.currency);
 
@@ -320,7 +324,7 @@ function parseAmazonProduct(siteKey: SiteKey, inputUrl: string, html: string): P
     imageUrl,
     priceMinor: parsePriceToMinor(rawPriceText),
     currency,
-    availability: parseAmazonAvailability(availabilityText, html),
+    availability,
     rawPriceText,
     sku
   };

@@ -121,6 +121,36 @@ describe('parseProductHtml', () => {
     );
   });
 
+  it('does not treat a recommended product price as the price of an out-of-stock Amazon item', () => {
+    const html = `
+      <html>
+        <head>
+          <link rel="canonical" href="https://www.amazon.ae/dp/B0CYSLPBLM" />
+          <meta property="og:title" content="Unavailable Amazon product" />
+        </head>
+        <body>
+          <span id="productTitle">Unavailable Amazon product</span>
+          <div id="availability">
+            <span class="a-size-medium a-color-price">Currently unavailable.</span>
+          </div>
+          <section id="recommended-products">
+            <span class="a-price priceToPay"><span class="a-offscreen">AED 108.99</span></span>
+          </section>
+        </body>
+      </html>
+    `;
+
+    const parsed = parseProductHtml('amazon_ae', 'https://www.amazon.ae/dp/B0CYSLPBLM', html);
+
+    expect(parsed).toEqual(
+      expect.objectContaining({
+        availability: 'out_of_stock',
+        priceMinor: undefined,
+        rawPriceText: undefined
+      })
+    );
+  });
+
   it('falls back to Amazon dynamic-image markup when old-hires is missing', () => {
     const html = `
       <html>
