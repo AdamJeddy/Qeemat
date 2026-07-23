@@ -13,6 +13,7 @@ import {
   TextInput,
   View
 } from 'react-native';
+import Clipboard from '@react-native-clipboard/clipboard';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import {
   ArrowLeft,
@@ -22,6 +23,7 @@ import {
   ChevronUp,
   CircleAlert,
   Clock,
+  Copy,
   Link2,
   PackageX,
   Plus,
@@ -669,6 +671,11 @@ function DetailScreen({ productId, navigate }: { productId: number; navigate: (r
     setChecking(false);
   }
 
+  function copyProductLink() {
+    Clipboard.setString(product.canonicalUrl || product.url);
+    Alert.alert('Link copied', 'The product link is ready to paste.');
+  }
+
   if (!data) {
     return (
       <View style={styles.app}>
@@ -696,9 +703,24 @@ function DetailScreen({ productId, navigate }: { productId: number; navigate: (r
               <AppText weight="bold" style={styles.detailTitle} numberOfLines={3}>
                 {product.title}
               </AppText>
-              <Pressable style={styles.iconButton} onPress={() => navigate({ name: 'trackingSettings', id: product.id })}>
-                <SettingsIcon size={20} color={colors.text} />
-              </Pressable>
+              <View style={styles.detailHeaderActions}>
+                <Pressable
+                  accessibilityLabel="Copy product link"
+                  accessibilityRole="button"
+                  style={styles.iconButton}
+                  onPress={copyProductLink}
+                >
+                  <Copy size={20} color={colors.text} />
+                </Pressable>
+                <Pressable
+                  accessibilityLabel="Tracking settings"
+                  accessibilityRole="button"
+                  style={styles.iconButton}
+                  onPress={() => navigate({ name: 'trackingSettings', id: product.id })}
+                >
+                  <SettingsIcon size={20} color={colors.text} />
+                </Pressable>
+              </View>
             </View>
             <AppText muted style={styles.caption}>
               Current price
@@ -1782,6 +1804,10 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     gap: 6
+  },
+  detailHeaderActions: {
+    flexDirection: 'row',
+    gap: 4
   },
   detailTitle: {
     flex: 1,
