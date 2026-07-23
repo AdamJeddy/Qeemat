@@ -17,7 +17,7 @@ node scripts/fetch-oos-fixture.mjs noon "https://www.noon.com/uae-en/some-produc
 
 2. Verify the saved HTML contains OOS signals (open the file and search for out-of-stock text/JSON).
 
-3. The test at `src/domain/__tests__/oos-parser.test.ts` auto-discovers fixtures by filename:
+3. The fixture map in `src/domain/__tests__/oos-parser.test.ts` loads fixtures by filename:
    - `noon.html` → tests against `parseProductHtml('noon', ...)`
    - `amazon_ae.html` → tests against `parseProductHtml('amazon_ae', ...)`
    - etc.
@@ -46,5 +46,5 @@ npm test -- --runInBand oos-parser
 
 - These HTML files contain real product page markup. They are gitignored by default
   to avoid committing large files and site-specific content.
-- When a fixture is present, the corresponding test runs automatically.
+- When a fixture is present, the corresponding configured test runs automatically.
 - When a fixture is missing, the test is skipped with `it.skip`.

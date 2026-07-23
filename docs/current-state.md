@@ -1,358 +1,97 @@
 # Qeemat Current State
 
-This file is the repo handoff for future AI or developer sessions. It describes the app as it exists now, not just the original plan.
+**Last reconciled with the implementation:** 2026-07-23
+**App version:** 0.5.0
 
-## Product Summary
+This is the repo handoff for the current app. Product-planning documents are useful for intent, but this file describes shipped behavior and active limitations.
 
-Qeemat is a local-first price tracker for supported product pages, with a UAE-first MVP plus selected Amazon regional domains.
+## Product and Architecture
 
-Core loop:
+Qeemat is an Android-first, local-first React Native + TypeScript price tracker. It tracks supported product pages on device using AsyncStorage, parses pages in TypeScript, and uses native Android modules for WorkManager scheduling, notifications, battery-optimization support, and the experimental WebView fetch fallback.
 
-1. Paste a supported product URL.
-2. Parse product title, image, price, currency, and availability.
-3. Confirm tracking settings and save the product locally.
-4. View the watchlist, product detail, price chart, and snapshot history.
-5. Recheck a single product manually or recheck all tracked products.
-6. Let Android run best-effort background checks and send local alerts when rules match.
-7. Browse a chronological activity feed of price changes across all tracked products.
+The app uses a small manual route stack in `App.tsx`, not React Navigation. There is no backend, user account, cloud sync, SQLite database, or maintained iOS native implementation.
 
-## Current Supported Stores
+## Supported Stores
 
-- Noon UAE
-- Nike UAE
-- Sun & Sand Sports UAE
-- Level Shoes
-- AYM Accessories
-- Ounass UAE
-- Amazon (selected regions)
-- Adidas UAE (experimental — parser implemented, blocked by bot detection)
-- Brands For Less (experimental — parser complete, blocked by Cloudflare; see `docs/bfl-integration.md`)
+| Store | Status | Notes |
+| --- | --- | --- |
+| Noon UAE | Supported | Product metadata and embedded page data. |
+| Nike UAE | Supported | Structured product data. |
+| Sun & Sand Sports UAE | Supported | Structured product data and product URLs. |
+| Level Shoes | Supported | Embedded product payloads and metadata. |
+| AYM Accessories | Supported | WooCommerce variations; checks have a 72-hour minimum interval. |
+| Ounass UAE | Supported | Inline PDP payloads. |
+| Amazon regional domains | Supported, best effort | Selected domains only; challenge pages return `blocked`. |
+| Adidas UAE | Supported | Monitor for bot-protection changes. |
+| Brands For Less UAE | Experimental | Parser and WebView fallback exist, but Cloudflare blocks reliable fetching; hidden from the supported-store UI. |
 
-Amazon support is intentionally MVP-level only. It works across selected Amazon regional product domains when Amazon serves a normal product page and should surface `blocked` when Amazon returns robot-check or challenge pages instead.
+The site registry is `src/domain/sites.ts`. It controls hostnames, enabled status, icons, and minimum check intervals.
 
-Adidas and BFL are implemented but parked as experimental: their parsers and site registrations are complete but fetch paths are blocked by bot detection (Adidas) or Cloudflare TLS fingerprinting (BFL). They are not shown in the UI when `status` is `'experimental'`.
+## User-Facing Behavior
 
-## Current User-Facing Behavior
+- Watchlist with pull-to-refresh, manual `Recheck all prices`, price-direction arrows, and a collapsible out-of-stock section.
+- Add flow that detects a supported URL, parses a preview before save, and collects checking and alert preferences.
+- Product detail with current price, price chart, snapshot history, `Check now`, `Open link`, and `Copy product link` actions.
+- Activity tab with newest-first price-change events, date grouping, direction indicators, source badges, and non-tappable deleted-product events.
+- Settings for supported stores, notifications, battery optimization, preferred background time, background diagnostics, one-off background runs, and local-data deletion.
+- First-launch onboarding for notification permission and battery-optimization guidance.
+- Android hardware back navigation is handled within the manual route stack.
 
-### Watchlist
+### Responsive layout
 
-- Shows tracked products with price, status, and a per-store mini icon next to the store name.
-- Supports pull-to-refresh.
-- Has a `Recheck all prices` button.
-- Has a floating add button.
-- **Collapsible OOS section**: products that are out of stock are grouped into a collapsible section below in-stock products, showing thumbnails and an OOS count. Tapping expands/collapses the section.
-- **Price change indicators**: product cards show `TrendingDown` (green) or `TrendingUp` (red) arrows when the most recent check detected a price change vs. the previous snapshot.
+`src/theme/layout.ts` treats an effective content width below 360 as compact, accounting for system font scale. Product cards, previews, product details, action rows, option groups, supported-store chips, and time presets reflow in that state. Shared app text and relevant inputs cap font scaling at 1.3 to keep controls usable.
 
-### Add Flow
+## URL and Parser Behavior
 
-- Detects supported stores from the URL and displays a site icon next to the store name in the confirmation preview and supported-site chip list.
-- Parses the product before save.
-- **URL cleaning**: tracking query params (e.g. `pd_rd_w`, `ref`, `utm_*`) and URL fragments are stripped from product URLs before save and before every fetch, keeping stored URLs canonical and avoiding cache-busting or tracking noise.
-- Lets the user choose:
-  - check preference: `daily`, `every_3_days`, `weekly`
-  - alert mode: `price_drop`, `any_change`, `target_price`
-  - optional target price
-- AYM Accessories excludes `daily` from the check-preference picker (site enforces a 72-hour minimum interval to avoid rate limiting). Existing AYM products saved with `daily` are automatically clamped on the tracking-settings screen.
+- Non-Amazon product URLs remove known tracking parameters and fragments before save and fetch.
+- Recognized Amazon `/dp/<ASIN>` and `/gp/product/<ASIN>` links normalize to `https://<amazon-host>/dp/<ASIN>`. Product detail copies this clean URL.
+- Parsers return title, image, price, currency, availability, canonical URL, and SKU when available.
+- Confirmed out-of-stock products can parse successfully without a price. Storage preserves the last known product price and the UI shows an OOS state.
+- Confirmed Amazon OOS pages deliberately leave price unset: recommendation carousels can contain prices belonging to other products.
+- Challenge pages return `blocked`; pages without required product data return parser or price errors as appropriate.
 
-### Product Detail
+Parser code is in `src/domain/parser.ts`; types are in `src/domain/types.ts`; tests are in `src/domain/__tests__/`.
 
-- Shows current price, chart, and stats.
-- Supports manual `Check now`.
-- `Open link` button opens the product URL in the system browser.
-- Shows price snapshots with source tags:
-  - `Check now`
-  - `Recheck all`
-  - `Background`
+## Storage and Background Work
 
-### Settings
+AsyncStorage stores tracked products, snapshots, activity events, background status, and onboarding state. Snapshot sources are `manual_single`, `manual_batch`, `background`, and `unknown` for older data.
 
-- Shows supported stores with per-store mini favicon icons.
-- Shows notification status and deep-links to Android notification settings.
-- Shows battery optimization status (exempt/restricted) with a button to open app system settings.
-- Shows daily background check time presets:
-  - Morning: `9:00 AM`
-  - Afternoon: `2:00 PM`
-  - Evening: `8:00 PM`
-- Saves the background time immediately when a preset is tapped.
-- Shows background run diagnostics:
-  - last scheduled
-  - last started
-  - last completed
-  - last source
-  - last error
-- Supports `Queue background check once`.
-- Supports deleting all local data.
+WorkManager schedules a daily periodic run with a preferred hour and can queue a one-off run. Per-product preferences (`daily`, `every_3_days`, `weekly`) still decide whether a product is due. Background product checks use a 15-second stagger; manual rechecks use a shorter stagger.
 
-### Onboarding (first launch)
-
-- First-time users see a two-step overlay on app launch:
-  - Step 1: Enable notifications for price alerts.
-  - Step 2: Open system settings to disable battery optimization for reliable background checks.
-- Each step can be skipped. The overlay never appears again after completing.
-
-### Navigation
-
-- Bottom tab bar with **Watchlist**, **Activity**, and **Settings** tabs.
-- Activity tab shows a chronological feed of price-change events across all tracked products, with date grouping, price direction indicators (trend arrows for up/down), old price (strikethrough), source badges, and a "Started tracking" label for first-recorded prices.
-- Tapping an activity event navigates to the product detail view.
-- Deleted product events remain visible but become non-tappable.
-- Android hardware back gesture/button is handled inside the app for the current lightweight route stack instead of immediately exiting the app.
-
-### Activity Tab
-
-- Shows a chronological, newest-first feed of price-change events across all tracked products.
-- Events are grouped by relative date (Today / Yesterday / date label).
-- Each event card shows:
-  - Product thumbnail or placeholder icon.
-  - Product title.
-  - Old price (strikethrough) and new price (bold, coloured: green for drops, red for increases, primary blue for first-recorded).
-  - Direction arrow: `TrendingDown` for price drops, `TrendingUp` for increases, a blue dot for first-recorded prices.
-  - "Started tracking" label shown for first-recorded price events.
-  - Source badge indicating whether the check came from `Check now`, `Recheck all`, or `Background`.
-- Tapping a card navigates to that product's detail screen.
-- Events survive product deletion (denormalized product title is stored on the event).
-- Empty state shown when no price changes have been recorded yet.
-
-## Current Storage Model
-
-Storage is local-only and currently uses AsyncStorage, not SQLite.
-
-Important stored entities:
-
-- `tracked products`
-- `price snapshots`
-- `activity events` — chronological log of price-change events with direction, old/new prices, and denormalized product data
-- `background status`
-
-Current snapshot source values:
-
-- `manual_single`
-- `manual_batch`
-- `background`
-- `unknown` for older migrated data
-
-## Background Checks
-
-Background work is currently Android-specific.
-
-- Native scheduler: Android WorkManager
-- Periodic schedule: once every 24 hours
-- Time targeting: preferred hour of day with initial delay aligned to the next selected hour
-- Due logic: per-product check preference still decides whether a product is checked during a given worker run
-- Force run: settings screen can queue a one-off background run
-- **Staggered checks**: individual product checks during a background run are spaced 15 seconds apart to avoid triggering rate limits on supported stores. Manual "Recheck all" uses a shorter 1.5-second stagger.
-
-Important constraint:
-
-- WorkManager is best-effort only
-- battery saver, vendor restrictions, idle mode, missing connectivity, or force-stopping the app can delay or pause future runs
-- the settings screen includes a battery optimization card that checks exemption status and can open system app settings
-- the first-launch onboarding prompts users to disable battery optimization
-- REQUEST_IGNORE_BATTERY_OPTIMIZATIONS permission is declared in the manifest
-
-## Notifications
-
-Notifications are currently Android-specific.
-
-- Android 13+ requires `POST_NOTIFICATIONS`
-- The app checks runtime permission and app-level notification enablement
-- The settings screen can request permission or open system notification settings
-- Notifications are sent for:
-  - target price reached
-  - price dropped
-  - price changed
-
-If permission is blocked, the app should continue tracking locally without showing alerts.
-
-## Parser and Site Notes
-
-- Parsers are wired through the site registry in `src/domain/sites.ts`
-- Each `SupportedSite` can declare a `minimumIntervalHours` that clamps the effective check interval regardless of the user's check-preference. Currently AYM Accessories uses this (72 hours) to reduce load on their rate-limited WooCommerce backend.
-- Each `SupportedSite` now carries an `iconAsset` field pointing to a bundled favicon PNG in `assets/site-icons/`. The `<SiteIcon>` component renders this icon; if the asset is missing it falls back to a coloured letter-circle using the site's first initial and a brand-appropriate colour from `SITE_COLORS` in `src/components/SiteIcon.tsx`.
-- Parser coverage includes AYM WooCommerce variation markup
-- Parser coverage includes Ounass inline PDP payload parsing
-- Parser coverage includes Amazon regional-domain detection, multi-currency price parsing, buy-box style markup, alternate total-price fallback handling, and challenge-page detection in tests
-- Parser coverage includes **out-of-stock (OOS) detection** for all 7 supported stores, with a relaxed validation path: if a product is confirmed OOS, the check succeeds even without a price (the last known price is preserved on the product record). See **Out-of-Stock Detection** below for full details.
-- Current parser tests cover:
-  - Noon structured data parsing
-  - AYM product page parsing
-  - Ounass product page parsing
-  - Amazon product page parsing across `.ae`, `.com`, and `.de` price formats
-  - blocked/challenge page detection
-  - OOS detection via synthetic HTML fixtures for all 7 supported stores
-
-If a supported site starts requiring login, bot bypassing, or unstable browser-only behavior, it should be downgraded from reliable MVP support.
-
-### Out-of-Stock Detection
-
-When a tracked product goes out of stock, Qeemat detects the OOS state, preserves the last known price, and displays the OOS status in the UI rather than reporting a `price_not_found` error.
-
-**Core logic** (`src/domain/parser.ts`):
-
-- The `fetchAndParseProduct` orchestrator was relaxed: OOS products without a price now succeed (`ok: true`) instead of returning `price_not_found`. Products that are not OOS and have no price still fail as before.
-- `parseProductHtml` detects 404/product-not-found pages (e.g. Sun & Sand Sports serves a 200 with a 404 template) via `isProduct404Page()` and returns `undefined`, which maps to `site_parser_failed`.
-- Structured data short-circuit was refined: when structured data says `availability: 'unknown'`, the parser falls through to site-specific parsers which have better OOS detection.
-
-**Site-specific OOS detection**:
-
-| Site | Mechanism | Patterns |
-|------|-----------|----------|
-| Noon | `detectNoonOos()` — checks embedded JSON, text patterns, and add-to-cart heuristics | `"availability":"out_of_stock"`, `"is_out_of_stock":true`, `"stock_status":"out_of_stock"`, "sold out" / "out of stock" text, missing add-to-cart + no price fallback |
-| Nike UAE | JSON-LD `parseAvailability()` | Schema.org `OutOfStock` / `InStock` |
-| Sun & Sand Sports | JSON-LD + 404 detection | Schema.org + `data-gtm-event-action="404"` + `class="error__image"` |
-| Level Shoes | `isInStock` boolean from embedded JS payload | |
-| AYM Accessories | `parseAymAvailability()` | WooCommerce `is_in_stock` on variations, stock text, CSS class |
-| Ounass | `outOfStock` / `stock` count from inline PDP payload | |
-| Amazon | `parseAmazonAvailability()` — expanded patterns | "Currently unavailable", "Temporarily out of stock", "We don't know when or if...", `id="outOfStock"`, `a-color-price` w/o `a-color-success` edge case |
-
-**Price preservation** (`src/data/database.ts`):
-
-- `recordSuccessfulCheck`: When a check returns OOS with no price, `currentPriceMinor` on the product record is **preserved** (keeps the last known price). When OOS with a price (e.g. Amazon still shows a price), the price updates normally.
-- `createTrackedProduct`: New products start with `lastAvailability: parsed.availability`.
-- `readStore` migration: Existing products missing `lastAvailability` are defaulted to `'unknown'`.
-
-**No notification spam**: `maybeNotifyForCheck` returns `undefined` when `newPriceMinor` is undefined, so no notifications fire for OOS-without-price. Activity events are also guarded by `saved.newPriceMinor !== undefined`.
-
-**UI changes**:
-
-- **`StatusPill`**: New optional `availability` prop. When `availability === 'out_of_stock'`, renders an amber pill with `CircleAlert` icon and "Out of stock" label, overriding the normal status display.
-- **`ProductCard`**: When OOS, the product image is dimmed (`opacity: 0.6`), price is struck-through in muted colour, and the badge shows an amber "Out of stock" (`PackageX` icon) instead of the green "Tracking" badge.
-- **`DetailScreen`** (App.tsx): Amber banner with `CircleAlert` saying "Out of stock — last known price shown" (or "Out of stock — no price recorded" when no price was ever captured).
-- **Snapshot list**: Already renders `snapshot.availability.replace(/_/g, ' ')` — naturally shows "out of stock" for OOS snapshots.
-
-**Test coverage**: OOS detection is tested via synthetic HTML fixtures in `src/domain/__tests__/oos-parser.test.ts` — one fixture per store. Fixtures are gitignored and fetched via `scripts/fetch-oos-fixture.mjs`. Tests auto-skip when fixtures are missing. The existing parser test suite (20 tests) is untouched.
-
-### Adding a New Website
-
-When adding a new supported store, follow this checklist:
-
-1. **`src/domain/types.ts`** — add the new site key to the `SiteKey` union type.
-2. **`src/domain/sites.ts`** — add a `SupportedSite` entry to `SUPPORTED_SITES` with `key`, `displayName`, `shortName`, `hostnames`, `status`, `notes`, and `iconAsset`.
-3. **`assets/site-icons/{key}.png`** — download the site's favicon as a PNG and place it in `assets/site-icons/`. Use Google's favicon service (`https://www.google.com/s2/favicons?domain=<hostname>&sz=64`) or download directly from the site. React Native's `Image` component needs a PNG (not `.ico`). A 32–64px square is sufficient. Register the asset in `sites.ts` via `require('../../assets/site-icons/{key}.png')`.
-4. **`src/components/SiteIcon.tsx`** — add the new site key to the `SITE_COLORS` record with a brand-appropriate hex colour. This is the fallback letter-circle shown when the favicon asset can't load.
-5. **`src/domain/parser.ts`** — add parser logic (or a new parser module) for the site's product page structure.
-6. **`src/domain/__tests__/parser.test.ts`** — add fixture-based parser tests with saved sample HTML.
-7. **`App.tsx`** — the site icon automatically appears in all 5 UI surfaces (product cards, add-flow detection & chips, product preview, settings store list) because they all use `<SiteIcon siteKey={...} />` — no manual UI wiring needed for new sites.
-8. Verify: `npm run typecheck` and `npm run lint` pass.
+WorkManager is best effort. Battery saver, device-vendor restrictions, connectivity, idle mode, and force-stopping the app can delay or stop work. Notifications are Android-only and require `POST_NOTIFICATIONS` on Android 13+.
 
 ## Important Files
 
-App and screens:
+- `App.tsx` - screens and manual route stack.
+- `src/data/database.ts` - local persistence, snapshots, activity events.
+- `src/domain/parser.ts` - fetch and site parsers.
+- `src/domain/sites.ts` - site registry and URL cleaning.
+- `src/domain/checker.ts` - check orchestration and alert rules.
+- `src/components/` - reusable UI, including `AppText`, `ProductCard`, and `SiteIcon`.
+- `src/theme/layout.ts` - compact layout helper.
+- `android/app/src/main/java/com/qeemat/` - Android WorkManager, notifications, and WebView modules.
+- `docs/bfl-integration.md` - BFL's experimental Cloudflare limitation.
 
-- `App.tsx`
-- `src/components/SiteIcon.tsx` — per-store mini icon component (favicon PNG or letter-circle fallback)
-- `assets/site-icons/` — favicon PNGs for each supported store
-
-Domain and storage:
-
-- `src/data/database.ts`
-- `src/domain/checker.ts`
-- `src/domain/dates.ts`
-- `src/domain/sites.ts`
-- `src/domain/types.ts`
-- `src/domain/backgroundStatus.ts`
-- `src/domain/backgroundScheduler.ts`
-- `src/domain/onboarding.ts`
-- `src/domain/notifications.ts`
-- `src/domain/parser.ts`
-- `src/domain/webViewFetcher.ts` — native WebView-based fetcher for Cloudflare-protected sites (experimental; used by BFL fallback)
-
-Android native integration:
-
-- `android/app/src/main/java/com/qeemat/QeematBackgroundCheckModule.kt`
-- `android/app/src/main/java/com/qeemat/QeematBackgroundWorker.kt`
-- `android/app/src/main/java/com/qeemat/QeematBackgroundTaskService.kt`
-- `android/app/src/main/java/com/qeemat/QeematNotificationsModule.kt`
-- `android/app/src/main/java/com/qeemat/QeematNotificationsPackage.kt`
-- `android/app/src/main/java/com/qeemat/QeematWebViewFetcherModule.kt`
-- `android/app/src/main/java/com/qeemat/QeematWebViewFetcherPackage.kt`
-- `android/app/src/main/java/com/qeemat/MainApplication.kt`
-- `android/app/src/main/AndroidManifest.xml`
-
-Headless entrypoint:
-
-- `index.js`
-
-## Development Commands
-
-Install:
+## Development and Validation
 
 ```bash
 npm install
-```
-
-Start Metro:
-
-```bash
 npm run start
-```
-
-Run Android:
-
-```bash
 npm run android:device
-```
-
-Checks:
-
-```bash
 npm run typecheck
 npm run lint
-npm test -- --runInBand        # all tests (parser + OOS fixtures)
-npm test -- --runInBand parser  # parser tests only
-npm test -- --runInBand oos     # OOS fixture tests only (skips when fixtures missing)
+npm test -- --runInBand
 ```
 
-## Android Environment Notes
+OOS fixtures are documented in `src/domain/__tests__/fixtures/oos/README.md`. Missing fixture files are skipped by the OOS fixture suite.
 
-For terminal Android builds on this repo:
-
-- `JAVA_HOME` must point to a valid JDK 17+ installation
-- Android Studio's bundled JBR is a valid choice
-- `adb` must be available from Android SDK `platform-tools`
-
-If terminal builds fail with invalid `JAVA_HOME` or missing `adb`, fix those local machine settings before debugging app code.
-
-## Known Limitations
-
-- Native background checks and notifications are implemented only for Android right now.
-- Storage is AsyncStorage-based, which is acceptable for the MVP but not ideal long-term for larger history volumes.
-- Amazon regional domains can return robot-check/challenge pages, so Amazon support is best-effort.
-- There is no backend, push service, user account system, or cloud sync.
-- Background timing is approximate even after choosing a preferred hour.
+For a terminal Android build, use JDK 17+ and make `adb` available from Android SDK platform-tools. Android Studio's bundled JBR is valid.
 
 ## Recent Notable Changes
 
-- **Adidas store (#18)** — parser implemented but site blocks checks with bot detection; anti-bot browser headers and block-pattern detection added.
-- **Brands For Less (BFL) store (#9)** — full parser, WebView-based Cloudflare bypass attempted, parked as experimental. Documented in `docs/bfl-integration.md`.
-- **Out-of-stock (OOS) detection across all 7 stores** — added OOS detection to every site parser, relaxed the price-required validation for OOS products, and preserved last known prices. UI shows OOS state on cards (dimmed image, struck-through price, amber badge) and detail screen (amber banner). Collapsible OOS section on watchlist groups OOS products below in-stock ones. See **Out-of-Stock Detection** section above for full architecture.
-- **Price change indicators on product cards** — `TrendingDown` (green) and `TrendingUp` (red) arrows appear on cards when a price change is detected vs. the previous snapshot.
-- **URL cleaning (#13)** — tracking query params and URL fragments stripped from product URLs before save and before every fetch.
-- Added AGENTS.md — project guidelines for LLM agent sessions, codifying conventions, build commands, and store-addition checklist.
-- Added `.zero/` specialist profiles and spec documents for future AI sessions.
-- Added fixture-based OOS parser tests (`oos-parser.test.ts`) with synthetic HTML per store and a `fetch-oos-fixture.mjs` helper script.
-- Added per-store mini favicon icons — each supported site now has a bundled PNG favicon in `assets/site-icons/` and a `<SiteIcon>` component renders them across all 5 UI surfaces (product cards, add flow, product preview, settings). Falls back to a coloured letter-circle if the icon asset is missing. See "Adding a New Website" checklist above for the steps required when adding a new store.
-- Expanded Amazon support to selected regional domains, multi-currency price parsing, and more resilient Amazon price fallback handling.
-- Added AYM Accessories parser support.
-- Added Ounass UAE parser support.
-- Changed per-product check preferences to `daily`, `every_3_days`, and `weekly`.
-- Added `Recheck all prices` on the watchlist.
-- Added Android notification permission handling and native local notifications.
-- Added Android background run status tracking and preferred time-of-day scheduling.
-- Added snapshot source tagging for manual vs background checks.
-- Fixed Android back navigation so the hardware back gesture returns through app screens instead of always leaving the app.
-- Improved Android background worker reliability: proper error classification with logging, increased headless timeout to 5 min, WorkManager configuration with debug logging, ProGuard keep rules, and `foregroundServiceType` for Android 14+.
-- Added battery optimization support: permission declaration, native exemption check/request, app system settings opener, and settings UI card with exempt/restricted status.
-- Added first-launch onboarding overlay prompting users to enable notifications and disable battery optimization (shown once, stored in AsyncStorage).
-- Added `Open link` button on product detail that opens the product URL in the system browser.
-- Fixed status bar text color to dark-content for visibility against the light app background.
-- Removed dead 3-dot menu icon from product card tiles.
-- Condensed background check settings card layout and added step indicator dots to onboarding.
-- Replaced the read-only "Alerts" tab with a dynamic "Activity" tab showing a chronological feed of actual price-change events across all products, with date grouping, price direction indicators, source badges, and one-time backfill migration from existing snapshot history.
-- Added `ActivityEvent` data model and `PriceDirection` type (`up`, `down`, `first`) for the activity feed.
-- Activity events survive product deletion (denormalized title/image stored on each event).
-- One-time migration backfills activity events from existing snapshot data on first launch after upgrade.
-- **`lastErrorCode` preservation**: the last check error code is persisted on the product record so the UI can show accurate status even after app restart.
-- **`previousPriceMinor` persistence**: the price before the most recent change is stored on the product record, enabling price-change indicators and direction detection.
-- **SnapshotList refactor**: extracted snapshot rendering from `DetailScreen` into a dedicated `SnapshotList` component for readability.
-- Adjusted FAB (floating action button) position for improved layout.
+- **#12:** Amazon product links normalize to direct ASIN URLs before fetch and clipboard copy.
+- **#23:** compact-screen and large-text responsive reflow.
+- **#24:** copy-product-link action on product detail.
+- **#25:** retain the last known price when an OOS result has no current price.
+- **#26:** ignore Amazon recommendation-carousel prices on confirmed OOS pages.
+- **#22:** app version updated to 0.5.0.

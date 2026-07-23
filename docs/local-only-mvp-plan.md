@@ -1,6 +1,6 @@
 # Qeemat Local-Only MVP Plan
 
-Note: this is the product/engineering plan. For the current implemented repo state and handoff details, read [current-state.md](current-state.md).
+Status: historical product and engineering plan, reconciled on 2026-07-23. Its completed milestones describe the intended architecture; [current-state.md](current-state.md) is the source of truth for shipped behavior and current limitations.
 
 ## Product Direction
 
@@ -21,7 +21,7 @@ The product promise should be precise:
 
 > Qeemat checks supported product pages periodically when the device allows it and alerts you when it detects a price change.
 
-The product should not promise exact schedules like "checks every 30 minutes" because iOS and Android both control background task timing.
+The product should not promise exact schedules like "checks every 30 minutes" because Android controls background task timing. Native background execution is currently Android-only.
 
 ## Why Local-Only Works
 
@@ -40,7 +40,7 @@ This makes the app private, cheap to operate, and simpler to ship. The main trad
 
 Background price checks are not guaranteed to run at exact times.
 
-On Android, periodic work can be delayed by battery, network, vendor restrictions, and system scheduling. On iOS, background execution is more restrictive and short intervals are often ignored. If the user force-quits the app on iOS, background tasks will not resume until the app is opened again.
+On Android, periodic work can be delayed by battery, network, vendor restrictions, and system scheduling. Native iOS background execution is not maintained for this project.
 
 The UI should reflect this honestly:
 
@@ -63,7 +63,7 @@ Supported websites for the first MVP:
 - Ounass UAE
 - Amazon (selected regions)
 
-Adidas UAE should remain experimental/post-MVP because direct requests showed intermittent access-denied behavior during discovery. Brands For Less UAE should remain deferred for the local-only MVP: browser-rendered product pages expose useful JSON-LD, but direct product-page fetches return Cloudflare 403, which makes unattended local background checks unreliable. Carrefour UAE and Lulu UAE are deferred until the local parser approach is proven. Amazon regional domains are acceptable for the MVP as a best-effort supported store family as long as the app surfaces blocked checks clearly when Amazon serves bot verification instead of a normal product page.
+Adidas UAE is now enabled as a supported store, but its parser should be monitored for bot-protection changes. Brands For Less UAE remains experimental: its parser and WebView fallback are implemented, but Cloudflare blocks reliable unattended fetching. Carrefour UAE and Lulu UAE remain deferred. Amazon regional domains are a best-effort supported store family and surface blocked checks when Amazon serves bot verification instead of a normal product page.
 
 A website should only be included if a normal unauthenticated product page exposes enough product data in static HTML or embedded structured data.
 
@@ -112,8 +112,8 @@ Kotlin Multiplatform is not recommended for the MVP. It is strong for shared bus
 
 - Framework: Bare React Native
 - Language: TypeScript
-- Navigation: lightweight in-app navigation for the MVP; React Navigation can be added when the flow grows
-- Local storage: AsyncStorage for the current MVP; SQLite can be added later if history volume grows
+- Navigation: lightweight in-app route stack in `App.tsx`; do not add React Navigation without an explicit architecture change
+- Local storage: AsyncStorage for the current MVP; SQLite is deliberately out of scope
 - Background checks: native Android WorkManager integration
 - Local notifications: native Android notification integration
 - Networking: built-in `fetch` first; add a small HTTP wrapper if needed
@@ -292,6 +292,8 @@ This can stay as TypeScript constants rather than a database table for the MVP:
 
 ## MVP Milestones
 
+All five milestones below are complete in the Android-first MVP. They are retained as implementation history; use `docs/current-state.md` for exact current behavior.
+
 ### Milestone 1: App Skeleton
 
 - Bare React Native app with TypeScript.
@@ -341,14 +343,14 @@ If the local-only version is useful but users need more reliability, Qeemat can 
 
 The MVP should be designed so this is possible later, but it should not build the backend now.
 
-## Open Product Questions
+## Resolved Product Decisions
 
-- Which region should the first version target: UAE only, GCC, or global?
-- Which 2-3 websites should be supported first after the parser spike?
-- Should the default alert be any price change or price drop only?
-- Should users be able to track out-of-stock/in-stock changes in the MVP?
-- Should target price be optional in the add flow or configured later from product detail?
-- Should Qeemat allow unsupported links to be saved as manual notes, or reject them for MVP clarity?
+- UAE-first, with selected Amazon regional domains.
+- The supported-store list is maintained in `src/domain/sites.ts`; experimental stores remain hidden from the supported-store UI.
+- The default alert mode is price drops only.
+- Out-of-stock state is tracked and shown; the last known price is retained when a product has no current OOS price.
+- Target price is optional in the add flow and can be updated in tracking settings.
+- Unsupported links are rejected rather than saved as manual notes.
 
 ## Reference Notes
 
