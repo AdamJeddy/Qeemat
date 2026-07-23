@@ -1,6 +1,6 @@
 import { fetchAndParseProduct, parseProductHtml } from '../parser';
 import { parsePriceToMinor } from '../price';
-import { detectSupportedSite } from '../sites';
+import { cleanUrl, detectSupportedSite } from '../sites';
 
 const noonUrl =
   'https://www.noon.com/uae-en/galaxy-s25-ultra-ai-dual-sim-titanium-grey-12gb-ram-256gb-5g-middle-east-version/N70140492V/p/';
@@ -734,6 +734,17 @@ describe('detectSupportedSite', () => {
     expect(detectSupportedSite(bflUrl)?.key).toBe('brands_for_less');
     expect(detectSupportedSite('https://brandsforless.com/en-ae/women-shoes/12345/p/')?.key).toBe('brands_for_less');
     expect(detectSupportedSite('https://www.brandsforless.com/en-ae/product/')?.key).toBe('brands_for_less');
+  });
+});
+
+describe('cleanUrl', () => {
+  it('reduces Amazon product links to a stable direct ASIN URL', () => {
+    expect(
+      cleanUrl('https://www.amazon.ae/Some-Long-Product-Name/dp/B005BFCNYU?ref_=share&tag=example')
+    ).toBe('https://www.amazon.ae/dp/B005BFCNYU');
+    expect(
+      cleanUrl('https://www.amazon.co.uk/gp/product/B005BFCNYU/ref=something?th=1')
+    ).toBe('https://www.amazon.co.uk/dp/B005BFCNYU');
   });
 });
 

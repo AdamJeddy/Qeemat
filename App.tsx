@@ -681,7 +681,7 @@ function DetailScreen({ productId, navigate }: { productId: number; navigate: (r
   }
 
   function copyProductLink() {
-    Clipboard.setString(product.canonicalUrl || product.url);
+    Clipboard.setString(cleanUrl(product.canonicalUrl || product.url));
     Alert.alert('Link copied', 'The product link is ready to paste.');
   }
 

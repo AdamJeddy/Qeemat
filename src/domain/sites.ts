@@ -192,8 +192,14 @@ export function cleanUrl(urlValue: string): string {
   const isAmazon = /(?:^|\.)amazon\./.test(beforeFragment);
 
   if (isAmazon) {
-    // Amazon: strip all query params — the ASIN in /dp/ASIN or /gp/product/ASIN
-    // is the only product identifier
+    // Amazon: the ASIN uniquely identifies the product, so use its stable
+    // direct URL instead of a copied slug, referral path, or query string.
+    const origin = pathPart.match(/^(https?:\/\/[^/?#]+)/i)?.[1];
+    const asin = pathPart.match(/\/(?:dp|gp\/product)\/([A-Z0-9]{10})(?:[/?]|$)/i)?.[1];
+    if (origin && asin) {
+      return `${origin}/dp/${asin.toUpperCase()}`;
+    }
+
     return pathPart;
   }
 
