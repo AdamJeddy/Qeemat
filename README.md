@@ -2,29 +2,17 @@
 
 ![Qeemat social preview](docs/assets/qeemat-social-preview-1280x640-v2.png)
 
-Qeemat is an Android-first, local-first price tracker for a small set of supported shopping sites, with a UAE-first MVP plus selected Amazon regional domains. The current app is a React Native + TypeScript project with AsyncStorage-based local data, Android notifications, and best-effort Android background checks through WorkManager.
+Qeemat is an Android-first, local-first price tracker for UAE shopping sites and selected Amazon regional domains. It is built with React Native and TypeScript, stores data in AsyncStorage, and uses Android WorkManager and local notifications for best-effort background checks.
 
 ## Current MVP
 
-Current implemented behavior:
-
-- Add a supported product URL and confirm the parsed product before saving.
-- URLs are automatically cleaned — tracking query params and fragments are stripped.
-- Track products locally on-device with price history snapshots.
-- **Out-of-stock detection** for all stores: OOS state shown on cards (amber badge, dimmed image) and detail screen (amber banner), with last known price preserved.
-- Per-store mini favicon icons on cards, add flow, product preview, and settings.
-- Activity feed showing all price-change events across tracked products, with date grouping, price direction indicators, and source badges.
-- Price change indicator arrows (`TrendingDown`/`TrendingUp`) on product cards.
-- Manual `Check now` from product detail.
-- `Open link` from product detail to view the product in the system browser.
-- Manual `Recheck all prices` from the watchlist.
-- Check preferences per product: `daily`, `every_3_days`, `weekly`.
-- Alert modes per product: `price_drop`, `any_change`, `target_price`.
-- Best-effort Android background checks with staggered 15-second delays between products.
-- Battery optimization status check and guidance in settings to improve background reliability.
-- First-launch onboarding for notification permission and battery optimization.
-- Local Android notifications for price drops, price changes, and target-price hits when permission is allowed.
-- Snapshot history tags that show whether a check came from `Check now`, `Recheck all`, or `Background`.
+- Add a supported product URL, confirm its parsed details, and track it locally with price snapshots.
+- Clean tracking URLs before saving and fetching. Recognised Amazon links are normalized to a stable `/dp/<ASIN>` URL.
+- Show watchlist cards, price history, activity events, price-change indicators, and out-of-stock status while preserving the last known price.
+- Check a product or all products manually; choose daily, every-three-days, or weekly checking and price-drop, any-change, or target-price alerts.
+- Open or copy a cleaned product link from product detail.
+- Run best-effort Android background checks with local alerts, notification/battery-optimization guidance, and run diagnostics.
+- Reflow cards, previews, details, and settings controls on compact phone widths and when large system text reduces available space.
 
 Supported stores:
 
@@ -35,35 +23,25 @@ Supported stores:
 - AYM Accessories
 - Ounass UAE
 - Amazon (selected regions)
-- Adidas UAE (experimental — parser done, blocked by bot detection)
-- Brands For Less (experimental — parser done, blocked by Cloudflare; see `docs/bfl-integration.md`)
+- Adidas UAE
+
+Brands For Less is an experimental integration and remains hidden from the supported-store UI because Cloudflare blocks reliable fetching. See [BFL integration](docs/bfl-integration.md).
 
 ## Documentation
 
-- [Current state and AI handoff](docs/current-state.md)
+- [Current state and AI/developer handoff](docs/current-state.md)
 - [MVP scope](docs/mvp-scope.md)
-- [Local-only MVP plan](docs/local-only-mvp-plan.md)
+- [Local-only MVP plan and decisions](docs/local-only-mvp-plan.md)
+- [Website mini icons](docs/site-icons.md)
 - [Brands For Less integration](docs/bfl-integration.md)
 
-Start with `docs/current-state.md` if you are resuming work in a new AI conversation or need the repo's current implemented behavior.
+Start with `docs/current-state.md` for the current implementation and limitations.
 
 ## Development
 
-Install dependencies:
-
 ```bash
 npm install
-```
-
-Start Metro:
-
-```bash
 npm run start
-```
-
-Run on Android:
-
-```bash
 npm run android:device
 ```
 
@@ -77,12 +55,6 @@ npm test -- --runInBand
 
 ## Android Notes
 
-Open the `android/` folder in Android Studio to sync, build, and run on a physical Android device or emulator.
+Open `android/` in Android Studio to sync, build, and run on a device or emulator. Terminal builds require JDK 17+ (Android Studio's bundled JBR is acceptable) and `adb` from Android SDK platform-tools.
 
-If terminal builds fail:
-
-- Make sure `JAVA_HOME` points to a valid JDK 17+ installation. Android Studio's bundled JBR is acceptable.
-- Make sure `adb` is available from the Android SDK `platform-tools`.
-- Android 13+ requires the runtime notification permission before local alerts can appear.
-
-Background checks use Android WorkManager and are intentionally best-effort. Qeemat does not promise an exact run time.
+Android 13+ requires runtime notification permission before local alerts can appear. Background timing is controlled by WorkManager and the device, so Qeemat does not promise an exact run time.

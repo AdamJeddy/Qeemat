@@ -1,6 +1,6 @@
 # Qeemat MVP Scope
 
-Note: this file is product scope and intent. For the current implemented repo state, read [current-state.md](current-state.md).
+Status: maintained product scope, last reconciled with the implementation on 2026-07-23. For the detailed repo handoff and change history, read [current-state.md](current-state.md).
 
 ## MVP Goal
 
@@ -59,8 +59,8 @@ The MVP support list is intentionally small:
 
 | Site | Status | Reason |
 | --- | --- | --- |
-| Adidas UAE | Experimental/post-MVP | Product pages can expose useful data with browser-like headers, but direct requests showed intermittent access-denied behavior. |
-| Brands For Less UAE | Deferred | Browser-rendered pages expose JSON-LD product data, but direct product-page fetches return Cloudflare 403, so local background checks would not be reliable. |
+| Adidas UAE | MVP supported | Parser and store integration are enabled. Monitor it because bot protection can still make checks unreliable. |
+| Brands For Less UAE | Experimental | Parser and native WebView fallback exist, but Cloudflare still blocks reliable fetching, so it remains hidden from the supported-store UI. |
 | Carrefour UAE | Deferred | Useful later, but grocery/location-sensitive pricing complicates MVP behavior. |
 | Lulu UAE | Deferred | Useful later, but page behavior needs deeper validation. |
 
@@ -84,6 +84,9 @@ The MVP support list is intentionally small:
 - Native Android background task wiring.
 - Native Android notification wiring.
 - Snapshot history source tags for manual vs background checks.
+- Out-of-stock state with last-known-price preservation.
+- Clean, shareable product links, including direct Amazon ASIN URLs.
+- Responsive layouts for compact phone widths and large system-text settings.
 
 ## Out Of Scope
 

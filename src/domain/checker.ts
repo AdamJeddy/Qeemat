@@ -23,6 +23,10 @@ function staggerDelayMs(source: SnapshotSource): number {
 }
 
 export async function checkProductNow(product: TrackedProduct, source: SnapshotSource): Promise<void> {
+  if (product.lastAvailability === 'out_of_stock') {
+    return;
+  }
+
   const result = await fetchAndParseProduct(product.canonicalUrl || product.url);
 
   if (!result.ok) {
@@ -40,7 +44,7 @@ export async function checkProductNow(product: TrackedProduct, source: SnapshotS
   await maybeNotifyForCheck(product, parsed, saved.previousPriceMinor, saved.newPriceMinor, previousAvailability);
 
   // Record activity events
-  if (newAvailability === 'out_of_stock' && previousAvailability !== 'out_of_stock') {
+  if (newAvailability === 'out_of_stock') {
     // OOS transition event
     await recordActivityEvent({
       trackedProductId: product.id,

@@ -1,4 +1,4 @@
-import { Image, Pressable, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Image, Pressable, StyleSheet, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { CheckCircle2, CircleAlert, Clock3, PackageX, TrendingDown, TrendingUp, X } from 'lucide-react-native';
 
 import { AppText } from './AppText';
@@ -8,6 +8,7 @@ import { formatPrice } from '../domain/price';
 import { getSiteByKey } from '../domain/sites';
 import { CheckStatus, TrackedProduct } from '../domain/types';
 import { colors, radius, shadow } from '../theme/theme';
+import { isCompactLayout } from '../theme/layout';
 
 type ProductCardProps = {
   product: TrackedProduct;
@@ -16,6 +17,8 @@ type ProductCardProps = {
 };
 
 export function ProductCard({ product, onPress, onRemove }: ProductCardProps) {
+  const { width, fontScale } = useWindowDimensions();
+  const compact = isCompactLayout(width, fontScale);
   const site = getSiteByKey(product.siteKey);
   const isOos = product.lastAvailability === 'out_of_stock';
   const status: CheckStatus = product.lastErrorCode ?? 'ok';
@@ -48,9 +51,9 @@ export function ProductCard({ product, onPress, onRemove }: ProductCardProps) {
   const showErrorPill = status !== 'ok' && status !== 'price_changed' && !isOos;
 
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
-      <View style={styles.imageWrap}>
-        {product.imageUrl ? <Image source={{ uri: product.imageUrl }} style={[styles.image, isOos && styles.imageMuted]} resizeMode="contain" /> : null}
+    <Pressable onPress={onPress} style={({ pressed }) => [styles.card, compact && styles.cardCompact, pressed && styles.pressed]}>
+      <View style={[styles.imageWrap, compact && styles.imageWrapCompact]}>
+        {product.imageUrl ? <Image source={{ uri: product.imageUrl }} style={[styles.image, compact && styles.imageCompact, isOos && styles.imageMuted]} resizeMode="contain" /> : null}
       </View>
       <View style={styles.content}>
         <View style={styles.titleRow}>
@@ -135,6 +138,9 @@ const styles = StyleSheet.create({
     gap: 12,
     ...shadow
   },
+  cardCompact: {
+    flexDirection: 'column'
+  },
   pressed: {
     opacity: 0.84
   },
@@ -146,9 +152,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center'
   },
+  imageWrapCompact: {
+    width: 72,
+    height: 72
+  },
   image: {
     width: 80,
     height: 92
+  },
+  imageCompact: {
+    width: 64,
+    height: 64
   },
   content: {
     flex: 1,
