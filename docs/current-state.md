@@ -29,12 +29,24 @@ The site registry is `src/domain/sites.ts`. It controls hostnames, enabled statu
 
 ## User-Facing Behavior
 
-- Watchlist with pull-to-refresh, manual `Recheck all prices`, price-direction arrows, and a collapsible out-of-stock section.
-- Add flow that detects a supported URL, parses a preview before save, and collects checking and alert preferences.
-- Product detail with current price, price chart, snapshot history, `Check now`, `Open link`, and `Copy product link` actions.
-- Activity tab with newest-first price-change events, date grouping, direction indicators, source badges, and non-tappable deleted-product events.
-- Settings for supported stores, notifications, battery optimization, preferred background time, background diagnostics, one-off background runs, and local-data deletion.
-- First-launch onboarding for notification permission and battery-optimization guidance.
+### Watchlist and activity
+
+- The watchlist supports pull-to-refresh, manual `Recheck all prices`, price-direction arrows, and a collapsible out-of-stock section below in-stock products.
+- Product cards show a site icon, price, status, and the most recent price-change direction. OOS cards are dimmed and show an amber out-of-stock badge.
+- The Activity tab is newest-first, groups events by date, shows old and new prices with direction/source badges, and can open an existing product. Events remain visible but non-tappable after a product is deleted.
+
+### Add flow and product detail
+
+- The add flow detects supported stores, shows a parsed preview before saving, and collects check preference, alert mode, and optional target price.
+- AYM excludes the daily option in the picker because its effective minimum interval is 72 hours. Existing daily AYM products are clamped in tracking settings.
+- Product detail shows current price, chart, stats, snapshot history, `Check now`, `Open link`, and `Copy product link` actions.
+- Snapshot sources are presented as `Check now`, `Recheck all`, or `Background`.
+
+### Settings, onboarding, and navigation
+
+- Settings shows supported-store icons, notification status/settings, battery-optimization guidance, preferred background-time presets, run diagnostics, a one-off background run, and deletion of local data.
+- The preferred-time presets are Morning (9:00 AM), Afternoon (2:00 PM), and Evening (8:00 PM); selecting one saves and reschedules immediately.
+- First-launch onboarding asks for notification permission and battery-optimization configuration. Both steps can be skipped and the overlay is stored as completed.
 - Android hardware back navigation is handled within the manual route stack.
 
 ### Responsive layout
@@ -52,6 +64,12 @@ The site registry is `src/domain/sites.ts`. It controls hostnames, enabled statu
 
 Parser code is in `src/domain/parser.ts`; types are in `src/domain/types.ts`; tests are in `src/domain/__tests__/`.
 
+### Out-of-stock handling
+
+Out-of-stock is a successful parser result, not a generic missing-price error. Each supported parser has site-specific availability signals, and structured data with unknown availability falls through to those parsers. The database preserves `currentPriceMinor` when an OOS result has no price, and snapshots retain availability for history.
+
+No price-change activity event or notification is created for an OOS result without a price. The detail screen shows an amber banner explaining whether it is displaying the last known price or no recorded price.
+
 ## Storage and Background Work
 
 AsyncStorage stores tracked products, snapshots, activity events, background status, and onboarding state. Snapshot sources are `manual_single`, `manual_batch`, `background`, and `unknown` for older data.
@@ -59,6 +77,17 @@ AsyncStorage stores tracked products, snapshots, activity events, background sta
 WorkManager schedules a daily periodic run with a preferred hour and can queue a one-off run. Per-product preferences (`daily`, `every_3_days`, `weekly`) still decide whether a product is due. Background product checks use a 15-second stagger; manual rechecks use a shorter stagger.
 
 WorkManager is best effort. Battery saver, device-vendor restrictions, connectivity, idle mode, and force-stopping the app can delay or stop work. Notifications are Android-only and require `POST_NOTIFICATIONS` on Android 13+.
+
+## Adding a Store
+
+1. Add the `SiteKey` in `src/domain/types.ts`.
+2. Add its `SupportedSite` registry entry in `src/domain/sites.ts`.
+3. Add a 32-64px PNG favicon in `assets/site-icons/` and register it with the site entry.
+4. Add a fallback colour in `src/components/SiteIcon.tsx`.
+5. Implement the parser in `src/domain/parser.ts` and add parser tests.
+6. Add OOS fixture coverage when practical, then run typecheck, lint, and Jest.
+
+`SiteIcon` automatically appears across existing UI surfaces; a new store does not need separate UI wiring.
 
 ## Important Files
 

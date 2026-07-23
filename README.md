@@ -32,7 +32,7 @@ Brands For Less is an experimental integration and remains hidden from the suppo
 - [Current state and AI/developer handoff](docs/current-state.md)
 - [MVP scope](docs/mvp-scope.md)
 - [Local-only MVP plan and decisions](docs/local-only-mvp-plan.md)
-- [Completed mini-icon implementation (#16)](docs/issue-16-plan.md)
+- [Website mini icons](docs/site-icons.md)
 - [Brands For Less integration](docs/bfl-integration.md)
 
 Start with `docs/current-state.md` for the current implementation and limitations.

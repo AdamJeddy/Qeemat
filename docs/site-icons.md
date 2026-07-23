@@ -1,6 +1,6 @@
-# Website Mini Icons (#16) - Completed
+# Website Mini Icons
 
-**Status:** Implemented
+**Status:** Implemented (issue #16)
 
 Qeemat bundles a PNG favicon for every registered store and renders it through the reusable `SiteIcon` component. This document records the delivered implementation; current store configuration lives in `src/domain/sites.ts`.
 
@@ -20,4 +20,4 @@ Qeemat bundles a PNG favicon for every registered store and renders it through t
 
 ## Maintenance
 
-When adding a store, follow the checklist in [`AGENTS.md`](../AGENTS.md). Add the PNG asset and `SITE_COLORS` fallback entry with the parser, registry, and tests; do not add surface-specific icon wiring.
+When adding a store, follow the checklist in [current-state.md](current-state.md#adding-a-store). Add the PNG asset and `SITE_COLORS` fallback entry with the parser, registry, and tests; do not add surface-specific icon wiring.
