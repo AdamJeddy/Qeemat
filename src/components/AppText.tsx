@@ -12,7 +12,7 @@ type AppTextProps = TextProps & {
 
 export function AppText({ children, style, muted, weight = 'regular', ...textProps }: AppTextProps) {
   return (
-    <Text {...textProps} style={[styles.base, muted && styles.muted, styles[weight], style]}>
+    <Text {...textProps} maxFontSizeMultiplier={1.3} style={[styles.base, muted && styles.muted, styles[weight], style]}>
       {children}
     </Text>
   );

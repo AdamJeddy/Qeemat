@@ -11,6 +11,7 @@ import {
   StatusBar,
   StyleSheet,
   TextInput,
+  useWindowDimensions,
   View
 } from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
@@ -70,6 +71,7 @@ import { formatPrice, parseTargetPriceInput } from './src/domain/price';
 import { cleanUrl, detectSupportedSite, normalizeUrl, SUPPORTED_SITES } from './src/domain/sites';
 import { ActivityEvent, AlertMode, CheckPreference, ParsedProduct, PriceSnapshot, ProductWithSnapshots, SnapshotSource, TrackedProduct } from './src/domain/types';
 import { colors, radius, shadow } from './src/theme/theme';
+import { isCompactLayout } from './src/theme/layout';
 
 type TabKey = 'watchlist' | 'activity' | 'settings';
 type Route =
@@ -304,7 +306,7 @@ function Header({ title, onBack }: { title: string; onBack?: () => void }) {
       ) : (
         <View style={styles.headerButton} />
       )}
-      <AppText weight="bold" style={styles.headerTitle}>
+      <AppText weight="bold" style={styles.headerTitle} numberOfLines={1}>
         {title}
       </AppText>
       <View style={styles.headerButton} />
@@ -561,6 +563,7 @@ function AddScreen({ navigate }: { navigate: (route: Route) => void }) {
               keyboardType="url"
               placeholder="https://www.noon.com/..."
               placeholderTextColor={colors.textSoft}
+              maxFontSizeMultiplier={1.3}
               style={styles.input}
             />
           </View>
@@ -613,6 +616,7 @@ function AddScreen({ navigate }: { navigate: (route: Route) => void }) {
                   keyboardType="decimal-pad"
                   placeholder="250"
                   placeholderTextColor={colors.textSoft}
+                  maxFontSizeMultiplier={1.3}
                   style={styles.input}
                 />
               </View>
@@ -631,9 +635,12 @@ function AddScreen({ navigate }: { navigate: (route: Route) => void }) {
 }
 
 function ProductPreview({ product, storeName, siteKey }: { product: ParsedProduct; storeName: string; siteKey: string }) {
+  const { width, fontScale } = useWindowDimensions();
+  const compact = isCompactLayout(width, fontScale);
+
   return (
-    <View style={styles.previewCard}>
-      <View style={styles.previewImageWrap}>
+    <View style={[styles.previewCard, compact && styles.previewCardCompact]}>
+      <View style={[styles.previewImageWrap, compact && styles.previewImageWrapCompact]}>
         {product.imageUrl ? <Image source={{ uri: product.imageUrl }} style={styles.previewImage} resizeMode="contain" /> : null}
       </View>
       <View style={styles.previewCopy}>
@@ -656,6 +663,8 @@ function ProductPreview({ product, storeName, siteKey }: { product: ParsedProduc
 }
 
 function DetailScreen({ productId, navigate }: { productId: number; navigate: (route: Route) => void }) {
+  const { width, fontScale } = useWindowDimensions();
+  const compact = isCompactLayout(width, fontScale);
   const [data, setData] = useState<ProductWithSnapshots | undefined>();
   const [checking, setChecking] = useState(false);
 
@@ -694,8 +703,8 @@ function DetailScreen({ productId, navigate }: { productId: number; navigate: (r
     <View style={styles.app}>
       <Header title="Qeemat" onBack={() => navigate({ name: 'tabs', tab: 'watchlist' })} />
       <ScrollView contentContainerStyle={styles.screenContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.detailHero}>
-          <View style={styles.detailImageWrap}>
+        <View style={[styles.detailHero, compact && styles.detailHeroCompact]}>
+          <View style={[styles.detailImageWrap, compact && styles.detailImageWrapCompact]}>
             {product.imageUrl ? <Image source={{ uri: product.imageUrl }} style={styles.detailImage} resizeMode="contain" /> : null}
           </View>
           <View style={styles.detailCopy}>
@@ -917,7 +926,7 @@ function TrackingSettingsScreen({ productId, navigate }: { productId: number; na
             <AppText weight="semibold" muted>
               AED
             </AppText>
-            <TextInput value={targetPrice} onChangeText={setTargetPrice} keyboardType="decimal-pad" style={styles.input} />
+            <TextInput value={targetPrice} onChangeText={setTargetPrice} keyboardType="decimal-pad" maxFontSizeMultiplier={1.3} style={styles.input} />
           </View>
         ) : null}
         <PrimaryButton label="Save settings" onPress={save} />
@@ -1110,6 +1119,8 @@ function EmptyActivity() {
 }
 
 function SettingsScreen() {
+  const { width, fontScale } = useWindowDimensions();
+  const compact = isCompactLayout(width, fontScale);
   const [backgroundStatus, setBackgroundStatus] = useState<BackgroundStatus>();
   const [notificationEnabled, setNotificationEnabled] = useState<boolean>();
   const [queueingCheck, setQueueingCheck] = useState(false);
@@ -1321,13 +1332,13 @@ function SettingsScreen() {
               </AppText>
             </View>
           </View>
-          <View style={styles.settingsPresetRow}>
+          <View style={[styles.settingsPresetRow, compact && styles.settingsPresetRowCompact]}>
             {BACKGROUND_TIME_PRESETS.map((preset) => {
               const selected = preset.hour === selectedPresetHour;
               return (
                 <Pressable
                   key={preset.label}
-                  style={[styles.settingsPreset, selected && styles.settingsPresetActive, savingSchedule && styles.settingsPresetDisabled]}
+                  style={[styles.settingsPreset, compact && styles.settingsPresetCompact, selected && styles.settingsPresetActive, savingSchedule && styles.settingsPresetDisabled]}
                   onPress={() => selectBackgroundSchedule(preset.hour)}
                   disabled={savingSchedule}
                 >
@@ -1518,7 +1529,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center'
   },
   headerTitle: {
-    fontSize: 20
+    fontSize: 20,
+    flex: 1,
+    minWidth: 0,
+    textAlign: 'center'
   },
   screenContent: {
     padding: 20,
@@ -1739,6 +1753,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     ...shadow
   },
+  previewCardCompact: {
+    flexDirection: 'column'
+  },
   previewImageWrap: {
     width: 118,
     height: 136,
@@ -1746,6 +1763,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceMuted,
     alignItems: 'center',
     justifyContent: 'center'
+  },
+  previewImageWrapCompact: {
+    width: '100%',
+    height: 160
   },
   previewImage: {
     width: 106,
@@ -1788,6 +1809,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border
   },
+  detailHeroCompact: {
+    flexDirection: 'column'
+  },
   detailImageWrap: {
     width: 112,
     height: 142,
@@ -1795,6 +1819,10 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     alignItems: 'center',
     justifyContent: 'center'
+  },
+  detailImageWrapCompact: {
+    width: '100%',
+    height: 180
   },
   detailImage: {
     width: 104,
@@ -2145,6 +2173,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12
   },
+  settingsPresetRowCompact: {
+    flexDirection: 'column'
+  },
   settingsPreset: {
     flex: 1,
     borderRadius: radius.md,
@@ -2154,6 +2185,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 16,
     gap: 6
+  },
+  settingsPresetCompact: {
+    flexGrow: 0,
+    width: '100%'
   },
   settingsPresetActive: {
     borderColor: colors.primary,
