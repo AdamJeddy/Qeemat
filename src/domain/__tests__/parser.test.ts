@@ -1,6 +1,6 @@
 import { fetchAndParseProduct, parseProductHtml } from '../parser';
 import { parsePriceToMinor } from '../price';
-import { cleanUrl, detectSupportedSite } from '../sites';
+import { cleanUrl, detectSharedUrl, detectSupportedSite } from '../sites';
 
 const noonUrl =
   'https://www.noon.com/uae-en/galaxy-s25-ultra-ai-dual-sim-titanium-grey-12gb-ram-256gb-5g-middle-east-version/N70140492V/p/';
@@ -734,6 +734,18 @@ describe('detectSupportedSite', () => {
     expect(detectSupportedSite(bflUrl)?.key).toBe('brands_for_less');
     expect(detectSupportedSite('https://brandsforless.com/en-ae/women-shoes/12345/p/')?.key).toBe('brands_for_less');
     expect(detectSupportedSite('https://www.brandsforless.com/en-ae/product/')?.key).toBe('brands_for_less');
+  });
+});
+
+describe('detectSharedUrl', () => {
+  it('extracts a URL from browser share text that includes a product title', () => {
+    expect(
+      detectSharedUrl('Galaxy S25 Ultra on Noon https://www.noon.com/uae-en/galaxy-s25-ultra/N70140492V/p/')
+    ).toBe('https://www.noon.com/uae-en/galaxy-s25-ultra/N70140492V/p/');
+  });
+
+  it('returns no URL when the shared text has no web link', () => {
+    expect(detectSharedUrl('Galaxy S25 Ultra')).toBeUndefined();
   });
 });
 

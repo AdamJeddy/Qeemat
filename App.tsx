@@ -5,6 +5,8 @@ import {
   BackHandler,
   Image,
   Linking,
+  NativeEventEmitter,
+  NativeModules,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -68,7 +70,7 @@ import { getOnboardingState, markOnboardingCompleted } from './src/domain/onboar
 import { ensureNotificationPermission, openNotificationSettings } from './src/domain/notifications';
 import { fetchAndParseProduct } from './src/domain/parser';
 import { formatPrice, parseTargetPriceInput } from './src/domain/price';
-import { cleanUrl, detectSupportedSite, normalizeUrl, SUPPORTED_SITES } from './src/domain/sites';
+import { cleanUrl, detectSharedUrl, detectSupportedSite, normalizeUrl, SUPPORTED_SITES } from './src/domain/sites';
 import { ActivityEvent, AlertMode, CheckPreference, ParsedProduct, PriceSnapshot, ProductWithSnapshots, SnapshotSource, TrackedProduct } from './src/domain/types';
 import { colors, radius, shadow } from './src/theme/theme';
 import { isCompactLayout } from './src/theme/layout';
@@ -76,7 +78,7 @@ import { isCompactLayout } from './src/theme/layout';
 type TabKey = 'watchlist' | 'activity' | 'settings';
 type Route =
   | { name: 'tabs'; tab: TabKey }
-  | { name: 'add' }
+  | { name: 'add'; initialUrl?: string }
   | { name: 'detail'; id: number }
   | { name: 'trackingSettings'; id: number };
 
@@ -148,6 +150,25 @@ export default function App() {
     return () => subscription.remove();
   }, [route]);
 
+  useEffect(() => {
+    const shareModule = NativeModules.QeematShare;
+    if (!shareModule) {
+      return;
+    }
+
+    const openSharedProduct = (sharedText: string) => {
+      const sharedUrl = detectSharedUrl(sharedText);
+      if (sharedUrl) {
+        setRoute({ name: 'add', initialUrl: sharedUrl });
+      }
+    };
+
+    shareModule.getInitialSharedText().then(openSharedProduct).catch(() => undefined);
+    const subscription = new NativeEventEmitter(shareModule).addListener('qeematShareReceived', openSharedProduct);
+
+    return () => subscription.remove();
+  }, []);
+
   if (!ready) {
     return (
       <SafeAreaProvider>
@@ -163,7 +184,7 @@ export default function App() {
       <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
       <SafeAreaView style={styles.app}>
         {route.name === 'tabs' ? <TabsScreen tab={route.tab} navigate={setRoute} /> : null}
-        {route.name === 'add' ? <AddScreen navigate={setRoute} /> : null}
+        {route.name === 'add' ? <AddScreen initialUrl={route.initialUrl} navigate={setRoute} /> : null}
         {route.name === 'detail' ? <DetailScreen productId={route.id} navigate={setRoute} /> : null}
         {route.name === 'trackingSettings' ? <TrackingSettingsScreen productId={route.id} navigate={setRoute} /> : null}
         {showOnboarding ? <OnboardingOverlay onClose={() => setShowOnboarding(false)} /> : null}
@@ -477,8 +498,8 @@ function EmptyWatchlist({ onAdd }: { onAdd: () => void }) {
   );
 }
 
-function AddScreen({ navigate }: { navigate: (route: Route) => void }) {
-  const [url, setUrl] = useState('');
+function AddScreen({ initialUrl, navigate }: { initialUrl?: string; navigate: (route: Route) => void }) {
+  const [url, setUrl] = useState(initialUrl ?? '');
   const [parsedProduct, setParsedProduct] = useState<ParsedProduct | undefined>();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);

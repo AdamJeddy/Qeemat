@@ -37,7 +37,7 @@ The site registry is `src/domain/sites.ts`. It controls hostnames, enabled statu
 
 ### Add flow and product detail
 
-- The add flow detects supported stores, shows a parsed preview before saving, and collects check preference, alert mode, and optional target price.
+- The add flow detects supported stores, shows a parsed preview before saving, and collects check preference, alert mode, and optional target price. Android browsers can share a product URL directly to Qeemat, which opens this flow with the shared URL prefilled.
 - AYM excludes the daily option in the picker because its effective minimum interval is 72 hours. Existing daily AYM products are clamped in tracking settings.
 - Product detail shows current price, chart, stats, snapshot history, `Check now`, `Open link`, and `Copy product link` actions.
 - Snapshot sources are presented as `Check now`, `Recheck all`, or `Background`.
