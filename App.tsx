@@ -70,10 +70,11 @@ import { getOnboardingState, markOnboardingCompleted } from './src/domain/onboar
 import { ensureNotificationPermission, openNotificationSettings } from './src/domain/notifications';
 import { fetchAndParseProduct } from './src/domain/parser';
 import { formatPrice, parseTargetPriceInput } from './src/domain/price';
-import { cleanUrl, detectSharedUrl, detectSupportedSite, normalizeUrl, SUPPORTED_SITES } from './src/domain/sites';
+import { cleanUrl, detectSharedUrl, detectSupportedSite, getSiteByKey, normalizeUrl, SUPPORTED_SITES } from './src/domain/sites';
 import { ActivityEvent, AlertMode, CheckPreference, ParsedProduct, PriceSnapshot, ProductWithSnapshots, SnapshotSource, TrackedProduct } from './src/domain/types';
 import { colors, radius, shadow } from './src/theme/theme';
 import { isCompactLayout } from './src/theme/layout';
+import { filterWatchlistProducts, getWatchlistSites, WatchlistStoreFilter } from './src/domain/watchlist';
 
 type TabKey = 'watchlist' | 'activity' | 'settings';
 type Route =
@@ -336,10 +337,13 @@ function Header({ title, onBack }: { title: string; onBack?: () => void }) {
 }
 
 function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
+  const { width, fontScale } = useWindowDimensions();
+  const compact = isCompactLayout(width, fontScale);
   const [products, setProducts] = useState<TrackedProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [checkingAll, setCheckingAll] = useState(false);
+  const [storeFilter, setStoreFilter] = useState<WatchlistStoreFilter>('all');
 
   const loadProducts = useCallback(async () => {
     setProducts(await listTrackedProducts());
@@ -388,8 +392,19 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
 
   const [oosExpanded, setOosExpanded] = useState(false);
 
-  const inStock = products.filter((p) => p.lastAvailability !== 'out_of_stock');
-  const oos = products.filter((p) => p.lastAvailability === 'out_of_stock');
+  const trackedSites = useMemo(() => getWatchlistSites(products), [products]);
+  const filteredProducts = useMemo(
+    () => filterWatchlistProducts(products, storeFilter),
+    [products, storeFilter]
+  );
+  const inStock = filteredProducts.filter((p) => p.lastAvailability !== 'out_of_stock');
+  const oos = filteredProducts.filter((p) => p.lastAvailability === 'out_of_stock');
+
+  useEffect(() => {
+    if (storeFilter !== 'all' && !trackedSites.includes(storeFilter)) {
+      setStoreFilter('all');
+    }
+  }, [storeFilter, trackedSites]);
 
   return (
     <View style={styles.app}>
@@ -408,10 +423,52 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
           </View>
           <View style={styles.countPill}>
             <AppText weight="semibold" style={styles.countText}>
-              {products.length} {products.length === 1 ? 'item' : 'items'}
+              {filteredProducts.length} {filteredProducts.length === 1 ? 'item' : 'items'}
             </AppText>
           </View>
         </View>
+        {trackedSites.length > 1 ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={[styles.storeFilterRail, compact && styles.storeFilterRailCompact]}
+          >
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Show products from all stores"
+              accessibilityState={{ selected: storeFilter === 'all' }}
+              onPress={() => setStoreFilter('all')}
+              style={({ pressed }) => [
+                styles.storeFilterButton,
+                storeFilter === 'all' && styles.storeFilterButtonSelected,
+                pressed && styles.storeFilterButtonPressed
+              ]}
+            >
+              <Store size={20} color={storeFilter === 'all' ? colors.primary : colors.textMuted} />
+            </Pressable>
+            {trackedSites.map((siteKey) => {
+              const selected = storeFilter === siteKey;
+              const site = getSiteByKey(siteKey);
+
+              return (
+                <Pressable
+                  key={siteKey}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Show products from ${site.displayName}`}
+                  accessibilityState={{ selected }}
+                  onPress={() => setStoreFilter(siteKey)}
+                  style={({ pressed }) => [
+                    styles.storeFilterButton,
+                    selected && styles.storeFilterButtonSelected,
+                    pressed && styles.storeFilterButtonPressed
+                  ]}
+                >
+                  <SiteIcon siteKey={siteKey} size={24} />
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        ) : null}
         <PrimaryButton
           label="Recheck all prices"
           variant="outline"
@@ -1586,6 +1643,30 @@ const styles = StyleSheet.create({
   },
   countText: {
     fontSize: 12
+  },
+  storeFilterRail: {
+    gap: 8,
+    paddingVertical: 2
+  },
+  storeFilterRailCompact: {
+    gap: 6
+  },
+  storeFilterButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  storeFilterButtonSelected: {
+    backgroundColor: colors.blueSoft,
+    borderColor: colors.primary
+  },
+  storeFilterButtonPressed: {
+    opacity: 0.78
   },
   cardList: {
     gap: 12
