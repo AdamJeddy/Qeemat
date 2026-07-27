@@ -31,7 +31,7 @@ The site registry is `src/domain/sites.ts`. It controls hostnames, enabled statu
 
 ### Watchlist and activity
 
-- The watchlist supports pull-to-refresh, manual `Recheck all prices`, price-direction arrows, and a collapsible out-of-stock section below in-stock products.
+- The watchlist supports pull-to-refresh, manual `Recheck all prices`, price-direction arrows, and a collapsible out-of-stock section below in-stock products. When products from multiple stores are tracked, a logo-only store rail filters both sections; it contains only stores already in the watchlist.
 - Product cards show a site icon, price, status, and the most recent price-change direction. OOS cards are dimmed and show an amber out-of-stock badge.
 - The Activity tab is newest-first, groups events by date, shows old and new prices with direction/source badges, and can open an existing product. Events remain visible but non-tappable after a product is deleted.
 
@@ -124,3 +124,4 @@ For a terminal Android build, use JDK 17+ and make `adb` available from Android 
 - **#25:** retain the last known price when an OOS result has no current price.
 - **#26:** ignore Amazon recommendation-carousel prices on confirmed OOS pages.
 - **#22:** app version updated to 0.5.0.
+- **#29:** logo-only store filtering on the watchlist.
