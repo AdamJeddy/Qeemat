@@ -11,6 +11,7 @@ export type CheckStatus =
   | 'ok'
   | 'price_changed'
   | 'price_not_found'
+  | 'variant_not_found'
   | 'network_error'
   | 'unsupported_page'
   | 'blocked'
@@ -32,6 +33,26 @@ export type SupportedSite = {
   iconAsset?: ReturnType<typeof require>;
 };
 
+export type VariantAttribute = {
+  name: string;
+  value: string;
+};
+
+export type ProductVariant = {
+  /** Stable source identifier, normally a SKU or source variation ID. */
+  id: string;
+  /** Human-readable combination as the source describes it. */
+  label: string;
+  attributes: VariantAttribute[];
+  priceMinor?: number;
+  currency?: string;
+  availability: Availability;
+  sku?: string;
+  imageUrl?: string;
+};
+
+export type VariantSelection = Pick<ProductVariant, 'id' | 'label' | 'attributes'>;
+
 export type ParsedProduct = {
   siteKey: SiteKey;
   canonicalUrl: string;
@@ -42,6 +63,10 @@ export type ParsedProduct = {
   availability: Availability;
   rawPriceText?: string;
   sku?: string;
+  /** Variants proven by the initial product-page response, when available. */
+  variants?: ProductVariant[];
+  /** Exact variant resolved for a saved tracker. */
+  selectedVariant?: VariantSelection;
 };
 
 export type TrackedProduct = {
@@ -65,6 +90,8 @@ export type TrackedProduct = {
   lastErrorCode?: CheckStatus;
   /** Availability from the most recent successful check. Used to show OOS state on cards. */
   lastAvailability?: Availability;
+  /** Immutable source-provided choice for a variant-specific tracker. */
+  variant?: VariantSelection;
   createdAt: string;
   updatedAt: string;
 };
@@ -93,6 +120,7 @@ export type ProductDraft = {
   checkPreference: CheckPreference;
   alertMode: AlertMode;
   targetPriceMinor?: number;
+  variant?: VariantSelection;
 };
 
 export type PriceDirection = 'up' | 'down' | 'first';
