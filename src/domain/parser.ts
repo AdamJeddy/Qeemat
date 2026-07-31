@@ -309,7 +309,7 @@ function parseAmazonProduct(siteKey: SiteKey, inputUrl: string, html: string): P
   // An OOS page can include prices from recommendation carousels. They do not
   // describe the tracked product, so leave the price unset and preserve the
   // product's last known value in storage.
-  const rawPriceText = availability === 'out_of_stock' ? undefined : matchAmazonPriceText(html) ?? meta.price;
+  const rawPriceText = availability === 'out_of_stock' ? undefined : matchAmazonPriceText(html);
   const sku = extractAmazonAsin(inputUrl) ?? matchString(html, /data-csa-c-asin=["']([A-Z0-9]{10})["']/i);
   const currency = inferAmazonCurrency(inputUrl, rawPriceText, meta.currency);
 
@@ -1077,13 +1077,26 @@ function parseAmazonAvailability(value: string | undefined, html: string): Avail
 }
 
 function matchAmazonPriceText(html: string): string | undefined {
+  const explicitBuyBoxPrice = firstAmazonPriceText(
+    matchString(html, /id=["']tp_price_block_total_price_ww["'][\s\S]{0,200}?<span class=["']a-offscreen["']>\s*([^<]*\d[^<]*)\s*<\/span>/i),
+    matchString(html, /id=["']priceblock_(?:ourprice|dealprice|saleprice)["'][\s\S]{0,200}?<span[^>]*>\s*([^<]*\d[^<]*)\s*<\/span>/i)
+  );
+  if (explicitBuyBoxPrice) {
+    return explicitBuyBoxPrice;
+  }
+
+  const buyBoxHtml = extractAmazonBuyBoxHtml(html);
+  if (!buyBoxHtml || /prime(?:exclusive|[-\s]exclusive)/i.test(buyBoxHtml)) {
+    return undefined;
+  }
+
   const priceToPayOffscreen = firstAmazonPriceText(
     matchString(
-      html,
+      buyBoxHtml,
       /class=["'][^"']*priceToPay[^"']*["'][^>]*>\s*<span class=["']a-offscreen["']>\s*([^<]*\d[^<]*)\s*<\/span>/i
     ),
     matchString(
-      html,
+      buyBoxHtml,
       /class=["'][^"']*apex-pricetopay-value[^"']*["'][\s\S]{0,200}?<span class=["']a-offscreen["']>\s*([^<]*\d[^<]*)\s*<\/span>/i
     )
   );
@@ -1091,7 +1104,7 @@ function matchAmazonPriceText(html: string): string | undefined {
     return priceToPayOffscreen;
   }
 
-  const apexPrice = html.match(
+  const apexPrice = buyBoxHtml.match(
     /priceToPay[^>]*>[\s\S]{0,400}?<span class=["']a-price-symbol["']>\s*([^<]*)\s*<\/span>\s*<span class=["']a-price-whole["']>\s*([^<]+?)\s*(?:<span class=["']a-price-decimal["'][^>]*>\s*.\s*<\/span>)?\s*<\/span>\s*<span class=["']a-price-fraction["']>\s*([^<]+)\s*<\/span>/i
   );
   if (apexPrice) {
@@ -1103,11 +1116,28 @@ function matchAmazonPriceText(html: string): string | undefined {
     }
   }
 
-  return firstAmazonPriceText(
-    matchString(html, /id=["']tp_price_block_total_price_ww["'][\s\S]{0,200}?<span class=["']a-offscreen["']>\s*([^<]*\d[^<]*)\s*<\/span>/i),
-    matchString(html, /id=["']corePriceDisplay_desktop_feature_div["'][\s\S]{0,6000}?<span class=["']a-offscreen["']>\s*([^<]*\d[^<]*)\s*<\/span>/i),
-    matchString(html, /<span class=["']a-offscreen["']>\s*([^<]*\d[^<]*)\s*<\/span>/i)
-  );
+  return undefined;
+}
+
+function extractAmazonBuyBoxHtml(html: string): string | undefined {
+  const startMatch = /<div\b[^>]*id=["'](?:corePriceDisplay_desktop_feature_div|corePrice_feature_div)["'][^>]*>/i.exec(html);
+  if (!startMatch || startMatch.index === undefined) {
+    return undefined;
+  }
+
+  const divTags = /<\/?div\b[^>]*>/gi;
+  divTags.lastIndex = startMatch.index;
+  let depth = 0;
+  let tag: RegExpExecArray | null;
+
+  while ((tag = divTags.exec(html))) {
+    depth += tag[0].startsWith('</') ? -1 : 1;
+    if (depth === 0) {
+      return html.slice(startMatch.index, divTags.lastIndex);
+    }
+  }
+
+  return undefined;
 }
 
 function extractAmazonDynamicImageUrl(html: string): string | undefined {

@@ -60,6 +60,7 @@ The site registry is `src/domain/sites.ts`. It controls hostnames, enabled statu
 - Parsers return title, image, price, currency, availability, canonical URL, and SKU when available.
 - Confirmed out-of-stock products can parse successfully without a price. Storage preserves the last known product price and the UI shows an OOS state.
 - Confirmed Amazon OOS pages deliberately leave price unset: recommendation carousels can contain prices belonging to other products.
+- Amazon prices use the broadly available Buy Box price: sale prices are tracked, while Prime-exclusive discounts and alternate-seller prices are ignored. If that base Buy Box price is not unambiguous, the check reports that no current price was found instead of guessing.
 - Challenge pages return `blocked`; pages without required product data return parser or price errors as appropriate.
 
 Parser code is in `src/domain/parser.ts`; types are in `src/domain/types.ts`; tests are in `src/domain/__tests__/`.
@@ -123,5 +124,6 @@ For a terminal Android build, use JDK 17+ and make `adb` available from Android 
 - **#24:** copy-product-link action on product detail.
 - **#25:** retain the last known price when an OOS result has no current price.
 - **#26:** ignore Amazon recommendation-carousel prices on confirmed OOS pages.
+- **#14:** Amazon tracks only the base Buy Box price, excluding Prime-exclusive and alternate-seller prices.
 - **#22:** app version updated to 0.5.0.
 - **#29:** logo-only store filtering on the watchlist.

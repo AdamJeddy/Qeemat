@@ -121,6 +121,76 @@ describe('parseProductHtml', () => {
     );
   });
 
+  it('uses the non-Prime Buy Box price when a Prime-exclusive discount is also present', () => {
+    const html = `
+      <html>
+        <head><link rel="canonical" href="https://www.amazon.ae/dp/B0PRIME123" /></head>
+        <body>
+          <span id="productTitle">Prime discount example</span>
+          <div id="corePriceDisplay_desktop_feature_div">
+            <span id="tp_price_block_total_price_ww" class="a-price">
+              <span class="a-offscreen">AED 199.00</span>
+            </span>
+            <div class="primeExclusivePrice">
+              <span class="a-price priceToPay">
+                <span class="a-offscreen">AED 149.00</span>
+              </span>
+              <span>Prime Exclusive Deal</span>
+            </div>
+          </div>
+          <div id="availability"><span class="primary-availability-message">In Stock</span></div>
+        </body>
+      </html>
+    `;
+
+    expect(parseProductHtml('amazon_ae', 'https://www.amazon.ae/dp/B0PRIME123', html)).toEqual(
+      expect.objectContaining({ priceMinor: 19900, rawPriceText: 'AED 199.00' })
+    );
+  });
+
+  it('uses the current Buy Box sale price instead of the crossed-out list price', () => {
+    const html = `
+      <html>
+        <head><link rel="canonical" href="https://www.amazon.ae/dp/B0SALE1234" /></head>
+        <body>
+          <span id="productTitle">Sale price example</span>
+          <div id="corePriceDisplay_desktop_feature_div">
+            <span class="a-price a-text-price"><span class="a-offscreen">AED 299.00</span></span>
+            <span class="a-price priceToPay"><span class="a-offscreen">AED 249.00</span></span>
+          </div>
+          <div id="availability"><span class="primary-availability-message">In Stock</span></div>
+        </body>
+      </html>
+    `;
+
+    expect(parseProductHtml('amazon_ae', 'https://www.amazon.ae/dp/B0SALE1234', html)).toEqual(
+      expect.objectContaining({ priceMinor: 24900, rawPriceText: 'AED 249.00' })
+    );
+  });
+
+  it('does not use an alternate-seller price when the Buy Box has no price', () => {
+    const html = `
+      <html>
+        <head>
+          <link rel="canonical" href="https://www.amazon.ae/dp/B0SELLER12" />
+          <meta property="product:price:amount" content="125.00" />
+        </head>
+        <body>
+          <span id="productTitle">Alternate seller example</span>
+          <div id="availability"><span class="primary-availability-message">In Stock</span></div>
+          <section id="all-offers-display-scroller">
+            <span class="a-price priceToPay"><span class="a-offscreen">AED 125.00</span></span>
+            <span>Available from another seller</span>
+          </section>
+        </body>
+      </html>
+    `;
+
+    expect(parseProductHtml('amazon_ae', 'https://www.amazon.ae/dp/B0SELLER12', html)).toEqual(
+      expect.objectContaining({ priceMinor: undefined, rawPriceText: undefined })
+    );
+  });
+
   it('does not treat a recommended product price as the price of an out-of-stock Amazon item', () => {
     const html = `
       <html>
