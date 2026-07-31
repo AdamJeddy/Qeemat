@@ -1,9 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   BackHandler,
   Image,
+  Keyboard,
   Linking,
   NativeEventEmitter,
   NativeModules,
@@ -46,6 +47,7 @@ import { PriceChart } from './src/components/PriceChart';
 import { PrimaryButton } from './src/components/PrimaryButton';
 import { ProductCard } from './src/components/ProductCard';
 import { StatusPill } from './src/components/StatusPill';
+import { VariantSelector } from './src/components/VariantSelector';
 import {
   getBackgroundStatus,
   BackgroundStatus,
@@ -75,6 +77,7 @@ import { ActivityEvent, AlertMode, CheckPreference, ParsedProduct, PriceSnapshot
 import { colors, radius, shadow } from './src/theme/theme';
 import { isCompactLayout } from './src/theme/layout';
 import { filterWatchlistProducts, getWatchlistSites, WatchlistStoreFilter } from './src/domain/watchlist';
+import { resolveSelectedVariant, toVariantSelection, updateSelectedVariantAttributes, VariantAttributes } from './src/domain/variants';
 
 type TabKey = 'watchlist' | 'activity' | 'settings';
 type Route =
@@ -564,10 +567,33 @@ function AddScreen({ initialUrl, navigate }: { initialUrl?: string; navigate: (r
   const [checkPreference, setCheckPreference] = useState<CheckPreference>('daily');
   const [alertMode, setAlertMode] = useState<AlertMode>('price_drop');
   const [targetPrice, setTargetPrice] = useState('');
+  const [selectedVariantAttributes, setSelectedVariantAttributes] = useState<VariantAttributes>({});
+  const scrollRef = useRef<ScrollView>(null);
+  const shouldFocusParsedResult = useRef(false);
 
   const normalizedUrl = cleanUrl(normalizeUrl(url));
   const detectedSite = useMemo(() => detectSupportedSite(normalizedUrl), [normalizedUrl]);
   const targetPriceMinor = parseTargetPriceInput(targetPrice);
+  const variants = useMemo(() => parsedProduct?.variants ?? [], [parsedProduct]);
+  const selectedVariant = useMemo(
+    () => resolveSelectedVariant(variants, selectedVariantAttributes),
+    [variants, selectedVariantAttributes]
+  );
+  const previewProduct = useMemo(() => {
+    if (!parsedProduct || !selectedVariant) {
+      return parsedProduct;
+    }
+
+    return {
+      ...parsedProduct,
+      imageUrl: selectedVariant.imageUrl ?? parsedProduct.imageUrl,
+      priceMinor: selectedVariant.priceMinor,
+      currency: selectedVariant.currency ?? parsedProduct.currency,
+      availability: selectedVariant.availability,
+      sku: selectedVariant.sku ?? parsedProduct.sku,
+      selectedVariant: toVariantSelection(selectedVariant)
+    };
+  }, [parsedProduct, selectedVariant]);
 
   const siteKeyForPrefs = parsedProduct?.siteKey ?? detectedSite?.key;
   const checkOptions = useMemo(
@@ -583,14 +609,29 @@ function AddScreen({ initialUrl, navigate }: { initialUrl?: string; navigate: (r
     }
   }, [siteKeyForPrefs]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const focusParsedResult = useCallback((top: number) => {
+    if (!shouldFocusParsedResult.current) {
+      return;
+    }
+
+    shouldFocusParsedResult.current = false;
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({ y: Math.max(0, top - 12), animated: true });
+    });
+  }, []);
+
   async function parseUrl() {
+    Keyboard.dismiss();
     setError(undefined);
     setParsedProduct(undefined);
+    setSelectedVariantAttributes({});
+    shouldFocusParsedResult.current = true;
     setLoading(true);
     const result = await fetchAndParseProduct(url);
     if (result.ok) {
       setParsedProduct(result.product);
     } else {
+      shouldFocusParsedResult.current = false;
       setError(result.message);
     }
     setLoading(false);
@@ -601,12 +642,14 @@ function AddScreen({ initialUrl, navigate }: { initialUrl?: string; navigate: (r
       return;
     }
     setSaving(true);
+    const productToSave = previewProduct ?? parsedProduct;
     const id = await createTrackedProduct({
-      parsed: parsedProduct,
+      parsed: productToSave,
       sourceUrl: normalizedUrl,
       checkPreference,
       alertMode,
-      targetPriceMinor: alertMode === 'target_price' ? targetPriceMinor : undefined
+      targetPriceMinor: alertMode === 'target_price' ? targetPriceMinor : undefined,
+      variant: productToSave.selectedVariant
     });
     setSaving(false);
     navigate({ name: 'detail', id });
@@ -616,6 +659,7 @@ function AddScreen({ initialUrl, navigate }: { initialUrl?: string; navigate: (r
     <View style={styles.app}>
       <Header title="Add Product" onBack={() => navigate({ name: 'tabs', tab: 'watchlist' })} />
       <ScrollView
+        ref={scrollRef}
         contentContainerStyle={[styles.screenContent, styles.addScreenContent]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
@@ -634,6 +678,8 @@ function AddScreen({ initialUrl, navigate }: { initialUrl?: string; navigate: (r
               onChangeText={(value) => {
                 setUrl(value);
                 setParsedProduct(undefined);
+                setSelectedVariantAttributes({});
+                shouldFocusParsedResult.current = false;
                 setError(undefined);
               }}
               autoCapitalize="none"
@@ -646,25 +692,34 @@ function AddScreen({ initialUrl, navigate }: { initialUrl?: string; navigate: (r
             />
           </View>
           {detectedSite ? (
-            <View style={styles.inlineStatus}>
-              <SiteIcon siteKey={detectedSite.key} size={16} />
-              <Check size={15} color={colors.green} />
-              <AppText weight="medium" style={styles.detectedText}>
-                {detectedSite.displayName}
-              </AppText>
+            <View style={styles.detectedSource}>
+              <View style={styles.detectedSourceIcon}>
+                <SiteIcon siteKey={detectedSite.key} size={18} />
+                <Check size={14} color={colors.green} />
+              </View>
+              <View style={styles.detectedSourceCopy}>
+                <AppText weight="semibold" style={styles.detectedText}>
+                  {detectedSite.displayName} link detected
+                </AppText>
+                <AppText muted style={styles.detectedHint}>
+                  Find the product to choose an available option and set your alerts.
+                </AppText>
+              </View>
             </View>
           ) : null}
         </View>
-        <View style={styles.chips}>
-          {SUPPORTED_SITES.filter(s => s.status === 'supported').map((site) => (
-            <View key={site.key} style={[styles.chip, detectedSite?.key === site.key && styles.chipSelected]}>
-              <SiteIcon siteKey={site.key} size={14} />
-              <AppText weight="medium" style={[styles.chipText, detectedSite?.key === site.key && styles.chipTextSelected]}>
-                {site.shortName}
-              </AppText>
-            </View>
-          ))}
-        </View>
+        {!detectedSite ? (
+          <View style={styles.chips}>
+            {SUPPORTED_SITES.filter(s => s.status === 'supported').map((site) => (
+              <View key={site.key} style={styles.chip}>
+                <SiteIcon siteKey={site.key} size={14} />
+                <AppText weight="medium" style={styles.chipText}>
+                  {site.shortName}
+                </AppText>
+              </View>
+            ))}
+          </View>
+        ) : null}
         <PrimaryButton label="Find product" onPress={parseUrl} disabled={!url.trim() || loading} loading={loading} />
         {error ? (
           <View style={styles.errorBox}>
@@ -673,8 +728,30 @@ function AddScreen({ initialUrl, navigate }: { initialUrl?: string; navigate: (r
           </View>
         ) : null}
         {parsedProduct ? (
-          <View style={styles.previewSection}>
-            <ProductPreview product={parsedProduct} storeName={detectedSite?.shortName ?? 'Store'} siteKey={parsedProduct.siteKey} />
+          <View style={styles.previewSection} onLayout={({ nativeEvent }) => focusParsedResult(nativeEvent.layout.y)}>
+            <ProductPreview
+              product={previewProduct ?? parsedProduct}
+              storeName={detectedSite?.shortName ?? 'Store'}
+              siteKey={parsedProduct.siteKey}
+              awaitingVariantSelection={variants.length > 0 && !selectedVariant}
+            />
+            {variants.length > 0 ? (
+              <View style={styles.variantSection}>
+                <AppText weight="semibold" style={styles.formLabel}>
+                  Choose variant
+                </AppText>
+                <VariantSelector
+                  variants={variants}
+                  selectedAttributes={selectedVariantAttributes}
+                  onSelect={(name, value) =>
+                    setSelectedVariantAttributes((current) => updateSelectedVariantAttributes(variants, current, name, value))
+                  }
+                />
+                {!selectedVariant ? <AppText muted style={styles.variantHint}>Select an available option to continue.</AppText> : null}
+              </View>
+            ) : (
+              <AppText muted style={styles.variantHint}>No selectable options found. This product will be tracked at page level.</AppText>
+            )}
             <AppText weight="semibold" style={styles.formLabel}>
               Check preference
             </AppText>
@@ -703,7 +780,7 @@ function AddScreen({ initialUrl, navigate }: { initialUrl?: string; navigate: (r
               label="Confirm Tracking"
               onPress={saveProduct}
               loading={saving}
-              disabled={alertMode === 'target_price' && !targetPriceMinor}
+              disabled={(alertMode === 'target_price' && !targetPriceMinor) || (variants.length > 0 && !selectedVariant)}
             />
           </View>
         ) : null}
@@ -712,7 +789,17 @@ function AddScreen({ initialUrl, navigate }: { initialUrl?: string; navigate: (r
   );
 }
 
-function ProductPreview({ product, storeName, siteKey }: { product: ParsedProduct; storeName: string; siteKey: string }) {
+function ProductPreview({
+  product,
+  storeName,
+  siteKey,
+  awaitingVariantSelection = false
+}: {
+  product: ParsedProduct;
+  storeName: string;
+  siteKey: string;
+  awaitingVariantSelection?: boolean;
+}) {
   const { width, fontScale } = useWindowDimensions();
   const compact = isCompactLayout(width, fontScale);
 
@@ -733,7 +820,7 @@ function ProductPreview({ product, storeName, siteKey }: { product: ParsedProduc
           Current price
         </AppText>
         <AppText weight="bold" style={styles.previewPrice}>
-          {formatPrice(product.priceMinor, product.currency)}
+          {awaitingVariantSelection ? 'Choose an option' : formatPrice(product.priceMinor, product.currency)}
         </AppText>
       </View>
     </View>
@@ -809,6 +896,7 @@ function DetailScreen({ productId, navigate }: { productId: number; navigate: (r
                 </Pressable>
               </View>
             </View>
+            {product.variant ? <AppText muted style={styles.caption}>Tracking {product.variant.label}</AppText> : null}
             <AppText muted style={styles.caption}>
               Current price
             </AppText>
@@ -820,7 +908,7 @@ function DetailScreen({ productId, navigate }: { productId: number; navigate: (r
             ) : null}
             <StatusPill
               status={product.lastErrorCode ?? snapshots[0]?.status ?? 'ok'}
-              label={`Checked ${formatRelativeTime(product.lastCheckedAt)}`}
+              label={product.lastErrorCode === 'variant_not_found' ? 'Variant unavailable' : `Checked ${formatRelativeTime(product.lastCheckedAt)}`}
               availability={product.lastAvailability}
             />
           </View>
@@ -1776,6 +1864,14 @@ const styles = StyleSheet.create({
   previewSection: {
     gap: 16
   },
+  variantSection: {
+    gap: 4
+  },
+  variantHint: {
+    fontSize: 13,
+    lineHeight: 19,
+    marginBottom: 2
+  },
   formLabel: {
     fontSize: 17
   },
@@ -1799,14 +1895,31 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.text
   },
-  inlineStatus: {
+  detectedSource: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    padding: 12,
+    borderRadius: radius.md,
+    backgroundColor: colors.greenSoft
+  },
+  detectedSourceIcon: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5
+    gap: 4,
+    paddingTop: 1
+  },
+  detectedSourceCopy: {
+    flex: 1,
+    gap: 2
   },
   detectedText: {
     color: colors.green,
     fontSize: 15
+  },
+  detectedHint: {
+    fontSize: 13,
+    lineHeight: 18
   },
   chips: {
     flexDirection: 'row',
@@ -1824,15 +1937,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 14
   },
-  chipSelected: {
-    borderColor: colors.primary,
-    backgroundColor: '#F8FBFF'
-  },
   chipText: {
     fontSize: 15
-  },
-  chipTextSelected: {
-    color: colors.primary
   },
   errorBox: {
     flexDirection: 'row',

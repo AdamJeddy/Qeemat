@@ -65,6 +65,7 @@ export function ProductCard({ product, onPress, onRemove }: ProductCardProps) {
           <SiteIcon siteKey={product.siteKey} size={14} />
           <AppText style={styles.badgeText}>{site.shortName}</AppText>
         </View>
+        {product.variant ? <AppText muted style={styles.variantLabel}>{product.variant.label}</AppText> : null}
         <View style={styles.priceRow}>
           <AppText weight="bold" style={[styles.price, isOos && styles.priceMuted]}>
             {formatPrice(product.currentPriceMinor, product.currency)}
@@ -106,7 +107,7 @@ export function ProductCard({ product, onPress, onRemove }: ProductCardProps) {
                 <CircleAlert size={12} color={colors.red} />
               )}
               <AppText weight="medium" style={status === 'network_error' ? styles.errorTextAmber : styles.errorTextRed}>
-                {status === 'network_error' ? 'Network error' : status === 'blocked' ? 'Blocked' : 'Failed'}
+                {status === 'network_error' ? 'Network error' : status === 'blocked' ? 'Blocked' : status === 'variant_not_found' ? 'Variant unavailable' : 'Failed'}
               </AppText>
             </View>
           ) : null}
@@ -189,6 +190,10 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     fontSize: 12
+  },
+  variantLabel: {
+    fontSize: 12,
+    marginTop: 6
   },
   priceRow: {
     marginTop: 9,
