@@ -66,7 +66,7 @@ export async function maybeNotifyForCheck(
 
   // OOS transition notification — fires regardless of price changes
   if (previousAvailability !== 'out_of_stock' && parsed.availability === 'out_of_stock') {
-    const productLabel = product.title || parsed.title;
+    const productLabel = formatProductLabel(product, parsed);
     await notificationModule.notifyPriceAlert(
       'Out of stock',
       `${productLabel} is currently out of stock.`,
@@ -96,7 +96,7 @@ function buildNotification(
   const currency = parsed.currency ?? product.currency;
   const currentPrice = formatPrice(newPriceMinor, currency);
   const previousPrice = previousPriceMinor !== undefined ? formatPrice(previousPriceMinor, currency) : undefined;
-  const productLabel = product.title || parsed.title;
+  const productLabel = formatProductLabel(product, parsed);
 
   if (product.alertMode === 'target_price') {
     if (product.targetPriceMinor === undefined || newPriceMinor > product.targetPriceMinor) {
@@ -121,4 +121,9 @@ function buildNotification(
     title: newPriceMinor < previousPriceMinor ? 'Price dropped' : 'Price changed',
     message: previousPrice ? `${productLabel} changed from ${previousPrice} to ${currentPrice}.` : `${productLabel} is now ${currentPrice}.`
   };
+}
+
+function formatProductLabel(product: TrackedProduct, parsed: ParsedProduct): string {
+  const title = product.title || parsed.title;
+  return product.variant ? `${title} (${product.variant.label})` : title;
 }

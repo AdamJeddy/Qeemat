@@ -1,6 +1,7 @@
 import { fetchAndParseProduct, parseProductHtml } from '../parser';
 import { parsePriceToMinor } from '../price';
 import { cleanUrl, detectSharedUrl, detectSupportedSite } from '../sites';
+import { SiteKey } from '../types';
 
 const noonUrl =
   'https://www.noon.com/uae-en/galaxy-s25-ultra-ai-dual-sim-titanium-grey-12gb-ram-256gb-5g-middle-east-version/N70140492V/p/';
@@ -564,6 +565,182 @@ describe('parseProductHtml', () => {
     );
   });
 
+  it('uses the selected AYM variation instead of another available size', () => {
+    const html = `
+      <html><body>
+        <h1 class="product_title">Helmet</h1>
+        <form data-product_variations="[{&quot;variation_id&quot;:11,&quot;attributes&quot;:{&quot;attribute_pa_size&quot;:&quot;M&quot;},&quot;display_price&quot;:500,&quot;is_in_stock&quot;:true,&quot;sku&quot;:&quot;HELMET-M&quot;},{&quot;variation_id&quot;:12,&quot;attributes&quot;:{&quot;attribute_pa_size&quot;:&quot;L&quot;},&quot;display_price&quot;:550,&quot;is_in_stock&quot;:true,&quot;sku&quot;:&quot;HELMET-L&quot;}]"></form>
+      </body></html>
+    `;
+
+    const parsed = parseProductHtml('ay_accessories', aymUrl, html, {
+      id: '12',
+      label: 'Size: L',
+      attributes: [{ name: 'Size', value: 'L' }]
+    });
+
+    expect(parsed).toEqual(
+      expect.objectContaining({
+        priceMinor: 55000,
+        sku: 'HELMET-L',
+        availability: 'in_stock',
+        selectedVariant: { id: '12', label: 'Size: L', attributes: [{ name: 'Size', value: 'L' }] }
+      })
+    );
+  });
+
+  it('resolves an unavailable Ounass size as out of stock', () => {
+    const html = `
+      <html><body><script>window.__OUNASS_DATA__={"pdp":{"name":"Dress","priceInAED":300,"outOfStock":false,"sizes":[{"sku":"DRESS-S","sizeCode":"S","priceInAED":300,"stock":2,"disabled":false},{"sku":"DRESS-M","sizeCode":"M","priceInAED":320,"stock":0,"disabled":true}]}};</script></body></html>
+    `;
+
+    const parsed = parseProductHtml('ounass', ounassUrl, html, {
+      id: 'DRESS-M',
+      label: 'Size: M',
+      attributes: [{ name: 'Size', value: 'M' }]
+    });
+
+    expect(parsed).toEqual(
+      expect.objectContaining({
+        priceMinor: undefined,
+        availability: 'out_of_stock',
+        selectedVariant: { id: 'DRESS-M', label: 'Size: M', attributes: [{ name: 'Size', value: 'M' }] }
+      })
+    );
+  });
+
+  it('resolves the selected Level Shoes size instead of the page price', () => {
+    const html = `
+      <script id="__NEXT_DATA__" type="application/json">{"props":{"pageProps":{"productDetails":{"name":"Sneaker","rawSalePrice":470,"sku":"PARENT","sizeOptions":[{"sku":"SHOE-42","label":"EU 42","rawSalePrice":470,"isInStock":true},{"sku":"SHOE-43","label":"EU 43","rawSalePrice":490,"isInStock":true}]}}}}</script>
+    `;
+
+    const parsed = parseProductHtml('level_shoes', 'https://www.levelshoes.com/example.html', html, {
+      id: 'SHOE-43',
+      label: 'Size: EU 43',
+      attributes: [{ name: 'Size', value: 'EU 43' }]
+    });
+
+    expect(parsed).toEqual(
+      expect.objectContaining({
+        priceMinor: 49000,
+        sku: 'SHOE-43',
+        selectedVariant: { id: 'SHOE-43', label: 'Size: EU 43', attributes: [{ name: 'Size', value: 'EU 43' }] }
+      })
+    );
+  });
+
+  it('offers the available sizes from the reported Level Shoes product payload', () => {
+    const html = `
+      <script id="__NEXT_DATA__" type="application/json">{"props":{"pageProps":{"productDetails":{"id":1166245,"name":"GEL-KINETIC FLUENT sneakers","rawSalePrice":810,"sku":"0D7VYB"},"__APOLLO_STATE__":{"ProductDetails:1166245":{"detail":{"sizeOptions":[{"sku":"095927913494","label":"37","rawSalePrice":810,"isInStock":false},{"sku":"095927913502","label":"42","rawSalePrice":810,"isInStock":true},{"sku":"095927914522","label":"48","rawSalePrice":810,"isInStock":true}]}}}}}}</script>
+    `;
+
+    const parsed = parseProductHtml(
+      'level_shoes',
+      'https://www.levelshoes.com/asics-gel-kinetic-fluent-sneakers-beige-fabric-low-tops-0d7vyb.html',
+      html
+    );
+
+    expect(parsed?.variants).toEqual([
+      expect.objectContaining({ id: '095927913494', label: 'Size: 37', priceMinor: 81000, availability: 'out_of_stock' }),
+      expect.objectContaining({ id: '095927913502', label: 'Size: 42', priceMinor: 81000, availability: 'in_stock' }),
+      expect.objectContaining({ id: '095927914522', label: 'Size: 48', priceMinor: 81000, availability: 'in_stock' })
+    ]);
+  });
+
+  it('offers Nike sizes only when the original page provides a variant ID, price, and stock state', () => {
+    const html = `
+      <script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"Nike Club Pants","sku":"NKIB8369-010","offers":{"@type":"Offer","price":"149","priceCurrency":"AED","availability":"https://schema.org/InStock"}}</script>
+      <button class="color-attribute" aria-label="Select Color Black" data-attr-value="101" data-attr-display-value="Black" data-pid="NKIB8369-010"></button>
+      <button class="size-attribute" aria-label="Select Size XS" data-attr-value="NIKE_APPAREL_MENS_XS" data-attr-display-value="XS" data-pid="197863943381" disabled></button>
+      <button class="size-attribute" aria-label="Select Size M" data-attr-value="NIKE_APPAREL_MENS_M" data-attr-display-value="M" data-pid="197863920580"></button>
+      <button class="size-attribute" aria-label="Select Size L" data-attr-value="NIKE_APPAREL_MENS_L" data-attr-display-value="L" data-pid="197863918495"></button>
+    `;
+
+    const parsed = parseProductHtml('nike_uae', 'https://www.nike.ae/en/example/NKIB8369-010.html', html);
+
+    expect(parsed?.variants).toEqual([
+      expect.objectContaining({ id: '197863943381', label: 'Size: XS', priceMinor: 14900, availability: 'out_of_stock' }),
+      expect.objectContaining({ id: '197863920580', label: 'Size: M', priceMinor: 14900, availability: 'in_stock' }),
+      expect.objectContaining({ id: '197863918495', label: 'Size: L', priceMinor: 14900, availability: 'in_stock' })
+    ]);
+  });
+
+  it('uses the saved Nike source variant ID instead of another available size', () => {
+    const html = `
+      <script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"Nike Club Pants","offers":{"@type":"Offer","price":"149","priceCurrency":"AED","availability":"https://schema.org/InStock"}}</script>
+      <button class="size-attribute" aria-label="Select Size M" data-attr-value="NIKE_APPAREL_MENS_M" data-attr-display-value="M" data-pid="197863920580"></button>
+      <button class="size-attribute" aria-label="Select Size L" data-attr-value="NIKE_APPAREL_MENS_L" data-attr-display-value="L" data-pid="197863918495"></button>
+    `;
+
+    const parsed = parseProductHtml('nike_uae', 'https://www.nike.ae/en/example/NKIB8369-010.html', html, {
+      id: '197863918495',
+      label: 'Size: L',
+      attributes: [{ name: 'Size', value: 'L' }]
+    });
+
+    expect(parsed).toEqual(
+      expect.objectContaining({
+        sku: '197863918495',
+        priceMinor: 14900,
+        selectedVariant: { id: '197863918495', label: 'Size: L', attributes: [{ name: 'Size', value: 'L' }] }
+      })
+    );
+  });
+
+  it('offers Sun & Sand Sports sizes from its static source option values', () => {
+    const html = `
+      <script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"Swimming Shorts","sku":"SD8-00236417360","offers":{"@type":"Offer","price":"129","priceCurrency":"AED","availability":"https://schema.org/InStock"}}</script>
+      <button class="size-attribute" aria-label="Select Size S" data-attr-value="SPDO_APPAREL_MENS_S" data-attr-display-value="S"></button>
+      <button class="size-attribute" aria-label="Select Size M" data-attr-value="SPDO_APPAREL_MENS_M" data-attr-display-value="M"></button>
+      <button class="size-attribute m-disabled" aria-label="Select Size L" data-attr-value="SPDO_APPAREL_MENS_L" data-attr-display-value="L" disabled></button>
+    `;
+
+    const parsed = parseProductHtml('sun_sand_sports', 'https://en-ae.sssports.com/example/SD8-00236417360.html', html);
+
+    expect(parsed?.variants).toEqual([
+      expect.objectContaining({ id: 'SPDO_APPAREL_MENS_S', label: 'Size: S', priceMinor: 12900, availability: 'in_stock' }),
+      expect.objectContaining({ id: 'SPDO_APPAREL_MENS_M', label: 'Size: M', priceMinor: 12900, availability: 'in_stock' }),
+      expect.objectContaining({ id: 'SPDO_APPAREL_MENS_L', label: 'Size: L', priceMinor: 12900, availability: 'out_of_stock' })
+    ]);
+  });
+
+  it('offers Adidas sizes from static option IDs and marks disabled sizes out of stock', () => {
+    const html = `
+      <script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"Adizero EVO SL Shoes","sku":"KI6901","offers":{"@type":"Offer","price":"699","priceCurrency":"AED","availability":"https://schema.org/InStock"}}</script>
+      <div class="size-radio disabled"><input type="hidden" class="radio-input_attID" value="KI6901_580"><label><input type="radio" disabled><span class="size-value">39 1/3</span></label></div>
+      <div class="size-radio"><input type="hidden" class="radio-input_attID" value="KI6901_590"><label><input type="radio"><span class="size-value">40</span></label></div>
+      <div class="size-radio"><input type="hidden" class="radio-input_attID" value="KI6901_600"><label><input type="radio"><span class="size-value">40 2/3</span></label></div>
+    `;
+
+    const parsed = parseProductHtml('adidas', 'https://www.adidas.ae/en/adizero-evo-sl-shoes/KI6901.html', html);
+
+    expect(parsed?.variants).toEqual([
+      expect.objectContaining({ id: 'KI6901_580', label: 'Size: 39 1/3', priceMinor: 69900, availability: 'out_of_stock' }),
+      expect.objectContaining({ id: 'KI6901_590', label: 'Size: 40', priceMinor: 69900, availability: 'in_stock' }),
+      expect.objectContaining({ id: 'KI6901_600', label: 'Size: 40 2/3', priceMinor: 69900, availability: 'in_stock' })
+    ]);
+  });
+
+  it('keeps Noon page-level when the initial response has labels but no stable source option ID', () => {
+    const html = `
+      <script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"Anzarun Lite","sku":"N44137847V","offers":{"@type":"Offer","price":"97","priceCurrency":"AED","availability":"https://schema.org/InStock"}}</script>
+      <a class="optionButton disabled oos">38 EU</a><a class="optionButton active">36 EU</a>
+    `;
+
+    expect(parseProductHtml('noon', noonUrl, html)?.variants).toBeUndefined();
+  });
+
+  it('keeps sources without complete static option records on page-level tracking', () => {
+    const html = `
+      <script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"Example product","sku":"SKU-1","offers":{"@type":"Offer","price":"100","priceCurrency":"AED","availability":"https://schema.org/InStock"}}</script>
+    `;
+    const pageLevelSources: SiteKey[] = ['noon', 'nike_uae', 'sun_sand_sports', 'amazon_ae', 'adidas', 'brands_for_less'];
+
+    for (const siteKey of pageLevelSources) {
+      expect(parseProductHtml(siteKey, 'https://example.com/product', html)?.variants).toBeUndefined();
+    }
+  });
+
   it('parses Adidas.ae JSON-LD product data', () => {
     const html = `
       <html>
@@ -847,6 +1024,32 @@ describe('fetchAndParseProduct', () => {
     jest.restoreAllMocks();
   });
 
+  it('returns selectable sizes for the reported Level Shoes URL', async () => {
+    globalThis.fetch = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      text: async () => `
+        <script id="__NEXT_DATA__" type="application/json">{"props":{"pageProps":{"productDetails":{"id":1166245,"name":"GEL-KINETIC FLUENT sneakers","rawSalePrice":810,"sku":"0D7VYB"},"__APOLLO_STATE__":{"ProductDetails:1166245":{"detail":{"sizeOptions":[{"sku":"095927913494","label":"37","rawSalePrice":810,"isInStock":false},{"sku":"095927913502","label":"42","rawSalePrice":810,"isInStock":true},{"sku":"095927914522","label":"48","rawSalePrice":810,"isInStock":true}]}}}}}}</script>
+      `
+    })) as unknown as typeof fetch;
+
+    const result = await fetchAndParseProduct(
+      'https://www.levelshoes.com/asics-gel-kinetic-fluent-sneakers-beige-fabric-low-tops-0d7vyb.html'
+    );
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        ok: true,
+        product: expect.objectContaining({
+          variants: expect.arrayContaining([
+            expect.objectContaining({ id: '095927913502', label: 'Size: 42', availability: 'in_stock' }),
+            expect.objectContaining({ id: '095927914522', label: 'Size: 48', availability: 'in_stock' })
+          ])
+        })
+      })
+    );
+  });
+
   it('reports browser challenge pages as blocked even when the response is 200', async () => {
     globalThis.fetch = jest.fn(async () => ({
       ok: true,
@@ -892,6 +1095,31 @@ describe('fetchAndParseProduct', () => {
       ok: false,
       code: 'blocked',
       message: 'The website blocked this check.'
+    });
+  });
+
+  it('reports when a saved variant no longer appears in the fetched page', async () => {
+    globalThis.fetch = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      text: async () => `
+        <html><body>
+          <h1 class="product_title">Helmet</h1>
+          <form data-product_variations="[{&quot;variation_id&quot;:11,&quot;attributes&quot;:{&quot;attribute_pa_size&quot;:&quot;M&quot;},&quot;display_price&quot;:500,&quot;is_in_stock&quot;:true,&quot;sku&quot;:&quot;HELMET-M&quot;}]"></form>
+        </body></html>
+      `
+    })) as unknown as typeof fetch;
+
+    const result = await fetchAndParseProduct(aymUrl, {
+      id: '12',
+      label: 'Size: L',
+      attributes: [{ name: 'Size', value: 'L' }]
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      code: 'variant_not_found',
+      message: 'The selected product option is no longer available on this page.'
     });
   });
 });

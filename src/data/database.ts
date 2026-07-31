@@ -107,6 +107,7 @@ export async function createTrackedProduct(draft: ProductDraft): Promise<number>
     lastCheckedAt: now,
     lastSuccessAt: now,
     lastAvailability: parsed.availability,
+    variant: draft.variant,
     createdAt: now,
     updatedAt: now
   };

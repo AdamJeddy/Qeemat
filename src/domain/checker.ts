@@ -27,7 +27,7 @@ export async function checkProductNow(product: TrackedProduct, source: SnapshotS
     return;
   }
 
-  const result = await fetchAndParseProduct(product.canonicalUrl || product.url);
+  const result = await fetchAndParseProduct(product.canonicalUrl || product.url, product.variant);
 
   if (!result.ok) {
     await recordFailedCheck(product, result.code, source, result.message);

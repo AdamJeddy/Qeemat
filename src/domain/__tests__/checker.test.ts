@@ -40,4 +40,25 @@ describe('checkProductNow', () => {
 
     expect(fetchAndParseProduct).not.toHaveBeenCalled();
   });
+
+  it('checks the exact saved variant instead of the page-level product', async () => {
+    const variantProduct: TrackedProduct = {
+      ...outOfStockProduct,
+      lastAvailability: 'in_stock',
+      variant: {
+        id: 'SHOE-43',
+        label: 'Size: EU 43',
+        attributes: [{ name: 'Size', value: 'EU 43' }]
+      }
+    };
+    (fetchAndParseProduct as jest.Mock).mockResolvedValue({
+      ok: false,
+      code: 'variant_not_found',
+      message: 'The selected product option is no longer available on this page.'
+    });
+
+    await checkProductNow(variantProduct, 'manual_single');
+
+    expect(fetchAndParseProduct).toHaveBeenCalledWith(variantProduct.canonicalUrl, variantProduct.variant);
+  });
 });
