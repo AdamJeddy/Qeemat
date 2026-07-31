@@ -22,27 +22,23 @@ export function OptionGroup<T extends string>({ value, options, onChange }: Opti
 
   return (
     <View style={[styles.container, compact && styles.containerCompact]}>
-      {options.map((option, index) => {
+      {options.map((option) => {
         const selected = value === option.value;
-        const isFirst = index === 0;
-        const isLast = index === options.length - 1;
 
         return (
           <Pressable
             key={option.value}
+            accessibilityRole="radio"
+            accessibilityLabel={option.description ? `${option.label}. ${option.description}` : option.label}
+            accessibilityState={{ selected }}
             onPress={() => onChange(option.value)}
-            style={[styles.option, compact && styles.optionCompact, !isLast && (compact ? styles.optionDividerCompact : styles.optionDivider)]}
+            style={({ pressed }) => [
+              styles.option,
+              compact && styles.optionCompact,
+              selected && styles.optionSelected,
+              pressed && styles.optionPressed
+            ]}
           >
-            {selected ? (
-              <View
-                pointerEvents="none"
-                style={[
-                  styles.selected,
-                  isFirst && (compact ? styles.selectedFirstCompact : styles.selectedFirst),
-                  isLast && (compact ? styles.selectedLastCompact : styles.selectedLast)
-                ]}
-              />
-            ) : null}
             <AppText weight="bold" style={[styles.label, selected && styles.selectedLabel]}>
               {option.label}
             </AppText>
@@ -63,75 +59,46 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: radius.md,
-    backgroundColor: colors.surface,
-    overflow: 'hidden',
-    minHeight: 86
+    borderRadius: radius.lg,
+    backgroundColor: colors.surfaceMuted,
+    padding: 4,
+    gap: 4
   },
   containerCompact: {
     flexDirection: 'column'
   },
   option: {
     flex: 1,
-    minHeight: 86,
-    paddingHorizontal: 6,
+    minHeight: 76,
+    borderRadius: radius.sm,
+    paddingHorizontal: 8,
     justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative'
-  },
-  optionDivider: {
-    borderRightWidth: StyleSheet.hairlineWidth,
-    borderRightColor: colors.border
+    alignItems: 'center'
   },
   optionCompact: {
-    minHeight: 64,
+    minHeight: 60,
     paddingVertical: 10
   },
-  optionDividerCompact: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border
-  },
-  selected: {
-    position: 'absolute',
-    top: -1,
-    right: -1,
-    bottom: -1,
-    left: -1,
-    backgroundColor: '#F7FBFF',
+  optionSelected: {
+    backgroundColor: colors.blueSoft,
     borderColor: colors.primary,
-    borderWidth: 1.5
+    borderWidth: 1
   },
-  selectedFirst: {
-    borderTopLeftRadius: radius.md,
-    borderBottomLeftRadius: radius.md
-  },
-  selectedFirstCompact: {
-    borderTopLeftRadius: radius.md,
-    borderTopRightRadius: radius.md
-  },
-  selectedLast: {
-    borderTopRightRadius: radius.md,
-    borderBottomRightRadius: radius.md
-  },
-  selectedLastCompact: {
-    borderBottomLeftRadius: radius.md,
-    borderBottomRightRadius: radius.md
+  optionPressed: {
+    opacity: 0.82
   },
   label: {
-    fontSize: 18,
-    lineHeight: 24,
-    textAlign: 'center',
-    color: colors.text,
-    zIndex: 1
+    fontSize: 17,
+    lineHeight: 23,
+    textAlign: 'center'
   },
   selectedLabel: {
     color: colors.primary
   },
   description: {
     marginTop: 4,
-    fontSize: 15,
-    lineHeight: 20,
-    textAlign: 'center',
-    zIndex: 1
+    fontSize: 14,
+    lineHeight: 19,
+    textAlign: 'center'
   }
 });
