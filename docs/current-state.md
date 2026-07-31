@@ -37,7 +37,7 @@ The site registry is `src/domain/sites.ts`. It controls hostnames, enabled statu
 
 ### Add flow and product detail
 
-- The add flow detects supported stores, shows a parsed preview before saving, and collects check preference, alert mode, and optional target price. Android browsers can share a product URL directly to Qeemat, which opens this flow with the shared URL prefilled.
+- The add flow detects supported stores, replaces the store list with a single detected-store status for valid links, and brings the parsed result into view before saving. It then collects check preference, alert mode, and an optional target price. When a page exposes reliable variant data, the user must select an in-stock source option such as size before saving; that exact option is shown on cards and details and is used for later checks. Android browsers can share a product URL directly to Qeemat, which opens this flow with the shared URL prefilled.
 - AYM excludes the daily option in the picker because its effective minimum interval is 72 hours. Existing daily AYM products are clamped in tracking settings.
 - Product detail shows current price, chart, stats, snapshot history, `Check now`, `Open link`, and `Copy product link` actions.
 - Snapshot sources are presented as `Check now`, `Recheck all`, or `Background`.
@@ -61,6 +61,7 @@ The site registry is `src/domain/sites.ts`. It controls hostnames, enabled statu
 - Confirmed out-of-stock products can parse successfully without a price. Storage preserves the last known product price and the UI shows an OOS state.
 - Confirmed Amazon OOS pages deliberately leave price unset: recommendation carousels can contain prices belonging to other products.
 - Amazon prices use the broadly available Buy Box price: sale prices are tracked, while Prime-exclusive discounts and alternate-seller prices are ignored. If that base Buy Box price is not unambiguous, the check reports that no current price was found instead of guessing.
+- AYM, Ounass, Level Shoes, Nike UAE, Sun & Sand Sports, and Adidas UAE expose reliable initial-page variant data when the product markup includes source IDs, labels, stock state, and price. Noon, Amazon, and Brands For Less retain page-level tracking unless a future initial response meets that same standard; Qeemat never makes extra requests or guesses a neighbouring variant.
 - Challenge pages return `blocked`; pages without required product data return parser or price errors as appropriate.
 
 Parser code is in `src/domain/parser.ts`; types are in `src/domain/types.ts`; tests are in `src/domain/__tests__/`.
