@@ -125,6 +125,15 @@ export const SUPPORTED_SITES: SupportedSite[] = [
     iconAsset: require('../../assets/site-icons/puma_uae.png')
   },
   {
+    key: 'decathlon_uae',
+    displayName: 'Decathlon UAE',
+    shortName: 'Decathlon',
+    hostnames: ['decathlon.ae', 'www.decathlon.ae'],
+    status: 'supported',
+    notes: 'Shopify product pages expose initial-page ProductJson data with source-defined options, stock state, and AED prices.',
+    iconAsset: require('../../assets/site-icons/decathlon_uae.png')
+  },
+  {
     key: 'brands_for_less',
     displayName: 'Brands For Less UAE',
     shortName: 'BFL',

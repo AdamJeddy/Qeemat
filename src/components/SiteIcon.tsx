@@ -20,6 +20,7 @@ const SITE_COLORS: Record<SiteKey, string> = {
   amazon_ae: '#FF9900',
   adidas: '#000000',
   puma_uae: '#000000',
+  decathlon_uae: '#0082C3',
   brands_for_less: '#E31E24',
 };
 
