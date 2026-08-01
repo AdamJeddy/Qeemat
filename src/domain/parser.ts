@@ -1434,17 +1434,18 @@ function matchAmazonPriceText(html: string): string | undefined {
   }
 
   const buyBoxHtml = extractAmazonBuyBoxHtml(html);
-  if (!buyBoxHtml || /prime(?:exclusive|[-\s]exclusive)/i.test(buyBoxHtml)) {
+  if (!buyBoxHtml) {
     return undefined;
   }
+  const standardBuyBoxHtml = removeAmazonPrimeExclusiveMarkup(buyBoxHtml);
 
   const priceToPayOffscreen = firstAmazonPriceText(
     matchString(
-      buyBoxHtml,
+      standardBuyBoxHtml,
       /class=["'][^"']*priceToPay[^"']*["'][^>]*>\s*<span class=["']a-offscreen["']>\s*([^<]*\d[^<]*)\s*<\/span>/i
     ),
     matchString(
-      buyBoxHtml,
+      standardBuyBoxHtml,
       /class=["'][^"']*apex-pricetopay-value[^"']*["'][\s\S]{0,200}?<span class=["']a-offscreen["']>\s*([^<]*\d[^<]*)\s*<\/span>/i
     )
   );
@@ -1452,7 +1453,7 @@ function matchAmazonPriceText(html: string): string | undefined {
     return priceToPayOffscreen;
   }
 
-  const apexPrice = buyBoxHtml.match(
+  const apexPrice = standardBuyBoxHtml.match(
     /priceToPay[^>]*>[\s\S]{0,400}?<span class=["']a-price-symbol["']>\s*([^<]*)\s*<\/span>\s*<span class=["']a-price-whole["']>\s*([^<]+?)\s*(?:<span class=["']a-price-decimal["'][^>]*>\s*.\s*<\/span>)?\s*<\/span>\s*<span class=["']a-price-fraction["']>\s*([^<]+)\s*<\/span>/i
   );
   if (apexPrice) {
@@ -1461,6 +1462,51 @@ function matchAmazonPriceText(html: string): string | undefined {
     const fraction = cleanText(apexPrice[3] ?? '');
     if (whole && fraction) {
       return `${symbol} ${whole}.${fraction}`;
+    }
+  }
+
+  return undefined;
+}
+
+function removeAmazonPrimeExclusiveMarkup(html: string): string {
+  const openingTags = /<([a-z][\w:-]*)\b[^>]*>/gi;
+  let result = '';
+  let cursor = 0;
+  let openingTag: RegExpExecArray | null;
+
+  while ((openingTag = openingTags.exec(html))) {
+    if (!/prime[^>]{0,100}exclusive|exclusive[^>]{0,100}prime/i.test(openingTag[0])) {
+      continue;
+    }
+
+    const end = findHtmlElementEnd(html, openingTag);
+    if (end === undefined) {
+      continue;
+    }
+
+    result += html.slice(cursor, openingTag.index);
+    cursor = end;
+    openingTags.lastIndex = end;
+  }
+
+  return result + html.slice(cursor);
+}
+
+function findHtmlElementEnd(html: string, openingTag: RegExpExecArray): number | undefined {
+  const tagName = openingTag[1];
+  if (!tagName || openingTag.index === undefined) {
+    return undefined;
+  }
+
+  const tags = new RegExp(`<\\/?${tagName}\\b[^>]*>`, 'gi');
+  tags.lastIndex = openingTag.index;
+  let depth = 0;
+  let tag: RegExpExecArray | null;
+
+  while ((tag = tags.exec(html))) {
+    depth += tag[0].startsWith('</') ? -1 : 1;
+    if (depth === 0) {
+      return tags.lastIndex;
     }
   }
 

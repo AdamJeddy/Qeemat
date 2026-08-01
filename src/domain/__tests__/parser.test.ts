@@ -149,6 +149,29 @@ describe('parseProductHtml', () => {
     );
   });
 
+  it('uses a base priceToPay price when a Prime-exclusive price is in the same Buy Box', () => {
+    const html = `
+      <html>
+        <head><link rel="canonical" href="https://www.amazon.ae/dp/B0PRIME456" /></head>
+        <body>
+          <span id="productTitle">Prime offer alongside base price</span>
+          <div id="corePriceDisplay_desktop_feature_div">
+            <span class="a-price priceToPay"><span class="a-offscreen">AED 199.00</span></span>
+            <div class="primeExclusivePrice">
+              <span class="a-price priceToPay"><span class="a-offscreen">AED 149.00</span></span>
+              <span>Prime Exclusive Deal</span>
+            </div>
+          </div>
+          <div id="availability"><span class="primary-availability-message">In Stock</span></div>
+        </body>
+      </html>
+    `;
+
+    expect(parseProductHtml('amazon_ae', 'https://www.amazon.ae/dp/B0PRIME456', html)).toEqual(
+      expect.objectContaining({ priceMinor: 19900, rawPriceText: 'AED 199.00' })
+    );
+  });
+
   it('uses the current Buy Box sale price instead of the crossed-out list price', () => {
     const html = `
       <html>
