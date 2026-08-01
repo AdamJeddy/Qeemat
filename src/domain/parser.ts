@@ -914,7 +914,7 @@ function extractAymVariants(html: string): ProductVariant[] {
       const attributes = extractVariantAttributes(variation.attributes);
       const priceMinor = parsePriceToMinor(asPriceValue(variation.display_price));
       const availability = parseAymAvailability(variation, '');
-      if (!id || attributes.length === 0 || priceMinor === undefined || availability === 'unknown') {
+      if (!id || attributes.length === 0 || availability === 'unknown') {
         return [];
       }
 
@@ -955,16 +955,12 @@ function extractOunassVariants(html: string): ProductVariant[] {
       const id = cleanSku(asString(size.sku));
       const value = asString(size.sizeCode) ?? asString(size.label) ?? asString(size.name);
       const priceMinor = parsePriceToMinor(asPriceValue(size.priceInAED) ?? asPriceValue(size.price));
-      if (!id || !value || priceMinor === undefined) {
-        return [];
-      }
-
       const stock = typeof size.stock === 'number' ? size.stock : undefined;
       const availability = size.disabled === true || stock === 0 ? 'out_of_stock' : stock && stock > 0 ? 'in_stock' : 'unknown';
-      const attributes = [{ name: 'Size', value: cleanText(value) }];
-      if (availability === 'unknown') {
+      if (!id || !value || availability === 'unknown') {
         return [];
       }
+      const attributes = [{ name: 'Size', value: cleanText(value) }];
       return [{
         id,
         label: formatVariantLabel(attributes),

@@ -612,9 +612,52 @@ describe('parseProductHtml', () => {
     );
   });
 
+  it('resolves a no-price out-of-stock AYM variation', () => {
+    const html = `
+      <html><body>
+        <h1 class="product_title">Helmet</h1>
+        <form data-product_variations="[{&quot;variation_id&quot;:13,&quot;attributes&quot;:{&quot;attribute_pa_size&quot;:&quot;L&quot;},&quot;is_in_stock&quot;:false,&quot;sku&quot;:&quot;HELMET-L&quot;}]"></form>
+      </body></html>
+    `;
+
+    const parsed = parseProductHtml('ay_accessories', aymUrl, html, {
+      id: '13',
+      label: 'Size: L',
+      attributes: [{ name: 'Size', value: 'L' }]
+    });
+
+    expect(parsed).toEqual(
+      expect.objectContaining({
+        priceMinor: undefined,
+        availability: 'out_of_stock',
+        selectedVariant: { id: '13', label: 'Size: L', attributes: [{ name: 'Size', value: 'L' }] }
+      })
+    );
+  });
+
   it('resolves an unavailable Ounass size as out of stock', () => {
     const html = `
       <html><body><script>window.__OUNASS_DATA__={"pdp":{"name":"Dress","priceInAED":300,"outOfStock":false,"sizes":[{"sku":"DRESS-S","sizeCode":"S","priceInAED":300,"stock":2,"disabled":false},{"sku":"DRESS-M","sizeCode":"M","priceInAED":320,"stock":0,"disabled":true}]}};</script></body></html>
+    `;
+
+    const parsed = parseProductHtml('ounass', ounassUrl, html, {
+      id: 'DRESS-M',
+      label: 'Size: M',
+      attributes: [{ name: 'Size', value: 'M' }]
+    });
+
+    expect(parsed).toEqual(
+      expect.objectContaining({
+        priceMinor: undefined,
+        availability: 'out_of_stock',
+        selectedVariant: { id: 'DRESS-M', label: 'Size: M', attributes: [{ name: 'Size', value: 'M' }] }
+      })
+    );
+  });
+
+  it('resolves a no-price out-of-stock Ounass size', () => {
+    const html = `
+      <html><body><script>window.__OUNASS_DATA__={"pdp":{"name":"Dress","priceInAED":300,"outOfStock":false,"sizes":[{"sku":"DRESS-M","sizeCode":"M","stock":0,"disabled":true}]}};</script></body></html>
     `;
 
     const parsed = parseProductHtml('ounass', ounassUrl, html, {
