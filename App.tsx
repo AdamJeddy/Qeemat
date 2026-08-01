@@ -8,6 +8,7 @@ import {
   Linking,
   NativeEventEmitter,
   NativeModules,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -78,6 +79,7 @@ import { colors, radius, shadow } from './src/theme/theme';
 import { isCompactLayout } from './src/theme/layout';
 import { filterWatchlistProducts, getWatchlistSites, WatchlistStoreFilter } from './src/domain/watchlist';
 import { resolveSelectedVariant, toVariantSelection, updateSelectedVariantAttributes, VariantAttributes } from './src/domain/variants';
+import { getPlatformCapabilities } from './src/platform/capabilities';
 
 type TabKey = 'watchlist' | 'activity' | 'settings';
 type Route =
@@ -201,16 +203,31 @@ export default function App() {
 function OnboardingOverlay({ onClose }: { onClose: () => void }) {
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
+  const platformCapabilities = getPlatformCapabilities(Platform.OS);
+
+  async function finishOnboarding() {
+    await markOnboardingCompleted();
+    onClose();
+  }
+
+  async function continueAfterNotifications() {
+    if (platformCapabilities.supportsBatteryOptimizationControls) {
+      setStep(1);
+      return;
+    }
+
+    await finishOnboarding();
+  }
 
   async function handleNotifications() {
     setLoading(true);
     await ensureNotificationPermission(true).catch(() => false);
     setLoading(false);
-    setStep(1);
+    await continueAfterNotifications();
   }
 
   async function skipNotifications() {
-    setStep(1);
+    await continueAfterNotifications();
   }
 
   async function handleBattery() {
@@ -218,8 +235,7 @@ function OnboardingOverlay({ onClose }: { onClose: () => void }) {
     const exempt = await checkBatteryOptimizationExempt().catch(() => false);
     if (exempt) {
       setLoading(false);
-      await markOnboardingCompleted();
-      onClose();
+      await finishOnboarding();
       return;
     }
     await openAppSystemSettings().catch(() => false);
@@ -228,15 +244,13 @@ function OnboardingOverlay({ onClose }: { onClose: () => void }) {
       'Battery optimization',
       'Find Qeemat in the list and set it to "Don\'t optimize".\n\nThen tap "Done" below.',
       [{ text: 'Done', onPress: async () => {
-        await markOnboardingCompleted();
-        onClose();
+        await finishOnboarding();
       }}]
     );
   }
 
   async function skipBattery() {
-    await markOnboardingCompleted();
-    onClose();
+    await finishOnboarding();
   }
 
   return (
@@ -1309,6 +1323,7 @@ function EmptyActivity() {
 function SettingsScreen() {
   const { width, fontScale } = useWindowDimensions();
   const compact = isCompactLayout(width, fontScale);
+  const platformCapabilities = getPlatformCapabilities(Platform.OS);
   const [backgroundStatus, setBackgroundStatus] = useState<BackgroundStatus>();
   const [notificationEnabled, setNotificationEnabled] = useState<boolean>();
   const [queueingCheck, setQueueingCheck] = useState(false);
@@ -1321,13 +1336,15 @@ function SettingsScreen() {
     const [status, notificationsAllowed, batteryOptExempt] = await Promise.all([
       getBackgroundStatus(),
       ensureNotificationPermission(false),
-      checkBatteryOptimizationExempt().catch(() => false),
+      platformCapabilities.supportsBatteryOptimizationControls
+        ? checkBatteryOptimizationExempt().catch(() => false)
+        : Promise.resolve(false),
     ]);
 
     setBackgroundStatus(status);
     setNotificationEnabled(notificationsAllowed);
     setBatteryExempt(batteryOptExempt);
-  }, []);
+  }, [platformCapabilities.supportsBatteryOptimizationControls]);
 
   useEffect(() => {
     loadStatus();
@@ -1344,8 +1361,8 @@ function SettingsScreen() {
     Alert.alert(
       queued ? 'Background check queued' : 'Background check unavailable',
       queued
-        ? 'Android WorkManager will run a one-off check through the background task. Reopen the product detail after a moment to see a new snapshot.'
-        : 'This build could not reach the Android background scheduler.'
+        ? `${platformCapabilities.backgroundSchedulerName} will run a one-off check. Reopen the product detail after a moment to see a new snapshot.`
+        : `This build could not reach ${platformCapabilities.backgroundSchedulerName}.`
     );
     await loadStatus();
   }
@@ -1359,7 +1376,7 @@ function SettingsScreen() {
     if (!granted) {
       Alert.alert(
         'Notifications still blocked',
-        'Android is still blocking notifications for Qeemat. Open the app notification settings and allow them there.',
+        `${platformCapabilities.displayName} is still blocking notifications for Qeemat. Open the app notification settings and allow them there.`,
         [
           { text: 'Cancel', style: 'cancel' },
           { text: 'Open settings', onPress: () => openNotificationSettings() }
@@ -1418,7 +1435,7 @@ function SettingsScreen() {
       await setBackgroundPreferredHour(preferredHour);
       const scheduled = await scheduleBackgroundChecks(preferredHour).catch(() => false);
       if (!scheduled) {
-        Alert.alert('Background schedule unavailable', 'This build could not update the Android background scheduler.');
+        Alert.alert('Background schedule unavailable', `This build could not update ${platformCapabilities.backgroundSchedulerName}.`);
         return;
       }
 
@@ -1474,7 +1491,7 @@ function SettingsScreen() {
             </View>
           </View>
           <AppText muted style={styles.settingsBodyText}>
-            Local price alerts need Android notification access. If Android still blocks them after the prompt, open the app notification settings directly.
+            Local price alerts need {platformCapabilities.displayName} notification access. If notifications remain blocked after the prompt, open the app notification settings directly.
           </AppText>
           <PrimaryButton
             label={notificationEnabled ? 'Open notification settings' : 'Enable notifications'}
@@ -1484,7 +1501,7 @@ function SettingsScreen() {
           />
         </View>
       </View>
-      <View style={styles.settingsCard}>
+      {platformCapabilities.supportsBatteryOptimizationControls ? <View style={styles.settingsCard}>
         <View style={styles.settingsStack}>
           <View style={styles.settingsHeaderRow}>
             <AppText weight="bold">Battery optimization</AppText>
@@ -1504,14 +1521,14 @@ function SettingsScreen() {
             loading={requestingBattery}
           />
         </View>
-      </View>
+      </View> : null}
       <View style={styles.settingsCard}>
         <View style={styles.settingsStack}>
           <View style={styles.settingsHeaderRow}>
             <View style={styles.flex}>
               <AppText weight="bold">Daily background check time</AppText>
               <AppText muted style={styles.settingsBodyText}>
-                Choose when Android runs the daily price check.
+                Choose when Qeemat requests its daily background check.
               </AppText>
             </View>
             <View style={[styles.settingsBadge, styles.settingsBadgeSuccess]}>
@@ -1552,7 +1569,9 @@ function SettingsScreen() {
             {backgroundStatus?.lastRunError ? <AppText style={styles.errorText}>Last run error: {backgroundStatus.lastRunError}</AppText> : null}
           </View>
           <AppText muted style={styles.settingsHint}>
-            Best-effort — enable battery exemption above for reliability.
+            {platformCapabilities.supportsBatteryOptimizationControls
+              ? 'Best-effort — enable battery exemption above for reliability.'
+              : 'Best-effort — the operating system decides when background work can run.'}
           </AppText>
           <PrimaryButton label="Queue background check once" variant="outline" onPress={queueBackgroundCheck} loading={queueingCheck} />
         </View>
