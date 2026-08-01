@@ -106,7 +106,8 @@ class QeematWebViewFetcherModule(private val reactContext: ReactApplicationConte
                 .replace("\\/", "/")
                 .replace("\\\\", "\\")
 
-              // Check if this is still a Cloudflare challenge page
+              // Check whether the storefront returned a browser challenge or
+              // explicit access-denied page instead of product HTML.
               val lower = unescaped.lowercase()
               val isCloudflareChallenge =
                 (lower.contains("just a moment") && lower.contains("cloudflare")) ||
@@ -114,6 +115,17 @@ class QeematWebViewFetcherModule(private val reactContext: ReactApplicationConte
                 lower.contains("cf-browser-verify") ||
                 lower.contains("cf_chl_opt") ||
                 (lower.contains("checking your browser") && lower.contains("cloudflare"))
+              val isAccessDenied = lower.contains("access denied") &&
+                (lower.contains("edgesuite.net") || lower.contains("reference&#"))
+
+              if (isAccessDenied) {
+                resolved = true
+                handler.removeCallbacks(timeoutRunnable)
+                Log.w(TAG, "WebView received an access-denied page from $finishedUrl")
+                promise.reject("WEBVIEW_BLOCKED", "The website blocked this check.")
+                view.destroy()
+                return@evaluateJavascript
+              }
 
               if (isCloudflareChallenge) {
                 Log.d(TAG, "Cloudflare challenge detected, waiting for redirect (attempt after page #$pageLoadCount)")

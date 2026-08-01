@@ -6,6 +6,10 @@ import { findTrackedVariant } from './variants';
 
 type JsonRecord = Record<string, unknown>;
 
+function isJsonRecord(value: unknown): value is JsonRecord {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
 const REQUEST_HEADERS: Record<string, string> = {
   Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
   'Accept-Language': 'en-AE,en-US;q=0.9,en;q=0.8',
@@ -33,7 +37,7 @@ const REQUEST_HEADERS: Record<string, string> = {
  * app runs on Android and Cloudflare may find a cross-platform UA suspicious
  * when combined with Android's OkHttp TLS fingerprint.
  */
-const BFL_REQUEST_HEADERS: Record<string, string> = {
+const ANDROID_CHROME_REQUEST_HEADERS: Record<string, string> = {
   Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
   'Accept-Language': 'en-AE,en-US;q=0.9,en;q=0.8',
   'Sec-Ch-Ua': '"Google Chrome";v="125", "Chromium";v="125", "Not.A/Brand";v="24"',
@@ -43,9 +47,25 @@ const BFL_REQUEST_HEADERS: Record<string, string> = {
     'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.6422.165 Mobile Safari/537.36'
 };
 
+const SEPHORA_REQUEST_HEADERS: Record<string, string> = {
+  ...REQUEST_HEADERS,
+  'Sec-Ch-Ua': '"Not;A=Brand";v="8", "Chromium";v="150", "Google Chrome";v="150"',
+  'User-Agent':
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36'
+};
+
 function getRequestHeaders(siteKey: SiteKey): Record<string, string> {
+  // Decathlon accepts Android's native request profile but rejects browser
+  // impersonation when the TLS client is not a browser.
+  if (siteKey === 'decathlon_uae') {
+    return {};
+  }
+
   if (siteKey === 'brands_for_less') {
-    return BFL_REQUEST_HEADERS;
+    return ANDROID_CHROME_REQUEST_HEADERS;
+  }
+  if (siteKey === 'sephora_uae') {
+    return SEPHORA_REQUEST_HEADERS;
   }
   return REQUEST_HEADERS;
 }
@@ -67,10 +87,27 @@ export async function fetchAndParseProduct(rawUrl: string, selectedVariant?: Var
   }
 
   // Primary path: standard fetch (fast, works for most sites)
-  const fetchResult = await fetchAndParseWithFetch(normalizedUrl, site.key, selectedVariant);
+  let fetchResult = await fetchAndParseWithFetch(normalizedUrl, site.key, selectedVariant);
 
-  // If fetch succeeded or failed with a non-block error, return immediately
-  if (fetchResult.ok || fetchResult.code !== 'blocked') {
+  // Sephora's CDN can reject one request and accept the same product URL on
+  // the next attempt. Retry the exact URL once before using the WebView path.
+  if (
+    site.key === 'sephora_uae' &&
+    !fetchResult.ok &&
+    (fetchResult.code === 'blocked' || fetchResult.code === 'network_error')
+  ) {
+    fetchResult = await fetchAndParseWithFetch(normalizedUrl, site.key, selectedVariant);
+  }
+
+  // Sephora and Faces can redirect native clients through a session-establishing
+  // storefront route. Their WebView path handles that first-page navigation.
+  if (fetchResult.ok) {
+    return fetchResult;
+  }
+
+  const shouldUseWebViewFallback = fetchResult.code === 'blocked' ||
+    ((site.key === 'sephora_uae' || site.key === 'faces_uae') && fetchResult.code === 'network_error');
+  if (!shouldUseWebViewFallback) {
     return fetchResult;
   }
 
@@ -224,7 +261,9 @@ export function parseProductHtml(
     siteKey !== 'ounass' &&
     siteKey !== 'nike_uae' &&
     siteKey !== 'sun_sand_sports' &&
-    siteKey !== 'adidas'
+    siteKey !== 'adidas' &&
+    siteKey !== 'puma_uae' &&
+    siteKey !== 'decathlon_uae'
   ) {
     return resolveParsedVariant(structured, selectedVariant);
   }
@@ -262,6 +301,15 @@ export function parseProductHtml(
         }
       : adidasProduct ?? structured;
     return resolveParsedVariant(withProductVariants(product, extractAdidasSizeVariants(html, product)), selectedVariant);
+  }
+
+  if (siteKey === 'puma_uae') {
+    const product = structured ? { ...structured, canonicalUrl: inputUrl } : undefined;
+    return resolveParsedVariant(withProductVariants(product, extractPumaSizeVariants(html, product)), selectedVariant);
+  }
+
+  if (siteKey === 'decathlon_uae') {
+    return resolveParsedVariant(parseDecathlonProduct(siteKey, inputUrl, html) ?? structured, selectedVariant);
   }
 
   if (siteKey === 'brands_for_less') {
@@ -331,6 +379,141 @@ function parseStructuredProduct(siteKey: SiteKey, inputUrl: string, html: string
     rawPriceText: asString(offer?.price) ?? asString(priceSpecification?.price) ?? meta.price,
     sku
   };
+}
+
+/**
+ * Decathlon UAE embeds Shopify's complete ProductJson payload in the initial
+ * page response. Its variant IDs, options, availability, and prices are all
+ * source-provided, so the selected option can be resolved without a request
+ * to a variant-specific URL.
+ */
+function parseDecathlonProduct(siteKey: SiteKey, inputUrl: string, html: string): ParsedProduct | undefined {
+  const product = extractDecathlonProductJson(html);
+  if (!product) {
+    return undefined;
+  }
+
+  const title = asString(product.title);
+  const rawOptionNames = Array.isArray(product.options) ? product.options : [];
+  const optionNames = rawOptionNames.map(asString);
+  const options = optionNames.every((option): option is string => Boolean(option?.trim()))
+    ? optionNames.map(cleanText)
+    : [];
+  const sourceVariants = Array.isArray(product.variants) ? product.variants : [];
+  const rawVariants = sourceVariants.filter(isJsonRecord);
+  const variants = rawVariants
+    .map((variant) => parseDecathlonVariant(variant, options))
+    .filter((variant): variant is ProductVariant => variant !== undefined);
+  const hasCompleteVariants =
+    options.length > 0 &&
+    rawVariants.length > 0 &&
+    rawVariants.length === sourceVariants.length &&
+    variants.length === rawVariants.length;
+  const defaultVariant = variants.find((variant) => variant.availability === 'in_stock') ?? variants[0];
+  const imageUrl = extractDecathlonImage(product) ?? defaultVariant?.imageUrl;
+
+  if (!title && !defaultVariant && !asIdentifier(product.id)) {
+    return undefined;
+  }
+
+  if (hasCompleteVariants && defaultVariant) {
+    return {
+      siteKey,
+      canonicalUrl: inputUrl,
+      title: title ? cleanText(title) : 'Untitled product',
+      imageUrl,
+      priceMinor: defaultVariant.priceMinor,
+      currency: defaultVariant.currency,
+      availability: variants.some((variant) => variant.availability === 'in_stock') ? 'in_stock' : 'out_of_stock',
+      rawPriceText: defaultVariant.priceMinor === undefined ? undefined : String(defaultVariant.priceMinor / 100),
+      sku: defaultVariant.sku,
+      variants
+    };
+  }
+
+  const priceMinor = parseDecathlonPriceMinor(product.price);
+  if (!title && priceMinor === undefined) {
+    return undefined;
+  }
+
+  return {
+    siteKey,
+    canonicalUrl: inputUrl,
+    title: title ? cleanText(title) : 'Untitled product',
+    imageUrl,
+    priceMinor,
+    currency: 'AED',
+    availability: product.available === true ? 'in_stock' : product.available === false ? 'out_of_stock' : 'unknown',
+    rawPriceText: priceMinor === undefined ? undefined : String(priceMinor / 100),
+    sku: asIdentifier(product.id)
+  };
+}
+
+function extractDecathlonProductJson(html: string): JsonRecord | undefined {
+  const match = html.match(/<script\b(?=[^>]*\bid=["']ProductJson["'])[^>]*>([\s\S]*?)<\/script>/i);
+  if (!match?.[1]) {
+    return undefined;
+  }
+
+  return parseJsonCandidates(match[1]).find(isJsonRecord);
+}
+
+function parseDecathlonVariant(variant: JsonRecord, optionNames: string[]): ProductVariant | undefined {
+  const id = asIdentifier(variant.id);
+  const priceMinor = parseDecathlonPriceMinor(variant.price);
+  if (!id || priceMinor === undefined || typeof variant.available !== 'boolean' || optionNames.length === 0) {
+    return undefined;
+  }
+
+  const optionValues = Array.isArray(variant.options)
+    ? variant.options.map(asString)
+    : optionNames.map((_, index) => asString(variant[`option${index + 1}`]));
+  const attributes = optionNames.flatMap((name, index) => {
+    const value = optionValues[index];
+    return value?.trim() ? [{ name, value: cleanText(value) }] : [];
+  });
+  if (attributes.length !== optionNames.length) {
+    return undefined;
+  }
+
+  return {
+    id,
+    label: formatVariantLabel(attributes),
+    attributes,
+    priceMinor,
+    currency: 'AED',
+    availability: variant.available ? 'in_stock' : 'out_of_stock',
+    sku: cleanSku(asString(variant.sku)) ?? id,
+    imageUrl: extractDecathlonImage(variant)
+  };
+}
+
+function parseDecathlonPriceMinor(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return Math.round(value);
+  }
+
+  if (typeof value === 'string' && /^\d+$/.test(value.trim())) {
+    return Number(value.trim());
+  }
+
+  return undefined;
+}
+
+function extractDecathlonImage(value: JsonRecord): string | undefined {
+  const featuredImage = value.featured_image;
+  const source =
+    asString(featuredImage) ??
+    (isJsonRecord(featuredImage) ? asString(featuredImage.src) : undefined) ??
+    (isJsonRecord(value.featured_media) && isJsonRecord(value.featured_media.preview_image)
+      ? asString(value.featured_media.preview_image.src)
+      : undefined);
+
+  if (!source) {
+    return undefined;
+  }
+
+  return source.startsWith('//') ? `https:${source}` : source;
 }
 
 function parseAymProduct(siteKey: SiteKey, inputUrl: string, html: string): ParsedProduct | undefined {
@@ -1063,6 +1246,43 @@ function extractAdidasSizeVariants(html: string, product?: ParsedProduct): Produ
       priceMinor: product.priceMinor,
       currency: product.currency,
       availability: htmlHasBooleanAttribute(radioInput, 'disabled') ? 'out_of_stock' : 'in_stock',
+      sku: id
+    });
+  }
+
+  return variants;
+}
+
+/**
+ * PUMA UAE includes every source-defined size in the initial product HTML.
+ * The tile value is the stable option ID and its accessible label carries the
+ * stock state, so no option-specific request is required.
+ */
+function extractPumaSizeVariants(html: string, product?: ParsedProduct): ProductVariant[] {
+  if (product?.priceMinor === undefined || !product.currency) {
+    return [];
+  }
+
+  const variants: ProductVariant[] = [];
+  const sizeTilePattern = /<a\b(?=[^>]*\bdata-testid\s*=\s*["']sf-sizetile["'])[^>]*>/gi;
+
+  for (const match of html.matchAll(sizeTilePattern)) {
+    const tag = match[0];
+    const id = htmlAttribute(tag, 'value');
+    const ariaLabel = htmlAttribute(tag, 'aria-label');
+    const size = ariaLabel?.match(/^Size\s+(.+?)(?:\s+out of stock)?$/i)?.[1];
+    if (!id || !size) {
+      continue;
+    }
+
+    const attributes = [{ name: 'Size', value: cleanText(size) }];
+    variants.push({
+      id,
+      label: formatVariantLabel(attributes),
+      attributes,
+      priceMinor: product.priceMinor,
+      currency: product.currency,
+      availability: /\bout of stock\b/i.test(ariaLabel) ? 'out_of_stock' : 'in_stock',
       sku: id
     });
   }

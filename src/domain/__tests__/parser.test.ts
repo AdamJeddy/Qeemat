@@ -11,6 +11,10 @@ const amazonUrl = 'https://www.amazon.ae/Logitech-Headphones-Cancelling-Micropho
 const amazonUsUrl = 'https://www.amazon.com/Logitech-Headphones-Cancelling-Microphone-Chromebook/dp/B005BFCNYU/';
 const amazonDeUrl = 'https://www.amazon.de/Logitech-Headphones-Cancelling-Microphone-Chromebook/dp/B005BFCNYU/';
 const adidasUrl = 'https://www.adidas.ae/en/adicolor-classics-3-stripes-hoodie/IX7573.html';
+const pumaUrl = 'https://ae.puma.com/ae/en/pd/h-street-premium-sneakers-unisex/403777.html?color=02';
+const decathlonUrl = 'https://decathlon.ae/products/men-s-modular-and-durable-mountain-trekking-trousers-mt100';
+const sephoraUrl = 'https://www.sephora.me/ae-en/p/dior-addict-glass-lipstick-ultra-shine-and-hydrating-lip-gloss-stick/P1000214119?productVariantId=811716';
+const facesUrl = 'https://www.faces.ae/en/p/dior-addict-glass-ultra-shine-and-hydrating-stick-pm009117909944.html';
 const bflUrl = 'https://www.brandsforless.com/en-ae/women-paisley-print-tiered-dress-multicolor/1966137/p/';
 
 describe('parseProductHtml', () => {
@@ -787,6 +791,111 @@ describe('parseProductHtml', () => {
     ]);
   });
 
+  it('offers PUMA sizes from initial-page option IDs and stock labels', () => {
+    const html = `
+      <script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"H-Street Premium Sneakers Unisex","sku":"403777_02","image":["https://images.puma.com/403777-02.png"],"offers":{"@type":"Offer","price":"299","priceCurrency":"AED","availability":"https://schema.org/InStock","url":"https://ae.puma.com/ae/en/pd/h-street-premium-sneakers-unisex/403777.html"}}</script>
+      <a data-testid="sf-sizetile" aria-label="Size EU 42" value="0240" href="/ae/en/pd/h-street-premium-sneakers-unisex/403777.html?color=02&amp;size=0240"><p>EU 42</p></a>
+      <a data-testid="sf-sizetile" aria-label="Size EU 42.5 out of stock" value="0250" href="/ae/en/pd/h-street-premium-sneakers-unisex/403777.html?color=02&amp;size=0250"><p>EU 42.5</p></a>
+      <a data-testid="sf-sizetile" aria-label="Size EU 43" value="0260" href="/ae/en/pd/h-street-premium-sneakers-unisex/403777.html?color=02&amp;size=0260"><p>EU 43</p></a>
+    `;
+
+    const parsed = parseProductHtml('puma_uae', pumaUrl, html);
+
+    expect(parsed).toEqual(expect.objectContaining({
+      siteKey: 'puma_uae',
+      canonicalUrl: pumaUrl,
+      title: 'H-Street Premium Sneakers Unisex',
+      sku: '403777_02',
+      priceMinor: 29900,
+      currency: 'AED',
+      availability: 'in_stock'
+    }));
+    expect(parsed?.variants).toEqual([
+      expect.objectContaining({ id: '0240', label: 'Size: EU 42', priceMinor: 29900, availability: 'in_stock' }),
+      expect.objectContaining({ id: '0250', label: 'Size: EU 42.5', priceMinor: 29900, availability: 'out_of_stock' }),
+      expect.objectContaining({ id: '0260', label: 'Size: EU 43', priceMinor: 29900, availability: 'in_stock' })
+    ]);
+  });
+
+  it('resolves the exact saved PUMA size from its source option ID', () => {
+    const html = `
+      <script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"H-Street Premium Sneakers Unisex","sku":"403777_02","offers":{"@type":"Offer","price":"299","priceCurrency":"AED","availability":"https://schema.org/InStock"}}</script>
+      <a data-testid="sf-sizetile" aria-label="Size EU 42" value="0240"><p>EU 42</p></a>
+      <a data-testid="sf-sizetile" aria-label="Size EU 43" value="0260"><p>EU 43</p></a>
+    `;
+
+    const parsed = parseProductHtml('puma_uae', pumaUrl, html, {
+      id: '0260',
+      label: 'Size: EU 43',
+      attributes: [{ name: 'Size', value: 'EU 43' }]
+    });
+
+    expect(parsed).toEqual(expect.objectContaining({
+      sku: '0260',
+      selectedVariant: {
+        id: '0260',
+        label: 'Size: EU 43',
+        attributes: [{ name: 'Size', value: 'EU 43' }]
+      }
+    }));
+  });
+
+  it('uses Decathlon ProductJson variants for the chosen exact store option', () => {
+    const html = `
+      <script id="ProductJson" type="application/json">{
+        "id": 8741542887614,
+        "title": "Men’s Modular and Durable Mountain Trekking Trousers MT100",
+        "featured_image": "//decathlon.ae/cdn/shop/files/trousers.jpg",
+        "options": ["Model Code", "Size", "Color"],
+        "variants": [
+          {"id": 46478949187774, "option1": "8666242", "option2": "UK31\\u0022 / FR 40 (L33)", "option3": "carbon grey", "sku": "4393052", "available": true, "price": 16500, "featured_image": {"src": "//decathlon.ae/cdn/shop/files/trousers.jpg"}},
+          {"id": 46478949253310, "option1": "8666242", "option2": "UK34\\u0022 / FR 44 (L34)", "option3": "carbon grey", "sku": "4402417", "available": false, "price": 16500}
+        ]
+      }</script>
+    `;
+
+    const parsed = parseProductHtml('decathlon_uae', decathlonUrl, html);
+
+    expect(parsed).toEqual(expect.objectContaining({
+      siteKey: 'decathlon_uae',
+      canonicalUrl: decathlonUrl,
+      title: 'Men’s Modular and Durable Mountain Trekking Trousers MT100',
+      priceMinor: 16500,
+      currency: 'AED',
+      availability: 'in_stock',
+      sku: '4393052'
+    }));
+    expect(parsed?.variants).toEqual([
+      expect.objectContaining({
+        id: '46478949187774',
+        label: expect.stringContaining('Size: UK31" / FR 40 (L33)'),
+        priceMinor: 16500,
+        availability: 'in_stock'
+      }),
+      expect.objectContaining({ id: '46478949253310', availability: 'out_of_stock' })
+    ]);
+
+    const selected = parseProductHtml('decathlon_uae', decathlonUrl, html, {
+      id: '46478949253310',
+      label: 'Model Code: 8666242 Â· Size: UK34" / FR 44 (L34) Â· Color: carbon grey',
+      attributes: [
+        { name: 'Model Code', value: '8666242' },
+        { name: 'Size', value: 'UK34" / FR 44 (L34)' },
+        { name: 'Color', value: 'carbon grey' }
+      ]
+    });
+
+    expect(selected).toEqual(expect.objectContaining({
+      priceMinor: undefined,
+      availability: 'out_of_stock',
+      sku: '4402417',
+      selectedVariant: expect.objectContaining({ id: '46478949253310' })
+    }));
+
+    const incompleteRecordHtml = html.replace('"available": false, "price": 16500', '"price": 16500');
+    expect(parseProductHtml('decathlon_uae', decathlonUrl, incompleteRecordHtml)?.variants).toBeUndefined();
+  });
+
   it('keeps Noon page-level when the initial response has labels but no stable source option ID', () => {
     const html = `
       <script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"Anzarun Lite","sku":"N44137847V","offers":{"@type":"Offer","price":"97","priceCurrency":"AED","availability":"https://schema.org/InStock"}}</script>
@@ -800,11 +909,45 @@ describe('parseProductHtml', () => {
     const html = `
       <script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"Example product","sku":"SKU-1","offers":{"@type":"Offer","price":"100","priceCurrency":"AED","availability":"https://schema.org/InStock"}}</script>
     `;
-    const pageLevelSources: SiteKey[] = ['noon', 'nike_uae', 'sun_sand_sports', 'amazon_ae', 'adidas', 'brands_for_less'];
+    const pageLevelSources: SiteKey[] = ['noon', 'nike_uae', 'sun_sand_sports', 'amazon_ae', 'adidas', 'puma_uae', 'decathlon_uae', 'sephora_uae', 'faces_uae', 'brands_for_less'];
 
     for (const siteKey of pageLevelSources) {
       expect(parseProductHtml(siteKey, 'https://example.com/product', html)?.variants).toBeUndefined();
     }
+  });
+
+  it('parses Sephora UAE product JSON-LD and retains shade products at page level', () => {
+    const html = `
+      <link rel="canonical" href="https://www.sephora.me/ae-en/p/dior-addict-glass-lipstick-ultra-shine-and-hydrating-lip-gloss-stick/P1000214119" />
+      <script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"Dior Addict Glass Lipstick","sku":"811716","image":"https://img-product.sephora.me/811716.jpeg","offers":{"@type":"Offer","price":"215","priceCurrency":"AED","availability":"InStock"}}</script>
+      <script>window.product={"c_variantsInfo":[{"product_id":"811716","c_variation_attribute_name":"194 Sparkly Dice","c_price":215}]};</script>
+    `;
+
+    expect(parseProductHtml('sephora_uae', sephoraUrl, html)).toEqual(expect.objectContaining({
+      siteKey: 'sephora_uae',
+      title: 'Dior Addict Glass Lipstick',
+      sku: '811716',
+      priceMinor: 21500,
+      currency: 'AED',
+      availability: 'in_stock'
+    }));
+  });
+
+  it('parses Faces UAE product JSON-LD and retains shade products at page level', () => {
+    const html = `
+      <link rel="canonical" href="${facesUrl}" />
+      <script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"Dior Addict Glass Ultra-Shine and Hydrating Stick","sku":"009117909944","image":"https://www.faces.ae/images/009117909944.jpg","color":{"name":"194 Sparkly Dice"},"offers":{"@type":"Offer","price":"215.00","priceCurrency":"AED","availability":"http://schema.org/InStock"}}</script>
+      <button data-attr="color" data-attr-value="194_sparkly_dice" data-pid="009117909944">194 Sparkly Dice</button>
+    `;
+
+    expect(parseProductHtml('faces_uae', facesUrl, html)).toEqual(expect.objectContaining({
+      siteKey: 'faces_uae',
+      title: 'Dior Addict Glass Ultra-Shine and Hydrating Stick',
+      sku: '009117909944',
+      priceMinor: 21500,
+      currency: 'AED',
+      availability: 'in_stock'
+    }));
   });
 
   it('parses Adidas.ae JSON-LD product data', () => {
@@ -1068,6 +1211,23 @@ describe('detectSupportedSite', () => {
     expect(detectSupportedSite('https://www.adidas.ae/en/product.html')?.key).toBe('adidas');
   });
 
+  it('detects PUMA UAE product URLs', () => {
+    expect(detectSupportedSite(pumaUrl)?.key).toBe('puma_uae');
+    expect(detectSupportedSite('https://ae.puma.com/en/pd/example/123456.html')?.key).toBe('puma_uae');
+  });
+
+  it('detects Decathlon UAE product URLs', () => {
+    expect(detectSupportedSite(decathlonUrl)?.key).toBe('decathlon_uae');
+    expect(detectSupportedSite('https://www.decathlon.ae/products/example')?.key).toBe('decathlon_uae');
+  });
+
+  it('detects Sephora UAE and Faces UAE product URLs', () => {
+    expect(detectSupportedSite(sephoraUrl)?.key).toBe('sephora_uae');
+    expect(detectSupportedSite('https://sephora.me/ae-en/p/example/P10001')?.key).toBe('sephora_uae');
+    expect(detectSupportedSite(facesUrl)?.key).toBe('faces_uae');
+    expect(detectSupportedSite('https://faces.ae/en/p/example-pm000000000001.html')?.key).toBe('faces_uae');
+  });
+
   it('detects Brands For Less product URLs', () => {
     expect(detectSupportedSite(bflUrl)?.key).toBe('brands_for_less');
     expect(detectSupportedSite('https://brandsforless.com/en-ae/women-shoes/12345/p/')?.key).toBe('brands_for_less');
@@ -1113,6 +1273,61 @@ describe('fetchAndParseProduct', () => {
   afterEach(() => {
     globalThis.fetch = originalFetch;
     jest.restoreAllMocks();
+  });
+
+  it('uses the native Android request profile for Decathlon UAE', async () => {
+    const fetchMock = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      text: async () => `
+        <script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"Germany 26 Home Replica Jersey","offers":{"@type":"Offer","price":"299","priceCurrency":"AED","availability":"https://schema.org/InStock"}}</script>
+      `
+    }));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await fetchAndParseProduct('https://decathlon.ae/collections/adidas/products/germany-26-home-replica-jersey-white?variant=46671030255806');
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        headers: {}
+      })
+    );
+  });
+
+  it('retries the exact Sephora URL once after a transient block', async () => {
+    const fetchMock = jest
+      .fn()
+      .mockResolvedValueOnce({ ok: false, status: 403 })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: async () => `
+          <script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"Dior Addict Glass Lipstick","sku":"811716","image":"https://img-product.sephora.me/811716.jpeg","offers":{"@type":"Offer","price":"215","priceCurrency":"AED","availability":"InStock"}}</script>
+        `
+      });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const result = await fetchAndParseProduct(sephoraUrl);
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      sephoraUrl,
+      expect.objectContaining({ headers: expect.any(Object) })
+    );
+    expect(result).toEqual({
+      ok: true,
+      product: expect.objectContaining({
+        siteKey: 'sephora_uae',
+        canonicalUrl: sephoraUrl,
+        title: 'Dior Addict Glass Lipstick',
+        imageUrl: 'https://img-product.sephora.me/811716.jpeg',
+        priceMinor: 21500,
+        currency: 'AED',
+        availability: 'in_stock',
+        sku: '811716'
+      })
+    });
   });
 
   it('returns selectable sizes for the reported Level Shoes URL', async () => {

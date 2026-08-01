@@ -54,6 +54,10 @@ The MVP support list is intentionally small:
 | AYM Accessories | MVP supported | WooCommerce product pages expose variation data, images, stock state, and AED pricing on supported product pages. |
 | Ounass UAE | MVP supported | Product pages expose inline PDP payloads with title, image, stock state, SKU, and AED pricing. |
 | Amazon (selected regions) | MVP supported | High user value and supported at MVP level across selected Amazon regional domains when Amazon serves a normal product page without a challenge. |
+| PUMA UAE | MVP supported | Product pages expose JSON-LD product details and reliable source-defined size options in the initial HTML. |
+| Decathlon UAE | MVP supported | Shopify ProductJson exposes product details and reliable source-defined options in the initial HTML. |
+| Sephora UAE | MVP supported | Product pages expose JSON-LD product details; the WebView fallback handles Akamai-protected checks. |
+| Faces UAE | MVP supported | Salesforce Commerce Cloud product pages expose structured product details; the WebView fallback handles session redirects when needed. |
 
 ## Deferred Websites
 
