@@ -25,6 +25,8 @@ The app uses a small manual route stack in `App.tsx`, not React Navigation. Ther
 | Adidas UAE | Supported | Monitor for bot-protection changes. |
 | PUMA UAE | Supported | JSON-LD product data and source-defined initial-page size options. |
 | Decathlon UAE | Supported | Shopify ProductJson data with source-defined initial-page options. |
+| Sephora UAE | Supported | JSON-LD product data; Akamai-protected pages use the native WebView fallback. |
+| Faces UAE | Supported | Salesforce Commerce Cloud structured product data; session redirects use the native WebView fallback when needed. |
 | Brands For Less UAE | Experimental | Parser and WebView fallback exist, but Cloudflare blocks reliable fetching; hidden from the supported-store UI. |
 
 The site registry is `src/domain/sites.ts`. It controls hostnames, enabled status, icons, and minimum check intervals.
@@ -39,7 +41,7 @@ The site registry is `src/domain/sites.ts`. It controls hostnames, enabled statu
 
 ### Add flow and product detail
 
-- The add flow detects supported stores, replaces the store list with a single detected-store status for valid links, and brings the parsed result into view before saving. It then collects check preference, alert mode, and an optional target price. When a page exposes reliable variant data, the user must select an in-stock source option such as size before saving; that exact option is shown on cards and details and is used for later checks. Android browsers can share a product URL directly to Qeemat, which opens this flow and automatically finds the product so the user can choose its variant and tracking settings.
+- The add flow detects supported stores, replaces the store list with a single detected-store status for valid links, and brings the parsed result into view before saving. It then collects check preference, alert mode, and an optional target price. When a page exposes reliable variant data, the user must select an in-stock source option such as size before saving; that exact option is shown on cards and details and is used for later checks. Sephora and Faces shade labels remain page-level because their initial pages do not provide complete per-shade stock state. Android browsers can share a product URL directly to Qeemat, which opens this flow and automatically finds the product so the user can choose its variant and tracking settings.
 - AYM excludes the daily option in the picker because its effective minimum interval is 72 hours. Existing daily AYM products are clamped in tracking settings.
 - Product detail shows current price, chart, stats, snapshot history, `Check now`, `Open link`, and `Copy product link` actions.
 - Snapshot sources are presented as `Check now`, `Recheck all`, or `Background`.
@@ -63,7 +65,7 @@ The site registry is `src/domain/sites.ts`. It controls hostnames, enabled statu
 - Confirmed out-of-stock products can parse successfully without a price. Storage preserves the last known product price and the UI shows an OOS state.
 - Confirmed Amazon OOS pages deliberately leave price unset: recommendation carousels can contain prices belonging to other products.
 - Amazon prices use the broadly available Buy Box price: sale prices are tracked, while Prime-exclusive discounts and alternate-seller prices are ignored. If that base Buy Box price is not unambiguous, the check reports that no current price was found instead of guessing.
-- AYM, Ounass, Level Shoes, Nike UAE, Sun & Sand Sports, Adidas UAE, PUMA UAE, and Decathlon UAE expose reliable initial-page variant data when the product markup includes source IDs, labels, stock state, and price. Noon, Amazon, and Brands For Less retain page-level tracking unless a future initial response meets that same standard; Qeemat never makes extra requests or guesses a neighbouring variant.
+- AYM, Ounass, Level Shoes, Nike UAE, Sun & Sand Sports, Adidas UAE, PUMA UAE, and Decathlon UAE expose reliable initial-page variant data when the product markup includes source IDs, labels, stock state, and price. Noon, Amazon, Sephora, Faces, and Brands For Less retain page-level tracking unless a future initial response meets that same standard; Qeemat never makes extra requests or guesses a neighbouring variant.
 - Challenge pages return `blocked`; pages without required product data return parser or price errors as appropriate.
 
 Parser code is in `src/domain/parser.ts`; types are in `src/domain/types.ts`; tests are in `src/domain/__tests__/`.
