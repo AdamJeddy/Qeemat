@@ -558,7 +558,7 @@ function EmptyWatchlist({ onAdd }: { onAdd: () => void }) {
   );
 }
 
-function AddScreen({ initialUrl, navigate }: { initialUrl?: string; navigate: (route: Route) => void }) {
+export function AddScreen({ initialUrl, navigate }: { initialUrl?: string; navigate: (route: Route) => void }) {
   const [url, setUrl] = useState(initialUrl ?? '');
   const [parsedProduct, setParsedProduct] = useState<ParsedProduct | undefined>();
   const [loading, setLoading] = useState(false);
@@ -570,6 +570,18 @@ function AddScreen({ initialUrl, navigate }: { initialUrl?: string; navigate: (r
   const [selectedVariantAttributes, setSelectedVariantAttributes] = useState<VariantAttributes>({});
   const scrollRef = useRef<ScrollView>(null);
   const shouldFocusParsedResult = useRef(false);
+
+  useEffect(() => {
+    if (!initialUrl) {
+      return;
+    }
+
+    setUrl(initialUrl);
+    setParsedProduct(undefined);
+    setSelectedVariantAttributes({});
+    shouldFocusParsedResult.current = false;
+    setError(undefined);
+  }, [initialUrl]);
 
   const normalizedUrl = cleanUrl(normalizeUrl(url));
   const detectedSite = useMemo(() => detectSupportedSite(normalizedUrl), [normalizedUrl]);
