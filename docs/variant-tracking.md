@@ -2,6 +2,12 @@
 
 These screenshots were captured from the Android release build on a Samsung Galaxy S24 Ultra using the Level Shoes GEL-KINETIC FLUENT product page.
 
+## Supported URL detected
+
+As a supported product URL is pasted, Qeemat identifies the matching store and focuses the chooser on that store. The keyboard remains visible here because this is the immediate paste state.
+
+![Level Shoes URL detected](assets/variant-tracking/level-shoes-url-detected.png)
+
 ## Watchlist store filter
 
 The watchlist shows an all-stores control plus logo-only controls for stores represented in the saved products, keeping the filter compact while exposing each store through its accessibility label.
