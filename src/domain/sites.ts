@@ -116,6 +116,15 @@ export const SUPPORTED_SITES: SupportedSite[] = [
     iconAsset: require('../../assets/site-icons/adidas.png')
   },
   {
+    key: 'puma_uae',
+    displayName: 'PUMA UAE',
+    shortName: 'PUMA',
+    hostnames: ['ae.puma.com'],
+    status: 'supported',
+    notes: 'Product pages expose JSON-LD product data and source-defined size options in their initial HTML.',
+    iconAsset: require('../../assets/site-icons/puma_uae.png')
+  },
+  {
     key: 'brands_for_less',
     displayName: 'Brands For Less UAE',
     shortName: 'BFL',

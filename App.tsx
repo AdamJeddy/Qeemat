@@ -552,7 +552,7 @@ function EmptyWatchlist({ onAdd }: { onAdd: () => void }) {
         Track your first product
       </AppText>
       <AppText muted style={styles.emptyCopy}>
-        Paste a Noon, Nike UAE, Sun & Sand Sports, Level Shoes, AYM Accessories, Ounass, or Amazon product link to start a local price history.
+        Paste a supported product link from Noon, Nike UAE, Sun & Sand Sports, Level Shoes, AYM Accessories, Ounass, Amazon, Adidas, or PUMA to start a local price history.
       </AppText>
       <PrimaryButton label="Add product" onPress={onAdd} style={styles.emptyButton} />
     </View>
