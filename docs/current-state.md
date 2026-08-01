@@ -31,13 +31,13 @@ The site registry is `src/domain/sites.ts`. It controls hostnames, enabled statu
 
 ### Watchlist and activity
 
-- The watchlist supports pull-to-refresh, manual `Recheck all prices`, price-direction arrows, and a collapsible out-of-stock section below in-stock products.
+- The watchlist supports pull-to-refresh, manual `Recheck all prices`, price-direction arrows, and a collapsible out-of-stock section below in-stock products. When products from multiple stores are tracked, a logo-only store rail filters both sections; it contains only stores already in the watchlist.
 - Product cards show a site icon, price, status, and the most recent price-change direction. OOS cards are dimmed and show an amber out-of-stock badge.
 - The Activity tab is newest-first, groups events by date, shows old and new prices with direction/source badges, and can open an existing product. Events remain visible but non-tappable after a product is deleted.
 
 ### Add flow and product detail
 
-- The add flow detects supported stores, shows a parsed preview before saving, and collects check preference, alert mode, and optional target price.
+- The add flow detects supported stores, replaces the store list with a single detected-store status for valid links, and brings the parsed result into view before saving. It then collects check preference, alert mode, and an optional target price. When a page exposes reliable variant data, the user must select an in-stock source option such as size before saving; that exact option is shown on cards and details and is used for later checks. Android browsers can share a product URL directly to Qeemat, which opens this flow with the shared URL prefilled.
 - AYM excludes the daily option in the picker because its effective minimum interval is 72 hours. Existing daily AYM products are clamped in tracking settings.
 - Product detail shows current price, chart, stats, snapshot history, `Check now`, `Open link`, and `Copy product link` actions.
 - Snapshot sources are presented as `Check now`, `Recheck all`, or `Background`.
@@ -60,6 +60,8 @@ The site registry is `src/domain/sites.ts`. It controls hostnames, enabled statu
 - Parsers return title, image, price, currency, availability, canonical URL, and SKU when available.
 - Confirmed out-of-stock products can parse successfully without a price. Storage preserves the last known product price and the UI shows an OOS state.
 - Confirmed Amazon OOS pages deliberately leave price unset: recommendation carousels can contain prices belonging to other products.
+- Amazon prices use the broadly available Buy Box price: sale prices are tracked, while Prime-exclusive discounts and alternate-seller prices are ignored. If that base Buy Box price is not unambiguous, the check reports that no current price was found instead of guessing.
+- AYM, Ounass, Level Shoes, Nike UAE, Sun & Sand Sports, and Adidas UAE expose reliable initial-page variant data when the product markup includes source IDs, labels, stock state, and price. Noon, Amazon, and Brands For Less retain page-level tracking unless a future initial response meets that same standard; Qeemat never makes extra requests or guesses a neighbouring variant.
 - Challenge pages return `blocked`; pages without required product data return parser or price errors as appropriate.
 
 Parser code is in `src/domain/parser.ts`; types are in `src/domain/types.ts`; tests are in `src/domain/__tests__/`.
@@ -123,4 +125,6 @@ For a terminal Android build, use JDK 17+ and make `adb` available from Android 
 - **#24:** copy-product-link action on product detail.
 - **#25:** retain the last known price when an OOS result has no current price.
 - **#26:** ignore Amazon recommendation-carousel prices on confirmed OOS pages.
+- **#14:** Amazon tracks only the base Buy Box price, excluding Prime-exclusive and alternate-seller prices.
 - **#22:** app version updated to 0.5.0.
+- **#29:** logo-only store filtering on the watchlist.

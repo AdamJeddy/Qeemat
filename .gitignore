@@ -27,3 +27,4 @@ src/domain/__tests__/fixtures/oos/*.html
 
 # skill package lock files
 skills-lock.json
+.tmp/*

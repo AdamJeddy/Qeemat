@@ -1,7 +1,8 @@
 import { cleanUrl, detectSupportedSite, normalizeUrl } from './sites';
-import { Availability, ParsedProduct, SiteKey } from './types';
+import { Availability, ParsedProduct, ProductVariant, SiteKey, VariantAttribute, VariantSelection } from './types';
 import { parsePriceToMinor } from './price';
 import { fetchPageHtmlViaWebView } from './webViewFetcher';
+import { findTrackedVariant } from './variants';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -51,9 +52,9 @@ function getRequestHeaders(siteKey: SiteKey): Record<string, string> {
 
 export type ParseProductResult =
   | { ok: true; product: ParsedProduct }
-  | { ok: false; code: 'invalid_url' | 'unsupported_page' | 'network_error' | 'blocked' | 'price_not_found' | 'site_parser_failed'; message: string };
+  | { ok: false; code: 'invalid_url' | 'unsupported_page' | 'network_error' | 'blocked' | 'price_not_found' | 'variant_not_found' | 'site_parser_failed'; message: string };
 
-export async function fetchAndParseProduct(rawUrl: string): Promise<ParseProductResult> {
+export async function fetchAndParseProduct(rawUrl: string, selectedVariant?: VariantSelection): Promise<ParseProductResult> {
   const normalizedUrl = cleanUrl(normalizeUrl(rawUrl));
   const site = detectSupportedSite(normalizedUrl);
 
@@ -66,7 +67,7 @@ export async function fetchAndParseProduct(rawUrl: string): Promise<ParseProduct
   }
 
   // Primary path: standard fetch (fast, works for most sites)
-  const fetchResult = await fetchAndParseWithFetch(normalizedUrl, site.key);
+  const fetchResult = await fetchAndParseWithFetch(normalizedUrl, site.key, selectedVariant);
 
   // If fetch succeeded or failed with a non-block error, return immediately
   if (fetchResult.ok || fetchResult.code !== 'blocked') {
@@ -79,13 +80,21 @@ export async function fetchAndParseProduct(rawUrl: string): Promise<ParseProduct
     return fetchResult; // WebView unavailable, return original block error
   }
 
-  const parsed = parseProductHtml(site.key, normalizedUrl, webViewHtml);
+  const parsed = parseProductHtml(site.key, normalizedUrl, webViewHtml, selectedVariant);
 
   if (!parsed?.title) {
     return {
       ok: false,
       code: 'site_parser_failed',
       message: 'Qeemat could not find product details on this page.'
+    };
+  }
+
+  if (selectedVariant && !parsed.selectedVariant) {
+    return {
+      ok: false,
+      code: 'variant_not_found',
+      message: 'The selected product option is no longer available on this page.'
     };
   }
 
@@ -103,7 +112,11 @@ export async function fetchAndParseProduct(rawUrl: string): Promise<ParseProduct
   return { ok: true, product: parsed };
 }
 
-async function fetchAndParseWithFetch(normalizedUrl: string, siteKey: SiteKey): Promise<ParseProductResult> {
+async function fetchAndParseWithFetch(
+  normalizedUrl: string,
+  siteKey: SiteKey,
+  selectedVariant?: VariantSelection
+): Promise<ParseProductResult> {
   let response: Response;
   try {
     response = await fetch(normalizedUrl, {
@@ -143,13 +156,21 @@ async function fetchAndParseWithFetch(normalizedUrl: string, siteKey: SiteKey): 
     };
   }
 
-  const parsed = parseProductHtml(siteKey, normalizedUrl, html);
+  const parsed = parseProductHtml(siteKey, normalizedUrl, html, selectedVariant);
 
   if (!parsed?.title) {
     return {
       ok: false,
       code: 'site_parser_failed',
       message: 'Qeemat could not find product details on this page.'
+    };
+  }
+
+  if (selectedVariant && !parsed.selectedVariant) {
+    return {
+      ok: false,
+      code: 'variant_not_found',
+      message: 'The selected product option is no longer available on this page.'
     };
   }
 
@@ -174,7 +195,12 @@ async function fetchAndParseWithFetch(normalizedUrl: string, siteKey: SiteKey): 
   };
 }
 
-export function parseProductHtml(siteKey: SiteKey, inputUrl: string, html: string): ParsedProduct | undefined {
+export function parseProductHtml(
+  siteKey: SiteKey,
+  inputUrl: string,
+  html: string,
+  selectedVariant?: VariantSelection
+): ParsedProduct | undefined {
   // Detect 404 / product-not-found pages that still serve product meta
   if (isProduct404Page(html)) {
     return undefined;
@@ -193,40 +219,87 @@ export function parseProductHtml(siteKey: SiteKey, inputUrl: string, html: strin
     structured?.priceMinor &&
     structured.title &&
     structured.availability !== 'unknown' &&
-    siteKey !== 'level_shoes'
+    siteKey !== 'level_shoes' &&
+    siteKey !== 'ay_accessories' &&
+    siteKey !== 'ounass' &&
+    siteKey !== 'nike_uae' &&
+    siteKey !== 'sun_sand_sports' &&
+    siteKey !== 'adidas'
   ) {
-    return structured;
+    return resolveParsedVariant(structured, selectedVariant);
   }
 
   if (siteKey === 'ay_accessories') {
-    return parseAymProduct(siteKey, inputUrl, html) ?? structured;
+    return resolveParsedVariant(parseAymProduct(siteKey, inputUrl, html) ?? structured, selectedVariant);
   }
 
   if (siteKey === 'amazon_ae') {
-    return parseAmazonProduct(siteKey, inputUrl, html) ?? structured;
+    return resolveParsedVariant(parseAmazonProduct(siteKey, inputUrl, html) ?? structured, selectedVariant);
   }
 
   if (siteKey === 'ounass') {
-    return parseOunassProduct(siteKey, inputUrl, html) ?? structured;
+    return resolveParsedVariant(parseOunassProduct(siteKey, inputUrl, html) ?? structured, selectedVariant);
   }
 
   if (siteKey === 'level_shoes') {
-    return parseLevelShoesPayload(siteKey, inputUrl, html) ?? structured;
+    return resolveParsedVariant(parseLevelShoesPayload(siteKey, inputUrl, html) ?? structured, selectedVariant);
+  }
+
+  if (siteKey === 'nike_uae' || siteKey === 'sun_sand_sports') {
+    return resolveParsedVariant(withProductVariants(structured, extractDemandwareSizeVariants(html, structured)), selectedVariant);
   }
 
   if (siteKey === 'noon') {
-    return parseNoonFallback(siteKey, inputUrl, html) ?? structured;
+    return resolveParsedVariant(parseNoonFallback(siteKey, inputUrl, html) ?? structured, selectedVariant);
   }
 
   if (siteKey === 'adidas') {
-    return parseAdidasProduct(siteKey, inputUrl, html) ?? structured;
+    const adidasProduct = parseAdidasProduct(siteKey, inputUrl, html);
+    const product = structured?.priceMinor
+      ? {
+          ...structured,
+          availability: structured.availability === 'unknown' ? parseAdidasAvailability(html) : structured.availability
+        }
+      : adidasProduct ?? structured;
+    return resolveParsedVariant(withProductVariants(product, extractAdidasSizeVariants(html, product)), selectedVariant);
   }
 
   if (siteKey === 'brands_for_less') {
-    return parseBFLProduct(siteKey, inputUrl, html) ?? structured;
+    return resolveParsedVariant(parseBFLProduct(siteKey, inputUrl, html) ?? structured, selectedVariant);
   }
 
-  return structured;
+  return resolveParsedVariant(structured, selectedVariant);
+}
+
+function resolveParsedVariant(product: ParsedProduct | undefined, selectedVariant?: VariantSelection): ParsedProduct | undefined {
+  if (!product || !selectedVariant) {
+    return product;
+  }
+
+  const variant = findTrackedVariant(product.variants ?? [], selectedVariant);
+  if (!variant) {
+    return product;
+  }
+
+  const isOutOfStock = variant.availability === 'out_of_stock';
+  return {
+    ...product,
+    imageUrl: variant.imageUrl ?? product.imageUrl,
+    priceMinor: isOutOfStock ? undefined : variant.priceMinor,
+    currency: variant.currency ?? product.currency,
+    availability: variant.availability,
+    rawPriceText: isOutOfStock || variant.priceMinor === undefined ? undefined : String(variant.priceMinor / 100),
+    sku: variant.sku ?? product.sku,
+    selectedVariant
+  };
+}
+
+function withProductVariants(product: ParsedProduct | undefined, variants: ProductVariant[]): ParsedProduct | undefined {
+  if (!product || variants.length === 0) {
+    return product;
+  }
+
+  return { ...product, variants };
 }
 
 function parseStructuredProduct(siteKey: SiteKey, inputUrl: string, html: string): ParsedProduct | undefined {
@@ -263,6 +336,7 @@ function parseStructuredProduct(siteKey: SiteKey, inputUrl: string, html: string
 function parseAymProduct(siteKey: SiteKey, inputUrl: string, html: string): ParsedProduct | undefined {
   const meta = extractMeta(html);
   const variation = firstAymVariation(html);
+  const variants = extractAymVariants(html);
   const title =
     matchString(html, /<h1[^>]*class=["'][^"']*product_title[^"']*["'][^>]*>\s*([^<]+?)\s*<\/h1>/i) ??
     stripStoreSuffix(meta.title);
@@ -286,7 +360,8 @@ function parseAymProduct(siteKey: SiteKey, inputUrl: string, html: string): Pars
     currency: 'AED',
     availability: parseAymAvailability(variation, html),
     rawPriceText,
-    sku
+    sku,
+    variants
   };
 }
 
@@ -309,7 +384,7 @@ function parseAmazonProduct(siteKey: SiteKey, inputUrl: string, html: string): P
   // An OOS page can include prices from recommendation carousels. They do not
   // describe the tracked product, so leave the price unset and preserve the
   // product's last known value in storage.
-  const rawPriceText = availability === 'out_of_stock' ? undefined : matchAmazonPriceText(html) ?? meta.price;
+  const rawPriceText = availability === 'out_of_stock' ? undefined : matchAmazonPriceText(html);
   const sku = extractAmazonAsin(inputUrl) ?? matchString(html, /data-csa-c-asin=["']([A-Z0-9]{10})["']/i);
   const currency = inferAmazonCurrency(inputUrl, rawPriceText, meta.currency);
 
@@ -348,7 +423,8 @@ function parseOunassProduct(siteKey: SiteKey, inputUrl: string, html: string): P
     cleanSku(matchString(html, /"pdp":\{[\s\S]{0,12000}?"visibleSku":"([^"]+)"/)) ??
     cleanSku(matchString(html, /"pdp":\{[\s\S]{0,12000}?"barcode":"([^"]+)"/));
   const outOfStock = matchBoolean(html, /"pdp":\{[\s\S]{0,12000}?"outOfStock":(true|false)/);
-  const stock = matchNumber(html, /"pdp":\{[\s\S]{0,16000}?"sizes":\[\{[\s\S]{0,1200}?"stock":([0-9.]+)/);
+  const variants = extractOunassVariants(html);
+  const hasInStockVariant = variants.some((variant) => variant.availability === 'in_stock');
 
   if (!title && rawPrice === undefined) {
     return undefined;
@@ -362,9 +438,18 @@ function parseOunassProduct(siteKey: SiteKey, inputUrl: string, html: string): P
     priceMinor: parsePriceToMinor(rawPrice),
     currency: 'AED',
     availability:
-      typeof outOfStock === 'boolean' ? (outOfStock ? 'out_of_stock' : 'in_stock') : stock && stock > 0 ? 'in_stock' : 'unknown',
+      typeof outOfStock === 'boolean'
+        ? outOfStock
+          ? 'out_of_stock'
+          : variants.length > 0
+            ? hasInStockVariant ? 'in_stock' : 'out_of_stock'
+            : 'in_stock'
+        : variants.length > 0
+          ? hasInStockVariant ? 'in_stock' : 'out_of_stock'
+          : 'unknown',
     rawPriceText: rawPrice === undefined ? undefined : String(rawPrice),
-    sku
+    sku,
+    variants
   };
 }
 
@@ -409,7 +494,8 @@ function parseLevelShoesPayload(siteKey: SiteKey, inputUrl: string, html: string
     currency: 'AED',
     availability: inStock === undefined ? 'unknown' : inStock ? 'in_stock' : 'out_of_stock',
     rawPriceText: rawSalePrice ? String(rawSalePrice) : undefined,
-    sku
+    sku,
+    variants: pdp?.variants
   };
 }
 
@@ -428,6 +514,7 @@ function extractLevelShoesPdp(html: string): {
   canonicalUrl?: string;
   sku?: string;
   stockValues?: (string | RegExpMatchArray)[];
+  variants?: ProductVariant[];
 } | undefined {
   const ndMatch = html.match(/<script[^>]+id="__NEXT_DATA__"[^>]+type="application\/json"[^>]*>([\s\S]+?)<\/script>/);
   if (!ndMatch) return undefined;
@@ -437,14 +524,30 @@ function extractLevelShoesPdp(html: string): {
     const pd = json?.props?.pageProps?.productDetails;
     if (!pd) return undefined;
 
+    const productId = asIdentifier(pd.id);
+    const apolloState = json?.props?.pageProps?.__APOLLO_STATE__;
+    const apolloProduct =
+      productId && apolloState && typeof apolloState === 'object' && !Array.isArray(apolloState)
+        ? (apolloState as JsonRecord)[`ProductDetails:${productId}`]
+        : undefined;
+    const apolloDetail =
+      apolloProduct && typeof apolloProduct === 'object' && !Array.isArray(apolloProduct)
+        ? (apolloProduct as JsonRecord).detail
+        : undefined;
+
     const name = typeof pd.name === 'string' ? pd.name : undefined;
     const sku = typeof pd.sku === 'string' ? pd.sku : typeof pd.vpn === 'string' ? pd.vpn : undefined;
     const imageUrl = pd.image?.url ?? pd.imagePreviewGallery?.[0]?.url ?? undefined;
     const canonicalUrl = pd.action?.url ?? undefined;
 
     // Collect sizeOptions for variant-level stock + price fallback
-    const sizeOptions: unknown[] = Array.isArray(pd.sizeOptions) ? pd.sizeOptions : [];
+    const sizeOptions: unknown[] = Array.isArray(pd.sizeOptions)
+      ? pd.sizeOptions
+      : apolloDetail && typeof apolloDetail === 'object' && !Array.isArray(apolloDetail) && Array.isArray((apolloDetail as JsonRecord).sizeOptions)
+        ? (apolloDetail as JsonRecord).sizeOptions as unknown[]
+        : [];
     const stockValues: string[] = [];
+    const variants: ProductVariant[] = [];
 
     // Primary price from productDetails
     let rawSalePrice: number | undefined =
@@ -466,6 +569,22 @@ function extractLevelShoesPdp(html: string): {
         if (rawOriginalPrice === undefined && typeof rec.rawOriginalPrice === 'number') {
           rawOriginalPrice = rec.rawOriginalPrice as number;
         }
+
+        const id = asIdentifier(rec.sku) ?? asIdentifier(rec.id) ?? asIdentifier(rec.value);
+        const size = asString(rec.label) ?? asString(rec.name) ?? asString(rec.value);
+        const priceMinor = parsePriceToMinor(asPriceValue(rec.rawSalePrice) ?? rawSalePrice ?? rawOriginalPrice);
+        if (id && size && priceMinor !== undefined && typeof rec.isInStock === 'boolean') {
+          const attributes = [{ name: 'Size', value: cleanText(size) }];
+          variants.push({
+            id,
+            label: formatVariantLabel(attributes),
+            attributes,
+            priceMinor,
+            currency: 'AED',
+            availability: rec.isInStock === true ? 'in_stock' : 'out_of_stock',
+            sku: asString(rec.sku) ?? id
+          });
+        }
       }
     }
 
@@ -481,6 +600,7 @@ function extractLevelShoesPdp(html: string): {
       canonicalUrl: typeof canonicalUrl === 'string' ? canonicalUrl : undefined,
       sku,
       stockValues: htmlStockValues ?? stockValues,
+      variants
     };
   } catch {
     return undefined;
@@ -776,6 +896,236 @@ function firstAymVariation(html: string): JsonRecord | undefined {
   } catch {
     return undefined;
   }
+}
+
+function extractAymVariants(html: string): ProductVariant[] {
+  const match = html.match(/data-product_variations=(["'])([\s\S]*?)\1/i);
+  if (!match?.[2]) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(decodeHtmlEntities(match[2]));
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed.flatMap((item) => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) {
+        return [];
+      }
+
+      const variation = item as JsonRecord;
+      const id = asIdentifier(variation.variation_id) ?? cleanSku(asString(variation.sku));
+      const attributes = extractVariantAttributes(variation.attributes);
+      const priceMinor = parsePriceToMinor(asPriceValue(variation.display_price));
+      const availability = parseAymAvailability(variation, '');
+      if (!id || attributes.length === 0 || availability === 'unknown') {
+        return [];
+      }
+
+      return [{
+        id,
+        label: formatVariantLabel(attributes),
+        attributes,
+        priceMinor,
+        currency: 'AED',
+        availability,
+        sku: cleanSku(asString(variation.sku)),
+        imageUrl: extractAymVariationImage(variation)
+      }];
+    });
+  } catch {
+    return [];
+  }
+}
+
+function extractOunassVariants(html: string): ProductVariant[] {
+  const match = html.match(/"pdp"\s*:\s*\{[\s\S]{0,16000}?"sizes"\s*:\s*(\[[\s\S]{0,8000}?\])\s*(?:,|\})/);
+  if (!match?.[1]) {
+    return [];
+  }
+
+  try {
+    const sizes = JSON.parse(match[1]);
+    if (!Array.isArray(sizes)) {
+      return [];
+    }
+
+    return sizes.flatMap((item) => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) {
+        return [];
+      }
+
+      const size = item as JsonRecord;
+      const id = cleanSku(asString(size.sku));
+      const value = asString(size.sizeCode) ?? asString(size.label) ?? asString(size.name);
+      const priceMinor = parsePriceToMinor(asPriceValue(size.priceInAED) ?? asPriceValue(size.price));
+      const stock = typeof size.stock === 'number' ? size.stock : undefined;
+      const availability = size.disabled === true || stock === 0 ? 'out_of_stock' : stock && stock > 0 ? 'in_stock' : 'unknown';
+      if (!id || !value || availability === 'unknown') {
+        return [];
+      }
+      const attributes = [{ name: 'Size', value: cleanText(value) }];
+      return [{
+        id,
+        label: formatVariantLabel(attributes),
+        attributes,
+        priceMinor,
+        currency: 'AED',
+        availability,
+        sku: id
+      }];
+    });
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Nike UAE and Sun & Sand Sports render source-defined size buttons in their
+ * first SFCC product response. The `data-attr-value` is the source's option
+ * identifier; Nike additionally provides the selected variation PID.
+ */
+function extractDemandwareSizeVariants(html: string, product?: ParsedProduct): ProductVariant[] {
+  if (product?.priceMinor === undefined || !product.currency) {
+    return [];
+  }
+
+  const variants: ProductVariant[] = [];
+  const buttonPattern = /<button\b(?=[^>]*\bdata-attr-display-value\s*=)[^>]*>/gi;
+
+  for (const match of html.matchAll(buttonPattern)) {
+    const tag = match[0];
+    const isSizeOption =
+      /\b(?:size-attribute|attribute__list-item--size|js-size-attribute)\b/i.test(tag) ||
+      /\baria-label\s*=\s*["']Select Size(?:\s|["'])/i.test(tag);
+    if (!isSizeOption) {
+      continue;
+    }
+
+    const displayValue = htmlAttribute(tag, 'data-attr-display-value');
+    const optionId = htmlAttribute(tag, 'data-attr-value');
+    const variationId = htmlAttribute(tag, 'data-pid');
+    const id = variationId ?? optionId;
+
+    if (!id || !displayValue) {
+      continue;
+    }
+
+    const attributes = [{ name: 'Size', value: cleanText(displayValue) }];
+    const availability = htmlHasBooleanAttribute(tag, 'disabled') || /\bm-disabled\b/i.test(tag)
+      ? 'out_of_stock'
+      : 'in_stock';
+
+    variants.push({
+      id,
+      label: formatVariantLabel(attributes),
+      attributes,
+      priceMinor: product.priceMinor,
+      currency: product.currency,
+      availability,
+      sku: variationId ?? optionId
+    });
+  }
+
+  return variants;
+}
+
+/**
+ * Adidas marks each size in first-page SFCC markup with a hidden, stable
+ * `radio-input_attID`. A disabled radio is the source's OOS signal.
+ */
+function extractAdidasSizeVariants(html: string, product?: ParsedProduct): ProductVariant[] {
+  if (product?.priceMinor === undefined || !product.currency) {
+    return [];
+  }
+
+  const variants: ProductVariant[] = [];
+  const sizeBlockPattern = /<div\b[^>]*class=["'][^"']*\bsize-radio\b[^"']*["'][^>]*>([\s\S]*?)<\/div>/gi;
+
+  for (const match of html.matchAll(sizeBlockPattern)) {
+    const block = match[1] ?? '';
+    const identifierInput = findHtmlTagWithClass(block, 'input', 'radio-input_attID');
+    const radioInput = findHtmlTag(block, 'input', 'type', 'radio');
+    const id = identifierInput ? htmlAttribute(identifierInput, 'value') : undefined;
+    const size = matchString(block, /<span\b[^>]*class=["'][^"']*\bsize-value\b[^"']*["'][^>]*>\s*([^<]+?)\s*<\/span>/i);
+
+    if (!id || !size || !radioInput) {
+      continue;
+    }
+
+    const attributes = [{ name: 'Size', value: cleanText(size) }];
+    variants.push({
+      id,
+      label: formatVariantLabel(attributes),
+      attributes,
+      priceMinor: product.priceMinor,
+      currency: product.currency,
+      availability: htmlHasBooleanAttribute(radioInput, 'disabled') ? 'out_of_stock' : 'in_stock',
+      sku: id
+    });
+  }
+
+  return variants;
+}
+
+function findHtmlTagWithClass(html: string, tagName: string, className: string): string | undefined {
+  const pattern = new RegExp(`<${escapeRegExp(tagName)}\\b(?=[^>]*\\bclass=["'][^"']*\\b${escapeRegExp(className)}\\b[^"']*["'])[^>]*>`, 'i');
+  return html.match(pattern)?.[0];
+}
+
+function findHtmlTag(html: string, tagName: string, attributeName: string, attributeValue: string): string | undefined {
+  const pattern = new RegExp(`<${escapeRegExp(tagName)}\\b(?=[^>]*\\b${escapeRegExp(attributeName)}\\s*=\\s*["']${escapeRegExp(attributeValue)}["'])[^>]*>`, 'i');
+  return html.match(pattern)?.[0];
+}
+
+function htmlAttribute(tag: string, name: string): string | undefined {
+  const pattern = new RegExp(`\\b${escapeRegExp(name)}\\s*=\\s*(["'])([\\s\\S]*?)\\1`, 'i');
+  const match = tag.match(pattern);
+  return match?.[2] ? decodeHtmlEntities(match[2]) : undefined;
+}
+
+function htmlHasBooleanAttribute(tag: string, name: string): boolean {
+  const pattern = new RegExp(`(?:^|\\s)${escapeRegExp(name)}(?:\\s*=\\s*(?:["'][^"']*["']|[^\\s>]+))?(?=\\s|>|$)`, 'i');
+  return pattern.test(tag);
+}
+
+function extractVariantAttributes(value: unknown): VariantAttribute[] {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return [];
+  }
+
+  return Object.entries(value as JsonRecord).flatMap(([key, rawValue]) => {
+    const attributeValue = asString(rawValue);
+    if (!attributeValue || !attributeValue.trim()) {
+      return [];
+    }
+
+    const name = key
+      .replace(/^attribute_(?:pa_)?/i, '')
+      .replace(/[_-]+/g, ' ')
+      .replace(/\b\w/g, (character) => character.toUpperCase());
+    return [{ name, value: cleanText(attributeValue) }];
+  });
+}
+
+function formatVariantLabel(attributes: VariantAttribute[]): string {
+  return attributes.map((attribute) => `${attribute.name}: ${attribute.value}`).join(' · ');
+}
+
+function asIdentifier(value: unknown): string | undefined {
+  if (typeof value === 'string' && value.trim()) {
+    return value.trim();
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(value);
+  }
+  return undefined;
+}
+
+function asPriceValue(value: unknown): string | number | undefined {
+  return typeof value === 'string' || typeof value === 'number' ? value : undefined;
 }
 
 function extractAymVariationImage(variation?: JsonRecord): string | undefined {
@@ -1077,13 +1427,27 @@ function parseAmazonAvailability(value: string | undefined, html: string): Avail
 }
 
 function matchAmazonPriceText(html: string): string | undefined {
+  const explicitBuyBoxPrice = firstAmazonPriceText(
+    matchString(html, /id=["']tp_price_block_total_price_ww["'][\s\S]{0,200}?<span class=["']a-offscreen["']>\s*([^<]*\d[^<]*)\s*<\/span>/i),
+    matchString(html, /id=["']priceblock_(?:ourprice|dealprice|saleprice)["'][\s\S]{0,200}?<span[^>]*>\s*([^<]*\d[^<]*)\s*<\/span>/i)
+  );
+  if (explicitBuyBoxPrice) {
+    return explicitBuyBoxPrice;
+  }
+
+  const buyBoxHtml = extractAmazonBuyBoxHtml(html);
+  if (!buyBoxHtml) {
+    return undefined;
+  }
+  const standardBuyBoxHtml = removeAmazonPrimeExclusiveMarkup(buyBoxHtml);
+
   const priceToPayOffscreen = firstAmazonPriceText(
     matchString(
-      html,
+      standardBuyBoxHtml,
       /class=["'][^"']*priceToPay[^"']*["'][^>]*>\s*<span class=["']a-offscreen["']>\s*([^<]*\d[^<]*)\s*<\/span>/i
     ),
     matchString(
-      html,
+      standardBuyBoxHtml,
       /class=["'][^"']*apex-pricetopay-value[^"']*["'][\s\S]{0,200}?<span class=["']a-offscreen["']>\s*([^<]*\d[^<]*)\s*<\/span>/i
     )
   );
@@ -1091,7 +1455,7 @@ function matchAmazonPriceText(html: string): string | undefined {
     return priceToPayOffscreen;
   }
 
-  const apexPrice = html.match(
+  const apexPrice = standardBuyBoxHtml.match(
     /priceToPay[^>]*>[\s\S]{0,400}?<span class=["']a-price-symbol["']>\s*([^<]*)\s*<\/span>\s*<span class=["']a-price-whole["']>\s*([^<]+?)\s*(?:<span class=["']a-price-decimal["'][^>]*>\s*.\s*<\/span>)?\s*<\/span>\s*<span class=["']a-price-fraction["']>\s*([^<]+)\s*<\/span>/i
   );
   if (apexPrice) {
@@ -1103,11 +1467,73 @@ function matchAmazonPriceText(html: string): string | undefined {
     }
   }
 
-  return firstAmazonPriceText(
-    matchString(html, /id=["']tp_price_block_total_price_ww["'][\s\S]{0,200}?<span class=["']a-offscreen["']>\s*([^<]*\d[^<]*)\s*<\/span>/i),
-    matchString(html, /id=["']corePriceDisplay_desktop_feature_div["'][\s\S]{0,6000}?<span class=["']a-offscreen["']>\s*([^<]*\d[^<]*)\s*<\/span>/i),
-    matchString(html, /<span class=["']a-offscreen["']>\s*([^<]*\d[^<]*)\s*<\/span>/i)
-  );
+  return undefined;
+}
+
+function removeAmazonPrimeExclusiveMarkup(html: string): string {
+  const openingTags = /<([a-z][\w:-]*)\b[^>]*>/gi;
+  let result = '';
+  let cursor = 0;
+  let openingTag: RegExpExecArray | null;
+
+  while ((openingTag = openingTags.exec(html))) {
+    if (!/prime[^>]{0,100}exclusive|exclusive[^>]{0,100}prime/i.test(openingTag[0])) {
+      continue;
+    }
+
+    const end = findHtmlElementEnd(html, openingTag);
+    if (end === undefined) {
+      continue;
+    }
+
+    result += html.slice(cursor, openingTag.index);
+    cursor = end;
+    openingTags.lastIndex = end;
+  }
+
+  return result + html.slice(cursor);
+}
+
+function findHtmlElementEnd(html: string, openingTag: RegExpExecArray): number | undefined {
+  const tagName = openingTag[1];
+  if (!tagName || openingTag.index === undefined) {
+    return undefined;
+  }
+
+  const tags = new RegExp(`<\\/?${tagName}\\b[^>]*>`, 'gi');
+  tags.lastIndex = openingTag.index;
+  let depth = 0;
+  let tag: RegExpExecArray | null;
+
+  while ((tag = tags.exec(html))) {
+    depth += tag[0].startsWith('</') ? -1 : 1;
+    if (depth === 0) {
+      return tags.lastIndex;
+    }
+  }
+
+  return undefined;
+}
+
+function extractAmazonBuyBoxHtml(html: string): string | undefined {
+  const startMatch = /<div\b[^>]*id=["'](?:corePriceDisplay_desktop_feature_div|corePrice_feature_div)["'][^>]*>/i.exec(html);
+  if (!startMatch || startMatch.index === undefined) {
+    return undefined;
+  }
+
+  const divTags = /<\/?div\b[^>]*>/gi;
+  divTags.lastIndex = startMatch.index;
+  let depth = 0;
+  let tag: RegExpExecArray | null;
+
+  while ((tag = divTags.exec(html))) {
+    depth += tag[0].startsWith('</') ? -1 : 1;
+    if (depth === 0) {
+      return html.slice(startMatch.index, divTags.lastIndex);
+    }
+  }
+
+  return undefined;
 }
 
 function extractAmazonDynamicImageUrl(html: string): string | undefined {
