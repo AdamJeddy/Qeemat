@@ -17,8 +17,8 @@ import {
   requestBatteryOptimizationExemption,
   runBackgroundCheckOnce,
   scheduleBackgroundChecks
-} from '../domain/backgroundScheduler';
-import { ensureNotificationPermission, openNotificationSettings } from '../domain/notifications';
+} from '../platform/backgroundScheduler';
+import { ensureNotificationPermission, openNotificationSettings } from '../platform/notifications';
 import { SUPPORTED_SITES } from '../domain/sites';
 import { formatRelativeTime, formatSnapshotTime } from '../domain/dates';
 import { getPlatformCapabilities } from '../platform/capabilities';

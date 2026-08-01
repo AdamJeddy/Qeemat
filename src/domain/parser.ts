@@ -1,7 +1,7 @@
 import { cleanUrl, detectSupportedSite, normalizeUrl } from './sites';
 import { Availability, ParsedProduct, ProductVariant, SiteKey, VariantAttribute, VariantSelection } from './types';
 import { parsePriceToMinor } from './price';
-import { fetchPageHtmlViaWebView } from './webViewFetcher';
+import { fetchPageHtmlViaWebView } from '../platform/webViewFetcher';
 import { findTrackedVariant } from './variants';
 
 type JsonRecord = Record<string, unknown>;

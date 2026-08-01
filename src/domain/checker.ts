@@ -2,7 +2,7 @@ import { isDueForCheck } from './dates';
 import { fetchAndParseProduct } from './parser';
 import { PriceDirection, SnapshotSource, TrackedProduct } from './types';
 import { recordFailedCheck, recordSuccessfulCheck, recordActivityEvent, listTrackedProducts, getTrackedProduct } from '../data/database';
-import { maybeNotifyForCheck } from './notifications';
+import { maybeNotifyForCheck } from '../platform/notifications';
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));

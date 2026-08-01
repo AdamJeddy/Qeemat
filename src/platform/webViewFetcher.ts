@@ -1,6 +1,6 @@
 import { NativeModules } from 'react-native';
 
-type WebViewFetcherModule = {
+export type WebViewFetcherModule = {
   fetchPageHtml: (url: string) => Promise<string>;
 };
 

@@ -5,7 +5,7 @@ import renderer, { act } from 'react-test-renderer';
 jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock')
 );
-jest.mock('../../domain/notifications', () => ({
+jest.mock('../../platform/notifications', () => ({
   ensureNotificationPermission: jest.fn().mockResolvedValue(false),
   openNotificationSettings: jest.fn()
 }));

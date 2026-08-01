@@ -18,7 +18,7 @@ jest.mock('react-native', () => ({
 import { NativeModules, Platform } from 'react-native';
 
 import { ensureNotificationPermission, maybeNotifyForCheck } from '../notifications';
-import { ParsedProduct, TrackedProduct } from '../types';
+import { ParsedProduct, TrackedProduct } from '../../domain/types';
 
 const product: TrackedProduct = {
   id: 7,

@@ -14,7 +14,7 @@ jest.mock('../../data/database', () => ({
   recordSuccessfulCheck: jest.fn()
 }));
 
-jest.mock('../notifications', () => ({
+jest.mock('../../platform/notifications', () => ({
   maybeNotifyForCheck: jest.fn()
 }));
 

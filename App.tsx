@@ -63,11 +63,11 @@ import {
   listTrackedProducts,
   updateTrackingSettings
 } from './src/data/database';
-import { scheduleBackgroundChecks, checkBatteryOptimizationExempt, openAppSystemSettings } from './src/domain/backgroundScheduler';
+import { scheduleBackgroundChecks, checkBatteryOptimizationExempt, openAppSystemSettings } from './src/platform/backgroundScheduler';
 import { checkAllActiveProducts, checkProductById } from './src/domain/checker';
 import { availableCheckPreferences, formatRelativeTime, formatSnapshotTime } from './src/domain/dates';
 import { getOnboardingState, markOnboardingCompleted } from './src/domain/onboarding';
-import { ensureNotificationPermission } from './src/domain/notifications';
+import { ensureNotificationPermission } from './src/platform/notifications';
 import { fetchAndParseProduct } from './src/domain/parser';
 import { formatPrice, parseTargetPriceInput } from './src/domain/price';
 import { cleanUrl, detectSharedUrl, detectSupportedSite, getSiteByKey, normalizeUrl, SUPPORTED_SITES } from './src/domain/sites';

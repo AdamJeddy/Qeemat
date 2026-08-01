@@ -1,6 +1,6 @@
 import { NativeModules, Platform } from 'react-native';
 
-type BackgroundCheckModule = {
+export type BackgroundCheckModule = {
   schedule?: (preferredHour: number) => Promise<boolean>;
   runOnce?: () => Promise<boolean>;
   runTestOnce?: (delayMinutes: number) => Promise<boolean>;

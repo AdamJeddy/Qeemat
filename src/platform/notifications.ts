@@ -1,7 +1,7 @@
 import { Linking, NativeModules, PermissionsAndroid, Platform } from 'react-native';
 
-import { formatPrice } from './price';
-import { Availability, ParsedProduct, TrackedProduct } from './types';
+import { formatPrice } from '../domain/price';
+import { Availability, ParsedProduct, TrackedProduct } from '../domain/types';
 
 type NotificationModule = {
   areEnabled?: () => Promise<boolean>;
