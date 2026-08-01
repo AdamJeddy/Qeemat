@@ -1,6 +1,7 @@
 import { Image, StyleSheet, View } from 'react-native';
 
 import { AppText } from './AppText';
+import { FacesIcon } from './FacesIcon';
 import { getSiteByKey } from '../domain/sites';
 import { SiteKey } from '../domain/types';
 
@@ -21,6 +22,8 @@ const SITE_COLORS: Record<SiteKey, string> = {
   adidas: '#000000',
   puma_uae: '#000000',
   decathlon_uae: '#0082C3',
+  sephora_uae: '#000000',
+  faces_uae: '#111827',
   brands_for_less: '#E31E24',
 };
 
@@ -32,6 +35,10 @@ function siteInitial(siteKey: SiteKey): string {
 export function SiteIcon({ siteKey, size = 20 }: SiteIconProps) {
   const site = getSiteByKey(siteKey);
   const bg = SITE_COLORS[siteKey] ?? '#64748B';
+
+  if (siteKey === 'faces_uae') {
+    return <FacesIcon size={size} />;
+  }
 
   if (site.iconAsset) {
     return (
