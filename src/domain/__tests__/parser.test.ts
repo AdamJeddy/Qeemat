@@ -1295,6 +1295,41 @@ describe('fetchAndParseProduct', () => {
     );
   });
 
+  it('retries the exact Sephora URL once after a transient block', async () => {
+    const fetchMock = jest
+      .fn()
+      .mockResolvedValueOnce({ ok: false, status: 403 })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: async () => `
+          <script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"Dior Addict Glass Lipstick","sku":"811716","image":"https://img-product.sephora.me/811716.jpeg","offers":{"@type":"Offer","price":"215","priceCurrency":"AED","availability":"InStock"}}</script>
+        `
+      });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const result = await fetchAndParseProduct(sephoraUrl);
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      sephoraUrl,
+      expect.objectContaining({ headers: expect.any(Object) })
+    );
+    expect(result).toEqual({
+      ok: true,
+      product: expect.objectContaining({
+        siteKey: 'sephora_uae',
+        canonicalUrl: sephoraUrl,
+        title: 'Dior Addict Glass Lipstick',
+        imageUrl: 'https://img-product.sephora.me/811716.jpeg',
+        priceMinor: 21500,
+        currency: 'AED',
+        availability: 'in_stock',
+        sku: '811716'
+      })
+    });
+  });
+
   it('returns selectable sizes for the reported Level Shoes URL', async () => {
     globalThis.fetch = jest.fn(async () => ({
       ok: true,

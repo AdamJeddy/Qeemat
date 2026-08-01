@@ -47,6 +47,13 @@ const ANDROID_CHROME_REQUEST_HEADERS: Record<string, string> = {
     'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.6422.165 Mobile Safari/537.36'
 };
 
+const SEPHORA_REQUEST_HEADERS: Record<string, string> = {
+  ...REQUEST_HEADERS,
+  'Sec-Ch-Ua': '"Not;A=Brand";v="8", "Chromium";v="150", "Google Chrome";v="150"',
+  'User-Agent':
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36'
+};
+
 function getRequestHeaders(siteKey: SiteKey): Record<string, string> {
   // Decathlon accepts Android's native request profile but rejects browser
   // impersonation when the TLS client is not a browser.
@@ -56,6 +63,9 @@ function getRequestHeaders(siteKey: SiteKey): Record<string, string> {
 
   if (siteKey === 'brands_for_less') {
     return ANDROID_CHROME_REQUEST_HEADERS;
+  }
+  if (siteKey === 'sephora_uae') {
+    return SEPHORA_REQUEST_HEADERS;
   }
   return REQUEST_HEADERS;
 }
@@ -77,10 +87,27 @@ export async function fetchAndParseProduct(rawUrl: string, selectedVariant?: Var
   }
 
   // Primary path: standard fetch (fast, works for most sites)
-  const fetchResult = await fetchAndParseWithFetch(normalizedUrl, site.key, selectedVariant);
+  let fetchResult = await fetchAndParseWithFetch(normalizedUrl, site.key, selectedVariant);
 
-  // If fetch succeeded or failed with a non-block error, return immediately
-  if (fetchResult.ok || fetchResult.code !== 'blocked') {
+  // Sephora's CDN can reject one request and accept the same product URL on
+  // the next attempt. Retry the exact URL once before using the WebView path.
+  if (
+    site.key === 'sephora_uae' &&
+    !fetchResult.ok &&
+    (fetchResult.code === 'blocked' || fetchResult.code === 'network_error')
+  ) {
+    fetchResult = await fetchAndParseWithFetch(normalizedUrl, site.key, selectedVariant);
+  }
+
+  // Sephora and Faces can redirect native clients through a session-establishing
+  // storefront route. Their WebView path handles that first-page navigation.
+  if (fetchResult.ok) {
+    return fetchResult;
+  }
+
+  const shouldUseWebViewFallback = fetchResult.code === 'blocked' ||
+    ((site.key === 'sephora_uae' || site.key === 'faces_uae') && fetchResult.code === 'network_error');
+  if (!shouldUseWebViewFallback) {
     return fetchResult;
   }
 
