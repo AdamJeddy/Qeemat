@@ -7,9 +7,16 @@ This is the repo handoff for the current app. Product-planning documents are use
 
 ## Product and Architecture
 
-Qeemat is an Android-first, local-first React Native + TypeScript price tracker. It tracks supported product pages on device using AsyncStorage, parses pages in TypeScript, and uses native Android modules for WorkManager scheduling, notifications, battery-optimization support, and the experimental WebView fetch fallback.
+Qeemat is an Android-first, local-first React Native + TypeScript price tracker. It tracks supported product pages on device using AsyncStorage, parses pages in TypeScript, and uses native Android modules for WorkManager scheduling, notifications, battery-optimization support, and the experimental WebView fetch fallback. Shared TypeScript code reaches those native features through capability-based adapters in `src/platform/`, so another mobile platform can implement the same contracts without adding platform checks throughout the UI and domain layers.
 
-The app uses a small manual route stack in `App.tsx`, not React Navigation. There is no backend, user account, cloud sync, SQLite database, or maintained iOS native implementation.
+The app uses a small manual route stack in `App.tsx`, not React Navigation. The platform-heavy Settings screen lives in `src/screens/SettingsScreen.tsx`; other screens remain in `App.tsx` and can be extracted incrementally when they need independent platform work. There is no backend, user account, cloud sync, SQLite database, `ios/` native project, or maintained iOS native implementation.
+
+## Cross-Platform Readiness
+
+- Background scheduling, notifications, WebView fetching, and shared-product intake expose platform-neutral TypeScript functions under `src/platform/`.
+- Native implementations are discovered by capability instead of assuming every non-Android platform supports or lacks the feature. Android-only battery-optimization controls remain explicitly Android-only.
+- Onboarding and Settings use platform capability metadata. iOS will not inherit Android WorkManager or battery-optimization instructions when an iOS project is added.
+- Adding iOS still requires a Mac/Xcode-generated native project plus iOS implementations of the existing adapter contracts. This repository cannot produce or validate an iOS build from Windows alone.
 
 ## Supported Stores
 
@@ -98,6 +105,8 @@ WorkManager is best effort. Battery saver, device-vendor restrictions, connectiv
 - `src/domain/parser.ts` - fetch and site parsers.
 - `src/domain/sites.ts` - site registry and URL cleaning.
 - `src/domain/checker.ts` - check orchestration and alert rules.
+- `src/platform/` - shared contracts and React Native adapters for native mobile capabilities.
+- `src/screens/SettingsScreen.tsx` - platform-aware settings and background-work controls.
 - `src/components/` - reusable UI, including `AppText`, `ProductCard`, and `SiteIcon`.
 - `src/theme/layout.ts` - compact layout helper.
 - `android/app/src/main/java/com/qeemat/` - Android WorkManager, notifications, and WebView modules.
