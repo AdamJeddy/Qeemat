@@ -11,6 +11,7 @@ const amazonUrl = 'https://www.amazon.ae/Logitech-Headphones-Cancelling-Micropho
 const amazonUsUrl = 'https://www.amazon.com/Logitech-Headphones-Cancelling-Microphone-Chromebook/dp/B005BFCNYU/';
 const amazonDeUrl = 'https://www.amazon.de/Logitech-Headphones-Cancelling-Microphone-Chromebook/dp/B005BFCNYU/';
 const adidasUrl = 'https://www.adidas.ae/en/adicolor-classics-3-stripes-hoodie/IX7573.html';
+const pumaUrl = 'https://ae.puma.com/ae/en/pd/h-street-premium-sneakers-unisex/403777.html?color=02';
 const bflUrl = 'https://www.brandsforless.com/en-ae/women-paisley-print-tiered-dress-multicolor/1966137/p/';
 
 describe('parseProductHtml', () => {
@@ -787,6 +788,55 @@ describe('parseProductHtml', () => {
     ]);
   });
 
+  it('offers PUMA sizes from initial-page option IDs and stock labels', () => {
+    const html = `
+      <script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"H-Street Premium Sneakers Unisex","sku":"403777_02","image":["https://images.puma.com/403777-02.png"],"offers":{"@type":"Offer","price":"299","priceCurrency":"AED","availability":"https://schema.org/InStock","url":"https://ae.puma.com/ae/en/pd/h-street-premium-sneakers-unisex/403777.html"}}</script>
+      <a data-testid="sf-sizetile" aria-label="Size EU 42" value="0240" href="/ae/en/pd/h-street-premium-sneakers-unisex/403777.html?color=02&amp;size=0240"><p>EU 42</p></a>
+      <a data-testid="sf-sizetile" aria-label="Size EU 42.5 out of stock" value="0250" href="/ae/en/pd/h-street-premium-sneakers-unisex/403777.html?color=02&amp;size=0250"><p>EU 42.5</p></a>
+      <a data-testid="sf-sizetile" aria-label="Size EU 43" value="0260" href="/ae/en/pd/h-street-premium-sneakers-unisex/403777.html?color=02&amp;size=0260"><p>EU 43</p></a>
+    `;
+
+    const parsed = parseProductHtml('puma_uae', pumaUrl, html);
+
+    expect(parsed).toEqual(expect.objectContaining({
+      siteKey: 'puma_uae',
+      canonicalUrl: pumaUrl,
+      title: 'H-Street Premium Sneakers Unisex',
+      sku: '403777_02',
+      priceMinor: 29900,
+      currency: 'AED',
+      availability: 'in_stock'
+    }));
+    expect(parsed?.variants).toEqual([
+      expect.objectContaining({ id: '0240', label: 'Size: EU 42', priceMinor: 29900, availability: 'in_stock' }),
+      expect.objectContaining({ id: '0250', label: 'Size: EU 42.5', priceMinor: 29900, availability: 'out_of_stock' }),
+      expect.objectContaining({ id: '0260', label: 'Size: EU 43', priceMinor: 29900, availability: 'in_stock' })
+    ]);
+  });
+
+  it('resolves the exact saved PUMA size from its source option ID', () => {
+    const html = `
+      <script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"H-Street Premium Sneakers Unisex","sku":"403777_02","offers":{"@type":"Offer","price":"299","priceCurrency":"AED","availability":"https://schema.org/InStock"}}</script>
+      <a data-testid="sf-sizetile" aria-label="Size EU 42" value="0240"><p>EU 42</p></a>
+      <a data-testid="sf-sizetile" aria-label="Size EU 43" value="0260"><p>EU 43</p></a>
+    `;
+
+    const parsed = parseProductHtml('puma_uae', pumaUrl, html, {
+      id: '0260',
+      label: 'Size: EU 43',
+      attributes: [{ name: 'Size', value: 'EU 43' }]
+    });
+
+    expect(parsed).toEqual(expect.objectContaining({
+      sku: '0260',
+      selectedVariant: {
+        id: '0260',
+        label: 'Size: EU 43',
+        attributes: [{ name: 'Size', value: 'EU 43' }]
+      }
+    }));
+  });
+
   it('keeps Noon page-level when the initial response has labels but no stable source option ID', () => {
     const html = `
       <script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"Anzarun Lite","sku":"N44137847V","offers":{"@type":"Offer","price":"97","priceCurrency":"AED","availability":"https://schema.org/InStock"}}</script>
@@ -800,7 +850,7 @@ describe('parseProductHtml', () => {
     const html = `
       <script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"Example product","sku":"SKU-1","offers":{"@type":"Offer","price":"100","priceCurrency":"AED","availability":"https://schema.org/InStock"}}</script>
     `;
-    const pageLevelSources: SiteKey[] = ['noon', 'nike_uae', 'sun_sand_sports', 'amazon_ae', 'adidas', 'brands_for_less'];
+    const pageLevelSources: SiteKey[] = ['noon', 'nike_uae', 'sun_sand_sports', 'amazon_ae', 'adidas', 'puma_uae', 'brands_for_less'];
 
     for (const siteKey of pageLevelSources) {
       expect(parseProductHtml(siteKey, 'https://example.com/product', html)?.variants).toBeUndefined();
@@ -1066,6 +1116,11 @@ describe('detectSupportedSite', () => {
     expect(detectSupportedSite(adidasUrl)?.key).toBe('adidas');
     expect(detectSupportedSite('https://adidas.ae/en/ultraboost-1-0-shoes/IH1234.html')?.key).toBe('adidas');
     expect(detectSupportedSite('https://www.adidas.ae/en/product.html')?.key).toBe('adidas');
+  });
+
+  it('detects PUMA UAE product URLs', () => {
+    expect(detectSupportedSite(pumaUrl)?.key).toBe('puma_uae');
+    expect(detectSupportedSite('https://ae.puma.com/en/pd/example/123456.html')?.key).toBe('puma_uae');
   });
 
   it('detects Brands For Less product URLs', () => {

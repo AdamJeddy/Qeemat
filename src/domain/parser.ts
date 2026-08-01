@@ -224,7 +224,8 @@ export function parseProductHtml(
     siteKey !== 'ounass' &&
     siteKey !== 'nike_uae' &&
     siteKey !== 'sun_sand_sports' &&
-    siteKey !== 'adidas'
+    siteKey !== 'adidas' &&
+    siteKey !== 'puma_uae'
   ) {
     return resolveParsedVariant(structured, selectedVariant);
   }
@@ -262,6 +263,11 @@ export function parseProductHtml(
         }
       : adidasProduct ?? structured;
     return resolveParsedVariant(withProductVariants(product, extractAdidasSizeVariants(html, product)), selectedVariant);
+  }
+
+  if (siteKey === 'puma_uae') {
+    const product = structured ? { ...structured, canonicalUrl: inputUrl } : undefined;
+    return resolveParsedVariant(withProductVariants(product, extractPumaSizeVariants(html, product)), selectedVariant);
   }
 
   if (siteKey === 'brands_for_less') {
@@ -1063,6 +1069,43 @@ function extractAdidasSizeVariants(html: string, product?: ParsedProduct): Produ
       priceMinor: product.priceMinor,
       currency: product.currency,
       availability: htmlHasBooleanAttribute(radioInput, 'disabled') ? 'out_of_stock' : 'in_stock',
+      sku: id
+    });
+  }
+
+  return variants;
+}
+
+/**
+ * PUMA UAE includes every source-defined size in the initial product HTML.
+ * The tile value is the stable option ID and its accessible label carries the
+ * stock state, so no option-specific request is required.
+ */
+function extractPumaSizeVariants(html: string, product?: ParsedProduct): ProductVariant[] {
+  if (product?.priceMinor === undefined || !product.currency) {
+    return [];
+  }
+
+  const variants: ProductVariant[] = [];
+  const sizeTilePattern = /<a\b(?=[^>]*\bdata-testid\s*=\s*["']sf-sizetile["'])[^>]*>/gi;
+
+  for (const match of html.matchAll(sizeTilePattern)) {
+    const tag = match[0];
+    const id = htmlAttribute(tag, 'value');
+    const ariaLabel = htmlAttribute(tag, 'aria-label');
+    const size = ariaLabel?.match(/^Size\s+(.+?)(?:\s+out of stock)?$/i)?.[1];
+    if (!id || !size) {
+      continue;
+    }
+
+    const attributes = [{ name: 'Size', value: cleanText(size) }];
+    variants.push({
+      id,
+      label: formatVariantLabel(attributes),
+      attributes,
+      priceMinor: product.priceMinor,
+      currency: product.currency,
+      availability: /\bout of stock\b/i.test(ariaLabel) ? 'out_of_stock' : 'in_stock',
       sku: id
     });
   }
