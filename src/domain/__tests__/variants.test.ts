@@ -45,14 +45,35 @@ const variants: ProductVariant[] = [
 ];
 
 describe('variant selection', () => {
-  it('disables an out-of-stock option when the other selected attributes make it the only matching variant', () => {
-    const groups = getVariantOptionGroups(variants, { Colour: 'Black' });
+  it('keeps an in-stock option selectable when it requires clearing an incompatible selection', () => {
+    const groups = getVariantOptionGroups(variants);
     const size = groups.find((group) => group.name === 'Size');
 
     expect(size?.values).toEqual([
       { value: 'EU 42', disabled: false },
-      { value: 'EU 43', disabled: true }
+      { value: 'EU 43', disabled: false }
     ]);
+  });
+
+  it('disables an option only when every variant with that value is out of stock', () => {
+    const unavailableVariants = [
+      ...variants,
+      {
+        id: 'white-44',
+        label: 'White · EU 44',
+        attributes: [
+          { name: 'Colour', value: 'White' },
+          { name: 'Size', value: 'EU 44' }
+        ],
+        priceMinor: 44000,
+        currency: 'AED',
+        availability: 'out_of_stock' as const
+      }
+    ];
+
+    const size = getVariantOptionGroups(unavailableVariants).find((group) => group.name === 'Size');
+
+    expect(size?.values).toContainEqual({ value: 'EU 44', disabled: true });
   });
 
   it('clears an incompatible selection when another attribute changes', () => {

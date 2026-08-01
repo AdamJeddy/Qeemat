@@ -14,7 +14,7 @@ type VariantSelectorProps = {
 };
 
 export function VariantSelector({ variants, selectedAttributes, onSelect }: VariantSelectorProps) {
-  const groups = getVariantOptionGroups(variants, selectedAttributes);
+  const groups = getVariantOptionGroups(variants);
   const [groupWidths, setGroupWidths] = useState<Record<string, number>>({});
 
   return (

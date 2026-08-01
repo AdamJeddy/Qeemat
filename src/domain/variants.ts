@@ -7,7 +7,7 @@ export type VariantOptionGroup = {
   values: Array<{ value: string; disabled: boolean }>;
 };
 
-export function getVariantOptionGroups(variants: ProductVariant[], selected: VariantAttributes): VariantOptionGroup[] {
+export function getVariantOptionGroups(variants: ProductVariant[]): VariantOptionGroup[] {
   const names = uniqueAttributeNames(variants);
 
   return names.map((name) => {
@@ -18,8 +18,7 @@ export function getVariantOptionGroups(variants: ProductVariant[], selected: Var
         value,
         disabled: !variants.some((variant) =>
           variant.availability === 'in_stock' &&
-          getAttributeValue(variant.attributes, name) === value &&
-          matchesAttributesExcept(variant.attributes, selected, name)
+          getAttributeValue(variant.attributes, name) === value
         )
       }))
     };
@@ -39,11 +38,10 @@ export function updateSelectedVariantAttributes(
       continue;
     }
 
-    const validValues = getVariantOptionGroups(variants, next)
-      .find((group) => group.name === attributeName)
-      ?.values.filter((option) => !option.disabled)
-      .map((option) => option.value);
-    if (!validValues?.includes(next[attributeName])) {
+    const matchesCurrentSelection = variants.some(
+      (variant) => variant.availability === 'in_stock' && matchesAttributes(variant.attributes, next)
+    );
+    if (!matchesCurrentSelection) {
       delete next[attributeName];
     }
   }
@@ -98,10 +96,4 @@ function getAttributeValue(attributes: VariantAttribute[], name: string): string
 
 function matchesAttributes(attributes: VariantAttribute[], selected: VariantAttributes): boolean {
   return Object.entries(selected).every(([name, value]) => getAttributeValue(attributes, name) === value);
-}
-
-function matchesAttributesExcept(attributes: VariantAttribute[], selected: VariantAttributes, ignoredName: string): boolean {
-  return Object.entries(selected)
-    .filter(([name]) => name !== ignoredName)
-    .every(([name, value]) => getAttributeValue(attributes, name) === value);
 }
