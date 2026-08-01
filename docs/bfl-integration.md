@@ -2,7 +2,7 @@
 
 **Issue:** #9  
 **Status:** Parked — parser complete, fetch path blocked by Cloudflare  
-**Last reconciled with the repo:** 2026-07-23
+**Last reconciled with the repo:** 2026-08-01
 
 ## What's implemented (and working)
 

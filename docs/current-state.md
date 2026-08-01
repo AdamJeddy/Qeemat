@@ -132,3 +132,8 @@ For a terminal Android build, use JDK 17+ and make `adb` available from Android 
 - **#14:** Amazon tracks only the base Buy Box price, excluding Prime-exclusive and alternate-seller prices.
 - **#22:** app version updated to 0.5.0.
 - **#29:** logo-only store filtering on the watchlist.
+- **#28:** exact, source-defined variant selection and later resolution; a missing saved option reports `variant_not_found` rather than substituting another option.
+- **#32:** Decathlon UAE support with source-defined Shopify variants.
+- **#33 and #34:** Sephora UAE and Faces UAE support, including the native WebView fallback for protected or redirected checks.
+- **#36 and #38:** Android Share to Qeemat, including automatic product discovery for newly received and warm-app shares.
+- **#39:** PUMA UAE support with source-defined size variants.
