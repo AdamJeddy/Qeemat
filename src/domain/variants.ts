@@ -59,9 +59,7 @@ export function resolveSelectedVariant(variants: ProductVariant[], selected: Var
 }
 
 export function findTrackedVariant(variants: ProductVariant[], selection: VariantSelection): ProductVariant | undefined {
-  return variants.find(
-    (variant) => variant.id === selection.id && matchesAttributes(variant.attributes, toAttributes(selection.attributes))
-  );
+  return variants.find((variant) => variant.id === selection.id);
 }
 
 export function toVariantSelection(variant: ProductVariant): VariantSelection {

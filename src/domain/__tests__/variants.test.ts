@@ -1,4 +1,5 @@
 import {
+  findTrackedVariant,
   getVariantOptionGroups,
   resolveSelectedVariant,
   updateSelectedVariantAttributes
@@ -85,5 +86,27 @@ describe('variant selection', () => {
   it('resolves only the exact in-stock selected variant', () => {
     expect(resolveSelectedVariant(variants, { Colour: 'White', Size: 'EU 43' })).toEqual(variants[2]);
     expect(resolveSelectedVariant(variants, { Colour: 'Black', Size: 'EU 43' })).toBeUndefined();
+  });
+
+  it('finds a tracked variant by its stable source ID when display attributes change', () => {
+    const renamedVariant: ProductVariant = {
+      ...variants[2],
+      label: 'White · 43',
+      attributes: [
+        { name: 'Colour', value: 'White' },
+        { name: 'Size', value: '43' }
+      ]
+    };
+
+    expect(
+      findTrackedVariant([renamedVariant], {
+        id: 'white-43',
+        label: 'White · EU 43',
+        attributes: [
+          { name: 'Colour', value: 'White' },
+          { name: 'Size', value: 'EU 43' }
+        ]
+      })
+    ).toEqual(renamedVariant);
   });
 });
