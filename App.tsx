@@ -82,7 +82,7 @@ import { resolveSelectedVariant, toVariantSelection, updateSelectedVariantAttrib
 type TabKey = 'watchlist' | 'activity' | 'settings';
 type Route =
   | { name: 'tabs'; tab: TabKey }
-  | { name: 'add'; initialUrl?: string }
+  | { name: 'add'; initialUrl?: string; shareEventId?: number }
   | { name: 'detail'; id: number }
   | { name: 'trackingSettings'; id: number };
 
@@ -108,6 +108,7 @@ export default function App() {
   const [route, setRoute] = useState<Route>({ name: 'tabs', tab: 'watchlist' });
   const [ready, setReady] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const shareEventId = useRef(0);
 
   useEffect(() => {
     let active = true;
@@ -163,7 +164,7 @@ export default function App() {
     const openSharedProduct = (sharedText: string) => {
       const sharedUrl = detectSharedUrl(sharedText);
       if (sharedUrl) {
-        setRoute({ name: 'add', initialUrl: sharedUrl });
+        setRoute({ name: 'add', initialUrl: sharedUrl, shareEventId: ++shareEventId.current });
       }
     };
 
@@ -188,7 +189,7 @@ export default function App() {
       <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
       <SafeAreaView style={styles.app}>
         {route.name === 'tabs' ? <TabsScreen tab={route.tab} navigate={setRoute} /> : null}
-        {route.name === 'add' ? <AddScreen initialUrl={route.initialUrl} navigate={setRoute} /> : null}
+        {route.name === 'add' ? <AddScreen initialUrl={route.initialUrl} shareEventId={route.shareEventId} navigate={setRoute} /> : null}
         {route.name === 'detail' ? <DetailScreen productId={route.id} navigate={setRoute} /> : null}
         {route.name === 'trackingSettings' ? <TrackingSettingsScreen productId={route.id} navigate={setRoute} /> : null}
         {showOnboarding ? <OnboardingOverlay onClose={() => setShowOnboarding(false)} /> : null}
@@ -558,7 +559,7 @@ function EmptyWatchlist({ onAdd }: { onAdd: () => void }) {
   );
 }
 
-export function AddScreen({ initialUrl, navigate }: { initialUrl?: string; navigate: (route: Route) => void }) {
+export function AddScreen({ initialUrl, shareEventId, navigate }: { initialUrl?: string; shareEventId?: number; navigate: (route: Route) => void }) {
   const [url, setUrl] = useState(initialUrl ?? '');
   const [parsedProduct, setParsedProduct] = useState<ParsedProduct | undefined>();
   const [loading, setLoading] = useState(false);
@@ -570,18 +571,21 @@ export function AddScreen({ initialUrl, navigate }: { initialUrl?: string; navig
   const [selectedVariantAttributes, setSelectedVariantAttributes] = useState<VariantAttributes>({});
   const scrollRef = useRef<ScrollView>(null);
   const shouldFocusParsedResult = useRef(false);
+  const parseRequestId = useRef(0);
 
   useEffect(() => {
     if (!initialUrl) {
       return;
     }
 
+    parseRequestId.current += 1;
     setUrl(initialUrl);
     setParsedProduct(undefined);
     setSelectedVariantAttributes({});
     shouldFocusParsedResult.current = false;
     setError(undefined);
-  }, [initialUrl]);
+    setLoading(false);
+  }, [initialUrl, shareEventId]);
 
   const normalizedUrl = cleanUrl(normalizeUrl(url));
   const detectedSite = useMemo(() => detectSupportedSite(normalizedUrl), [normalizedUrl]);
@@ -639,7 +643,11 @@ export function AddScreen({ initialUrl, navigate }: { initialUrl?: string; navig
     setSelectedVariantAttributes({});
     shouldFocusParsedResult.current = true;
     setLoading(true);
+    const requestId = ++parseRequestId.current;
     const result = await fetchAndParseProduct(url);
+    if (requestId !== parseRequestId.current) {
+      return;
+    }
     if (result.ok) {
       setParsedProduct(result.product);
     } else {
@@ -688,11 +696,13 @@ export function AddScreen({ initialUrl, navigate }: { initialUrl?: string; navig
             <TextInput
               value={url}
               onChangeText={(value) => {
+                parseRequestId.current += 1;
                 setUrl(value);
                 setParsedProduct(undefined);
                 setSelectedVariantAttributes({});
                 shouldFocusParsedResult.current = false;
                 setError(undefined);
+                setLoading(false);
               }}
               autoCapitalize="none"
               autoCorrect={false}
