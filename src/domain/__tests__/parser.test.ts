@@ -12,6 +12,7 @@ const amazonUsUrl = 'https://www.amazon.com/Logitech-Headphones-Cancelling-Micro
 const amazonDeUrl = 'https://www.amazon.de/Logitech-Headphones-Cancelling-Microphone-Chromebook/dp/B005BFCNYU/';
 const adidasUrl = 'https://www.adidas.ae/en/adicolor-classics-3-stripes-hoodie/IX7573.html';
 const pumaUrl = 'https://ae.puma.com/ae/en/pd/h-street-premium-sneakers-unisex/403777.html?color=02';
+const decathlonUrl = 'https://decathlon.ae/products/men-s-modular-and-durable-mountain-trekking-trousers-mt100';
 const bflUrl = 'https://www.brandsforless.com/en-ae/women-paisley-print-tiered-dress-multicolor/1966137/p/';
 
 describe('parseProductHtml', () => {
@@ -837,6 +838,62 @@ describe('parseProductHtml', () => {
     }));
   });
 
+  it('uses Decathlon ProductJson variants for the chosen exact store option', () => {
+    const html = `
+      <script id="ProductJson" type="application/json">{
+        "id": 8741542887614,
+        "title": "Men’s Modular and Durable Mountain Trekking Trousers MT100",
+        "featured_image": "//decathlon.ae/cdn/shop/files/trousers.jpg",
+        "options": ["Model Code", "Size", "Color"],
+        "variants": [
+          {"id": 46478949187774, "option1": "8666242", "option2": "UK31\\u0022 / FR 40 (L33)", "option3": "carbon grey", "sku": "4393052", "available": true, "price": 16500, "featured_image": {"src": "//decathlon.ae/cdn/shop/files/trousers.jpg"}},
+          {"id": 46478949253310, "option1": "8666242", "option2": "UK34\\u0022 / FR 44 (L34)", "option3": "carbon grey", "sku": "4402417", "available": false, "price": 16500}
+        ]
+      }</script>
+    `;
+
+    const parsed = parseProductHtml('decathlon_uae', decathlonUrl, html);
+
+    expect(parsed).toEqual(expect.objectContaining({
+      siteKey: 'decathlon_uae',
+      canonicalUrl: decathlonUrl,
+      title: 'Men’s Modular and Durable Mountain Trekking Trousers MT100',
+      priceMinor: 16500,
+      currency: 'AED',
+      availability: 'in_stock',
+      sku: '4393052'
+    }));
+    expect(parsed?.variants).toEqual([
+      expect.objectContaining({
+        id: '46478949187774',
+        label: expect.stringContaining('Size: UK31" / FR 40 (L33)'),
+        priceMinor: 16500,
+        availability: 'in_stock'
+      }),
+      expect.objectContaining({ id: '46478949253310', availability: 'out_of_stock' })
+    ]);
+
+    const selected = parseProductHtml('decathlon_uae', decathlonUrl, html, {
+      id: '46478949253310',
+      label: 'Model Code: 8666242 Â· Size: UK34" / FR 44 (L34) Â· Color: carbon grey',
+      attributes: [
+        { name: 'Model Code', value: '8666242' },
+        { name: 'Size', value: 'UK34" / FR 44 (L34)' },
+        { name: 'Color', value: 'carbon grey' }
+      ]
+    });
+
+    expect(selected).toEqual(expect.objectContaining({
+      priceMinor: undefined,
+      availability: 'out_of_stock',
+      sku: '4402417',
+      selectedVariant: expect.objectContaining({ id: '46478949253310' })
+    }));
+
+    const incompleteRecordHtml = html.replace('"available": false, "price": 16500', '"price": 16500');
+    expect(parseProductHtml('decathlon_uae', decathlonUrl, incompleteRecordHtml)?.variants).toBeUndefined();
+  });
+
   it('keeps Noon page-level when the initial response has labels but no stable source option ID', () => {
     const html = `
       <script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"Anzarun Lite","sku":"N44137847V","offers":{"@type":"Offer","price":"97","priceCurrency":"AED","availability":"https://schema.org/InStock"}}</script>
@@ -850,7 +907,7 @@ describe('parseProductHtml', () => {
     const html = `
       <script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"Example product","sku":"SKU-1","offers":{"@type":"Offer","price":"100","priceCurrency":"AED","availability":"https://schema.org/InStock"}}</script>
     `;
-    const pageLevelSources: SiteKey[] = ['noon', 'nike_uae', 'sun_sand_sports', 'amazon_ae', 'adidas', 'puma_uae', 'brands_for_less'];
+    const pageLevelSources: SiteKey[] = ['noon', 'nike_uae', 'sun_sand_sports', 'amazon_ae', 'adidas', 'puma_uae', 'decathlon_uae', 'brands_for_less'];
 
     for (const siteKey of pageLevelSources) {
       expect(parseProductHtml(siteKey, 'https://example.com/product', html)?.variants).toBeUndefined();
@@ -1123,6 +1180,11 @@ describe('detectSupportedSite', () => {
     expect(detectSupportedSite('https://ae.puma.com/en/pd/example/123456.html')?.key).toBe('puma_uae');
   });
 
+  it('detects Decathlon UAE product URLs', () => {
+    expect(detectSupportedSite(decathlonUrl)?.key).toBe('decathlon_uae');
+    expect(detectSupportedSite('https://www.decathlon.ae/products/example')?.key).toBe('decathlon_uae');
+  });
+
   it('detects Brands For Less product URLs', () => {
     expect(detectSupportedSite(bflUrl)?.key).toBe('brands_for_less');
     expect(detectSupportedSite('https://brandsforless.com/en-ae/women-shoes/12345/p/')?.key).toBe('brands_for_less');
@@ -1168,6 +1230,26 @@ describe('fetchAndParseProduct', () => {
   afterEach(() => {
     globalThis.fetch = originalFetch;
     jest.restoreAllMocks();
+  });
+
+  it('uses the native Android request profile for Decathlon UAE', async () => {
+    const fetchMock = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      text: async () => `
+        <script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"Germany 26 Home Replica Jersey","offers":{"@type":"Offer","price":"299","priceCurrency":"AED","availability":"https://schema.org/InStock"}}</script>
+      `
+    }));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await fetchAndParseProduct('https://decathlon.ae/collections/adidas/products/germany-26-home-replica-jersey-white?variant=46671030255806');
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        headers: {}
+      })
+    );
   });
 
   it('returns selectable sizes for the reported Level Shoes URL', async () => {
