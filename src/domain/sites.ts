@@ -143,7 +143,7 @@ export function detectSupportedSite(urlValue: string): SupportedSite | undefined
 }
 
 /**
- * Extract the first web URL from Android share text. Browsers may include a
+ * Extract the first web URL from shared text. Browsers may include a
  * product title before the URL instead of sharing the URL on its own.
  */
 export function detectSharedUrl(sharedText: string): string | undefined {

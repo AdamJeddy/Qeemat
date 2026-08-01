@@ -6,8 +6,6 @@ import {
   Image,
   Keyboard,
   Linking,
-  NativeEventEmitter,
-  NativeModules,
   Platform,
   Pressable,
   RefreshControl,
@@ -70,7 +68,7 @@ import { getOnboardingState, markOnboardingCompleted } from './src/domain/onboar
 import { ensureNotificationPermission } from './src/platform/notifications';
 import { fetchAndParseProduct } from './src/domain/parser';
 import { formatPrice, parseTargetPriceInput } from './src/domain/price';
-import { cleanUrl, detectSharedUrl, detectSupportedSite, getSiteByKey, normalizeUrl, SUPPORTED_SITES } from './src/domain/sites';
+import { cleanUrl, detectSupportedSite, getSiteByKey, normalizeUrl, SUPPORTED_SITES } from './src/domain/sites';
 import { ActivityEvent, AlertMode, CheckPreference, ParsedProduct, PriceSnapshot, ProductWithSnapshots, SnapshotSource, TrackedProduct } from './src/domain/types';
 import { colors, radius, shadow } from './src/theme/theme';
 import { isCompactLayout } from './src/theme/layout';
@@ -78,6 +76,7 @@ import { filterWatchlistProducts, getWatchlistSites, WatchlistStoreFilter } from
 import { resolveSelectedVariant, toVariantSelection, updateSelectedVariantAttributes, VariantAttributes } from './src/domain/variants';
 import { getPlatformCapabilities } from './src/platform/capabilities';
 import { SettingsScreen } from './src/screens/SettingsScreen';
+import { subscribeToSharedProductUrls } from './src/platform/sharedProductIntake';
 
 type TabKey = 'watchlist' | 'activity' | 'settings';
 type Route =
@@ -150,22 +149,9 @@ export default function App() {
   }, [route]);
 
   useEffect(() => {
-    const shareModule = NativeModules.QeematShare;
-    if (!shareModule) {
-      return;
-    }
-
-    const openSharedProduct = (sharedText: string) => {
-      const sharedUrl = detectSharedUrl(sharedText);
-      if (sharedUrl) {
-        setRoute({ name: 'add', initialUrl: sharedUrl, shareEventId: ++shareEventId.current });
-      }
-    };
-
-    shareModule.getInitialSharedText().then(openSharedProduct).catch(() => undefined);
-    const subscription = new NativeEventEmitter(shareModule).addListener('qeematShareReceived', openSharedProduct);
-
-    return () => subscription.remove();
+    return subscribeToSharedProductUrls((sharedUrl) => {
+      setRoute({ name: 'add', initialUrl: sharedUrl, shareEventId: ++shareEventId.current });
+    });
   }, []);
 
   if (!ready) {
