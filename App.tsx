@@ -552,7 +552,7 @@ function EmptyWatchlist({ onAdd }: { onAdd: () => void }) {
         Track your first product
       </AppText>
       <AppText muted style={styles.emptyCopy}>
-        Paste a supported product link from Noon, Nike UAE, Sun & Sand Sports, Level Shoes, AYM Accessories, Ounass, Amazon, Adidas, PUMA, or Decathlon to start a local price history.
+        Paste a supported product link from Noon, Nike UAE, Sun & Sand Sports, Level Shoes, AYM Accessories, Ounass, Amazon, Adidas, PUMA, Decathlon, Sephora, or Faces to start a local price history.
       </AppText>
       <PrimaryButton label="Add product" onPress={onAdd} style={styles.emptyButton} />
     </View>
@@ -728,7 +728,7 @@ export function AddScreen({ initialUrl, shareEventId, navigate }: { initialUrl?:
                   {detectedSite.displayName} link detected
                 </AppText>
                 <AppText muted style={styles.detectedHint}>
-                  Find the product to choose an available option and set your alerts.
+                  Find the product to set your alerts. Select an option when the page provides one.
                 </AppText>
               </View>
             </View>

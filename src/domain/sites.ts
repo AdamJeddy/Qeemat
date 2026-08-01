@@ -134,6 +134,24 @@ export const SUPPORTED_SITES: SupportedSite[] = [
     iconAsset: require('../../assets/site-icons/decathlon_uae.png')
   },
   {
+    key: 'sephora_uae',
+    displayName: 'Sephora UAE',
+    shortName: 'Sephora',
+    hostnames: ['sephora.me', 'www.sephora.me'],
+    status: 'supported',
+    notes: 'Product pages expose JSON-LD title, image, AED price, and availability. Bot protection uses the native WebView fallback.',
+    iconAsset: require('../../assets/site-icons/sephora_uae.png')
+  },
+  {
+    key: 'faces_uae',
+    displayName: 'Faces UAE',
+    shortName: 'Faces',
+    hostnames: ['faces.ae', 'www.faces.ae'],
+    status: 'supported',
+    notes: 'Salesforce Commerce Cloud product pages expose structured product data with AED price and availability.',
+    iconAsset: require('../../assets/site-icons/faces_uae.png')
+  },
+  {
     key: 'brands_for_less',
     displayName: 'Brands For Less UAE',
     shortName: 'BFL',

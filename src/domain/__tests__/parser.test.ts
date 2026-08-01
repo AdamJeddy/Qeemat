@@ -13,6 +13,8 @@ const amazonDeUrl = 'https://www.amazon.de/Logitech-Headphones-Cancelling-Microp
 const adidasUrl = 'https://www.adidas.ae/en/adicolor-classics-3-stripes-hoodie/IX7573.html';
 const pumaUrl = 'https://ae.puma.com/ae/en/pd/h-street-premium-sneakers-unisex/403777.html?color=02';
 const decathlonUrl = 'https://decathlon.ae/products/men-s-modular-and-durable-mountain-trekking-trousers-mt100';
+const sephoraUrl = 'https://www.sephora.me/ae-en/p/dior-addict-glass-lipstick-ultra-shine-and-hydrating-lip-gloss-stick/P1000214119?productVariantId=811716';
+const facesUrl = 'https://www.faces.ae/en/p/dior-addict-glass-ultra-shine-and-hydrating-stick-pm009117909944.html';
 const bflUrl = 'https://www.brandsforless.com/en-ae/women-paisley-print-tiered-dress-multicolor/1966137/p/';
 
 describe('parseProductHtml', () => {
@@ -907,11 +909,45 @@ describe('parseProductHtml', () => {
     const html = `
       <script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"Example product","sku":"SKU-1","offers":{"@type":"Offer","price":"100","priceCurrency":"AED","availability":"https://schema.org/InStock"}}</script>
     `;
-    const pageLevelSources: SiteKey[] = ['noon', 'nike_uae', 'sun_sand_sports', 'amazon_ae', 'adidas', 'puma_uae', 'decathlon_uae', 'brands_for_less'];
+    const pageLevelSources: SiteKey[] = ['noon', 'nike_uae', 'sun_sand_sports', 'amazon_ae', 'adidas', 'puma_uae', 'decathlon_uae', 'sephora_uae', 'faces_uae', 'brands_for_less'];
 
     for (const siteKey of pageLevelSources) {
       expect(parseProductHtml(siteKey, 'https://example.com/product', html)?.variants).toBeUndefined();
     }
+  });
+
+  it('parses Sephora UAE product JSON-LD and retains shade products at page level', () => {
+    const html = `
+      <link rel="canonical" href="https://www.sephora.me/ae-en/p/dior-addict-glass-lipstick-ultra-shine-and-hydrating-lip-gloss-stick/P1000214119" />
+      <script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"Dior Addict Glass Lipstick","sku":"811716","image":"https://img-product.sephora.me/811716.jpeg","offers":{"@type":"Offer","price":"215","priceCurrency":"AED","availability":"InStock"}}</script>
+      <script>window.product={"c_variantsInfo":[{"product_id":"811716","c_variation_attribute_name":"194 Sparkly Dice","c_price":215}]};</script>
+    `;
+
+    expect(parseProductHtml('sephora_uae', sephoraUrl, html)).toEqual(expect.objectContaining({
+      siteKey: 'sephora_uae',
+      title: 'Dior Addict Glass Lipstick',
+      sku: '811716',
+      priceMinor: 21500,
+      currency: 'AED',
+      availability: 'in_stock'
+    }));
+  });
+
+  it('parses Faces UAE product JSON-LD and retains shade products at page level', () => {
+    const html = `
+      <link rel="canonical" href="${facesUrl}" />
+      <script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"Dior Addict Glass Ultra-Shine and Hydrating Stick","sku":"009117909944","image":"https://www.faces.ae/images/009117909944.jpg","color":{"name":"194 Sparkly Dice"},"offers":{"@type":"Offer","price":"215.00","priceCurrency":"AED","availability":"http://schema.org/InStock"}}</script>
+      <button data-attr="color" data-attr-value="194_sparkly_dice" data-pid="009117909944">194 Sparkly Dice</button>
+    `;
+
+    expect(parseProductHtml('faces_uae', facesUrl, html)).toEqual(expect.objectContaining({
+      siteKey: 'faces_uae',
+      title: 'Dior Addict Glass Ultra-Shine and Hydrating Stick',
+      sku: '009117909944',
+      priceMinor: 21500,
+      currency: 'AED',
+      availability: 'in_stock'
+    }));
   });
 
   it('parses Adidas.ae JSON-LD product data', () => {
@@ -1183,6 +1219,13 @@ describe('detectSupportedSite', () => {
   it('detects Decathlon UAE product URLs', () => {
     expect(detectSupportedSite(decathlonUrl)?.key).toBe('decathlon_uae');
     expect(detectSupportedSite('https://www.decathlon.ae/products/example')?.key).toBe('decathlon_uae');
+  });
+
+  it('detects Sephora UAE and Faces UAE product URLs', () => {
+    expect(detectSupportedSite(sephoraUrl)?.key).toBe('sephora_uae');
+    expect(detectSupportedSite('https://sephora.me/ae-en/p/example/P10001')?.key).toBe('sephora_uae');
+    expect(detectSupportedSite(facesUrl)?.key).toBe('faces_uae');
+    expect(detectSupportedSite('https://faces.ae/en/p/example-pm000000000001.html')?.key).toBe('faces_uae');
   });
 
   it('detects Brands For Less product URLs', () => {
