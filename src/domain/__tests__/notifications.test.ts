@@ -15,9 +15,9 @@ jest.mock('react-native', () => ({
   }
 }));
 
-import { NativeModules } from 'react-native';
+import { NativeModules, Platform } from 'react-native';
 
-import { maybeNotifyForCheck } from '../notifications';
+import { ensureNotificationPermission, maybeNotifyForCheck } from '../notifications';
 import { ParsedProduct, TrackedProduct } from '../types';
 
 const product: TrackedProduct = {
@@ -49,6 +49,11 @@ const outOfStock: ParsedProduct = {
 };
 
 describe('variant notifications', () => {
+  beforeEach(() => {
+    Platform.OS = 'android';
+    jest.clearAllMocks();
+  });
+
   it('includes the saved option in an out-of-stock notification', async () => {
     await maybeNotifyForCheck(product, outOfStock, product.currentPriceMinor, undefined, 'in_stock');
 
@@ -57,5 +62,15 @@ describe('variant notifications', () => {
       'Example sneaker (Size: EU 43) is currently out of stock.',
       7
     );
+  });
+
+  it('uses an available native notification adapter on iOS', async () => {
+    Platform.OS = 'ios';
+
+    await expect(ensureNotificationPermission(false)).resolves.toBe(true);
+    await maybeNotifyForCheck(product, outOfStock, product.currentPriceMinor, undefined, 'in_stock');
+
+    expect(NativeModules.QeematNotifications.areEnabled).toHaveBeenCalled();
+    expect(NativeModules.QeematNotifications.notifyPriceAlert).toHaveBeenCalled();
   });
 });

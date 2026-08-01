@@ -5,6 +5,7 @@ import { Availability, ParsedProduct, TrackedProduct } from './types';
 
 type NotificationModule = {
   areEnabled?: () => Promise<boolean>;
+  requestPermission?: () => Promise<boolean>;
   notifyPriceAlert?: (title: string, message: string, notificationId: number) => Promise<boolean>;
   openNotificationSettings?: () => Promise<boolean>;
 };
@@ -13,7 +14,11 @@ const notificationModule = NativeModules.QeematNotifications as NotificationModu
 
 export async function ensureNotificationPermission(promptIfNeeded = true): Promise<boolean> {
   if (Platform.OS !== 'android') {
-    return true;
+    if (promptIfNeeded && notificationModule?.requestPermission) {
+      return notificationModule.requestPermission();
+    }
+
+    return (await notificationModule?.areEnabled?.().catch(() => false)) ?? false;
   }
 
   const nativeEnabled = await notificationModule?.areEnabled?.().catch(() => false);
@@ -56,7 +61,7 @@ export async function maybeNotifyForCheck(
   newPriceMinor?: number,
   previousAvailability?: Availability
 ): Promise<void> {
-  if (Platform.OS !== 'android' || !notificationModule?.notifyPriceAlert) {
+  if (!notificationModule?.notifyPriceAlert) {
     return;
   }
 

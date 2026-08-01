@@ -13,7 +13,7 @@ type BackgroundCheckModule = {
 const backgroundCheck = NativeModules.QeematBackgroundCheck as BackgroundCheckModule | undefined;
 
 export async function scheduleBackgroundChecks(preferredHour = 9): Promise<boolean> {
-  if (Platform.OS !== 'android' || !backgroundCheck?.schedule) {
+  if (!backgroundCheck?.schedule) {
     return false;
   }
 
@@ -21,7 +21,7 @@ export async function scheduleBackgroundChecks(preferredHour = 9): Promise<boole
 }
 
 export async function runBackgroundCheckOnce(): Promise<boolean> {
-  if (Platform.OS !== 'android' || !backgroundCheck?.runOnce) {
+  if (!backgroundCheck?.runOnce) {
     return false;
   }
 
@@ -29,7 +29,7 @@ export async function runBackgroundCheckOnce(): Promise<boolean> {
 }
 
 export async function runBackgroundTestOnce(delayMinutes = 2): Promise<boolean> {
-  if (Platform.OS !== 'android' || !backgroundCheck?.runTestOnce) {
+  if (!backgroundCheck?.runTestOnce) {
     return false;
   }
 
@@ -37,7 +37,7 @@ export async function runBackgroundTestOnce(delayMinutes = 2): Promise<boolean> 
 }
 
 export async function cancelBackgroundChecks(): Promise<boolean> {
-  if (Platform.OS !== 'android' || !backgroundCheck?.cancel) {
+  if (!backgroundCheck?.cancel) {
     return false;
   }
 
