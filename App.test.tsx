@@ -14,12 +14,60 @@ jest.mock('./src/domain/parser', () => ({
 }));
 
 import { AddScreen } from './App';
-import { PrimaryButton } from './src/components/PrimaryButton';
 import { AppText } from './src/components/AppText';
 
 const mockFetchAndParseProduct = jest.requireMock('./src/domain/parser').fetchAndParseProduct as jest.Mock;
 
 describe('AddScreen', () => {
+  beforeEach(() => {
+    mockFetchAndParseProduct.mockReset();
+    mockFetchAndParseProduct.mockImplementation(() => new Promise(() => undefined));
+  });
+
+  it('automatically finds a product when its URL is shared to the app', async () => {
+    const navigate = jest.fn();
+    mockFetchAndParseProduct.mockResolvedValueOnce({
+      ok: true,
+      product: {
+        siteKey: 'noon',
+        title: 'Shared product',
+        canonicalUrl: 'https://www.noon.com/shared-product',
+        imageUrl: undefined,
+        priceMinor: 10000,
+        currency: 'AED',
+        availability: 'in_stock'
+      }
+    });
+
+    let tree: renderer.ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(
+        <AddScreen
+          initialUrl="https://www.noon.com/shared-product"
+          shareEventId={1}
+          navigate={navigate}
+        />
+      );
+      await Promise.resolve();
+    });
+
+    expect(mockFetchAndParseProduct).toHaveBeenCalledWith('https://www.noon.com/shared-product');
+    expect(tree!.root.findAllByType(AppText).some((text) => text.props.children === 'Shared product')).toBe(true);
+    expect(tree!.root.findAllByType(AppText).some((text) => text.props.children === 'Check preference')).toBe(true);
+  });
+
+  it('does not automatically find a product for an ordinary URL prefill', () => {
+    const navigate = jest.fn();
+
+    act(() => {
+      renderer.create(
+        <AddScreen initialUrl="https://www.noon.com/prefilled-product" navigate={navigate} />
+      );
+    });
+
+    expect(mockFetchAndParseProduct).not.toHaveBeenCalled();
+  });
+
   it('replaces the entered URL when a new shared URL arrives', () => {
     const navigate = jest.fn();
     let tree: renderer.ReactTestRenderer;
@@ -65,11 +113,26 @@ describe('AddScreen', () => {
   it('ignores a parse result that finishes after a newer share arrives', async () => {
     const navigate = jest.fn();
     let resolveFirstFetch: (value: unknown) => void = () => undefined;
-    mockFetchAndParseProduct.mockImplementationOnce(
-      () => new Promise((resolve) => {
-        resolveFirstFetch = resolve;
-      })
-    );
+    mockFetchAndParseProduct.mockImplementation((sourceUrl: string) => {
+      if (sourceUrl.includes('/first')) {
+        return new Promise((resolve) => {
+          resolveFirstFetch = resolve;
+        });
+      }
+
+      return Promise.resolve({
+        ok: true,
+        product: {
+          siteKey: 'noon',
+          title: 'Second product',
+          canonicalUrl: 'https://www.noon.com/second',
+          imageUrl: undefined,
+          priceMinor: 12000,
+          currency: 'AED',
+          availability: 'in_stock'
+        }
+      });
+    });
     let tree: renderer.ReactTestRenderer;
 
     act(() => {
@@ -78,15 +141,11 @@ describe('AddScreen', () => {
       );
     });
 
-    const findProduct = tree!.root.findAllByType(PrimaryButton).find((button) => button.props.label === 'Find product');
-    act(() => {
-      findProduct!.props.onPress();
-    });
-
-    act(() => {
+    await act(async () => {
       tree!.update(
         <AddScreen initialUrl="https://www.noon.com/second" shareEventId={2} navigate={navigate} />
       );
+      await Promise.resolve();
     });
 
     await act(async () => {
@@ -106,5 +165,6 @@ describe('AddScreen', () => {
     });
 
     expect(tree!.root.findAllByType(AppText).some((text) => text.props.children === 'First product')).toBe(false);
+    expect(tree!.root.findAllByType(AppText).some((text) => text.props.children === 'Second product')).toBe(true);
   });
 });

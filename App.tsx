@@ -573,6 +573,27 @@ export function AddScreen({ initialUrl, shareEventId, navigate }: { initialUrl?:
   const shouldFocusParsedResult = useRef(false);
   const parseRequestId = useRef(0);
 
+  const parseUrl = useCallback(async (sourceUrl: string) => {
+    Keyboard.dismiss();
+    setError(undefined);
+    setParsedProduct(undefined);
+    setSelectedVariantAttributes({});
+    shouldFocusParsedResult.current = true;
+    setLoading(true);
+    const requestId = ++parseRequestId.current;
+    const result = await fetchAndParseProduct(sourceUrl);
+    if (requestId !== parseRequestId.current) {
+      return;
+    }
+    if (result.ok) {
+      setParsedProduct(result.product);
+    } else {
+      shouldFocusParsedResult.current = false;
+      setError(result.message);
+    }
+    setLoading(false);
+  }, []);
+
   useEffect(() => {
     if (!initialUrl) {
       return;
@@ -585,7 +606,11 @@ export function AddScreen({ initialUrl, shareEventId, navigate }: { initialUrl?:
     shouldFocusParsedResult.current = false;
     setError(undefined);
     setLoading(false);
-  }, [initialUrl, shareEventId]);
+
+    if (shareEventId !== undefined) {
+      parseUrl(initialUrl);
+    }
+  }, [initialUrl, shareEventId, parseUrl]);
 
   const normalizedUrl = cleanUrl(normalizeUrl(url));
   const detectedSite = useMemo(() => detectSupportedSite(normalizedUrl), [normalizedUrl]);
@@ -635,27 +660,6 @@ export function AddScreen({ initialUrl, shareEventId, navigate }: { initialUrl?:
       scrollRef.current?.scrollTo({ y: Math.max(0, top - 12), animated: true });
     });
   }, []);
-
-  async function parseUrl() {
-    Keyboard.dismiss();
-    setError(undefined);
-    setParsedProduct(undefined);
-    setSelectedVariantAttributes({});
-    shouldFocusParsedResult.current = true;
-    setLoading(true);
-    const requestId = ++parseRequestId.current;
-    const result = await fetchAndParseProduct(url);
-    if (requestId !== parseRequestId.current) {
-      return;
-    }
-    if (result.ok) {
-      setParsedProduct(result.product);
-    } else {
-      shouldFocusParsedResult.current = false;
-      setError(result.message);
-    }
-    setLoading(false);
-  }
 
   async function saveProduct() {
     if (!parsedProduct) {
@@ -742,7 +746,7 @@ export function AddScreen({ initialUrl, shareEventId, navigate }: { initialUrl?:
             ))}
           </View>
         ) : null}
-        <PrimaryButton label="Find product" onPress={parseUrl} disabled={!url.trim() || loading} loading={loading} />
+        <PrimaryButton label="Find product" onPress={() => parseUrl(url)} disabled={!url.trim() || loading} loading={loading} />
         {error ? (
           <View style={styles.errorBox}>
             <CircleAlert size={18} color={colors.red} />
