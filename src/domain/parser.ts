@@ -254,7 +254,13 @@ export function parseProductHtml(
   }
 
   if (siteKey === 'adidas') {
-    const product = structured?.priceMinor ? structured : parseAdidasProduct(siteKey, inputUrl, html) ?? structured;
+    const adidasProduct = parseAdidasProduct(siteKey, inputUrl, html);
+    const product = structured?.priceMinor
+      ? {
+          ...structured,
+          availability: structured.availability === 'unknown' ? parseAdidasAvailability(html) : structured.availability
+        }
+      : adidasProduct ?? structured;
     return resolveParsedVariant(withProductVariants(product, extractAdidasSizeVariants(html, product)), selectedVariant);
   }
 

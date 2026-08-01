@@ -882,6 +882,31 @@ describe('parseProductHtml', () => {
     );
   });
 
+  it('keeps a structured Adidas price while using the page out-of-stock signal', () => {
+    const html = `
+      <html>
+        <head>
+          <link rel="canonical" href="https://www.adidas.ae/en/adizero-evo-sl-shoes/KI6901.html" />
+          <script type="application/ld+json">
+            {"@context":"https://schema.org","@type":"Product","name":"Adizero EVO SL Shoes","sku":"KI6901","offers":{"@type":"Offer","price":"699.00","priceCurrency":"AED"}}
+          </script>
+        </head>
+        <body><div class="out-of-stock">Sold out</div></body>
+      </html>
+    `;
+
+    const parsed = parseProductHtml('adidas', adidasUrl, html);
+
+    expect(parsed).toEqual(
+      expect.objectContaining({
+        title: 'Adizero EVO SL Shoes',
+        priceMinor: 69900,
+        currency: 'AED',
+        availability: 'out_of_stock'
+      })
+    );
+  });
+
   it('parses an adidas OOS product from JSON-LD', () => {
     const html = `
       <html>
