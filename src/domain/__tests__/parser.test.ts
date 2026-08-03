@@ -16,6 +16,7 @@ const decathlonUrl = 'https://decathlon.ae/products/men-s-modular-and-durable-mo
 const sephoraUrl = 'https://www.sephora.me/ae-en/p/dior-addict-glass-lipstick-ultra-shine-and-hydrating-lip-gloss-stick/P1000214119?productVariantId=811716';
 const facesUrl = 'https://www.faces.ae/en/p/dior-addict-glass-ultra-shine-and-hydrating-stick-pm009117909944.html';
 const bflUrl = 'https://www.brandsforless.com/en-ae/women-paisley-print-tiered-dress-multicolor/1966137/p/';
+const namshiUrl = 'https://www.namshi.com/uae-en/buy-cubs-coffe-latte-school-bag/Z1B600DEEEF175635CCC9Z/p/';
 
 describe('parseProductHtml', () => {
   it('parses Noon product JSON-LD with multiple offers', () => {
@@ -909,7 +910,7 @@ describe('parseProductHtml', () => {
     const html = `
       <script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"Example product","sku":"SKU-1","offers":{"@type":"Offer","price":"100","priceCurrency":"AED","availability":"https://schema.org/InStock"}}</script>
     `;
-    const pageLevelSources: SiteKey[] = ['noon', 'nike_uae', 'sun_sand_sports', 'amazon_ae', 'adidas', 'puma_uae', 'decathlon_uae', 'sephora_uae', 'faces_uae', 'brands_for_less'];
+    const pageLevelSources: SiteKey[] = ['noon', 'nike_uae', 'sun_sand_sports', 'amazon_ae', 'adidas', 'puma_uae', 'decathlon_uae', 'sephora_uae', 'faces_uae', 'brands_for_less', 'namshi'];
 
     for (const siteKey of pageLevelSources) {
       expect(parseProductHtml(siteKey, 'https://example.com/product', html)?.variants).toBeUndefined();
@@ -1158,6 +1159,46 @@ describe('parseProductHtml', () => {
     );
   });
 
+  it('parses Namshi product JSON-LD at page level', () => {
+    const html = `
+      <html>
+        <head>
+          <link rel="canonical" href="${namshiUrl}" />
+          <script type="application/ld+json">
+            {
+              "@context": "https://schema.org",
+              "@type": "Product",
+              "name": "CUBS Coffe & Latte School Bag",
+              "sku": "Z1B600DEEEF175635CCC9Z",
+              "image": "https://example.com/cubs-school-bag.jpg",
+              "offers": {
+                "@type": "Offer",
+                "price": "59",
+                "priceCurrency": "AED",
+                "availability": "https://schema.org/InStock",
+                "url": "${namshiUrl}"
+              }
+            }
+          </script>
+        </head>
+      </html>
+    `;
+
+    const parsed = parseProductHtml('namshi', namshiUrl, html);
+
+    expect(parsed).toEqual(expect.objectContaining({
+      siteKey: 'namshi',
+      canonicalUrl: namshiUrl,
+      title: 'CUBS Coffe & Latte School Bag',
+      sku: 'Z1B600DEEEF175635CCC9Z',
+      imageUrl: 'https://example.com/cubs-school-bag.jpg',
+      priceMinor: 5900,
+      currency: 'AED',
+      availability: 'in_stock'
+    }));
+    expect(parsed?.variants).toBeUndefined();
+  });
+
   it('detects BFL out-of-stock products', () => {
     const html = `
       <html>
@@ -1232,6 +1273,11 @@ describe('detectSupportedSite', () => {
     expect(detectSupportedSite(bflUrl)?.key).toBe('brands_for_less');
     expect(detectSupportedSite('https://brandsforless.com/en-ae/women-shoes/12345/p/')?.key).toBe('brands_for_less');
     expect(detectSupportedSite('https://www.brandsforless.com/en-ae/product/')?.key).toBe('brands_for_less');
+  });
+
+  it('detects Namshi product URLs', () => {
+    expect(detectSupportedSite(namshiUrl)?.key).toBe('namshi');
+    expect(detectSupportedSite('https://namshi.com/uae-en/buy-example/ABC123/p/')?.key).toBe('namshi');
   });
 });
 

@@ -24,6 +24,7 @@ const SITE_COLORS: Record<SiteKey, string> = {
   decathlon_uae: '#0082C3',
   sephora_uae: '#000000',
   faces_uae: '#111827',
+  namshi: '#000000',
   brands_for_less: '#E31E24',
 };
 

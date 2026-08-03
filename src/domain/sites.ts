@@ -152,6 +152,15 @@ export const SUPPORTED_SITES: SupportedSite[] = [
     iconAsset: require('../../assets/site-icons/faces_uae.png')
   },
   {
+    key: 'namshi',
+    displayName: 'Namshi UAE',
+    shortName: 'Namshi',
+    hostnames: ['namshi.com', 'www.namshi.com'],
+    status: 'supported',
+    notes: 'Product pages expose structured product data and AED pricing; variants remain page-level until stable source option IDs and stock state are available.',
+    iconAsset: require('../../assets/site-icons/namshi.png')
+  },
+  {
     key: 'brands_for_less',
     displayName: 'Brands For Less UAE',
     shortName: 'BFL',
