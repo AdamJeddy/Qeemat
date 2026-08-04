@@ -267,6 +267,7 @@ export function parseProductHtml(
     siteKey !== 'adidas' &&
     siteKey !== 'puma_uae' &&
     siteKey !== 'decathlon_uae' &&
+    siteKey !== 'centrepoint_uae' &&
     siteKey !== 'namshi' &&
     siteKey !== 'sharaf_dg'
   ) {
@@ -315,6 +316,10 @@ export function parseProductHtml(
 
   if (siteKey === 'decathlon_uae') {
     return resolveParsedVariant(parseDecathlonProduct(siteKey, inputUrl, html) ?? structured, selectedVariant);
+  }
+
+  if (siteKey === 'centrepoint_uae') {
+    return resolveParsedVariant(parseCentrepointProduct(siteKey, inputUrl, html, structured) ?? structured, selectedVariant);
   }
 
   if (siteKey === 'brands_for_less') {
@@ -928,6 +933,145 @@ function parseAdidasAvailability(html: string, sdkAvailability?: string): Availa
 
   // SDK availability string
   return parseAvailability(sdkAvailability);
+}
+
+/**
+ * Centrepoint renders source option buttons in the initial product response.
+ * Numeric button IDs identify sizes, while color-only pages can retain the
+ * current product ID from the route without guessing URLs for neighboring
+ * colors.
+ */
+function parseCentrepointProduct(
+  siteKey: SiteKey,
+  inputUrl: string,
+  html: string,
+  structured?: ParsedProduct
+): ParsedProduct | undefined {
+  const jsonLdProduct = findProductJsonLd(html);
+  const offer = firstOffer(jsonLdProduct?.offers);
+  const meta = extractMeta(html);
+  const title = structured?.title ?? asString(jsonLdProduct?.name) ?? matchString(html, /<h1\b[^>]*>([\s\S]*?)<\/h1>/i) ?? meta.title;
+  const rawPriceText = structured?.rawPriceText ?? asString(offer?.price) ?? meta.price;
+  const priceMinor = structured?.priceMinor ?? parsePriceToMinor(rawPriceText);
+  const currency = structured?.currency ?? asString(offer?.priceCurrency) ?? meta.currency ?? 'AED';
+  const availability = structured?.availability && structured.availability !== 'unknown'
+    ? structured.availability
+    : parseCentrepointAvailability(html);
+  const productId = extractCentrepointProductId(inputUrl);
+  const sku = structured?.sku ?? cleanSku(productId);
+
+  if (!title && priceMinor === undefined) {
+    return undefined;
+  }
+
+  const product: ParsedProduct = {
+    siteKey,
+    canonicalUrl: structured?.canonicalUrl ?? meta.canonicalUrl ?? inputUrl,
+    title: cleanText(title ?? 'Centrepoint product'),
+    imageUrl: structured?.imageUrl ?? meta.imageUrl,
+    priceMinor,
+    currency,
+    availability,
+    rawPriceText,
+    sku
+  };
+  const sizeVariants = extractCentrepointSizeVariants(inputUrl, html, product);
+  if (sizeVariants.length > 0) {
+    return withProductVariants(product, sizeVariants);
+  }
+
+  const color = extractCentrepointColor(html, jsonLdProduct);
+  if (!productId || !color) {
+    return product;
+  }
+
+  const attributes = [{ name: 'Color', value: color }];
+  return withProductVariants(product, [{
+    id: productId,
+    label: formatVariantLabel(attributes),
+    attributes,
+    url: cleanUrl(inputUrl),
+    priceMinor: product.priceMinor,
+    currency: product.currency,
+    availability: product.availability,
+    sku: product.sku ?? productId,
+    imageUrl: product.imageUrl
+  }]);
+}
+
+function extractCentrepointSizeVariants(inputUrl: string, html: string, product: ParsedProduct): ProductVariant[] {
+  const variants = new Map<string, ProductVariant>();
+  const sourceUrl = cleanUrl(inputUrl);
+  const buttonPattern = /<button\b([^>]*)>([\s\S]{0,600}?)<\/button>/gi;
+
+  for (const match of html.matchAll(buttonPattern)) {
+    const openingAttributes = match[1] ?? '';
+    const tag = `<button${openingAttributes}>`;
+    const sourceId = cleanSku(htmlAttribute(tag, 'id') ?? htmlAttribute(tag, 'name'));
+    const rawValue = htmlAttribute(tag, 'value') ?? stripHtmlTags(match[2] ?? '');
+    const value = cleanText(rawValue);
+    if (!sourceId || !isCentrepointSizeValue(value) || !/^\d+$/.test(sourceId)) {
+      continue;
+    }
+
+    const attributes = [{ name: 'Size', value }];
+    variants.set(sourceId, {
+      id: sourceId,
+      label: formatVariantLabel(attributes),
+      attributes,
+      url: sourceUrl,
+      priceMinor: product.priceMinor,
+      currency: product.currency,
+      availability: parseCentrepointControlAvailability(tag),
+      sku: sourceId
+    });
+  }
+
+  return Array.from(variants.values());
+}
+
+function isCentrepointSizeValue(value: string): boolean {
+  return /^(?:XXXS|XXS|XS|S|M|L|XL|XXL|3XL|4XL|5XL|\d{1,3}(?:[./-]\d{1,2})?)$/i.test(value);
+}
+
+function parseCentrepointControlAvailability(tag: string): Availability {
+  return htmlHasBooleanAttribute(tag, 'disabled') ||
+    /\b(?:disabledStock|Mui-disabled(?:-lmg)?|out[-_ ]?of[-_ ]?stock|sold[-_ ]?out|unavailable)\b/i.test(tag)
+    ? 'out_of_stock'
+    : 'in_stock';
+}
+
+function extractCentrepointColor(html: string, jsonLdProduct?: JsonRecord): string | undefined {
+  const structuredColor = asString(jsonLdProduct?.color);
+  if (structuredColor?.trim()) {
+    return cleanText(structuredColor);
+  }
+
+  const visibleColor = matchString(html, /\bcolou?r\s*:\s*(?:<[^>]+>\s*){0,4}([^<\r\n]+)/i);
+  return visibleColor ? cleanText(visibleColor) : undefined;
+}
+
+function extractCentrepointProductId(inputUrl: string): string | undefined {
+  const match = inputUrl.match(/\/p\/([^/?#]+)/i);
+  return match?.[1] ? cleanSku(decodeURIComponent(match[1])) : undefined;
+}
+
+function parseCentrepointAvailability(html: string): Availability {
+  const structuredAvailability = parseAvailability(
+    matchString(html, /"availability"\s*:\s*"([^"]+)"/i)
+  );
+  if (structuredAvailability !== 'unknown') {
+    return structuredAvailability;
+  }
+
+  const normalized = stripHtmlTags(html).toLowerCase();
+  if (/\b(?:sold\s*out|out\s*of\s*stock|currently\s*unavailable)\b/.test(normalized)) {
+    return 'out_of_stock';
+  }
+
+  return /\b(?:add\s*to\s*(?:basket|cart|bag)|buy\s*now)\b/.test(normalized)
+    ? 'in_stock'
+    : 'unknown';
 }
 
 /**
