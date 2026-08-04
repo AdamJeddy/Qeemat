@@ -13,6 +13,7 @@ Qeemat is an Android-first, local-first price tracker for UAE shopping sites and
 - Open or copy a cleaned product link from product detail.
 - Share a product URL from an Android browser directly to Qeemat; the add flow identifies and loads it automatically.
 - Select and save an exact in-stock, source-defined variant when a product page reliably provides one. Stores without that evidence remain page-level.
+- Namshi size selections and Sharaf DG linked configurations retain the source URL needed to recheck the exact saved option.
 - Filter a multi-store watchlist with compact, logo-only store controls.
 - Run best-effort Android background checks with local alerts, notification/battery-optimization guidance, and run diagnostics.
 - Reflow cards, previews, details, and settings controls on compact phone widths and when large system text reduces available space.
@@ -31,6 +32,8 @@ Supported stores:
 - Decathlon UAE
 - Sephora UAE
 - Faces UAE
+- Namshi UAE
+- Sharaf DG UAE
 
 Brands For Less is an experimental integration and remains hidden from the supported-store UI because Cloudflare blocks reliable fetching. See [BFL integration](docs/bfl-integration.md).
 
