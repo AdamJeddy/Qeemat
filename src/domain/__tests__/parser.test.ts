@@ -17,6 +17,11 @@ const sephoraUrl = 'https://www.sephora.me/ae-en/p/dior-addict-glass-lipstick-ul
 const facesUrl = 'https://www.faces.ae/en/p/dior-addict-glass-ultra-shine-and-hydrating-stick-pm009117909944.html';
 const bflUrl = 'https://www.brandsforless.com/en-ae/women-paisley-print-tiered-dress-multicolor/1966137/p/';
 const namshiUrl = 'https://www.namshi.com/uae-en/buy-cubs-coffe-latte-school-bag/Z1B600DEEEF175635CCC9Z/p/';
+const namshiSneakerUrl = 'https://www.namshi.com/uae-en/buy-u-s-polo-assn-u-s-polo-assn-toman-men-s-textile-lightweight-comfortable-casual-walking-sneakers-navy/Z40ADBF0F599E4C1E1EE4Z/p/';
+const namshiHnmUrl = 'https://www.namshi.com/uae-en/buy-h-m-regular-fit-polo-shirt/Z84E3A268529162948948Z/p/';
+const sharafDgUrl = 'https://uae.sharafdg.com/product/samsung-galaxy-s25-fe-5g-512gb-8gb-ram-navy-dual-sim-smartphone/';
+const sharafDgMacUrl = 'https://uae.sharafdg.com/product/apple-macbook-air-m4-15-inch-2025-10-core-cpu-24gb-ram-512gb-ssd-10-core-gpu-macos-sequoia-english-arabic-keyboard-sky-blue-middle-east-version/';
+const sharafDgMacEnglishUrl = 'https://uae.sharafdg.com/product/apple-macbook-air-m4-15-inch-2025-10-core-cpu-24gb-ram-512gb-ssd-10-core-gpu-macos-sequoia-english-keyboard-sky-blue-middle-east-version/';
 
 describe('parseProductHtml', () => {
   it('parses Noon product JSON-LD with multiple offers', () => {
@@ -910,7 +915,7 @@ describe('parseProductHtml', () => {
     const html = `
       <script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"Example product","sku":"SKU-1","offers":{"@type":"Offer","price":"100","priceCurrency":"AED","availability":"https://schema.org/InStock"}}</script>
     `;
-    const pageLevelSources: SiteKey[] = ['noon', 'nike_uae', 'sun_sand_sports', 'amazon_ae', 'adidas', 'puma_uae', 'decathlon_uae', 'sephora_uae', 'faces_uae', 'brands_for_less', 'namshi'];
+    const pageLevelSources: SiteKey[] = ['noon', 'nike_uae', 'sun_sand_sports', 'amazon_ae', 'adidas', 'puma_uae', 'decathlon_uae', 'sephora_uae', 'faces_uae', 'brands_for_less', 'namshi', 'sharaf_dg'];
 
     for (const siteKey of pageLevelSources) {
       expect(parseProductHtml(siteKey, 'https://example.com/product', html)?.variants).toBeUndefined();
@@ -1159,7 +1164,7 @@ describe('parseProductHtml', () => {
     );
   });
 
-  it('parses Namshi product JSON-LD at page level', () => {
+  it('keeps Namshi page-level when no complete source size options are present', () => {
     const html = `
       <html>
         <head>
@@ -1197,6 +1202,202 @@ describe('parseProductHtml', () => {
       availability: 'in_stock'
     }));
     expect(parsed?.variants).toBeUndefined();
+  });
+
+  it('parses Namshi source size controls for footwear and apparel', () => {
+    const sneakerHtml = `
+      <html>
+        <head>
+          <link rel="canonical" href="${namshiSneakerUrl}" />
+          <script type="application/ld+json">
+            {
+              "@context": "https://schema.org",
+              "@type": "Product",
+              "name": "Toman Men's Casual Walking Sneakers - Navy",
+              "sku": "Z40ADBF0F599E4C1E1EE4Z",
+              "offers": {
+                "@type": "Offer",
+                "price": "219",
+                "priceCurrency": "AED",
+                "availability": "https://schema.org/InStock"
+              }
+            }
+          </script>
+        </head>
+        <body>
+          <section aria-label="Select Size">
+            <button class="size-option" data-testid="size-option" data-size="40" data-variant-id="Z40ADBF0F599E4C1E1EE4Z-40">40</button>
+            <button class="size-option" data-testid="size-option" data-size="41" data-variant-id="Z40ADBF0F599E4C1E1EE4Z-41" disabled>41</button>
+            <button class="size-option" data-testid="size-option" data-size="42" data-variant-id="Z40ADBF0F599E4C1E1EE4Z-42">42</button>
+          </section>
+          <p>Low Stock</p>
+        </body>
+      </html>
+    `;
+
+    const parsedSneaker = parseProductHtml('namshi', namshiSneakerUrl, sneakerHtml);
+
+    expect(parsedSneaker?.variants).toEqual([
+      expect.objectContaining({
+        id: 'Z40ADBF0F599E4C1E1EE4Z-40',
+        label: 'Size: 40',
+        priceMinor: 21900,
+        availability: 'in_stock',
+        url: namshiSneakerUrl
+      }),
+      expect.objectContaining({
+        id: 'Z40ADBF0F599E4C1E1EE4Z-41',
+        label: 'Size: 41',
+        availability: 'out_of_stock'
+      }),
+      expect.objectContaining({
+        id: 'Z40ADBF0F599E4C1E1EE4Z-42',
+        label: 'Size: 42',
+        availability: 'in_stock'
+      })
+    ]);
+
+    const apparelHtml = `
+      <html>
+        <head>
+          <link rel="canonical" href="${namshiHnmUrl}" />
+          <meta property="og:title" content="H&amp;M Regular Fit Polo shirt" />
+          <meta property="product:price:amount" content="90" />
+          <meta property="product:price:currency" content="AED" />
+        </head>
+        <body>
+          <h1>Regular Fit Polo shirt</h1>
+          <div data-testid="select-size">
+            <button data-testid="size-option" data-size="XS" data-variant-id="Z84E3A268529162948948Z-XS">XS</button>
+            <button data-testid="size-option" data-size="M" data-variant-id="Z84E3A268529162948948Z-M">M</button>
+            <button data-testid="size-option" data-size="XL" data-variant-id="Z84E3A268529162948948Z-XL" aria-disabled="true">XL</button>
+          </div>
+          <button>Add To Bag</button>
+        </body>
+      </html>
+    `;
+
+    expect(parseProductHtml('namshi', namshiHnmUrl, apparelHtml)?.variants).toEqual([
+      expect.objectContaining({ id: 'Z84E3A268529162948948Z-XS', label: 'Size: XS', availability: 'in_stock' }),
+      expect.objectContaining({ id: 'Z84E3A268529162948948Z-M', label: 'Size: M', availability: 'in_stock' }),
+      expect.objectContaining({ id: 'Z84E3A268529162948948Z-XL', label: 'Size: XL', availability: 'out_of_stock' })
+    ]);
+  });
+
+  it('parses Sharaf DG product metadata and source-linked configurations', () => {
+    const html = `
+      <html>
+        <head>
+          <link rel="canonical" href="${sharafDgUrl}" />
+          <meta property="og:title" content="Samsung Galaxy S25 FE 5G 512GB 8GB RAM Navy Dual Sim Smartphone" />
+          <meta property="og:image" content="https://pimcdn.sharafdg.com/samsung-galaxy-s25-fe.jpg" />
+          <meta property="product:price:amount" content="2099.23" />
+          <meta property="product:price:currency" content="AED" />
+        </head>
+        <body>
+          <h1>Samsung Galaxy S25 FE 5G 512GB 8GB RAM Navy Dual Sim Smartphone</h1>
+          <p>Item S500953663</p>
+          <p>Color: <span>Navy</span></p>
+          <div data-product-options>
+            <div data-option-name="Color">
+              <a class="product-option" data-option-name="Color" href="https://uae.sharafdg.com/product/samsung-galaxy-s25-fe-5g-512gb-8gb-ram-white-dual-sim-smartphone/">White</a>
+            </div>
+          </div>
+          <button>Add to Cart</button>
+        </body>
+      </html>
+    `;
+
+    const parsed = parseProductHtml('sharaf_dg', sharafDgUrl, html);
+
+    expect(parsed).toEqual(expect.objectContaining({
+      siteKey: 'sharaf_dg',
+      canonicalUrl: sharafDgUrl,
+      title: 'Samsung Galaxy S25 FE 5G 512GB 8GB RAM Navy Dual Sim Smartphone',
+      imageUrl: 'https://pimcdn.sharafdg.com/samsung-galaxy-s25-fe.jpg',
+      priceMinor: 209923,
+      currency: 'AED',
+      sku: 'S500953663'
+    }));
+
+    expect(parsed?.variants).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: expect.stringContaining('samsung-galaxy-s25-fe-5g-512gb-8gb-ram-navy'),
+        attributes: expect.arrayContaining([{ name: 'Color', value: 'Navy' }]),
+        priceMinor: 209923,
+        availability: 'in_stock',
+        url: sharafDgUrl
+      }),
+      expect.objectContaining({
+        attributes: expect.arrayContaining([{ name: 'Color', value: 'White' }]),
+        url: 'https://uae.sharafdg.com/product/samsung-galaxy-s25-fe-5g-512gb-8gb-ram-white-dual-sim-smartphone/'
+      })
+    ]));
+  });
+
+  it('parses Sharaf DG MacBook option groups and resolves a linked option price', () => {
+    const html = `
+      <html>
+        <head>
+          <link rel="canonical" href="${sharafDgMacUrl}" />
+          <meta property="og:title" content="Apple MacBook Air M4 15-inch (2025)" />
+          <meta property="product:price:amount" content="5399.01" />
+          <meta property="product:price:currency" content="AED" />
+        </head>
+        <body>
+          <h1>Apple MacBook Air M4 15-inch (2025)</h1>
+          <p>Item S500923719</p>
+          <p>Color: <span>Sky Blue</span></p>
+          <p>Processor: <span>Apple M4</span></p>
+          <p>Keyboard: <span>English/Arabic</span></p>
+          <p>Storage Size: <span>512 GB SSD</span></p>
+          <p>RAM: <span>24 GB</span></p>
+          <div data-product-options>
+            <div data-option-name="Keyboard">
+              <a class="product-option" data-option-name="Keyboard" data-price="5499.01" href="${sharafDgMacEnglishUrl}">English</a>
+            </div>
+            <div data-option-name="Storage Size">
+              <a class="product-option" data-option-name="Storage Size" href="https://uae.sharafdg.com/product/apple-macbook-air-m4-15-inch-2025-10-core-cpu-16gb-ram-256gb-ssd-10-core-gpu-macos-sequoia-english-keyboard-midnight-middle-east-version/">256 GB SSD</a>
+            </div>
+            <div data-option-name="RAM">
+              <a class="product-option" data-option-name="RAM" href="https://uae.sharafdg.com/product/apple-macbook-air-m4-15-inch-2025-10-core-cpu-16gb-ram-512gb-ssd-10-core-gpu-macos-sequoia-english-keyboard-midnight-middle-east-version/">16 GB</a>
+            </div>
+          </div>
+          <button>Add to Cart</button>
+        </body>
+      </html>
+    `;
+
+    const parsed = parseProductHtml('sharaf_dg', sharafDgMacUrl, html);
+    const englishVariant = parsed?.variants?.find((variant) => variant.url === sharafDgMacEnglishUrl);
+
+    expect(parsed).toEqual(expect.objectContaining({
+      priceMinor: 539901,
+      currency: 'AED',
+      sku: 'S500923719',
+      availability: 'in_stock'
+    }));
+    expect(englishVariant).toEqual(expect.objectContaining({
+      attributes: expect.arrayContaining([{ name: 'Keyboard', value: 'English' }]),
+      priceMinor: 549901,
+      availability: 'in_stock'
+    }));
+    expect(parsed?.variants).toEqual(expect.arrayContaining([
+      expect.objectContaining({ attributes: expect.arrayContaining([{ name: 'Storage Size', value: '256 GB SSD' }]) }),
+      expect.objectContaining({ attributes: expect.arrayContaining([{ name: 'RAM', value: '16 GB' }]) })
+    ]));
+
+    const selected = parseProductHtml('sharaf_dg', sharafDgMacUrl, html, {
+      id: englishVariant?.id ?? '',
+      label: englishVariant?.label ?? '',
+      attributes: englishVariant?.attributes ?? [],
+      url: sharafDgMacEnglishUrl
+    });
+
+    expect(selected).toEqual(expect.objectContaining({
+      priceMinor: 549901,
+      selectedVariant: expect.objectContaining({ url: sharafDgMacEnglishUrl })
+    }));
   });
 
   it('detects BFL out-of-stock products', () => {
@@ -1279,6 +1480,12 @@ describe('detectSupportedSite', () => {
     expect(detectSupportedSite(namshiUrl)?.key).toBe('namshi');
     expect(detectSupportedSite('https://namshi.com/uae-en/buy-example/ABC123/p/')?.key).toBe('namshi');
   });
+
+  it('detects Sharaf DG product URLs', () => {
+    expect(detectSupportedSite(sharafDgUrl)?.key).toBe('sharaf_dg');
+    expect(detectSupportedSite('https://sharafdg.com/product/example/')?.key).toBe('sharaf_dg');
+    expect(detectSupportedSite('https://www.sharafdg.com/product/example/')?.key).toBe('sharaf_dg');
+  });
 });
 
 describe('detectSharedUrl', () => {
@@ -1301,6 +1508,12 @@ describe('cleanUrl', () => {
     expect(
       cleanUrl('https://www.amazon.co.uk/gp/product/B005BFCNYU/ref=something?th=1')
     ).toBe('https://www.amazon.co.uk/dp/B005BFCNYU');
+  });
+
+  it('removes Namshi share tracking without changing the product/color route', () => {
+    expect(
+      cleanUrl(`${namshiSneakerUrl}?utm_source=share_product&utm_term=Z40ADBF0F599E4C1E1EE4Z-5&gclid=example`)
+    ).toBe(namshiSneakerUrl);
   });
 });
 
@@ -1400,6 +1613,50 @@ describe('fetchAndParseProduct', () => {
         })
       })
     );
+  });
+
+  it('fetches the saved source variant URL instead of the parent URL', async () => {
+    const fetchMock = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      text: async () => `
+        <html>
+          <head>
+            <link rel="canonical" href="${sharafDgMacEnglishUrl}" />
+            <meta property="og:title" content="Apple MacBook Air M4 15-inch (2025)" />
+            <meta property="product:price:amount" content="5499.01" />
+            <meta property="product:price:currency" content="AED" />
+          </head>
+          <body>
+            <h1>Apple MacBook Air M4 15-inch (2025)</h1>
+            <p>Item S500923700</p>
+            <p>Color: <span>Sky Blue</span></p>
+            <p>Keyboard: <span>English</span></p>
+            <p>Storage Size: <span>512 GB SSD</span></p>
+            <p>RAM: <span>24 GB</span></p>
+            <button>Add to Cart</button>
+          </body>
+        </html>
+      `
+    }));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const result = await fetchAndParseProduct(sharafDgMacUrl, {
+      id: 'apple-macbook-air-m4-15-inch-2025-10-core-cpu-24gb-ram-512gb-ssd-10-core-gpu-macos-sequoia-english-keyboard-sky-blue-middle-east-version',
+      label: 'Keyboard: English',
+      attributes: [{ name: 'Keyboard', value: 'English' }],
+      url: sharafDgMacEnglishUrl
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(sharafDgMacEnglishUrl, expect.any(Object));
+    expect(result).toEqual(expect.objectContaining({
+      ok: true,
+      product: expect.objectContaining({
+        priceMinor: 549901,
+        sku: 'S500923700',
+        selectedVariant: expect.objectContaining({ url: sharafDgMacEnglishUrl })
+      })
+    }));
   });
 
   it('reports browser challenge pages as blocked even when the response is 200', async () => {

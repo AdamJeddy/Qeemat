@@ -22,7 +22,8 @@ describe('createTrackedProduct', () => {
       variant: {
         id: 'SHOE-43',
         label: 'Size: EU 43',
-        attributes: [{ name: 'Size', value: 'EU 43' }]
+        attributes: [{ name: 'Size', value: 'EU 43' }],
+        url: 'https://www.levelshoes.com/example-size-43.html'
       },
       parsed: {
         siteKey: 'level_shoes',
@@ -34,7 +35,8 @@ describe('createTrackedProduct', () => {
         selectedVariant: {
           id: 'SHOE-43',
           label: 'Size: EU 43',
-          attributes: [{ name: 'Size', value: 'EU 43' }]
+          attributes: [{ name: 'Size', value: 'EU 43' }],
+          url: 'https://www.levelshoes.com/example-size-43.html'
         }
       }
     });
@@ -42,7 +44,8 @@ describe('createTrackedProduct', () => {
     expect((await getTrackedProduct(id))?.variant).toEqual({
       id: 'SHOE-43',
       label: 'Size: EU 43',
-      attributes: [{ name: 'Size', value: 'EU 43' }]
+      attributes: [{ name: 'Size', value: 'EU 43' }],
+      url: 'https://www.levelshoes.com/example-size-43.html'
     });
   });
 });
