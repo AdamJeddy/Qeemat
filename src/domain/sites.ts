@@ -152,6 +152,15 @@ export const SUPPORTED_SITES: SupportedSite[] = [
     iconAsset: require('../../assets/site-icons/faces_uae.png')
   },
   {
+    key: 'centrepoint_uae',
+    displayName: 'Centrepoint UAE',
+    shortName: 'Centrepoint',
+    hostnames: ['centrepointstores.com', 'www.centrepointstores.com'],
+    status: 'supported',
+    notes: 'Centrepoint storefront pages expose JSON-LD product data plus source color and size controls across group brands such as Splash.',
+    iconAsset: require('../../assets/site-icons/centrepoint_uae.png')
+  },
+  {
     key: 'namshi',
     displayName: 'Namshi UAE',
     shortName: 'Namshi',

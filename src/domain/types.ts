@@ -1,4 +1,4 @@
-export type SiteKey = 'noon' | 'nike_uae' | 'sun_sand_sports' | 'level_shoes' | 'ay_accessories' | 'ounass' | 'amazon_ae' | 'adidas' | 'puma_uae' | 'decathlon_uae' | 'sephora_uae' | 'faces_uae' | 'namshi' | 'sharaf_dg' | 'brands_for_less';
+export type SiteKey = 'noon' | 'nike_uae' | 'sun_sand_sports' | 'level_shoes' | 'ay_accessories' | 'ounass' | 'amazon_ae' | 'adidas' | 'puma_uae' | 'decathlon_uae' | 'sephora_uae' | 'faces_uae' | 'centrepoint_uae' | 'namshi' | 'sharaf_dg' | 'brands_for_less';
 
 export type Availability = 'in_stock' | 'out_of_stock' | 'unknown';
 
