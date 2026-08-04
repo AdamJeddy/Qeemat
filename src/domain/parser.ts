@@ -2533,7 +2533,10 @@ function cleanText(value: string): string {
 }
 
 function stripHtmlTags(value: string): string {
-  return value.replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]+>/g, ' ');
+  return value
+    .replace(/<script\b[\s\S]*?<\/script(?:\s[^>]*)?>/gi, ' ')
+    .replace(/<style\b[\s\S]*?<\/style(?:\s[^>]*)?>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ');
 }
 
 function toVariantKey(value: string): string {
