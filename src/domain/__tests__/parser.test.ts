@@ -22,6 +22,9 @@ const namshiHnmUrl = 'https://www.namshi.com/uae-en/buy-h-m-regular-fit-polo-shi
 const sharafDgUrl = 'https://uae.sharafdg.com/product/samsung-galaxy-s25-fe-5g-512gb-8gb-ram-navy-dual-sim-smartphone/';
 const sharafDgMacUrl = 'https://uae.sharafdg.com/product/apple-macbook-air-m4-15-inch-2025-10-core-cpu-24gb-ram-512gb-ssd-10-core-gpu-macos-sequoia-english-arabic-keyboard-sky-blue-middle-east-version/';
 const sharafDgMacEnglishUrl = 'https://uae.sharafdg.com/product/apple-macbook-air-m4-15-inch-2025-10-core-cpu-24gb-ram-512gb-ssd-10-core-gpu-macos-sequoia-english-keyboard-sky-blue-middle-east-version/';
+const centrepointTshirtUrl = 'https://www.centrepointstores.com/ae/en/buy-splash-basics-plain-regular-fit-crew-neck-tshirt-with-short-sleeves/p/8600471';
+const centrepointShoeUrl = 'https://www.centrepointstores.com/ae/en/buy-le-confort-men-slipon-ankle-sneakers/p/24SS220-DBLACK';
+const centrepointSunglassesUrl = 'https://www.centrepointstores.com/ae/en/buy-lee-cooper-polarized-60-mm-navigator-sunglasses-lc1001c03/p/167009212';
 
 describe('parseProductHtml', () => {
   it('parses Noon product JSON-LD with multiple offers', () => {
@@ -1284,6 +1287,123 @@ describe('parseProductHtml', () => {
     ]);
   });
 
+  it('parses Centrepoint source size controls for apparel and footwear', () => {
+    const tshirtHtml = `
+      <html>
+        <head>
+          <link rel="canonical" href="${centrepointTshirtUrl}" />
+          <script type="application/ld+json">
+            {
+              "@context": "https://schema.org",
+              "@type": "Product",
+              "name": "Splash Basics Plain Regular Fit Crew Neck T-shirt with Short Sleeves",
+              "sku": "8600471",
+              "image": "https://media.centrepointstores.com/i/centrepoint/8600471.jpg",
+              "color": "White",
+              "offers": {
+                "@type": "Offer",
+                "price": "22",
+                "priceCurrency": "AED",
+                "availability": "https://schema.org/InStock",
+                "url": "${centrepointTshirtUrl}"
+              }
+            }
+          </script>
+        </head>
+        <body>
+          <button class="color-position-0 activeBorder" id="01T" value="8600471" name="White">
+            <img alt="variant_img" src="https://media.centrepointstores.com/i/centrepoint/8600471.jpg" />
+          </button>
+          <button class="color-position-0 Mui-disabled Mui-disabled-lmg" id="166455488" value="XS" name="166455488"><div>XS</div></button>
+          <button class="color-position-1" id="166455489" value="S" name="166455489"><div>S</div></button>
+          <button class="color-position-2 disabledStock" id="166455490" value="M" name="166455490"><div>M</div></button>
+        </body>
+      </html>
+    `;
+
+    const shoeHtml = `
+      <html>
+        <head>
+          <link rel="canonical" href="${centrepointShoeUrl}" />
+          <script type="application/ld+json">
+            {
+              "@context": "https://schema.org",
+              "@type": "Product",
+              "name": "Le Confort Men Slip-On Ankle Sneakers",
+              "sku": "24SS220-DBLACK",
+              "offers": {
+                "@type": "Offer",
+                "price": "129",
+                "priceCurrency": "AED",
+                "availability": "https://schema.org/InStock",
+                "url": "${centrepointShoeUrl}"
+              }
+            }
+          </script>
+        </head>
+        <body>
+          <button class="color-position-0 activeBorder" id="01S" value="24SS220-DBLACK" name="Black"><img alt="variant_img" /></button>
+          <button class="color-position-0" id="168988440" value="40" name="168988440"><div>40</div></button>
+          <button class="color-position-1 Mui-disabled Mui-disabled-lmg" id="168988441" value="41" name="168988441"><div>41</div></button>
+          <button class="color-position-2" id="168988442" value="42" name="168988442"><div>42</div></button>
+        </body>
+      </html>
+    `;
+
+    expect(parseProductHtml('centrepoint_uae', centrepointTshirtUrl, tshirtHtml)?.variants).toEqual([
+      expect.objectContaining({ id: '166455488', label: 'Size: XS', availability: 'out_of_stock', url: centrepointTshirtUrl }),
+      expect.objectContaining({ id: '166455489', label: 'Size: S', availability: 'in_stock', url: centrepointTshirtUrl }),
+      expect.objectContaining({ id: '166455490', label: 'Size: M', availability: 'out_of_stock', url: centrepointTshirtUrl })
+    ]);
+    expect(parseProductHtml('centrepoint_uae', centrepointShoeUrl, shoeHtml)?.variants).toEqual([
+      expect.objectContaining({ id: '168988440', label: 'Size: 40', availability: 'in_stock' }),
+      expect.objectContaining({ id: '168988441', label: 'Size: 41', availability: 'out_of_stock' }),
+      expect.objectContaining({ id: '168988442', label: 'Size: 42', availability: 'in_stock' })
+    ]);
+  });
+
+  it('tracks a Centrepoint color-only product without inventing size options', () => {
+    const html = `
+      <html>
+        <head>
+          <link rel="canonical" href="${centrepointSunglassesUrl}" />
+          <script type="application/ld+json">
+            {
+              "@context": "https://schema.org",
+              "@type": "Product",
+              "name": "Lee Cooper Polarized 60 MM Navigator Sunglasses LC1001C03",
+              "sku": "167009212",
+              "color": "Black",
+              "offers": {
+                "@type": "Offer",
+                "price": "265",
+                "priceCurrency": "AED",
+                "availability": "https://schema.org/InStock",
+                "url": "${centrepointSunglassesUrl}"
+              }
+            }
+          </script>
+        </head>
+        <body>
+          <button class="color-position-0 activeBorder" id="01G" value="167009212" name="Black"><img alt="variant_img" /></button>
+        </body>
+      </html>
+    `;
+
+    const parsed = parseProductHtml('centrepoint_uae', centrepointSunglassesUrl, html);
+
+    expect(parsed?.variants).toEqual([
+      expect.objectContaining({
+        id: '167009212',
+        label: 'Color: Black',
+        attributes: [{ name: 'Color', value: 'Black' }],
+        priceMinor: 26500,
+        availability: 'in_stock',
+        url: centrepointSunglassesUrl
+      })
+    ]);
+  });
+
   it('parses Sharaf DG product metadata and source-linked configurations', () => {
     const html = `
       <html>
@@ -1485,6 +1605,11 @@ describe('detectSupportedSite', () => {
     expect(detectSupportedSite(sharafDgUrl)?.key).toBe('sharaf_dg');
     expect(detectSupportedSite('https://sharafdg.com/product/example/')?.key).toBe('sharaf_dg');
     expect(detectSupportedSite('https://www.sharafdg.com/product/example/')?.key).toBe('sharaf_dg');
+  });
+
+  it('detects Centrepoint product URLs', () => {
+    expect(detectSupportedSite(centrepointTshirtUrl)?.key).toBe('centrepoint_uae');
+    expect(detectSupportedSite('https://centrepointstores.com/ae/en/buy-example/p/12345')?.key).toBe('centrepoint_uae');
   });
 });
 
