@@ -1,7 +1,7 @@
 # Qeemat Current State
 
 **Last reconciled with the implementation:** 2026-08-04
-**App version:** 0.5.0
+**App version:** 0.6.0
 
 This is the repo handoff for the current app. Product-planning documents are useful for intent, but this file describes shipped behavior and active limitations.
 
