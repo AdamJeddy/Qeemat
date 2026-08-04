@@ -13,6 +13,7 @@ Qeemat is an Android-first, local-first price tracker for UAE shopping sites and
 - Open or copy a cleaned product link from product detail.
 - Share a product URL from an Android browser directly to Qeemat; the add flow identifies and loads it automatically.
 - Select and save an exact in-stock, source-defined variant when a product page reliably provides one. Stores without that evidence remain page-level.
+- Centrepoint size controls and current color-only products retain their source identifiers and exact product URL for later checks.
 - Namshi size selections and Sharaf DG linked configurations retain the source URL needed to recheck the exact saved option.
 - Filter a multi-store watchlist with compact, logo-only store controls.
 - Run best-effort Android background checks with local alerts, notification/battery-optimization guidance, and run diagnostics.
@@ -32,6 +33,7 @@ Supported stores:
 - Decathlon UAE
 - Sephora UAE
 - Faces UAE
+- Centrepoint UAE
 - Namshi UAE
 - Sharaf DG UAE
 
