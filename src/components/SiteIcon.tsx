@@ -25,6 +25,7 @@ const SITE_COLORS: Record<SiteKey, string> = {
   sephora_uae: '#000000',
   faces_uae: '#111827',
   namshi: '#000000',
+  sharaf_dg: '#1E041A',
   brands_for_less: '#E31E24',
 };
 

@@ -157,8 +157,17 @@ export const SUPPORTED_SITES: SupportedSite[] = [
     shortName: 'Namshi',
     hostnames: ['namshi.com', 'www.namshi.com'],
     status: 'supported',
-    notes: 'Product pages expose structured product data and AED pricing; variants remain page-level until stable source option IDs and stock state are available.',
+    notes: 'Product pages expose structured data, AED pricing, and source size controls; parent/color choices remain represented by their own product URLs.',
     iconAsset: require('../../assets/site-icons/namshi.png')
+  },
+  {
+    key: 'sharaf_dg',
+    displayName: 'Sharaf DG UAE',
+    shortName: 'Sharaf DG',
+    hostnames: ['uae.sharafdg.com', 'sharafdg.com', 'www.sharafdg.com'],
+    status: 'supported',
+    notes: 'Product pages expose AED pricing, item metadata, and linked configuration URLs; incomplete option responses remain page-level.',
+    iconAsset: require('../../assets/site-icons/sharaf_dg.png')
   },
   {
     key: 'brands_for_less',
