@@ -1313,16 +1313,21 @@ function parseSharafDgAvailability(html: string): Availability {
 }
 
 function extractSharafDgAttributes(html: string): VariantAttribute[] {
-  const names = ['Color', 'Processor', 'Keyboard', 'Storage Size', 'RAM'];
-  return names.flatMap((name) => {
+  const names = ['Color', 'Processor', 'Keyboard', 'Storage Size', 'Internal Memory', 'RAM', 'Region'];
+  const attributes = new Map<string, VariantAttribute>();
+  for (const name of names) {
     const value = matchString(
       html,
       new RegExp(`${escapeRegExp(name)}\\s*:\\s*(?:<[^>]+>\\s*){0,8}([^<\\r\\n]{1,100})`, 'i')
     );
-    return value && !/^(?:image|details|key\s+information)$/i.test(cleanText(value))
-      ? [{ name, value: cleanText(value) }]
-      : [];
-  });
+    const normalizedName = normalizeSharafAttributeName(name) ?? name;
+    const cleanedValue = value ? cleanText(value) : undefined;
+    if (cleanedValue && !/^(?:image|details|key\s+information)$/i.test(cleanedValue)) {
+      attributes.set(normalizedName, { name: normalizedName, value: cleanedValue });
+    }
+  }
+
+  return Array.from(attributes.values());
 }
 
 function extractSharafDgVariants(
@@ -1367,8 +1372,8 @@ function extractSharafDgVariants(
     const index = match.index ?? 0;
     const context = html.slice(Math.max(0, index - 900), index);
     const optionName = extractSharafOptionName(openingAttributes, context);
-    const hasOptionMarker = /(?:product-option|variation|swatch|configurable|data-product-options|data-option)/i.test(`${openingAttributes} ${context}`);
-    const hasNamedOptionContext = Boolean(optionName) && /\b(?:Color|Processor|Keyboard|Storage\s+Size|RAM)\s*:/i.test(context.slice(-350));
+    const hasOptionMarker = /(?:product-option|variant|variation|swatch|configurable|data-product-options|data-option)/i.test(`${openingAttributes} ${context}`);
+    const hasNamedOptionContext = Boolean(optionName) && /\b(?:Color|Processor|Keyboard|Storage\s+Size|Internal\s+Memory|RAM|Region)\s*:/i.test(context.slice(-350));
     if ((!hasOptionMarker && !hasNamedOptionContext) || !isSharafOptionLabel(label)) {
       continue;
     }
@@ -1425,7 +1430,7 @@ function extractSharafOptionName(openingAttributes: string, context: string): st
     return normalizeSharafAttributeName(contextOptionName);
   }
 
-  const labels = Array.from(context.matchAll(/\b(Color|Processor|Keyboard|Storage\s+Size|RAM)\s*:/gi));
+  const labels = Array.from(context.matchAll(/\b(Color|Processor|Keyboard|Storage\s+Size|Internal\s+Memory|RAM|Region)\s*:/gi));
   return normalizeSharafAttributeName(labels[labels.length - 1]?.[1]);
 }
 
@@ -1438,8 +1443,9 @@ function normalizeSharafAttributeName(value?: string): string | undefined {
   if (normalized === 'color' || normalized === 'colour') return 'Color';
   if (normalized === 'processor' || normalized === 'cpu') return 'Processor';
   if (normalized === 'keyboard' || normalized.includes('keyboard')) return 'Keyboard';
-  if (normalized === 'storage' || normalized.includes('storage')) return 'Storage Size';
-  if (normalized === 'ram' || normalized.includes('memory')) return 'RAM';
+  if (normalized === 'internal memory' || normalized === 'storage' || normalized.includes('storage')) return 'Storage Size';
+  if (normalized === 'ram' || normalized === 'memory') return 'RAM';
+  if (normalized === 'region') return 'Region';
   return cleanText(value);
 }
 
@@ -1465,12 +1471,16 @@ function extractSharafDgSlugAttributes(url: string): VariantAttribute[] {
   const path = url.toLowerCase();
   const attributes: VariantAttribute[] = [];
   const ram = path.match(/(\d+)gb-ram\b/i)?.[1];
-  const storage = path.match(/(\d+)gb-ssd\b/i)?.[1];
+  const storageMatch =
+    path.match(/(?:^|-)(\d+)(gb|tb)-ssd(?:-|\/|$)/i) ??
+    path.match(/(?:^|-)(\d+)(gb|tb)(?!-ram)(?:-|\/|$)/i);
   if (ram) {
     attributes.push({ name: 'RAM', value: `${ram} GB` });
   }
-  if (storage) {
-    attributes.push({ name: 'Storage Size', value: `${storage} GB SSD` });
+  if (storageMatch) {
+    const [, value, unit] = storageMatch;
+    const hasSsdSuffix = /-ssd(?:-|\/|$)/i.test(storageMatch[0]);
+    attributes.push({ name: 'Storage Size', value: `${value} ${unit.toUpperCase()}${hasSsdSuffix ? ' SSD' : ''}` });
   }
 
   const keyboard = path.match(/(english-arabic|english)-keyboard\b/i)?.[1];

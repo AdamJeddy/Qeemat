@@ -22,6 +22,9 @@ const namshiHnmUrl = 'https://www.namshi.com/uae-en/buy-h-m-regular-fit-polo-shi
 const sharafDgUrl = 'https://uae.sharafdg.com/product/samsung-galaxy-s25-fe-5g-512gb-8gb-ram-navy-dual-sim-smartphone/';
 const sharafDgMacUrl = 'https://uae.sharafdg.com/product/apple-macbook-air-m4-15-inch-2025-10-core-cpu-24gb-ram-512gb-ssd-10-core-gpu-macos-sequoia-english-arabic-keyboard-sky-blue-middle-east-version/';
 const sharafDgMacEnglishUrl = 'https://uae.sharafdg.com/product/apple-macbook-air-m4-15-inch-2025-10-core-cpu-24gb-ram-512gb-ssd-10-core-gpu-macos-sequoia-english-keyboard-sky-blue-middle-east-version/';
+const sharafDgIphoneUrl = 'https://uae.sharafdg.com/product/apple-iphone-17-pro-256gb-cosmic-orange-middle-east-version-with-facetime/';
+const sharafDgIphoneSilverUrl = 'https://uae.sharafdg.com/product/apple-iphone-17-pro-256gb-silver-middle-east-version-with-facetime/';
+const sharafDgIphoneOneTbUrl = 'https://uae.sharafdg.com/product/apple-iphone-17-pro-1tb-cosmic-orange-middle-east-version-with-facetime/';
 const centrepointTshirtUrl = 'https://www.centrepointstores.com/ae/en/buy-splash-basics-plain-regular-fit-crew-neck-tshirt-with-short-sleeves/p/8600471';
 const centrepointShoeUrl = 'https://www.centrepointstores.com/ae/en/buy-le-confort-men-slipon-ankle-sneakers/p/24SS220-DBLACK';
 const centrepointSunglassesUrl = 'https://www.centrepointstores.com/ae/en/buy-lee-cooper-polarized-60-mm-navigator-sunglasses-lc1001c03/p/167009212';
@@ -1518,6 +1521,60 @@ describe('parseProductHtml', () => {
       priceMinor: 549901,
       selectedVariant: expect.objectContaining({ url: sharafDgMacEnglishUrl })
     }));
+  });
+
+  it('parses Sharaf DG phone color and internal-memory variant links', () => {
+    const html = `
+      <html>
+        <head>
+          <link rel="canonical" href="${sharafDgIphoneUrl}" />
+          <meta property="og:title" content="Apple iPhone 17 Pro (256GB) - Cosmic Orange Middle East Version with FaceTime" />
+          <meta property="og:image" content="https://pimcdn.sharafdg.com/iphone-17-pro-cosmic-orange.jpg" />
+          <meta property="product:price:amount" content="4335.00" />
+          <meta property="product:price:currency" content="AED" />
+        </head>
+        <body>
+          <h1>Apple iPhone 17 Pro (256GB) - Cosmic Orange Middle East Version with FaceTime</h1>
+          <p>Item S500943797</p>
+          <p>Color: <span>Cosmic Orange</span></p>
+          <div class="color-variants">
+            <a class="variant" data-value="Silver" title="Apple iPhone 17 Pro (256GB) - Silver" href="${sharafDgIphoneSilverUrl}">Silver</a>
+          </div>
+          <p>Region: <span>Middle East Version</span></p>
+          <p>Internal Memory: <span>256 GB</span></p>
+          <div class="memory-variants">
+            <a class="variant" data-value="1 TB" title="Apple iPhone 17 Pro (1TB) - Cosmic Orange" href="${sharafDgIphoneOneTbUrl}">1 TB</a>
+          </div>
+          <p>RAM: <span>12 GB</span></p>
+          <button>Add to Cart</button>
+        </body>
+      </html>
+    `;
+
+    const parsed = parseProductHtml('sharaf_dg', sharafDgIphoneUrl, html);
+
+    expect(parsed?.variants).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: expect.stringContaining('apple-iphone-17-pro-256gb-cosmic-orange'),
+        attributes: expect.arrayContaining([
+          { name: 'Color', value: 'Cosmic Orange' },
+          { name: 'Storage Size', value: '256 GB' },
+          { name: 'Region', value: 'Middle East Version' },
+          { name: 'RAM', value: '12 GB' }
+        ])
+      }),
+      expect.objectContaining({
+        url: sharafDgIphoneSilverUrl,
+        attributes: expect.arrayContaining([{ name: 'Color', value: 'Silver' }])
+      }),
+      expect.objectContaining({
+        url: sharafDgIphoneOneTbUrl,
+        attributes: expect.arrayContaining([
+          { name: 'Color', value: 'Cosmic Orange' },
+          { name: 'Storage Size', value: '1 TB' }
+        ])
+      })
+    ]));
   });
 
   it('detects BFL out-of-stock products', () => {
