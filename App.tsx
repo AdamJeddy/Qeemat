@@ -853,7 +853,11 @@ function ProductPreview({
   );
 }
 
-function DetailScreen({ productId, navigate }: { productId: number; navigate: (route: Route) => void }) {
+export function getTrackedProductLink(product: Pick<TrackedProduct, 'url' | 'canonicalUrl' | 'variant'>): string {
+  return cleanUrl(product.variant?.url || product.canonicalUrl || product.url);
+}
+
+export function DetailScreen({ productId, navigate }: { productId: number; navigate: (route: Route) => void }) {
   const { width, fontScale } = useWindowDimensions();
   const compact = isCompactLayout(width, fontScale);
   const [data, setData] = useState<ProductWithSnapshots | undefined>();
@@ -871,11 +875,6 @@ function DetailScreen({ productId, navigate }: { productId: number; navigate: (r
     setChecking(false);
   }
 
-  function copyProductLink() {
-    Clipboard.setString(cleanUrl(product.canonicalUrl || product.url));
-    Alert.alert('Link copied', 'The product link is ready to paste.');
-  }
-
   if (!data) {
     return (
       <View style={styles.app}>
@@ -888,7 +887,13 @@ function DetailScreen({ productId, navigate }: { productId: number; navigate: (r
   }
 
   const { product, snapshots } = data;
+  const productLink = getTrackedProductLink(product);
   const stats = getPriceStats(snapshots);
+
+  function copyProductLink() {
+    Clipboard.setString(productLink);
+    Alert.alert('Link copied', 'The product link is ready to paste.');
+  }
 
   return (
     <View style={styles.app}>
@@ -961,7 +966,7 @@ function DetailScreen({ productId, navigate }: { productId: number; navigate: (r
       <View style={styles.bottomActionRow}>
         <PrimaryButton label="Check now" variant="outline" onPress={checkNow} loading={checking} style={styles.bottomActionHalf}
           icon={!checking ? <RefreshCcw size={18} color={colors.primary} /> : undefined} />
-        <PrimaryButton label="Open link" variant="outline" onPress={() => Linking.openURL(product.canonicalUrl || product.url)} style={styles.bottomActionHalf}
+        <PrimaryButton label="Open link" variant="outline" onPress={() => Linking.openURL(productLink)} style={styles.bottomActionHalf}
           icon={<Link2 size={18} color={colors.primary} />} />
       </View>
     </View>
