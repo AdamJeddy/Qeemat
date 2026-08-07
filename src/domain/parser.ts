@@ -1401,12 +1401,16 @@ function extractSharafDgVariants(
       htmlAttribute(anchor, 'data-current-price') ??
       htmlAttribute(anchor, 'data-sale-price')
     );
+    const resolvedPriceMinor = priceMinor ?? previous?.priceMinor;
+    if (resolvedPriceMinor === undefined) {
+      continue;
+    }
     const variant: ProductVariant = {
       id,
       label: formatVariantLabel(attributes),
       attributes,
       url,
-      priceMinor: priceMinor ?? previous?.priceMinor,
+      priceMinor: resolvedPriceMinor,
       currency: htmlAttribute(anchor, 'data-currency') ?? product.currency,
       availability,
       sku: cleanSku(htmlAttribute(anchor, 'data-sku') ?? htmlAttribute(anchor, 'data-item-code')) ?? previous?.sku,

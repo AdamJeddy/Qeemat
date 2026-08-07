@@ -1423,7 +1423,7 @@ describe('parseProductHtml', () => {
           <p>Color: <span>Navy</span></p>
           <div data-product-options>
             <div data-option-name="Color">
-              <a class="product-option" data-option-name="Color" data-availability="in_stock" href="https://uae.sharafdg.com/product/samsung-galaxy-s25-fe-5g-512gb-8gb-ram-white-dual-sim-smartphone/">White</a>
+              <a class="product-option" data-option-name="Color" data-price="2099.23" data-availability="in_stock" href="https://uae.sharafdg.com/product/samsung-galaxy-s25-fe-5g-512gb-8gb-ram-white-dual-sim-smartphone/">White</a>
             </div>
           </div>
           <button>Add to Cart</button>
@@ -1488,6 +1488,36 @@ describe('parseProductHtml', () => {
     ]));
   });
 
+  it('does not expose a Sharaf DG configuration without a known price', () => {
+    const unpricedUrl = 'https://uae.sharafdg.com/product/samsung-galaxy-s25-fe-5g-512gb-8gb-ram-white-dual-sim-smartphone/';
+    const html = `
+      <html>
+        <head>
+          <link rel="canonical" href="${sharafDgUrl}" />
+          <meta property="og:title" content="Samsung Galaxy S25 FE 5G 512GB 8GB RAM Navy Dual Sim Smartphone" />
+          <meta property="product:price:amount" content="2099.23" />
+          <meta property="product:price:currency" content="AED" />
+        </head>
+        <body>
+          <h1>Samsung Galaxy S25 FE 5G 512GB 8GB RAM Navy Dual Sim Smartphone</h1>
+          <p>Color: <span>Navy</span></p>
+          <div data-product-options>
+            <div data-option-name="Color">
+              <a class="product-option" data-option-name="Color" data-availability="in_stock" href="${unpricedUrl}">White</a>
+            </div>
+          </div>
+          <button>Add to Cart</button>
+        </body>
+      </html>
+    `;
+
+    const parsed = parseProductHtml('sharaf_dg', sharafDgUrl, html);
+
+    expect(parsed?.variants).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ url: unpricedUrl })
+    ]));
+  });
+
   it('parses Sharaf DG MacBook option groups and resolves a linked option price', () => {
     const html = `
       <html>
@@ -1510,10 +1540,10 @@ describe('parseProductHtml', () => {
               <a class="product-option" data-option-name="Keyboard" data-price="5499.01" data-availability="in_stock" href="${sharafDgMacEnglishUrl}">English</a>
             </div>
             <div data-option-name="Storage Size">
-              <a class="product-option" data-option-name="Storage Size" data-availability="in_stock" href="https://uae.sharafdg.com/product/apple-macbook-air-m4-15-inch-2025-10-core-cpu-16gb-ram-256gb-ssd-10-core-gpu-macos-sequoia-english-keyboard-midnight-middle-east-version/">256 GB SSD</a>
+              <a class="product-option" data-option-name="Storage Size" data-price="4999.01" data-availability="in_stock" href="https://uae.sharafdg.com/product/apple-macbook-air-m4-15-inch-2025-10-core-cpu-16gb-ram-256gb-ssd-10-core-gpu-macos-sequoia-english-keyboard-midnight-middle-east-version/">256 GB SSD</a>
             </div>
             <div data-option-name="RAM">
-              <a class="product-option" data-option-name="RAM" data-availability="in_stock" href="https://uae.sharafdg.com/product/apple-macbook-air-m4-15-inch-2025-10-core-cpu-16gb-ram-512gb-ssd-10-core-gpu-macos-sequoia-english-keyboard-midnight-middle-east-version/">16 GB</a>
+              <a class="product-option" data-option-name="RAM" data-price="4799.01" data-availability="in_stock" href="https://uae.sharafdg.com/product/apple-macbook-air-m4-15-inch-2025-10-core-cpu-16gb-ram-512gb-ssd-10-core-gpu-macos-sequoia-english-keyboard-midnight-middle-east-version/">16 GB</a>
             </div>
           </div>
           <button>Add to Cart</button>
@@ -1568,12 +1598,12 @@ describe('parseProductHtml', () => {
           <p>Item S500943797</p>
           <p>Color: <span>Cosmic Orange</span></p>
           <div class="color-variants">
-            <a class="variant" data-value="Silver" data-availability="in_stock" title="Apple iPhone 17 Pro (256GB) - Silver" href="${sharafDgIphoneSilverUrl}">Silver</a>
+            <a class="variant" data-value="Silver" data-price="4335.00" data-availability="in_stock" title="Apple iPhone 17 Pro (256GB) - Silver" href="${sharafDgIphoneSilverUrl}">Silver</a>
           </div>
           <p>Region: <span>Middle East Version</span></p>
           <p>Internal Memory: <span>256 GB</span></p>
           <div class="memory-variants">
-            <a class="variant" data-value="1 TB" data-availability="in_stock" title="Apple iPhone 17 Pro (1TB) - Cosmic Orange" href="${sharafDgIphoneOneTbUrl}">1 TB</a>
+            <a class="variant" data-value="1 TB" data-price="4999.00" data-availability="in_stock" title="Apple iPhone 17 Pro (1TB) - Cosmic Orange" href="${sharafDgIphoneOneTbUrl}">1 TB</a>
           </div>
           <p>RAM: <span>12 GB</span></p>
           <button>Add to Cart</button>
