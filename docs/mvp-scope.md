@@ -1,6 +1,6 @@
 # Qeemat MVP Scope
 
-Status: maintained product scope, last reconciled with the implementation on 2026-07-23. For the detailed repo handoff and change history, read [current-state.md](current-state.md).
+Status: maintained product scope, last reconciled with the implementation on 2026-08-01. For the detailed repo handoff and change history, read [current-state.md](current-state.md).
 
 ## MVP Goal
 
@@ -54,6 +54,7 @@ The MVP support list is intentionally small:
 | AYM Accessories | MVP supported | WooCommerce product pages expose variation data, images, stock state, and AED pricing on supported product pages. |
 | Ounass UAE | MVP supported | Product pages expose inline PDP payloads with title, image, stock state, SKU, and AED pricing. |
 | Amazon (selected regions) | MVP supported | High user value and supported at MVP level across selected Amazon regional domains when Amazon serves a normal product page without a challenge. |
+| Adidas UAE | MVP supported | JSON-LD structured data and meta tags provide AED price and availability; monitor bot protection. |
 | PUMA UAE | MVP supported | Product pages expose JSON-LD product details and reliable source-defined size options in the initial HTML. |
 | Decathlon UAE | MVP supported | Shopify ProductJson exposes product details and reliable source-defined options in the initial HTML. |
 | Sephora UAE | MVP supported | Product pages expose JSON-LD product details; the WebView fallback handles Akamai-protected checks. |
@@ -63,7 +64,6 @@ The MVP support list is intentionally small:
 
 | Site | Status | Reason |
 | --- | --- | --- |
-| Adidas UAE | MVP supported | Parser and store integration are enabled. Monitor it because bot protection can still make checks unreliable. |
 | Brands For Less UAE | Experimental | Parser and native WebView fallback exist, but Cloudflare still blocks reliable fetching, so it remains hidden from the supported-store UI. |
 | Carrefour UAE | Deferred | Useful later, but grocery/location-sensitive pricing complicates MVP behavior. |
 | Lulu UAE | Deferred | Useful later, but page behavior needs deeper validation. |
@@ -90,6 +90,9 @@ The MVP support list is intentionally small:
 - Snapshot history source tags for manual vs background checks.
 - Out-of-stock state with last-known-price preservation.
 - Clean, shareable product links, including direct Amazon ASIN URLs.
+- Android Share to Qeemat for product URLs, with automatic product discovery.
+- Exact source-defined variant tracking where the initial page supplies reliable option IDs, stock state, and prices.
+- Logo-only watchlist store filtering when products from multiple stores are tracked.
 - Responsive layouts for compact phone widths and large system-text settings.
 
 ## Out Of Scope

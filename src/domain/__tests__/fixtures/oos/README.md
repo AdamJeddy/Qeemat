@@ -42,6 +42,8 @@ npm test -- --runInBand oos-parser
 | `sun_sand_sports.html` | `sun_sand_sports` | sssports.com |
 | `adidas.html` | `adidas` | adidas.ae |
 
+The fixture suite currently has no configured fixture slots for PUMA UAE, Decathlon UAE, Sephora UAE, Faces UAE, or Brands For Less UAE. Add the fixture-map entry in `oos-parser.test.ts` before capturing a fixture for one of those stores.
+
 ## Notes
 
 - These HTML files contain real product page markup. They are gitignored by default

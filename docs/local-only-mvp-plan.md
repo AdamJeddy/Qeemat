@@ -1,6 +1,6 @@
 # Qeemat Local-Only MVP Plan
 
-Status: historical product and engineering plan, reconciled on 2026-07-23. Its completed milestones describe the intended architecture; [current-state.md](current-state.md) is the source of truth for shipped behavior and current limitations.
+Status: historical product and engineering plan, reconciled on 2026-08-01. Its completed milestones describe the intended architecture; [current-state.md](current-state.md) is the source of truth for shipped behavior and current limitations.
 
 ## Product Direction
 
@@ -53,7 +53,7 @@ The UI should reflect this honestly:
 
 The MVP should not support arbitrary product pages. It should support a short list of websites with explicit parser modules.
 
-Supported websites for the first MVP:
+The original first-MVP list was:
 
 - Noon
 - Nike UAE
@@ -63,7 +63,7 @@ Supported websites for the first MVP:
 - Ounass UAE
 - Amazon (selected regions)
 
-Adidas UAE is now enabled as a supported store, but its parser should be monitored for bot-protection changes. Brands For Less UAE remains experimental: its parser and WebView fallback are implemented, but Cloudflare blocks reliable unattended fetching. Carrefour UAE and Lulu UAE remain deferred. Amazon regional domains are a best-effort supported store family and surface blocked checks when Amazon serves bot verification instead of a normal product page.
+The implemented supported set has since expanded to Adidas UAE, PUMA UAE, Decathlon UAE, Sephora UAE, and Faces UAE; see the authoritative [current store table](current-state.md#supported-stores). Brands For Less UAE remains experimental: its parser and WebView fallback are implemented, but Cloudflare blocks reliable unattended fetching. Carrefour UAE and Lulu UAE remain deferred. Amazon regional domains are a best-effort supported store family and surface blocked checks when Amazon serves bot verification instead of a normal product page.
 
 A website should only be included if a normal unauthenticated product page exposes enough product data in static HTML or embedded structured data.
 

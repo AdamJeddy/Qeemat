@@ -66,7 +66,8 @@ export function toVariantSelection(variant: ProductVariant): VariantSelection {
   return {
     id: variant.id,
     label: variant.label,
-    attributes: variant.attributes
+    attributes: variant.attributes,
+    ...(variant.url ? { url: variant.url } : {})
   };
 }
 

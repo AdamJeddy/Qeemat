@@ -75,7 +75,10 @@ export type ParseProductResult =
   | { ok: false; code: 'invalid_url' | 'unsupported_page' | 'network_error' | 'blocked' | 'price_not_found' | 'variant_not_found' | 'site_parser_failed'; message: string };
 
 export async function fetchAndParseProduct(rawUrl: string, selectedVariant?: VariantSelection): Promise<ParseProductResult> {
-  const normalizedUrl = cleanUrl(normalizeUrl(rawUrl));
+  // Some stores expose each configuration through a distinct product URL.
+  // Re-fetch that source URL for a saved selection instead of checking the
+  // parent page and hoping its default option still matches.
+  const normalizedUrl = cleanUrl(normalizeUrl(selectedVariant?.url || rawUrl));
   const site = detectSupportedSite(normalizedUrl);
 
   if (!site) {
@@ -193,7 +196,7 @@ async function fetchAndParseWithFetch(
     };
   }
 
-  const parsed = parseProductHtml(siteKey, normalizedUrl, html, selectedVariant);
+  const parsed = parseProductHtml(siteKey, response.url || normalizedUrl, html, selectedVariant);
 
   if (!parsed?.title) {
     return {
@@ -263,7 +266,10 @@ export function parseProductHtml(
     siteKey !== 'sun_sand_sports' &&
     siteKey !== 'adidas' &&
     siteKey !== 'puma_uae' &&
-    siteKey !== 'decathlon_uae'
+    siteKey !== 'decathlon_uae' &&
+    siteKey !== 'centrepoint_uae' &&
+    siteKey !== 'namshi' &&
+    siteKey !== 'sharaf_dg'
   ) {
     return resolveParsedVariant(structured, selectedVariant);
   }
@@ -312,8 +318,20 @@ export function parseProductHtml(
     return resolveParsedVariant(parseDecathlonProduct(siteKey, inputUrl, html) ?? structured, selectedVariant);
   }
 
+  if (siteKey === 'centrepoint_uae') {
+    return resolveParsedVariant(parseCentrepointProduct(siteKey, inputUrl, html, structured) ?? structured, selectedVariant);
+  }
+
   if (siteKey === 'brands_for_less') {
     return resolveParsedVariant(parseBFLProduct(siteKey, inputUrl, html) ?? structured, selectedVariant);
+  }
+
+  if (siteKey === 'namshi') {
+    return resolveParsedVariant(parseNamshiProduct(siteKey, inputUrl, html, structured) ?? structured, selectedVariant);
+  }
+
+  if (siteKey === 'sharaf_dg') {
+    return resolveParsedVariant(parseSharafDgProduct(siteKey, inputUrl, html, structured) ?? structured, selectedVariant);
   }
 
   return resolveParsedVariant(structured, selectedVariant);
@@ -915,6 +933,604 @@ function parseAdidasAvailability(html: string, sdkAvailability?: string): Availa
 
   // SDK availability string
   return parseAvailability(sdkAvailability);
+}
+
+/**
+ * Centrepoint renders source option buttons in the initial product response.
+ * Numeric button IDs identify sizes, while color-only pages can retain the
+ * current product ID from the route without guessing URLs for neighboring
+ * colors.
+ */
+function parseCentrepointProduct(
+  siteKey: SiteKey,
+  inputUrl: string,
+  html: string,
+  structured?: ParsedProduct
+): ParsedProduct | undefined {
+  const jsonLdProduct = findProductJsonLd(html);
+  const offer = firstOffer(jsonLdProduct?.offers);
+  const meta = extractMeta(html);
+  const title = structured?.title ?? asString(jsonLdProduct?.name) ?? matchString(html, /<h1\b[^>]*>([\s\S]*?)<\/h1>/i) ?? meta.title;
+  const rawPriceText = structured?.rawPriceText ?? asString(offer?.price) ?? meta.price;
+  const priceMinor = structured?.priceMinor ?? parsePriceToMinor(rawPriceText);
+  const currency = structured?.currency ?? asString(offer?.priceCurrency) ?? meta.currency ?? 'AED';
+  const availability = structured?.availability && structured.availability !== 'unknown'
+    ? structured.availability
+    : parseCentrepointAvailability(html);
+  const productId = extractCentrepointProductId(inputUrl);
+  const sku = structured?.sku ?? cleanSku(productId);
+
+  if (!title && priceMinor === undefined) {
+    return undefined;
+  }
+
+  const product: ParsedProduct = {
+    siteKey,
+    canonicalUrl: structured?.canonicalUrl ?? meta.canonicalUrl ?? inputUrl,
+    title: cleanText(title ?? 'Centrepoint product'),
+    imageUrl: structured?.imageUrl ?? meta.imageUrl,
+    priceMinor,
+    currency,
+    availability,
+    rawPriceText,
+    sku
+  };
+  const sizeVariants = extractCentrepointSizeVariants(inputUrl, html, product);
+  if (sizeVariants.length > 0) {
+    return withProductVariants(product, sizeVariants);
+  }
+
+  const color = extractCentrepointColor(html, jsonLdProduct);
+  if (!productId || !color) {
+    return product;
+  }
+
+  const attributes = [{ name: 'Color', value: color }];
+  return withProductVariants(product, [{
+    id: productId,
+    label: formatVariantLabel(attributes),
+    attributes,
+    url: cleanUrl(inputUrl),
+    priceMinor: product.priceMinor,
+    currency: product.currency,
+    availability: product.availability,
+    sku: product.sku ?? productId,
+    imageUrl: product.imageUrl
+  }]);
+}
+
+function extractCentrepointSizeVariants(inputUrl: string, html: string, product: ParsedProduct): ProductVariant[] {
+  const variants = new Map<string, ProductVariant>();
+  const sourceUrl = cleanUrl(inputUrl);
+  const buttonPattern = /<button\b([^>]*)>([\s\S]{0,600}?)<\/button>/gi;
+
+  for (const match of html.matchAll(buttonPattern)) {
+    const openingAttributes = match[1] ?? '';
+    const tag = `<button${openingAttributes}>`;
+    const sourceId = cleanSku(htmlAttribute(tag, 'id') ?? htmlAttribute(tag, 'name'));
+    const rawValue = htmlAttribute(tag, 'value') ?? stripHtmlTags(match[2] ?? '');
+    const value = cleanText(rawValue);
+    if (!sourceId || !isCentrepointSizeValue(value) || !/^\d+$/.test(sourceId)) {
+      continue;
+    }
+
+    const sourceName = cleanSku(htmlAttribute(tag, 'name'));
+    const optionName = htmlAttribute(tag, 'data-option-name') ?? htmlAttribute(tag, 'data-attribute-name');
+    const classAndTestId = `${htmlAttribute(tag, 'class') ?? ''} ${htmlAttribute(tag, 'data-testid') ?? ''}`;
+    const hasSizeMarker = sourceName === sourceId ||
+      /\bsize(?:[-_ ]?(?:option|position|selector|button|variant))?\b/i.test(classAndTestId) ||
+      /^sizes?$/i.test(optionName ?? '') ||
+      htmlAttribute(tag, 'data-size') !== undefined;
+    if (!hasSizeMarker) {
+      continue;
+    }
+
+    const attributes = [{ name: 'Size', value }];
+    variants.set(sourceId, {
+      id: sourceId,
+      label: formatVariantLabel(attributes),
+      attributes,
+      url: sourceUrl,
+      priceMinor: product.priceMinor,
+      currency: product.currency,
+      availability: parseCentrepointControlAvailability(tag),
+      sku: sourceId
+    });
+  }
+
+  return Array.from(variants.values());
+}
+
+function isCentrepointSizeValue(value: string): boolean {
+  return /^(?:XXXS|XXS|XS|S|M|L|XL|XXL|3XL|4XL|5XL|\d{1,3}(?:[./-]\d{1,2})?)$/i.test(value);
+}
+
+function parseCentrepointControlAvailability(tag: string): Availability {
+  return htmlHasBooleanAttribute(tag, 'disabled') ||
+    /\b(?:disabledStock|Mui-disabled(?:-lmg)?|out[-_ ]?of[-_ ]?stock|sold[-_ ]?out|unavailable)\b/i.test(tag)
+    ? 'out_of_stock'
+    : 'in_stock';
+}
+
+function extractCentrepointColor(html: string, jsonLdProduct?: JsonRecord): string | undefined {
+  const structuredColor = asString(jsonLdProduct?.color);
+  if (structuredColor?.trim()) {
+    return cleanText(structuredColor);
+  }
+
+  const visibleColor = matchString(html, /\bcolou?r\s*:\s*(?:<[^>]+>\s*){0,4}([^<\r\n]+)/i);
+  return visibleColor ? cleanText(visibleColor) : undefined;
+}
+
+function extractCentrepointProductId(inputUrl: string): string | undefined {
+  const match = inputUrl.match(/\/p\/([^/?#]+)/i);
+  return match?.[1] ? cleanSku(decodeURIComponent(match[1])) : undefined;
+}
+
+function parseCentrepointAvailability(html: string): Availability {
+  const structuredAvailability = parseAvailability(
+    matchString(html, /"availability"\s*:\s*"([^"]+)"/i)
+  );
+  if (structuredAvailability !== 'unknown') {
+    return structuredAvailability;
+  }
+
+  const normalized = stripHtmlTags(html).toLowerCase();
+  if (/\b(?:sold\s*out|out\s*of\s*stock|currently\s*unavailable)\b/.test(normalized)) {
+    return 'out_of_stock';
+  }
+
+  return /\b(?:add\s*to\s*(?:basket|cart|bag)|buy\s*now)\b/.test(normalized)
+    ? 'in_stock'
+    : 'unknown';
+}
+
+/**
+ * Namshi keeps the product/color selection in the URL and renders the size
+ * choices in the first product response. A size control is only promoted to a
+ * tracker variant when the page provides a source control plus a usable stock
+ * signal; otherwise the product stays at page level.
+ */
+function parseNamshiProduct(
+  siteKey: SiteKey,
+  inputUrl: string,
+  html: string,
+  structured?: ParsedProduct
+): ParsedProduct | undefined {
+  if (!structured) {
+    return undefined;
+  }
+
+  const product = {
+    ...structured,
+    siteKey,
+    availability: structured.availability === 'unknown'
+      ? parseNamshiAvailability(html)
+      : structured.availability
+  };
+
+  return withProductVariants(product, extractNamshiSizeVariants(inputUrl, html, product));
+}
+
+function extractNamshiSizeVariants(inputUrl: string, html: string, product: ParsedProduct): ProductVariant[] {
+  const pageAvailability = product.availability === 'unknown' ? parseNamshiAvailability(html) : product.availability;
+  const productId = extractNamshiProductId(inputUrl);
+  const variants = new Map<string, ProductVariant>();
+  const elementPattern = /<(button|input|a)\b([^>]*?)(?:>([\s\S]{0,220}?)<\/\1>|\/?>)/gi;
+
+  for (const match of html.matchAll(elementPattern)) {
+    const tagName = match[1] ?? '';
+    const attributeText = match[2] ?? '';
+    const innerHtml = match[3] ?? '';
+    const tag = `<${tagName}${attributeText}>`;
+    const index = match.index ?? 0;
+    const context = html.slice(Math.max(0, index - 1200), index);
+    const hasSizeMarker = /\bsize\b|data-(?:variant|option)/i.test(attributeText) || /select\s+size|standard\s*:/i.test(context);
+    if (!hasSizeMarker) {
+      continue;
+    }
+
+    const valueCandidates = [
+      htmlAttribute(tag, 'data-display-value'),
+      htmlAttribute(tag, 'data-size'),
+      htmlAttribute(tag, 'data-option-value'),
+      htmlAttribute(tag, 'aria-label'),
+      stripHtmlTags(innerHtml),
+      htmlAttribute(tag, 'data-value'),
+      htmlAttribute(tag, 'value')
+    ];
+    const value = valueCandidates
+      .map((candidate) => cleanNamshiSizeValue(candidate))
+      .find((candidate): candidate is string => Boolean(candidate && isNamshiSizeValue(candidate)));
+    if (!value || !isNamshiSizeValue(value)) {
+      continue;
+    }
+
+    const dataValue = htmlAttribute(tag, 'data-value');
+    const explicitId =
+      htmlAttribute(tag, 'data-variant-id') ??
+      htmlAttribute(tag, 'data-size-id') ??
+      htmlAttribute(tag, 'data-option-id') ??
+      htmlAttribute(tag, 'data-pid') ??
+      htmlAttribute(tag, 'data-sku') ??
+      (dataValue && dataValue !== value ? dataValue : undefined);
+    const id = cleanSku(explicitId) ?? `${productId ?? 'namshi'}:size:${toVariantKey(value)}`;
+    const attributes = [{ name: 'Size', value }];
+    const availability = parseVariantControlAvailability(tag, pageAvailability);
+    if (availability === 'unknown') {
+      continue;
+    }
+
+    const priceMinor =
+      parsePriceToMinor(
+        htmlAttribute(tag, 'data-price') ??
+        htmlAttribute(tag, 'data-current-price') ??
+        htmlAttribute(tag, 'data-sale-price') ??
+        htmlAttribute(tag, 'data-display-price')
+      ) ?? product.priceMinor;
+    const rawUrl = htmlAttribute(tag, 'data-url') ?? htmlAttribute(tag, 'href');
+    const url = rawUrl && !/^javascript:/i.test(rawUrl)
+      ? cleanUrl(absoluteUrl(rawUrl, inputUrl))
+      : cleanUrl(inputUrl);
+
+    variants.set(id, {
+      id,
+      label: formatVariantLabel(attributes),
+      attributes,
+      url,
+      priceMinor,
+      currency: htmlAttribute(tag, 'data-currency') ?? product.currency,
+      availability,
+      sku: cleanSku(htmlAttribute(tag, 'data-sku') ?? explicitId) ?? id
+    });
+  }
+
+  return Array.from(variants.values());
+}
+
+function parseNamshiAvailability(html: string): Availability {
+  const normalized = stripHtmlTags(html).toLowerCase();
+  if (/\b(?:sold\s*out|out\s*of\s*stock|currently\s*unavailable)\b/.test(normalized)) {
+    return 'out_of_stock';
+  }
+
+  if (/\b(?:add\s*to\s*bag|add\s*to\s*cart|low\s*stock)\b/.test(normalized)) {
+    return 'in_stock';
+  }
+
+  return 'unknown';
+}
+
+function extractNamshiProductId(inputUrl: string): string | undefined {
+  return inputUrl.match(/\/((?:Z)[A-Z0-9]+)\/p\/?(?:[?#]|$)/i)?.[1]?.toUpperCase();
+}
+
+function cleanNamshiSizeValue(value?: string): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  const cleaned = cleanText(stripHtmlTags(value))
+    .replace(/^(?:select\s+)?size\s*[:-]?\s*/i, '')
+    .replace(/\s+(?:out\s+of\s+stock|sold\s+out|unavailable|low\s+stock)\s*$/i, '')
+    .trim();
+
+  if (!cleaned || /^(?:size\s+guide|view\s+size\s+guide|select\s+size)$/i.test(cleaned)) {
+    return undefined;
+  }
+
+  return cleaned;
+}
+
+function isNamshiSizeValue(value: string): boolean {
+  if (/^(?:add|view|select|size|guide|choose)\b/i.test(value)) {
+    return false;
+  }
+
+  return /^(?:EU\s*)?\d{2}(?:\.\d+)?$/i.test(value) ||
+    /^(?:XXXS?|XXS|XS|S|M|L|XL|XXL|3XL|4XL|XS\/S|S\/M|M\/L|L\/XL)$/i.test(value) ||
+    /^\d{1,2}(?:\.\d+)?$/.test(value);
+}
+
+function parseVariantControlAvailability(tag: string, pageAvailability: Availability): Availability {
+  const explicit =
+    htmlAttribute(tag, 'data-availability') ??
+    htmlAttribute(tag, 'data-stock-status') ??
+    htmlAttribute(tag, 'data-available') ??
+    htmlAttribute(tag, 'aria-label');
+  const parsedExplicit = parseAvailability(explicit);
+  if (parsedExplicit !== 'unknown') {
+    return parsedExplicit;
+  }
+
+  const dataAvailable = htmlAttribute(tag, 'data-available');
+  if (dataAvailable && /^(?:false|0|no|true)$/i.test(dataAvailable)) {
+    return /^(?:false|0|no)$/i.test(dataAvailable) ? 'out_of_stock' : 'in_stock';
+  }
+
+  const ariaDisabled = htmlAttribute(tag, 'aria-disabled');
+  if (ariaDisabled && /^(?:true|1|yes)$/i.test(ariaDisabled)) {
+    return 'out_of_stock';
+  }
+
+  if (htmlHasBooleanAttribute(tag, 'disabled') || /\b(?:disabled|out[-_ ]of[-_ ]stock|sold[-_ ]out|unavailable)\b/i.test(tag)) {
+    return 'out_of_stock';
+  }
+
+  return pageAvailability;
+}
+
+/**
+ * Sharaf DG exposes option links that navigate to a complete product route.
+ * The route is retained on the variant so future checks fetch the exact item
+ * code/price page rather than the page's default configuration.
+ */
+function parseSharafDgProduct(
+  siteKey: SiteKey,
+  inputUrl: string,
+  html: string,
+  structured?: ParsedProduct
+): ParsedProduct | undefined {
+  const meta = extractMeta(html);
+  const title = structured?.title ?? matchString(html, /<h1\b[^>]*>([\s\S]*?)<\/h1>/i) ?? meta.title;
+  const rawPriceText = structured?.rawPriceText ?? meta.price;
+  const priceMinor = structured?.priceMinor ?? parsePriceToMinor(rawPriceText);
+  const currency = structured?.currency ?? meta.currency ?? 'AED';
+  const availability = structured?.availability && structured.availability !== 'unknown'
+    ? structured.availability
+    : parseSharafDgAvailability(html);
+  const sku = structured?.sku ?? cleanSku(matchString(html, /\bItem\s+([A-Z0-9-]+)/i));
+
+  if (!title && priceMinor === undefined) {
+    return undefined;
+  }
+
+  const product: ParsedProduct = {
+    siteKey,
+    canonicalUrl: structured?.canonicalUrl ?? meta.canonicalUrl ?? inputUrl,
+    title: cleanText(title ?? 'Untitled product'),
+    imageUrl: structured?.imageUrl ?? meta.imageUrl,
+    priceMinor,
+    currency,
+    availability,
+    rawPriceText,
+    sku
+  };
+
+  return withProductVariants(
+    product,
+    extractSharafDgVariants(inputUrl, html, product, extractSharafDgAttributes(html))
+  );
+}
+
+function parseSharafDgAvailability(html: string): Availability {
+  const explicit = parseAvailability(
+    matchString(html, /data-(?:availability|stock-status)=(["'])(.*?)\1/i)
+  );
+  if (explicit !== 'unknown') {
+    return explicit;
+  }
+
+  const normalized = stripHtmlTags(html).toLowerCase();
+  if (/\b(?:sold\s*out|out\s*of\s*stock|currently\s*unavailable)\b/.test(normalized)) {
+    return 'out_of_stock';
+  }
+
+  if (/\badd\s*to\s*cart\b/.test(normalized)) {
+    return 'in_stock';
+  }
+
+  return 'unknown';
+}
+
+function extractSharafDgAttributes(html: string): VariantAttribute[] {
+  const names = ['Color', 'Processor', 'Keyboard', 'Storage Size', 'Internal Memory', 'RAM', 'Region'];
+  const attributes = new Map<string, VariantAttribute>();
+  for (const name of names) {
+    const value = matchString(
+      html,
+      new RegExp(`${escapeRegExp(name)}\\s*:\\s*(?:<[^>]+>\\s*){0,8}([^<\\r\\n]{1,100})`, 'i')
+    );
+    const normalizedName = normalizeSharafAttributeName(name) ?? name;
+    const cleanedValue = value ? cleanText(value) : undefined;
+    if (cleanedValue && !/^(?:image|details|key\s+information)$/i.test(cleanedValue)) {
+      attributes.set(normalizedName, { name: normalizedName, value: cleanedValue });
+    }
+  }
+
+  return Array.from(attributes.values());
+}
+
+function extractSharafDgVariants(
+  inputUrl: string,
+  html: string,
+  product: ParsedProduct,
+  currentAttributes: VariantAttribute[]
+): ProductVariant[] {
+  const variants = new Map<string, ProductVariant>();
+  const currentUrl = cleanUrl(inputUrl);
+  const currentId = extractSharafDgRouteId(currentUrl);
+
+  if (currentId && (currentAttributes.length > 0 || product.sku)) {
+    variants.set(currentId, {
+      id: currentId,
+      label: formatVariantLabel(currentAttributes),
+      attributes: currentAttributes,
+      url: currentUrl,
+      priceMinor: product.priceMinor,
+      currency: product.currency,
+      availability: product.availability,
+      sku: product.sku,
+      imageUrl: product.imageUrl
+    });
+  }
+
+  const anchorPattern = /<a\b([^>]*?)>([\s\S]{0,400}?)<\/a>/gi;
+  for (const match of html.matchAll(anchorPattern)) {
+    const openingAttributes = match[1] ?? '';
+    const anchor = `<a${openingAttributes}>`;
+    const href = htmlAttribute(anchor, 'href');
+    if (!href) {
+      continue;
+    }
+
+    const url = cleanUrl(absoluteUrl(href, inputUrl));
+    if (!/sharafdg\.com\/product\//i.test(url)) {
+      continue;
+    }
+    if (url === currentUrl) {
+      continue;
+    }
+
+    const label = cleanText(stripHtmlTags(match[2] ?? ''));
+    const index = match.index ?? 0;
+    const context = html.slice(Math.max(0, index - 900), index);
+    const optionName = extractSharafOptionName(openingAttributes, context);
+    const hasOptionMarker = /(?:product-option|variant|variation|swatch|configurable|data-product-options|data-option)/i.test(`${openingAttributes} ${context}`);
+    const hasNamedOptionContext = Boolean(optionName) && /\b(?:Color|Processor|Keyboard|Storage\s+Size|Internal\s+Memory|RAM|Region)\s*:/i.test(context.slice(-350));
+    if ((!hasOptionMarker && !hasNamedOptionContext) || !isSharafOptionLabel(label)) {
+      continue;
+    }
+
+    const id = extractSharafDgRouteId(url);
+    if (!id) {
+      continue;
+    }
+
+    const explicitAttributes = extractExplicitVariantAttributes(anchor);
+    const slugAttributes = extractSharafDgSlugAttributes(url);
+    const optionAttribute = optionName && label ? [{ name: optionName, value: label }] : [];
+    const attributes = mergeVariantAttributes(currentAttributes, slugAttributes, explicitAttributes, optionAttribute);
+    if (attributes.length === 0) {
+      continue;
+    }
+
+    const previous = variants.get(id);
+    const availability = parseVariantControlAvailability(anchor, 'unknown');
+    if (availability === 'unknown') {
+      continue;
+    }
+    const priceMinor = parsePriceToMinor(
+      htmlAttribute(anchor, 'data-price') ??
+      htmlAttribute(anchor, 'data-current-price') ??
+      htmlAttribute(anchor, 'data-sale-price')
+    );
+    const resolvedPriceMinor = priceMinor ?? previous?.priceMinor;
+    if (resolvedPriceMinor === undefined) {
+      continue;
+    }
+    const variant: ProductVariant = {
+      id,
+      label: formatVariantLabel(attributes),
+      attributes,
+      url,
+      priceMinor: resolvedPriceMinor,
+      currency: htmlAttribute(anchor, 'data-currency') ?? product.currency,
+      availability,
+      sku: cleanSku(htmlAttribute(anchor, 'data-sku') ?? htmlAttribute(anchor, 'data-item-code')) ?? previous?.sku,
+      imageUrl: htmlAttribute(anchor, 'data-image') ?? previous?.imageUrl
+    };
+    variants.set(id, previous ? { ...previous, ...variant, attributes } : variant);
+  }
+
+  return Array.from(variants.values());
+}
+
+function extractSharafOptionName(openingAttributes: string, context: string): string | undefined {
+  const explicit =
+    htmlAttribute(`<a${openingAttributes}>`, 'data-option-name') ??
+    htmlAttribute(`<a${openingAttributes}>`, 'data-attribute-name') ??
+    htmlAttribute(`<a${openingAttributes}>`, 'data-attribute');
+  if (explicit) {
+    return normalizeSharafAttributeName(explicit);
+  }
+
+  const contextOption = context.match(/data-option-name\s*=\s*(["'])([^"']+)\1/gi)?.pop();
+  const contextOptionName = contextOption?.match(/data-option-name\s*=\s*(["'])([^"']+)\1/i)?.[2];
+  if (contextOptionName) {
+    return normalizeSharafAttributeName(contextOptionName);
+  }
+
+  const labels = Array.from(context.matchAll(/\b(Color|Processor|Keyboard|Storage\s+Size|Internal\s+Memory|RAM|Region)\s*:/gi));
+  return normalizeSharafAttributeName(labels[labels.length - 1]?.[1]);
+}
+
+function normalizeSharafAttributeName(value?: string): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  const normalized = cleanText(value).toLowerCase();
+  if (normalized === 'color' || normalized === 'colour') return 'Color';
+  if (normalized === 'processor' || normalized === 'cpu') return 'Processor';
+  if (normalized === 'keyboard' || normalized.includes('keyboard')) return 'Keyboard';
+  if (normalized === 'internal memory' || normalized === 'storage' || normalized.includes('storage')) return 'Storage Size';
+  if (normalized === 'ram' || normalized === 'memory') return 'RAM';
+  if (normalized === 'region') return 'Region';
+  return cleanText(value);
+}
+
+function isSharafOptionLabel(value: string): boolean {
+  if (!value || value.length > 80 || /^(?:image|details|add\s+to|buy\s+now|view\s+full)/i.test(value)) {
+    return false;
+  }
+
+  return /^(?:english(?:\/arabic)?|\d+\s*(?:GB|TB)(?:\s+SSD)?|[A-Za-z][A-Za-z0-9 /+&.-]{1,39})$/i.test(value);
+}
+
+function extractExplicitVariantAttributes(tag: string): VariantAttribute[] {
+  const raw = htmlAttribute(tag, 'data-attributes') ?? htmlAttribute(tag, 'data-variant-attributes');
+  if (!raw) {
+    return [];
+  }
+
+  const parsed = parseJsonCandidates(raw)[0];
+  return extractVariantAttributes(parsed);
+}
+
+function extractSharafDgSlugAttributes(url: string): VariantAttribute[] {
+  const path = url.toLowerCase();
+  const attributes: VariantAttribute[] = [];
+  const ram = path.match(/(\d+)gb-ram\b/i)?.[1];
+  const storageMatch =
+    path.match(/(?:^|-)(\d+)(gb|tb)-ssd(?:-|\/|$)/i) ??
+    path.match(/(?:^|-)(\d+)(gb|tb)(?!-ram)(?:-|\/|$)/i);
+  if (ram) {
+    attributes.push({ name: 'RAM', value: `${ram} GB` });
+  }
+  if (storageMatch) {
+    const [, value, unit] = storageMatch;
+    const hasSsdSuffix = /-ssd(?:-|\/|$)/i.test(storageMatch[0]);
+    attributes.push({ name: 'Storage Size', value: `${value} ${unit.toUpperCase()}${hasSsdSuffix ? ' SSD' : ''}` });
+  }
+
+  const keyboard = path.match(/(english-arabic|english)-keyboard\b/i)?.[1];
+  if (keyboard) {
+    attributes.push({ name: 'Keyboard', value: keyboard.toLowerCase() === 'english-arabic' ? 'English/Arabic' : 'English' });
+  }
+
+  const color = path.match(/(?:^|-)(sky-blue|midnight|navy|white|jetblack|icyblue|cobalt-violet|black|silver|starlight)(?:-|\/|$)/i)?.[1];
+  if (color) {
+    attributes.push({ name: 'Color', value: color.split('-').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' ') });
+  }
+
+  return attributes;
+}
+
+function mergeVariantAttributes(...groups: VariantAttribute[][]): VariantAttribute[] {
+  const merged = new Map<string, VariantAttribute>();
+  for (const group of groups) {
+    for (const attribute of group) {
+      if (attribute.name && attribute.value) {
+        merged.set(attribute.name, attribute);
+      }
+    }
+  }
+  return Array.from(merged.values());
+}
+
+function extractSharafDgRouteId(url: string): string | undefined {
+  return url.match(/\/product\/([^/?#]+)\/?(?:[?#]|$)/i)?.[1]?.toLowerCase();
 }
 
 /**
@@ -1945,6 +2561,17 @@ function unescapeJsonString(value: string): string {
 
 function cleanText(value: string): string {
   return decodeHtmlEntities(value.replace(/\s+/g, ' ').trim());
+}
+
+function stripHtmlTags(value: string): string {
+  return value
+    .replace(/<script\b[\s\S]*?<\/script(?:\s[^>]*)?>/gi, ' ')
+    .replace(/<style\b[\s\S]*?<\/style(?:\s[^>]*)?>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ');
+}
+
+function toVariantKey(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }
 
 function buildOunassTitle(designerName?: string, productName?: string): string | undefined {

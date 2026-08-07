@@ -1,5 +1,7 @@
 # Design QA: Watchlist Store Filter
 
+**Status:** historical visual-QA record, reconciled 2026-08-01. The implementation and automated checks have advanced; the missing rendered comparison remains outstanding.
+
 ## Comparison Target
 
 - Source visual truth: `C:\Users\Main\.codex\generated_images\019fa4b3-e73b-7ca2-a343-3f93541386d1\exec-9068c258-6352-4dad-af9a-8643f09fac6d.png` (selected concept 1, adapted to logo-only store controls).
@@ -15,7 +17,7 @@
 
 ## Automated Checks
 
-- Full Jest suite: 42 passed, 1 existing fixture skipped.
+- Full Jest suite: 86 passed, 1 fixture-dependent test skipped.
 - TypeScript: passed.
 - ESLint: no errors; one existing inline-style warning in `App.tsx`.
 - Android `assembleDebug`: passed.

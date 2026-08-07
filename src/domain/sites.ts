@@ -152,6 +152,33 @@ export const SUPPORTED_SITES: SupportedSite[] = [
     iconAsset: require('../../assets/site-icons/faces_uae.png')
   },
   {
+    key: 'centrepoint_uae',
+    displayName: 'Centrepoint UAE',
+    shortName: 'Centrepoint',
+    hostnames: ['centrepointstores.com', 'www.centrepointstores.com'],
+    status: 'supported',
+    notes: 'Centrepoint storefront pages expose JSON-LD product data plus source color and size controls across group brands such as Splash.',
+    iconAsset: require('../../assets/site-icons/centrepoint_uae.png')
+  },
+  {
+    key: 'namshi',
+    displayName: 'Namshi UAE',
+    shortName: 'Namshi',
+    hostnames: ['namshi.com', 'www.namshi.com'],
+    status: 'supported',
+    notes: 'Product pages expose structured data, AED pricing, and source size controls; parent/color choices remain represented by their own product URLs.',
+    iconAsset: require('../../assets/site-icons/namshi.png')
+  },
+  {
+    key: 'sharaf_dg',
+    displayName: 'Sharaf DG UAE',
+    shortName: 'Sharaf DG',
+    hostnames: ['uae.sharafdg.com', 'sharafdg.com', 'www.sharafdg.com'],
+    status: 'supported',
+    notes: 'Product pages expose AED pricing, item metadata, and linked configuration URLs; incomplete option responses remain page-level.',
+    iconAsset: require('../../assets/site-icons/sharaf_dg.png')
+  },
+  {
     key: 'brands_for_less',
     displayName: 'Brands For Less UAE',
     shortName: 'BFL',

@@ -1,4 +1,4 @@
-export type SiteKey = 'noon' | 'nike_uae' | 'sun_sand_sports' | 'level_shoes' | 'ay_accessories' | 'ounass' | 'amazon_ae' | 'adidas' | 'puma_uae' | 'decathlon_uae' | 'sephora_uae' | 'faces_uae' | 'brands_for_less';
+export type SiteKey = 'noon' | 'nike_uae' | 'sun_sand_sports' | 'level_shoes' | 'ay_accessories' | 'ounass' | 'amazon_ae' | 'adidas' | 'puma_uae' | 'decathlon_uae' | 'sephora_uae' | 'faces_uae' | 'centrepoint_uae' | 'namshi' | 'sharaf_dg' | 'brands_for_less';
 
 export type Availability = 'in_stock' | 'out_of_stock' | 'unknown';
 
@@ -44,6 +44,8 @@ export type ProductVariant = {
   /** Human-readable combination as the source describes it. */
   label: string;
   attributes: VariantAttribute[];
+  /** Source URL that preselects this exact configuration, when the store provides one. */
+  url?: string;
   priceMinor?: number;
   currency?: string;
   availability: Availability;
@@ -51,7 +53,7 @@ export type ProductVariant = {
   imageUrl?: string;
 };
 
-export type VariantSelection = Pick<ProductVariant, 'id' | 'label' | 'attributes'>;
+export type VariantSelection = Pick<ProductVariant, 'id' | 'label' | 'attributes' | 'url'>;
 
 export type ParsedProduct = {
   siteKey: SiteKey;

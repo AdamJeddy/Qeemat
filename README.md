@@ -11,6 +11,11 @@ Qeemat is an Android-first, local-first price tracker for UAE shopping sites and
 - Show watchlist cards, price history, activity events, price-change indicators, and out-of-stock status while preserving the last known price.
 - Check a product or all products manually; choose daily, every-three-days, or weekly checking and price-drop, any-change, or target-price alerts.
 - Open or copy a cleaned product link from product detail.
+- Share a product URL from an Android browser directly to Qeemat; the add flow identifies and loads it automatically.
+- Select and save an exact in-stock, source-defined variant when a product page reliably provides one. Stores without that evidence remain page-level.
+- Centrepoint size controls and current color-only products retain their source identifiers and exact product URL for later checks.
+- Namshi size selections and Sharaf DG linked configurations retain the source URL needed to recheck the exact saved option.
+- Filter a multi-store watchlist with compact, logo-only store controls.
 - Run best-effort Android background checks with local alerts, notification/battery-optimization guidance, and run diagnostics.
 - Reflow cards, previews, details, and settings controls on compact phone widths and when large system text reduces available space.
 
@@ -24,6 +29,13 @@ Supported stores:
 - Ounass UAE
 - Amazon (selected regions)
 - Adidas UAE
+- PUMA UAE
+- Decathlon UAE
+- Sephora UAE
+- Faces UAE
+- Centrepoint UAE
+- Namshi UAE
+- Sharaf DG UAE
 
 Brands For Less is an experimental integration and remains hidden from the supported-store UI because Cloudflare blocks reliable fetching. See [BFL integration](docs/bfl-integration.md).
 
@@ -33,6 +45,7 @@ Brands For Less is an experimental integration and remains hidden from the suppo
 - [MVP scope](docs/mvp-scope.md)
 - [Local-only MVP plan and decisions](docs/local-only-mvp-plan.md)
 - [Website mini icons](docs/site-icons.md)
+- [Exact variant tracking visual reference](docs/variant-tracking.md)
 - [Brands For Less integration](docs/bfl-integration.md)
 
 Start with `docs/current-state.md` for the current implementation and limitations.

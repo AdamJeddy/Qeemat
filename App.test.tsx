@@ -1,5 +1,5 @@
 import React from 'react';
-import { TextInput } from 'react-native';
+import { Linking, TextInput } from 'react-native';
 import renderer, { act } from 'react-test-renderer';
 
 jest.mock('@react-native-clipboard/clipboard', () => ({
@@ -12,16 +12,24 @@ jest.mock('./src/domain/parser', () => ({
   ...jest.requireActual('./src/domain/parser'),
   fetchAndParseProduct: jest.fn()
 }));
+jest.mock('./src/data/database', () => ({
+  ...jest.requireActual('./src/data/database'),
+  getProductWithSnapshots: jest.fn()
+}));
 
-import { AddScreen } from './App';
+import { AddScreen, DetailScreen } from './App';
 import { AppText } from './src/components/AppText';
 
 const mockFetchAndParseProduct = jest.requireMock('./src/domain/parser').fetchAndParseProduct as jest.Mock;
+const mockGetProductWithSnapshots = jest.requireMock('./src/data/database').getProductWithSnapshots as jest.Mock;
+const mockClipboardSetString = jest.requireMock('@react-native-clipboard/clipboard').setString as jest.Mock;
 
 describe('AddScreen', () => {
   beforeEach(() => {
     mockFetchAndParseProduct.mockReset();
     mockFetchAndParseProduct.mockImplementation(() => new Promise(() => undefined));
+    mockGetProductWithSnapshots.mockReset();
+    mockClipboardSetString.mockReset();
   });
 
   it('automatically finds a product when its URL is shared to the app', async () => {
@@ -166,5 +174,54 @@ describe('AddScreen', () => {
 
     expect(tree!.root.findAllByType(AppText).some((text) => text.props.children === 'First product')).toBe(false);
     expect(tree!.root.findAllByType(AppText).some((text) => text.props.children === 'Second product')).toBe(true);
+  });
+});
+
+describe('DetailScreen', () => {
+  it('copies and opens the saved variant URL instead of the parent product URL', async () => {
+    const parentUrl = 'https://uae.sharafdg.com/product/parent-configuration/';
+    const variantUrl = 'https://uae.sharafdg.com/product/selected-configuration/';
+    mockGetProductWithSnapshots.mockResolvedValueOnce({
+      product: {
+        id: 47,
+        url: parentUrl,
+        canonicalUrl: parentUrl,
+        siteKey: 'sharaf_dg',
+        title: 'Selected configuration',
+        currency: 'AED',
+        currentPriceMinor: 549901,
+        alertMode: 'price_drop',
+        checkPreference: 'daily',
+        isActive: true,
+        variant: {
+          id: 'selected-configuration',
+          label: 'Keyboard: English',
+          attributes: [{ name: 'Keyboard', value: 'English' }],
+          url: variantUrl
+        },
+        createdAt: '2026-08-07T00:00:00.000Z',
+        updatedAt: '2026-08-07T00:00:00.000Z'
+      },
+      snapshots: []
+    });
+    const openUrl = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+    let tree: renderer.ReactTestRenderer;
+
+    await act(async () => {
+      tree = renderer.create(<DetailScreen productId={47} navigate={jest.fn()} />);
+      await Promise.resolve();
+    });
+
+    act(() => {
+      tree!.root.findByProps({ accessibilityLabel: 'Copy product link' }).props.onPress();
+    });
+    await act(async () => {
+      tree!.root.findByProps({ label: 'Open link' }).props.onPress();
+      await Promise.resolve();
+    });
+
+    expect(mockClipboardSetString).toHaveBeenCalledWith(variantUrl);
+    expect(openUrl).toHaveBeenCalledWith(variantUrl);
+    openUrl.mockRestore();
   });
 });
