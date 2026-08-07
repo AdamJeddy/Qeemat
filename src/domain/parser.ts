@@ -1392,7 +1392,10 @@ function extractSharafDgVariants(
     }
 
     const previous = variants.get(id);
-    const availability = parseVariantControlAvailability(anchor, 'in_stock');
+    const availability = parseVariantControlAvailability(anchor, 'unknown');
+    if (availability === 'unknown') {
+      continue;
+    }
     const priceMinor = parsePriceToMinor(
       htmlAttribute(anchor, 'data-price') ??
       htmlAttribute(anchor, 'data-current-price') ??
@@ -1405,7 +1408,7 @@ function extractSharafDgVariants(
       url,
       priceMinor: priceMinor ?? previous?.priceMinor,
       currency: htmlAttribute(anchor, 'data-currency') ?? product.currency,
-      availability: availability === 'unknown' ? previous?.availability ?? 'in_stock' : availability,
+      availability,
       sku: cleanSku(htmlAttribute(anchor, 'data-sku') ?? htmlAttribute(anchor, 'data-item-code')) ?? previous?.sku,
       imageUrl: htmlAttribute(anchor, 'data-image') ?? previous?.imageUrl
     };
