@@ -1359,11 +1359,14 @@ function extractSharafDgVariants(
     const openingAttributes = match[1] ?? '';
     const anchor = `<a${openingAttributes}>`;
     const href = htmlAttribute(anchor, 'href');
-    if (!href || !/sharafdg\.com\/product\//i.test(href)) {
+    if (!href) {
       continue;
     }
 
     const url = cleanUrl(absoluteUrl(href, inputUrl));
+    if (!/sharafdg\.com\/product\//i.test(url)) {
+      continue;
+    }
     if (url === currentUrl) {
       continue;
     }

@@ -1488,6 +1488,37 @@ describe('parseProductHtml', () => {
     ]));
   });
 
+  it('resolves relative Sharaf DG configuration links against the product URL', () => {
+    const relativeUrl = '/product/samsung-galaxy-s25-fe-5g-512gb-8gb-ram-white-dual-sim-smartphone/';
+    const absoluteVariantUrl = `https://uae.sharafdg.com${relativeUrl}`;
+    const html = `
+      <html>
+        <head>
+          <link rel="canonical" href="${sharafDgUrl}" />
+          <meta property="og:title" content="Samsung Galaxy S25 FE 5G 512GB 8GB RAM Navy Dual Sim Smartphone" />
+          <meta property="product:price:amount" content="2099.23" />
+          <meta property="product:price:currency" content="AED" />
+        </head>
+        <body>
+          <h1>Samsung Galaxy S25 FE 5G 512GB 8GB RAM Navy Dual Sim Smartphone</h1>
+          <p>Color: <span>Navy</span></p>
+          <div data-product-options>
+            <div data-option-name="Color">
+              <a class="product-option" data-option-name="Color" data-price="2099.23" data-availability="in_stock" href="${relativeUrl}">White</a>
+            </div>
+          </div>
+          <button>Add to Cart</button>
+        </body>
+      </html>
+    `;
+
+    const parsed = parseProductHtml('sharaf_dg', sharafDgUrl, html);
+
+    expect(parsed?.variants).toEqual(expect.arrayContaining([
+      expect.objectContaining({ url: absoluteVariantUrl, priceMinor: 209923, availability: 'in_stock' })
+    ]));
+  });
+
   it('does not expose a Sharaf DG configuration without a known price', () => {
     const unpricedUrl = 'https://uae.sharafdg.com/product/samsung-galaxy-s25-fe-5g-512gb-8gb-ram-white-dual-sim-smartphone/';
     const html = `
