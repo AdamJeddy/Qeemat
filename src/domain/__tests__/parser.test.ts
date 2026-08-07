@@ -1841,6 +1841,48 @@ describe('fetchAndParseProduct', () => {
     }));
   });
 
+  it('reports a saved Sharaf DG variant as missing when the response redirects to another product route', async () => {
+    const fetchMock = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      url: sharafDgMacUrl,
+      text: async () => `
+        <html>
+          <head>
+            <link rel="canonical" href="${sharafDgMacUrl}" />
+            <meta property="og:title" content="Apple MacBook Air M4 15-inch (2025)" />
+            <meta property="product:price:amount" content="5499.01" />
+            <meta property="product:price:currency" content="AED" />
+          </head>
+          <body>
+            <h1>Apple MacBook Air M4 15-inch (2025)</h1>
+            <p>Item S500923700</p>
+            <p>Color: <span>Sky Blue</span></p>
+            <p>Keyboard: <span>Arabic</span></p>
+            <p>Storage Size: <span>512 GB SSD</span></p>
+            <p>RAM: <span>24 GB</span></p>
+            <button>Add to Cart</button>
+          </body>
+        </html>
+      `
+    }));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const result = await fetchAndParseProduct(sharafDgMacEnglishUrl, {
+      id: 'apple-macbook-air-m4-15-inch-2025-10-core-cpu-24gb-ram-512gb-ssd-10-core-gpu-macos-sequoia-english-keyboard-sky-blue-middle-east-version',
+      label: 'Keyboard: English',
+      attributes: [{ name: 'Keyboard', value: 'English' }],
+      url: sharafDgMacEnglishUrl
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(sharafDgMacEnglishUrl, expect.any(Object));
+    expect(result).toEqual({
+      ok: false,
+      code: 'variant_not_found',
+      message: 'The selected product option is no longer available on this page.'
+    });
+  });
+
   it('reports browser challenge pages as blocked even when the response is 200', async () => {
     globalThis.fetch = jest.fn(async () => ({
       ok: true,

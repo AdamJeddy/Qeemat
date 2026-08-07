@@ -196,7 +196,7 @@ async function fetchAndParseWithFetch(
     };
   }
 
-  const parsed = parseProductHtml(siteKey, normalizedUrl, html, selectedVariant);
+  const parsed = parseProductHtml(siteKey, response.url || normalizedUrl, html, selectedVariant);
 
   if (!parsed?.title) {
     return {
