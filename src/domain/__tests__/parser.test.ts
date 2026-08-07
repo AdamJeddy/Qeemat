@@ -1389,6 +1389,7 @@ describe('parseProductHtml', () => {
         </head>
         <body>
           <button class="color-position-0 activeBorder" id="01G" value="167009212" name="Black"><img alt="variant_img" /></button>
+          <button id="2" value="2">2</button>
         </body>
       </html>
     `;

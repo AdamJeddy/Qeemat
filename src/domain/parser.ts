@@ -1014,6 +1014,17 @@ function extractCentrepointSizeVariants(inputUrl: string, html: string, product:
       continue;
     }
 
+    const sourceName = cleanSku(htmlAttribute(tag, 'name'));
+    const optionName = htmlAttribute(tag, 'data-option-name') ?? htmlAttribute(tag, 'data-attribute-name');
+    const classAndTestId = `${htmlAttribute(tag, 'class') ?? ''} ${htmlAttribute(tag, 'data-testid') ?? ''}`;
+    const hasSizeMarker = sourceName === sourceId ||
+      /\bsize(?:[-_ ]?(?:option|position|selector|button|variant))?\b/i.test(classAndTestId) ||
+      /^sizes?$/i.test(optionName ?? '') ||
+      htmlAttribute(tag, 'data-size') !== undefined;
+    if (!hasSizeMarker) {
+      continue;
+    }
+
     const attributes = [{ name: 'Size', value }];
     variants.set(sourceId, {
       id: sourceId,
