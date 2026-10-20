@@ -110,7 +110,7 @@ export const SUPPORTED_SITES: SupportedSite[] = [
     key: 'adidas',
     displayName: 'Adidas UAE',
     shortName: 'Adidas',
-    hostnames: ['adidas.ae', 'www.adidas.ae'],
+    hostnames: ['adidas.ae', 'www.adidas.ae', 'adidas.onelink.me'],
     status: 'supported',
     notes: 'Product pages expose JSON-LD structured data and meta tags with AED pricing and availability.',
     iconAsset: require('../../assets/site-icons/adidas.png')
