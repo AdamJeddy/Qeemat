@@ -120,6 +120,14 @@ export async function fetchAndParseProduct(rawUrl: string, selectedVariant?: Var
     return fetchResult; // WebView unavailable, return original block error
   }
 
+  if (isBlockedHtml(webViewHtml)) {
+    return {
+      ok: false,
+      code: 'blocked',
+      message: 'The website blocked this check.'
+    };
+  }
+
   const parsed = parseProductHtml(site.key, normalizedUrl, webViewHtml, selectedVariant);
 
   if (!parsed?.title) {
@@ -327,7 +335,7 @@ export function parseProductHtml(
   }
 
   if (siteKey === 'namshi') {
-    return resolveParsedVariant(parseNamshiProduct(siteKey, inputUrl, html, structured) ?? structured, selectedVariant);
+    return resolveParsedVariant(parseNamshiProduct(siteKey, inputUrl, html, structured, selectedVariant) ?? structured, selectedVariant);
   }
 
   if (siteKey === 'sharaf_dg') {
@@ -1095,7 +1103,8 @@ function parseNamshiProduct(
   siteKey: SiteKey,
   inputUrl: string,
   html: string,
-  structured?: ParsedProduct
+  structured?: ParsedProduct,
+  selectedVariant?: VariantSelection
 ): ParsedProduct | undefined {
   if (!structured) {
     return undefined;
@@ -1109,7 +1118,27 @@ function parseNamshiProduct(
       : structured.availability
   };
 
-  return withProductVariants(product, extractNamshiSizeVariants(inputUrl, html, product));
+  const variants = extractNamshiSizeVariants(inputUrl, html, product);
+
+  // A completely sold-out Namshi page can omit all size controls. Its explicit
+  // Product offer is evidence for the saved size only on that exact source URL.
+  // The remaining page-level price is not a fresh price for the saved size.
+  if (
+    selectedVariant?.url &&
+    structured.availability === 'out_of_stock' &&
+    variants.length === 0 &&
+    cleanUrl(selectedVariant.url) === cleanUrl(inputUrl) &&
+    cleanUrl(product.canonicalUrl) === cleanUrl(inputUrl)
+  ) {
+    return {
+      ...product,
+      selectedVariant,
+      priceMinor: undefined,
+      rawPriceText: undefined
+    };
+  }
+
+  return withProductVariants(product, variants);
 }
 
 function extractNamshiSizeVariants(inputUrl: string, html: string, product: ParsedProduct): ProductVariant[] {
@@ -2028,6 +2057,8 @@ function isBlockedHtml(html: string): boolean {
     normalized.includes('/errors/validatecaptcha') ||
     // Akamai "Access Denied" page (common on SFCC / Adidas)
     (normalized.includes('access denied') && normalized.includes('reference #')) ||
+    // Adidas also serves an error template without the usual Access Denied text.
+    (/"page_owner"\s*:\s*"akamai"/.test(normalized) && /"page_type"\s*:\s*"error"/.test(normalized)) ||
     // Imperva/Incapsula WAF block
     normalized.includes('incapsula') && normalized.includes('blocked') ||
     // Generic JavaScript challenge page (many WAFs use this)

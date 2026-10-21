@@ -110,7 +110,7 @@ export const SUPPORTED_SITES: SupportedSite[] = [
     key: 'adidas',
     displayName: 'Adidas UAE',
     shortName: 'Adidas',
-    hostnames: ['adidas.ae', 'www.adidas.ae'],
+    hostnames: ['adidas.ae', 'www.adidas.ae', 'adidas.onelink.me'],
     status: 'supported',
     notes: 'Product pages expose JSON-LD structured data and meta tags with AED pricing and availability.',
     iconAsset: require('../../assets/site-icons/adidas.png')
@@ -278,6 +278,9 @@ export function cleanUrl(urlValue: string): string {
   // Other sites: strip only known tracking/analytics params
   const kept: string[] = [];
   for (const pair of queryPart.split('&')) {
+    if (!pair) {
+      continue;
+    }
     const eqIdx = pair.indexOf('=');
     const key = eqIdx >= 0 ? pair.slice(0, eqIdx) : pair;
     if (!TRACKING_PARAMS.has(key)) {

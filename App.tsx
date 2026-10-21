@@ -889,6 +889,9 @@ export function DetailScreen({ productId, navigate }: { productId: number; navig
   const { product, snapshots } = data;
   const productLink = getTrackedProductLink(product);
   const stats = getPriceStats(snapshots);
+  const status = product.lastErrorCode ?? snapshots[0]?.status ?? 'ok';
+  const checkFailed = status !== 'ok' && status !== 'price_changed';
+  const isOos = product.lastAvailability === 'out_of_stock';
 
   function copyProductLink() {
     Clipboard.setString(productLink);
@@ -929,7 +932,7 @@ export function DetailScreen({ productId, navigate }: { productId: number; navig
             </View>
             {product.variant ? <AppText muted style={styles.caption}>Tracking {product.variant.label}</AppText> : null}
             <AppText muted style={styles.caption}>
-              Current price
+              {checkFailed || isOos ? 'Last known price' : 'Current price'}
             </AppText>
             <AppText weight="bold" style={styles.currentPrice}>
               {formatPrice(product.currentPriceMinor, product.currency)}
@@ -938,10 +941,15 @@ export function DetailScreen({ productId, navigate }: { productId: number; navig
               <AppText weight="semibold">Target {formatPrice(product.targetPriceMinor, product.currency)}</AppText>
             ) : null}
             <StatusPill
-              status={product.lastErrorCode ?? snapshots[0]?.status ?? 'ok'}
-              label={product.lastErrorCode === 'variant_not_found' ? 'Variant unavailable' : `Checked ${formatRelativeTime(product.lastCheckedAt)}`}
-              availability={product.lastAvailability}
+              status={status}
+              label={status === 'variant_not_found' ? 'Variant unavailable' : `${checkFailed ? 'Check failed' : 'Checked'} ${formatRelativeTime(product.lastCheckedAt)}`}
+              availability={checkFailed ? 'unknown' : product.lastAvailability}
             />
+            {checkFailed ? (
+              <AppText muted style={styles.caption}>
+                {product.lastSuccessAt ? `Last successful check: ${formatRelativeTime(product.lastSuccessAt)}` : 'No successful check recorded'}
+              </AppText>
+            ) : null}
           </View>
         </View>
         {product.lastAvailability === 'out_of_stock' ? (
@@ -1050,7 +1058,7 @@ function SnapshotRow({
         <AppText weight="bold" muted={subtle} style={snapshot.status === 'price_changed' && !subtle && styles.changedPrice}>
           {snapshot.priceMinor !== undefined
             ? formatPrice(snapshot.priceMinor, snapshot.currency ?? currency)
-            : 'Failed'}
+            : snapshot.availability === 'out_of_stock' ? 'Out of stock' : 'Failed'}
         </AppText>
         <AppText muted style={styles.snapshotAvailability}>
           {snapshot.availability.replace(/_/g, ' ')}

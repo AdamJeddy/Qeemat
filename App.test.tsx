@@ -19,6 +19,8 @@ jest.mock('./src/data/database', () => ({
 
 import { AddScreen, DetailScreen } from './App';
 import { AppText } from './src/components/AppText';
+import { ProductCard } from './src/components/ProductCard';
+import { CheckStatus, TrackedProduct } from './src/domain/types';
 
 const mockFetchAndParseProduct = jest.requireMock('./src/domain/parser').fetchAndParseProduct as jest.Mock;
 const mockGetProductWithSnapshots = jest.requireMock('./src/data/database').getProductWithSnapshots as jest.Mock;
@@ -223,5 +225,92 @@ describe('DetailScreen', () => {
     expect(mockClipboardSetString).toHaveBeenCalledWith(variantUrl);
     expect(openUrl).toHaveBeenCalledWith(variantUrl);
     openUrl.mockRestore();
+  });
+});
+
+describe('saved price freshness', () => {
+  const product: TrackedProduct = {
+    id: 53,
+    url: 'https://www.adidas.ae/en/adizero-adios-pro-4-shoes/JR1267.html',
+    canonicalUrl: 'https://www.adidas.ae/en/adizero-adios-pro-4-shoes/JR1267.html',
+    siteKey: 'adidas',
+    title: 'Adizero Adios Pro 4 Shoes',
+    currency: 'AED',
+    currentPriceMinor: 71940,
+    alertMode: 'price_drop',
+    checkPreference: 'daily',
+    isActive: true,
+    lastCheckedAt: '2026-10-20T06:35:00.000Z',
+    lastSuccessAt: '2026-10-19T06:40:00.000Z',
+    lastAvailability: 'in_stock',
+    createdAt: '2026-10-19T06:40:00.000Z',
+    updatedAt: '2026-10-20T06:35:00.000Z'
+  };
+
+  beforeEach(() => {
+    mockGetProductWithSnapshots.mockReset();
+    jest.spyOn(Date, 'now').mockReturnValue(new Date('2026-10-20T06:40:00.000Z').getTime());
+  });
+
+  afterEach(() => jest.restoreAllMocks());
+
+  it.each<CheckStatus>(['site_parser_failed', 'blocked', 'network_error'])('labels the saved price and last successful check after %s', async (status) => {
+    const failedProduct = { ...product, lastErrorCode: status };
+    mockGetProductWithSnapshots.mockResolvedValueOnce({ product: failedProduct, snapshots: [] });
+    let tree: renderer.ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(<DetailScreen productId={53} navigate={jest.fn()} />);
+    });
+
+    const text = tree!.root.findAllByType(AppText).map((node) => [node.props.children].flat().join('')).join(' ');
+    expect(text).toContain('Last known price');
+    expect(text).toContain('AED 719.40');
+    expect(text).toContain('Check failed 5m ago');
+    expect(text).toContain('Last successful check: Yesterday');
+    expect(text).not.toContain('Current price');
+    expect(text).not.toContain('Checked 5m ago');
+
+    act(() => {
+      tree = renderer.create(<ProductCard product={failedProduct} onPress={jest.fn()} />);
+    });
+    const cardText = tree!.root.findAllByType(AppText).map((node) => [node.props.children].flat().join('')).join(' ');
+    expect(cardText).toContain('Last known price');
+    expect(cardText).toContain('Last attempt: 5m ago');
+  });
+
+  it('shows a current price again after a successful check', async () => {
+    mockGetProductWithSnapshots.mockResolvedValueOnce({
+      product: { ...product, lastErrorCode: 'ok', lastSuccessAt: product.lastCheckedAt },
+      snapshots: []
+    });
+    let tree: renderer.ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(<DetailScreen productId={53} navigate={jest.fn()} />);
+    });
+
+    const text = tree!.root.findAllByType(AppText).map((node) => [node.props.children].flat().join('')).join(' ');
+    expect(text).toContain('Current price');
+    expect(text).toContain('Checked 5m ago');
+    expect(text).not.toContain('Last known price');
+  });
+
+  it('shows an out-of-stock snapshot without a price as a stock result', async () => {
+    mockGetProductWithSnapshots.mockResolvedValueOnce({
+      product: { ...product, siteKey: 'namshi', lastErrorCode: 'ok', lastAvailability: 'out_of_stock' },
+      snapshots: [{
+        id: 1, trackedProductId: 53, status: 'ok', availability: 'out_of_stock',
+        currency: 'AED', source: 'background', checkedAt: product.lastCheckedAt
+      }]
+    });
+    let tree: renderer.ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(<DetailScreen productId={53} navigate={jest.fn()} />);
+    });
+
+    const text = tree!.root.findAllByType(AppText).map((node) => [node.props.children].flat().join('')).join(' ');
+    expect(text).toContain('Last known price');
+    expect(text).toContain('Out of stock');
+    expect(text).not.toContain('Failed');
+    expect(text).not.toContain('Current price');
   });
 });

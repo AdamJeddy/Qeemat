@@ -22,6 +22,7 @@ export function ProductCard({ product, onPress, onRemove }: ProductCardProps) {
   const site = getSiteByKey(product.siteKey);
   const isOos = product.lastAvailability === 'out_of_stock';
   const status: CheckStatus = product.lastErrorCode ?? 'ok';
+  const checkFailed = status !== 'ok' && status !== 'price_changed';
 
   // Price change indicator
   const priceChanged = status === 'price_changed';
@@ -66,6 +67,7 @@ export function ProductCard({ product, onPress, onRemove }: ProductCardProps) {
           <AppText style={styles.badgeText}>{site.shortName}</AppText>
         </View>
         {product.variant ? <AppText muted style={styles.variantLabel}>{product.variant.label}</AppText> : null}
+        {checkFailed || isOos ? <AppText muted style={styles.caption}>Last known price</AppText> : null}
         <View style={styles.priceRow}>
           <AppText weight="bold" style={[styles.price, isOos && styles.priceMuted]}>
             {formatPrice(product.currentPriceMinor, product.currency)}
@@ -97,7 +99,7 @@ export function ProductCard({ product, onPress, onRemove }: ProductCardProps) {
         </View>
         <View style={styles.footer}>
           <AppText muted style={styles.caption}>
-            Last checked: {formatRelativeTime(product.lastCheckedAt)}
+            {checkFailed ? 'Last attempt' : 'Last checked'}: {formatRelativeTime(product.lastCheckedAt)}
           </AppText>
           {showErrorPill ? (
             <View style={styles.errorBadge}>
