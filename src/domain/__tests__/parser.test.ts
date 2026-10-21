@@ -2,6 +2,11 @@ import { fetchAndParseProduct, parseProductHtml } from '../parser';
 import { parsePriceToMinor } from '../price';
 import { cleanUrl, detectSharedUrl, detectSupportedSite } from '../sites';
 import { SiteKey } from '../types';
+import { fetchPageHtmlViaWebView } from '../webViewFetcher';
+
+jest.mock('../webViewFetcher', () => ({
+  fetchPageHtmlViaWebView: jest.fn()
+}));
 
 const noonUrl =
   'https://www.noon.com/uae-en/galaxy-s25-ultra-ai-dual-sim-titanium-grey-12gb-ram-256gb-5g-middle-east-version/N70140492V/p/';
@@ -13,6 +18,7 @@ const amazonDeUrl = 'https://www.amazon.de/Logitech-Headphones-Cancelling-Microp
 const adidasUrl = 'https://www.adidas.ae/en/adicolor-classics-3-stripes-hoodie/IX7573.html';
 const pumaUrl = 'https://ae.puma.com/ae/en/pd/h-street-premium-sneakers-unisex/403777.html?color=02';
 const decathlonUrl = 'https://decathlon.ae/products/men-s-modular-and-durable-mountain-trekking-trousers-mt100';
+const salomonUrl = 'https://salomongcc.com/products/salomon-aero-blaze-2-white-running-shoes-l47426100';
 const sephoraUrl = 'https://www.sephora.me/ae-en/p/dior-addict-glass-lipstick-ultra-shine-and-hydrating-lip-gloss-stick/P1000214119?productVariantId=811716';
 const facesUrl = 'https://www.faces.ae/en/p/dior-addict-glass-ultra-shine-and-hydrating-stick-pm009117909944.html';
 const bflUrl = 'https://www.brandsforless.com/en-ae/women-paisley-print-tiered-dress-multicolor/1966137/p/';
@@ -908,6 +914,61 @@ describe('parseProductHtml', () => {
     expect(parseProductHtml('decathlon_uae', decathlonUrl, incompleteRecordHtml)?.variants).toBeUndefined();
   });
 
+  it('uses Salomon Shopify variant records for the chosen exact size', () => {
+    const html = `
+      <script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"AERO BLAZE 2","image":"https://salomongcc.com/shoe.jpg","offers":{"@type":"Offer","price":"455.00","priceCurrency":"AED","availability":"https://schema.org/InStock"}}</script>
+      <fieldset><input name="Color" value="White" /></fieldset>
+      <fieldset><input name="Size (UK)" value="8" /></fieldset>
+      <fieldset><input name="Color-mobile" value="White" /></fieldset>
+      <fieldset><input name="Size (UK)-mobile" value="8" /></fieldset>
+      <script type="application/json">[
+        {"id":46178301018368,"option1":"White","option2":"8","sku":"L474261008","available":false,"price":45500,"featured_image":{"src":"//salomongcc.com/size-8.jpg"}},
+        {"id":46178301051136,"option1":"White","option2":"8.5","sku":"L474261008.5","available":true,"price":45500,"featured_image":{"src":"//salomongcc.com/size-8-5.jpg"}}
+      ]</script>
+    `;
+
+    const parsed = parseProductHtml('salomon_gcc', salomonUrl, html);
+
+    expect(parsed).toEqual(expect.objectContaining({
+      siteKey: 'salomon_gcc',
+      canonicalUrl: salomonUrl,
+      title: 'AERO BLAZE 2',
+      priceMinor: 45500,
+      currency: 'AED',
+      availability: 'in_stock',
+      sku: 'L474261008.5'
+    }));
+    expect(parsed?.variants).toEqual([
+      expect.objectContaining({
+        id: '46178301018368',
+        label: 'Color: White · Size (UK): 8',
+        priceMinor: 45500,
+        availability: 'out_of_stock',
+        imageUrl: 'https://salomongcc.com/size-8.jpg'
+      }),
+      expect.objectContaining({
+        id: '46178301051136',
+        availability: 'in_stock'
+      })
+    ]);
+
+    const selected = parseProductHtml('salomon_gcc', salomonUrl, html, {
+      id: '46178301018368',
+      label: 'Color: White · Size (UK): 8',
+      attributes: [
+        { name: 'Color', value: 'White' },
+        { name: 'Size (UK)', value: '8' }
+      ]
+    });
+
+    expect(selected).toEqual(expect.objectContaining({
+      priceMinor: undefined,
+      availability: 'out_of_stock',
+      sku: 'L474261008',
+      selectedVariant: expect.objectContaining({ id: '46178301018368' })
+    }));
+  });
+
   it('keeps Noon page-level when the initial response has labels but no stable source option ID', () => {
     const html = `
       <script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"Anzarun Lite","sku":"N44137847V","offers":{"@type":"Offer","price":"97","priceCurrency":"AED","availability":"https://schema.org/InStock"}}</script>
@@ -921,7 +982,7 @@ describe('parseProductHtml', () => {
     const html = `
       <script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"Example product","sku":"SKU-1","offers":{"@type":"Offer","price":"100","priceCurrency":"AED","availability":"https://schema.org/InStock"}}</script>
     `;
-    const pageLevelSources: SiteKey[] = ['noon', 'nike_uae', 'sun_sand_sports', 'amazon_ae', 'adidas', 'puma_uae', 'decathlon_uae', 'sephora_uae', 'faces_uae', 'brands_for_less', 'namshi', 'sharaf_dg'];
+    const pageLevelSources: SiteKey[] = ['noon', 'nike_uae', 'sun_sand_sports', 'amazon_ae', 'adidas', 'puma_uae', 'decathlon_uae', 'salomon_gcc', 'sephora_uae', 'faces_uae', 'brands_for_less', 'namshi', 'sharaf_dg'];
 
     for (const siteKey of pageLevelSources) {
       expect(parseProductHtml(siteKey, 'https://example.com/product', html)?.variants).toBeUndefined();
@@ -1732,6 +1793,11 @@ describe('detectSupportedSite', () => {
     expect(detectSupportedSite('https://www.decathlon.ae/products/example')?.key).toBe('decathlon_uae');
   });
 
+  it('detects Salomon GCC product URLs', () => {
+    expect(detectSupportedSite(salomonUrl)?.key).toBe('salomon_gcc');
+    expect(detectSupportedSite('https://www.salomongcc.com/products/example')?.key).toBe('salomon_gcc');
+  });
+
   it('detects Sephora UAE and Faces UAE product URLs', () => {
     expect(detectSupportedSite(sephoraUrl)?.key).toBe('sephora_uae');
     expect(detectSupportedSite('https://sephora.me/ae-en/p/example/P10001')?.key).toBe('sephora_uae');
@@ -1810,7 +1876,30 @@ describe('fetchAndParseProduct', () => {
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
+    jest.mocked(fetchPageHtmlViaWebView).mockReset();
+    jest.mocked(fetchPageHtmlViaWebView).mockResolvedValue(null);
     jest.restoreAllMocks();
+  });
+
+  it('uses the Android WebView fallback when Salomon rejects the native request', async () => {
+    globalThis.fetch = jest.fn().mockRejectedValue(new Error('network failed')) as unknown as typeof fetch;
+    jest.mocked(fetchPageHtmlViaWebView).mockResolvedValue(`
+      <script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"AERO BLAZE 2","offers":{"@type":"Offer","price":"455","priceCurrency":"AED","availability":"https://schema.org/InStock"}}</script>
+      <fieldset><input name="Color" value="White" /></fieldset>
+      <fieldset><input name="Size (UK)" value="8.5" /></fieldset>
+      <script type="application/json">[{"id":46178301051136,"option1":"White","option2":"8.5","sku":"L474261008.5","available":true,"price":45500}]</script>
+    `);
+
+    await expect(fetchAndParseProduct(salomonUrl)).resolves.toEqual({
+      ok: true,
+      product: expect.objectContaining({
+        siteKey: 'salomon_gcc',
+        title: 'AERO BLAZE 2',
+        priceMinor: 45500,
+        availability: 'in_stock'
+      })
+    });
+    expect(fetchPageHtmlViaWebView).toHaveBeenCalledWith(salomonUrl);
   });
 
   it('uses the native Android request profile for Decathlon UAE', async () => {

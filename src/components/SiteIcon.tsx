@@ -22,6 +22,7 @@ const SITE_COLORS: Record<SiteKey, string> = {
   adidas: '#000000',
   puma_uae: '#000000',
   decathlon_uae: '#0082C3',
+  salomon_gcc: '#000000',
   sephora_uae: '#000000',
   faces_uae: '#111827',
   centrepoint_uae: '#1F2937',

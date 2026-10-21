@@ -134,6 +134,15 @@ export const SUPPORTED_SITES: SupportedSite[] = [
     iconAsset: require('../../assets/site-icons/decathlon_uae.png')
   },
   {
+    key: 'salomon_gcc',
+    displayName: 'Salomon GCC',
+    shortName: 'Salomon',
+    hostnames: ['salomongcc.com', 'www.salomongcc.com'],
+    status: 'supported',
+    notes: 'Shopify product pages expose AED prices and complete source-defined colour and size variants in the initial response.',
+    iconAsset: require('../../assets/site-icons/salomon_gcc.png')
+  },
+  {
     key: 'sephora_uae',
     displayName: 'Sephora UAE',
     shortName: 'Sephora',

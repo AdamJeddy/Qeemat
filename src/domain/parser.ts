@@ -102,14 +102,15 @@ export async function fetchAndParseProduct(rawUrl: string, selectedVariant?: Var
     fetchResult = await fetchAndParseWithFetch(normalizedUrl, site.key, selectedVariant);
   }
 
-  // Sephora and Faces can redirect native clients through a session-establishing
-  // storefront route. Their WebView path handles that first-page navigation.
+  // Sephora, Faces, and Salomon can reject the React Native networking client
+  // even though the device browser can load their storefront. Their WebView
+  // path handles the first-page navigation with Android's browser engine.
   if (fetchResult.ok) {
     return fetchResult;
   }
 
   const shouldUseWebViewFallback = fetchResult.code === 'blocked' ||
-    ((site.key === 'sephora_uae' || site.key === 'faces_uae') && fetchResult.code === 'network_error');
+    ((site.key === 'sephora_uae' || site.key === 'faces_uae' || site.key === 'salomon_gcc') && fetchResult.code === 'network_error');
   if (!shouldUseWebViewFallback) {
     return fetchResult;
   }
@@ -275,6 +276,7 @@ export function parseProductHtml(
     siteKey !== 'adidas' &&
     siteKey !== 'puma_uae' &&
     siteKey !== 'decathlon_uae' &&
+    siteKey !== 'salomon_gcc' &&
     siteKey !== 'centrepoint_uae' &&
     siteKey !== 'namshi' &&
     siteKey !== 'sharaf_dg'
@@ -324,6 +326,10 @@ export function parseProductHtml(
 
   if (siteKey === 'decathlon_uae') {
     return resolveParsedVariant(parseDecathlonProduct(siteKey, inputUrl, html) ?? structured, selectedVariant);
+  }
+
+  if (siteKey === 'salomon_gcc') {
+    return resolveParsedVariant(parseSalomonProduct(siteKey, inputUrl, html, structured) ?? structured, selectedVariant);
   }
 
   if (siteKey === 'centrepoint_uae') {
@@ -436,7 +442,7 @@ function parseDecathlonProduct(siteKey: SiteKey, inputUrl: string, html: string)
     rawVariants.length === sourceVariants.length &&
     variants.length === rawVariants.length;
   const defaultVariant = variants.find((variant) => variant.availability === 'in_stock') ?? variants[0];
-  const imageUrl = extractDecathlonImage(product) ?? defaultVariant?.imageUrl;
+  const imageUrl = extractShopifyImage(product) ?? defaultVariant?.imageUrl;
 
   if (!title && !defaultVariant && !asIdentifier(product.id)) {
     return undefined;
@@ -457,7 +463,7 @@ function parseDecathlonProduct(siteKey: SiteKey, inputUrl: string, html: string)
     };
   }
 
-  const priceMinor = parseDecathlonPriceMinor(product.price);
+  const priceMinor = parseShopifyPriceMinor(product.price);
   if (!title && priceMinor === undefined) {
     return undefined;
   }
@@ -486,7 +492,7 @@ function extractDecathlonProductJson(html: string): JsonRecord | undefined {
 
 function parseDecathlonVariant(variant: JsonRecord, optionNames: string[]): ProductVariant | undefined {
   const id = asIdentifier(variant.id);
-  const priceMinor = parseDecathlonPriceMinor(variant.price);
+  const priceMinor = parseShopifyPriceMinor(variant.price);
   if (!id || priceMinor === undefined || typeof variant.available !== 'boolean' || optionNames.length === 0) {
     return undefined;
   }
@@ -510,11 +516,11 @@ function parseDecathlonVariant(variant: JsonRecord, optionNames: string[]): Prod
     currency: 'AED',
     availability: variant.available ? 'in_stock' : 'out_of_stock',
     sku: cleanSku(asString(variant.sku)) ?? id,
-    imageUrl: extractDecathlonImage(variant)
+    imageUrl: extractShopifyImage(variant)
   };
 }
 
-function parseDecathlonPriceMinor(value: unknown): number | undefined {
+function parseShopifyPriceMinor(value: unknown): number | undefined {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return Math.round(value);
   }
@@ -526,7 +532,105 @@ function parseDecathlonPriceMinor(value: unknown): number | undefined {
   return undefined;
 }
 
-function extractDecathlonImage(value: JsonRecord): string | undefined {
+function parseSalomonProduct(
+  siteKey: SiteKey,
+  inputUrl: string,
+  html: string,
+  structured?: ParsedProduct
+): ParsedProduct | undefined {
+  const optionNames = extractSalomonOptionNames(html);
+  const sourceVariants = extractSalomonVariantRecords(html);
+  const variants = sourceVariants
+    .map((variant) => parseSalomonVariant(variant, optionNames))
+    .filter((variant): variant is ProductVariant => variant !== undefined);
+  const hasCompleteVariants =
+    optionNames.length > 0 &&
+    sourceVariants.length > 0 &&
+    variants.length === sourceVariants.length;
+  const defaultVariant = variants.find((variant) => variant.availability === 'in_stock') ?? variants[0];
+
+  if (!structured || !hasCompleteVariants || !defaultVariant) {
+    return structured;
+  }
+
+  return {
+    ...structured,
+    siteKey,
+    canonicalUrl: inputUrl,
+    imageUrl: defaultVariant.imageUrl ?? structured.imageUrl,
+    priceMinor: defaultVariant.priceMinor,
+    currency: defaultVariant.currency,
+    availability: variants.some((variant) => variant.availability === 'in_stock') ? 'in_stock' : 'out_of_stock',
+    rawPriceText: defaultVariant.priceMinor === undefined ? undefined : String(defaultVariant.priceMinor / 100),
+    sku: defaultVariant.sku,
+    variants
+  };
+}
+
+function extractSalomonOptionNames(html: string): string[] {
+  const names: string[] = [];
+  const fieldsets = html.match(/<fieldset\b[^>]*>[\s\S]*?<\/fieldset>/gi) ?? [];
+
+  for (const fieldset of fieldsets) {
+    const match = fieldset.match(/<input\b[^>]*\bname=["']([^"']+)["']/i);
+    const name = match?.[1] ? cleanText(match[1]) : undefined;
+    const desktopName = name?.replace(/-mobile$/i, '');
+    if (name && desktopName && desktopName !== name && names.includes(desktopName)) {
+      continue;
+    }
+    if (name && !names.includes(name)) {
+      names.push(name);
+    }
+  }
+
+  return names;
+}
+
+function extractSalomonVariantRecords(html: string): JsonRecord[] {
+  const scripts = html.match(/<script\b(?=[^>]*\btype=["']application\/json["'])[^>]*>([\s\S]*?)<\/script>/gi) ?? [];
+
+  for (const script of scripts) {
+    const jsonText = script.replace(/^<script[^>]*>/i, '').replace(/<\/script>$/i, '').trim();
+    const records = parseJsonCandidates(jsonText).filter(isJsonRecord);
+    if (records.length > 0 && records.every((record) =>
+      asIdentifier(record.id) && typeof record.available === 'boolean' && parseShopifyPriceMinor(record.price) !== undefined
+    )) {
+      return records;
+    }
+  }
+
+  return [];
+}
+
+function parseSalomonVariant(variant: JsonRecord, optionNames: string[]): ProductVariant | undefined {
+  const id = asIdentifier(variant.id);
+  const priceMinor = parseShopifyPriceMinor(variant.price);
+  if (!id || priceMinor === undefined || typeof variant.available !== 'boolean' || optionNames.length === 0) {
+    return undefined;
+  }
+
+  const optionValues = optionNames.map((_, index) => asString(variant[`option${index + 1}`]));
+  const attributes = optionNames.flatMap((name, index) => {
+    const value = optionValues[index];
+    return value?.trim() ? [{ name, value: cleanText(value) }] : [];
+  });
+  if (attributes.length !== optionNames.length) {
+    return undefined;
+  }
+
+  return {
+    id,
+    label: formatVariantLabel(attributes),
+    attributes,
+    priceMinor,
+    currency: 'AED',
+    availability: variant.available ? 'in_stock' : 'out_of_stock',
+    sku: cleanSku(asString(variant.sku)) ?? id,
+    imageUrl: extractShopifyImage(variant)
+  };
+}
+
+function extractShopifyImage(value: JsonRecord): string | undefined {
   const featuredImage = value.featured_image;
   const source =
     asString(featuredImage) ??
