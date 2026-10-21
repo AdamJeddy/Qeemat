@@ -1775,6 +1775,11 @@ describe('detectSharedUrl', () => {
 });
 
 describe('cleanUrl', () => {
+  it('drops empty query markers without changing the product route', () => {
+    expect(cleanUrl(`${namshiSneakerUrl}?`)).toBe(namshiSneakerUrl);
+    expect(cleanUrl(`${namshiSneakerUrl}?utm_source=share_product&`)).toBe(namshiSneakerUrl);
+  });
+
   it('reduces Amazon product links to a stable direct ASIN URL', () => {
     expect(
       cleanUrl('https://www.amazon.ae/Some-Long-Product-Name/dp/B005BFCNYU?ref_=share&tag=example')

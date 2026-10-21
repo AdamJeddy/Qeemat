@@ -10,6 +10,7 @@ import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
+import org.json.JSONTokener
 
 class QeematWebViewFetcherModule(private val reactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactContext) {
@@ -98,13 +99,14 @@ class QeematWebViewFetcherModule(private val reactContext: ReactApplicationConte
                 return@evaluateJavascript
               }
 
-              // Strip JSON string wrapper from evaluateJavascript
-              val unescaped = html
-                .removeSurrounding("\"")
-                .replace("\\\"", "\"")
-                .replace("\\n", "\n")
-                .replace("\\/", "/")
-                .replace("\\\\", "\\")
+              // evaluateJavascript returns a JSON string, including Unicode
+              // escapes such as \u003C for '<'. Decode it before parsing HTML.
+              val unescaped = try {
+                JSONTokener(html).nextValue() as String
+              } catch (e: Exception) {
+                Log.w(TAG, "Could not decode WebView HTML", e)
+                return@evaluateJavascript
+              }
 
               // Check whether the storefront returned a browser challenge or
               // explicit access-denied page instead of product HTML.

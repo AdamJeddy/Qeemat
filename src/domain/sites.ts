@@ -278,6 +278,9 @@ export function cleanUrl(urlValue: string): string {
   // Other sites: strip only known tracking/analytics params
   const kept: string[] = [];
   for (const pair of queryPart.split('&')) {
+    if (!pair) {
+      continue;
+    }
     const eqIdx = pair.indexOf('=');
     const key = eqIdx >= 0 ? pair.slice(0, eqIdx) : pair;
     if (!TRACKING_PARAMS.has(key)) {

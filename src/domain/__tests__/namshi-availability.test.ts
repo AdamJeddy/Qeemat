@@ -71,6 +71,19 @@ describe('Namshi saved-size availability', () => {
     });
   });
 
+  it('accepts Namshi adding an empty query marker to the same sold-out product URL', async () => {
+    respondWith(productPage('OutOfStock'), `${productUrl}?`);
+
+    expect(await fetchAndParseProduct(productUrl, savedSize)).toEqual({
+      ok: true,
+      product: expect.objectContaining({
+        availability: 'out_of_stock',
+        selectedVariant: savedSize,
+        priceMinor: undefined
+      })
+    });
+  });
+
   it.each(['InStock', undefined])('keeps a missing size unresolved when page availability is %s', async (availability) => {
     respondWith(productPage(availability));
 
