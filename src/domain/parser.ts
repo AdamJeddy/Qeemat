@@ -102,14 +102,15 @@ export async function fetchAndParseProduct(rawUrl: string, selectedVariant?: Var
     fetchResult = await fetchAndParseWithFetch(normalizedUrl, site.key, selectedVariant);
   }
 
-  // Sephora and Faces can redirect native clients through a session-establishing
-  // storefront route. Their WebView path handles that first-page navigation.
+  // Sephora, Faces, and Salomon can reject the React Native networking client
+  // even though the device browser can load their storefront. Their WebView
+  // path handles the first-page navigation with Android's browser engine.
   if (fetchResult.ok) {
     return fetchResult;
   }
 
   const shouldUseWebViewFallback = fetchResult.code === 'blocked' ||
-    ((site.key === 'sephora_uae' || site.key === 'faces_uae') && fetchResult.code === 'network_error');
+    ((site.key === 'sephora_uae' || site.key === 'faces_uae' || site.key === 'salomon_gcc') && fetchResult.code === 'network_error');
   if (!shouldUseWebViewFallback) {
     return fetchResult;
   }
@@ -573,6 +574,10 @@ function extractSalomonOptionNames(html: string): string[] {
   for (const fieldset of fieldsets) {
     const match = fieldset.match(/<input\b[^>]*\bname=["']([^"']+)["']/i);
     const name = match?.[1] ? cleanText(match[1]) : undefined;
+    const desktopName = name?.replace(/-mobile$/i, '');
+    if (name && desktopName && desktopName !== name && names.includes(desktopName)) {
+      continue;
+    }
     if (name && !names.includes(name)) {
       names.push(name);
     }

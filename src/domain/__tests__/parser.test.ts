@@ -2,6 +2,11 @@ import { fetchAndParseProduct, parseProductHtml } from '../parser';
 import { parsePriceToMinor } from '../price';
 import { cleanUrl, detectSharedUrl, detectSupportedSite } from '../sites';
 import { SiteKey } from '../types';
+import { fetchPageHtmlViaWebView } from '../webViewFetcher';
+
+jest.mock('../webViewFetcher', () => ({
+  fetchPageHtmlViaWebView: jest.fn()
+}));
 
 const noonUrl =
   'https://www.noon.com/uae-en/galaxy-s25-ultra-ai-dual-sim-titanium-grey-12gb-ram-256gb-5g-middle-east-version/N70140492V/p/';
@@ -914,6 +919,8 @@ describe('parseProductHtml', () => {
       <script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"AERO BLAZE 2","image":"https://salomongcc.com/shoe.jpg","offers":{"@type":"Offer","price":"455.00","priceCurrency":"AED","availability":"https://schema.org/InStock"}}</script>
       <fieldset><input name="Color" value="White" /></fieldset>
       <fieldset><input name="Size (UK)" value="8" /></fieldset>
+      <fieldset><input name="Color-mobile" value="White" /></fieldset>
+      <fieldset><input name="Size (UK)-mobile" value="8" /></fieldset>
       <script type="application/json">[
         {"id":46178301018368,"option1":"White","option2":"8","sku":"L474261008","available":false,"price":45500,"featured_image":{"src":"//salomongcc.com/size-8.jpg"}},
         {"id":46178301051136,"option1":"White","option2":"8.5","sku":"L474261008.5","available":true,"price":45500,"featured_image":{"src":"//salomongcc.com/size-8-5.jpg"}}
@@ -1869,7 +1876,30 @@ describe('fetchAndParseProduct', () => {
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
+    jest.mocked(fetchPageHtmlViaWebView).mockReset();
+    jest.mocked(fetchPageHtmlViaWebView).mockResolvedValue(null);
     jest.restoreAllMocks();
+  });
+
+  it('uses the Android WebView fallback when Salomon rejects the native request', async () => {
+    globalThis.fetch = jest.fn().mockRejectedValue(new Error('network failed')) as unknown as typeof fetch;
+    jest.mocked(fetchPageHtmlViaWebView).mockResolvedValue(`
+      <script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"AERO BLAZE 2","offers":{"@type":"Offer","price":"455","priceCurrency":"AED","availability":"https://schema.org/InStock"}}</script>
+      <fieldset><input name="Color" value="White" /></fieldset>
+      <fieldset><input name="Size (UK)" value="8.5" /></fieldset>
+      <script type="application/json">[{"id":46178301051136,"option1":"White","option2":"8.5","sku":"L474261008.5","available":true,"price":45500}]</script>
+    `);
+
+    await expect(fetchAndParseProduct(salomonUrl)).resolves.toEqual({
+      ok: true,
+      product: expect.objectContaining({
+        siteKey: 'salomon_gcc',
+        title: 'AERO BLAZE 2',
+        priceMinor: 45500,
+        availability: 'in_stock'
+      })
+    });
+    expect(fetchPageHtmlViaWebView).toHaveBeenCalledWith(salomonUrl);
   });
 
   it('uses the native Android request profile for Decathlon UAE', async () => {
