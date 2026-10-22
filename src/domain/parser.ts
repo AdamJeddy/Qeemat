@@ -102,7 +102,7 @@ export async function fetchAndParseProduct(rawUrl: string, selectedVariant?: Var
     fetchResult = await fetchAndParseWithFetch(normalizedUrl, site.key, selectedVariant);
   }
 
-  // Sephora, Faces, and Salomon can reject the React Native networking client
+  // Sephora, Faces, Salomon, and The Deal can reject the React Native networking client
   // even though the device browser can load their storefront. Their WebView
   // path handles the first-page navigation with Android's browser engine.
   if (fetchResult.ok) {
@@ -110,7 +110,7 @@ export async function fetchAndParseProduct(rawUrl: string, selectedVariant?: Var
   }
 
   const shouldUseWebViewFallback = fetchResult.code === 'blocked' ||
-    ((site.key === 'sephora_uae' || site.key === 'faces_uae' || site.key === 'salomon_gcc') && fetchResult.code === 'network_error');
+    ((site.key === 'sephora_uae' || site.key === 'faces_uae' || site.key === 'salomon_gcc' || site.key === 'the_deal') && fetchResult.code === 'network_error');
   if (!shouldUseWebViewFallback) {
     return fetchResult;
   }
@@ -279,6 +279,7 @@ export function parseProductHtml(
     siteKey !== 'salomon_gcc' &&
     siteKey !== 'centrepoint_uae' &&
     siteKey !== 'namshi' &&
+    siteKey !== 'the_deal' &&
     siteKey !== 'sharaf_dg'
   ) {
     return resolveParsedVariant(structured, selectedVariant);
@@ -342,6 +343,10 @@ export function parseProductHtml(
 
   if (siteKey === 'namshi') {
     return resolveParsedVariant(parseNamshiProduct(siteKey, inputUrl, html, structured, selectedVariant) ?? structured, selectedVariant);
+  }
+
+  if (siteKey === 'the_deal') {
+    return resolveParsedVariant(parseTheDealProduct(siteKey, inputUrl, html, structured) ?? structured, selectedVariant);
   }
 
   if (siteKey === 'sharaf_dg') {
@@ -1391,6 +1396,326 @@ function parseVariantControlAvailability(tag: string, pageAvailability: Availabi
   }
 
   return pageAvailability;
+}
+
+type TheDealVariantValue = {
+  value: string;
+  displayValue: string;
+  selected: boolean;
+  availability: Availability;
+  url?: string;
+  priceMinor?: number;
+  imageUrl?: string;
+};
+
+type TheDealVariantGroup = {
+  id: string;
+  name: string;
+  values: TheDealVariantValue[];
+};
+
+/**
+ * The Deal renders the current SFCC configuration in the product page and
+ * gives every source option an exact Product-Variation URL. That endpoint is
+ * also the authoritative response for later price and stock checks.
+ */
+function parseTheDealProduct(
+  siteKey: SiteKey,
+  inputUrl: string,
+  html: string,
+  structured?: ParsedProduct
+): ParsedProduct | undefined {
+  const variationResponse = extractTheDealVariationResponse(html);
+  if (variationResponse) {
+    return parseTheDealVariationProduct(siteKey, inputUrl, variationResponse);
+  }
+
+  if (!structured) {
+    return undefined;
+  }
+
+  const masterId = extractTheDealMasterId(html);
+  if (!masterId) {
+    return structured;
+  }
+
+  const groups = extractTheDealHtmlVariantGroups(html);
+  const variants = buildTheDealVariants(
+    inputUrl,
+    masterId,
+    groups,
+    structured.priceMinor,
+    structured.currency,
+    structured.availability,
+    structured.imageUrl
+  );
+
+  return withProductVariants(structured, variants);
+}
+
+function extractTheDealVariationResponse(html: string): JsonRecord | undefined {
+  const direct = parseJsonCandidates(html.trim()).find(isJsonRecord);
+  if (direct && isJsonRecord(direct.product)) {
+    return direct;
+  }
+
+  const preformatted = matchString(html, /<pre\b[^>]*>([\s\S]*?)<\/pre>/i);
+  const wrapped = preformatted ? parseJsonCandidates(preformatted).find(isJsonRecord) : undefined;
+  return wrapped && isJsonRecord(wrapped.product) ? wrapped : undefined;
+}
+
+function parseTheDealVariationProduct(
+  siteKey: SiteKey,
+  inputUrl: string,
+  response: JsonRecord
+): ParsedProduct | undefined {
+  const product = isJsonRecord(response.product) ? response.product : undefined;
+  const title = asString(product?.productName);
+  const masterId = asIdentifier(product?.masterId) ?? extractTheDealMasterId(inputUrl);
+  if (!product || !title || !masterId) {
+    return undefined;
+  }
+
+  const price = isJsonRecord(product.price) ? product.price : undefined;
+  const sales = isJsonRecord(price?.sales) ? price.sales : undefined;
+  const priceMinor = parsePriceToMinor(asPriceValue(sales?.value) ?? asPriceValue(sales?.decimalPrice));
+  const currency = asString(sales?.currency) ?? 'AED';
+  const availability = parseTheDealJsonAvailability(product);
+  const imageUrl = extractTheDealJsonImage(product.images);
+  const groups = extractTheDealJsonVariantGroups(product, response);
+  const selectedProductUrl = asString(product.selectedProductUrl);
+  const canonicalUrl = selectedProductUrl ? absoluteUrl(selectedProductUrl, inputUrl) : inputUrl;
+  const variants = buildTheDealVariants(
+    inputUrl,
+    masterId,
+    groups,
+    priceMinor,
+    currency,
+    availability,
+    imageUrl
+  );
+
+  return {
+    siteKey,
+    canonicalUrl,
+    title: cleanText(title),
+    imageUrl,
+    priceMinor,
+    currency,
+    availability,
+    rawPriceText: asString(sales?.formatted) ?? asString(sales?.decimalPrice),
+    sku: cleanSku(asIdentifier(product.id)),
+    ...(variants.length > 0 ? { variants } : {})
+  };
+}
+
+function extractTheDealHtmlVariantGroups(html: string): TheDealVariantGroup[] {
+  const colorValues: TheDealVariantValue[] = [];
+  const colorPattern = /<button\b(?=[^>]*\bclass=["'][^"']*\bjs-swatch-item\b[^"']*["'])[^>]*>([\s\S]*?)<\/button>/gi;
+  for (const match of html.matchAll(colorPattern)) {
+    const block = match[0];
+    const imageTag = block.match(/<img\b(?=[^>]*\bdata-attr-value\s*=)[^>]*>/i)?.[0];
+    const value = imageTag ? htmlAttribute(imageTag, 'data-attr-value') : undefined;
+    if (!value) {
+      continue;
+    }
+    colorValues.push({
+      value,
+      displayValue: formatTheDealDisplayValue(value),
+      selected: /\bselected\b/i.test(imageTag ?? ''),
+      availability: /\bdisabled\b/i.test(block) ? 'out_of_stock' : 'in_stock',
+      url: htmlAttribute(block, 'data-url'),
+      imageUrl: imageTag ? htmlAttribute(imageTag, 'src') : undefined
+    });
+  }
+
+  const sizeValues: TheDealVariantValue[] = [];
+  const sizePattern = /<span\b(?=[^>]*\bclass=["'][^"']*\bjs-attribute-btn\b[^"']*["'])[^>]*>([\s\S]*?)<\/span>/gi;
+  for (const match of html.matchAll(sizePattern)) {
+    const tag = match[0].slice(0, match[0].indexOf('>') + 1);
+    const value = htmlAttribute(tag, 'data-attr-value');
+    const displayValue = cleanText(stripHtmlTags(match[1] ?? ''));
+    if (!value || !displayValue) {
+      continue;
+    }
+    sizeValues.push({
+      value,
+      displayValue,
+      selected: /\bselected\b/i.test(tag),
+      availability: /\bdisabled\b/i.test(tag) ? 'out_of_stock' : 'in_stock',
+      url: htmlAttribute(tag, 'data-url')
+    });
+  }
+
+  return [
+    ...(colorValues.length > 0 ? [{ id: 'color', name: 'Color', values: colorValues }] : []),
+    ...(sizeValues.length > 0 ? [{ id: 'size', name: 'Size', values: sizeValues }] : [])
+  ];
+}
+
+function extractTheDealJsonVariantGroups(product: JsonRecord, response: JsonRecord): TheDealVariantGroup[] {
+  const attributes = Array.isArray(product.variationAttributes) ? product.variationAttributes : [];
+  const queryString = isJsonRecord(response.queryString) ? response.queryString : undefined;
+  const variables = isJsonRecord(queryString?.variables) ? queryString.variables : undefined;
+
+  return attributes.flatMap((attribute) => {
+    if (!isJsonRecord(attribute)) {
+      return [];
+    }
+    const id = asString(attribute.attributeId) ?? asString(attribute.id);
+    const name = asString(attribute.displayName) ?? id;
+    const values = Array.isArray(attribute.values) ? attribute.values : [];
+    if (!id || !name || values.length === 0) {
+      return [];
+    }
+
+    const selectedValue = isJsonRecord(attribute.selectedValue)
+      ? asString(attribute.selectedValue.value) ?? asString(attribute.selectedValue.id)
+      : undefined;
+    const queryVariable = isJsonRecord(variables?.[id]) ? variables[id] as JsonRecord : undefined;
+    const queryValue = asString(queryVariable?.value);
+    const parsedValues = values.flatMap((value) => {
+      if (!isJsonRecord(value)) {
+        return [];
+      }
+      const optionValue = asString(value.value) ?? asString(value.id);
+      const displayValue = asString(value.displayValue) ?? optionValue;
+      if (!optionValue || !displayValue) {
+        return [];
+      }
+
+      return [{
+        value: optionValue,
+        displayValue: cleanText(displayValue),
+        selected: value.selected === true || optionValue === selectedValue || optionValue === queryValue,
+        availability: value.selectable === false ? 'out_of_stock' as const : 'in_stock' as const,
+        url: asString(value.url),
+        priceMinor: parsePriceToMinor(asPriceValue(value.price)),
+        imageUrl: extractTheDealJsonImage(value.images)
+      }];
+    });
+
+    return parsedValues.length > 0 ? [{ id, name: cleanText(name), values: parsedValues }] : [];
+  });
+}
+
+function buildTheDealVariants(
+  inputUrl: string,
+  masterId: string,
+  groups: TheDealVariantGroup[],
+  priceMinor: number | undefined,
+  currency: string | undefined,
+  currentAvailability: Availability,
+  currentImageUrl?: string
+): ProductVariant[] {
+  if (groups.length === 0 || groups.some((group) => !group.values.some((value) => value.selected))) {
+    return [];
+  }
+
+  const currentValues = Object.fromEntries(
+    groups.map((group) => [group.id, group.values.find((value) => value.selected)?.value ?? ''])
+  );
+  const variants = new Map<string, ProductVariant>();
+
+  const addVariant = (values: Record<string, string>, source?: TheDealVariantValue) => {
+    const attributes = groups.map((group) => {
+      const value = group.values.find((candidate) => candidate.value === values[group.id]);
+      return { name: group.name, value: value?.displayValue ?? values[group.id] };
+    });
+    const isCurrent = groups.every((group) => values[group.id] === currentValues[group.id]);
+    const id = `${masterId}|${groups.map((group) => `${group.id}=${values[group.id]}`).join('|')}`;
+    const availability = isCurrent ? currentAvailability : source?.availability ?? 'unknown';
+    if (availability === 'unknown') {
+      return;
+    }
+
+    variants.set(id, {
+      id,
+      label: formatVariantLabel(attributes),
+      attributes,
+      url: buildTheDealVariationUrl(inputUrl, masterId, values, groups, source?.url),
+      priceMinor: isCurrent ? priceMinor : source?.priceMinor ?? priceMinor,
+      currency,
+      availability,
+      imageUrl: source?.imageUrl ?? currentImageUrl
+    });
+  };
+
+  const currentSource = groups
+    .flatMap((group) => group.values)
+    .find((value) => value.selected && value.url && value.url !== 'null');
+  addVariant(currentValues, currentSource);
+
+  for (const group of [...groups].reverse()) {
+    for (const value of group.values) {
+      if (value.selected) {
+        continue;
+      }
+      addVariant({ ...currentValues, [group.id]: value.value }, value);
+    }
+  }
+
+  return Array.from(variants.values());
+}
+
+function buildTheDealVariationUrl(
+  inputUrl: string,
+  masterId: string,
+  values: Record<string, string>,
+  groups: TheDealVariantGroup[],
+  sourceUrl?: string
+): string {
+  const origin = inputUrl.match(/^(https?:\/\/[^/?#]+)/i)?.[1];
+  if (!origin) {
+    return sourceUrl && sourceUrl !== 'null' ? absoluteUrl(sourceUrl, inputUrl) : inputUrl;
+  }
+
+  const variationParams = groups.map((group) =>
+    `dwvar_${encodeURIComponent(masterId)}_${encodeURIComponent(group.id)}=${encodeURIComponent(values[group.id])}`
+  );
+  const query = [
+    ...variationParams,
+    `pid=${encodeURIComponent(masterId)}`,
+    'quantity=1'
+  ].join('&');
+  return `${origin}/on/demandware.store/Sites-TheDealOutlet_AE-Site/en_AE/Product-Variation?${query}`;
+}
+
+function extractTheDealMasterId(value: string): string | undefined {
+  return value.match(/\bdwvar_([^_&"']+)_(?:color|size)\b/i)?.[1];
+}
+
+function parseTheDealJsonAvailability(product: JsonRecord): Availability {
+  if (typeof product.available === 'boolean') {
+    return product.available ? 'in_stock' : 'out_of_stock';
+  }
+  const availability = isJsonRecord(product.availability) ? product.availability : undefined;
+  if (typeof availability?.notAvailable === 'boolean') {
+    return availability.notAvailable ? 'out_of_stock' : 'in_stock';
+  }
+  return 'unknown';
+}
+
+function extractTheDealJsonImage(value: unknown): string | undefined {
+  if (!isJsonRecord(value)) {
+    return undefined;
+  }
+  for (const key of ['large', 'hi-res', 'small', 'swatch']) {
+    const images = value[key];
+    if (!Array.isArray(images)) {
+      continue;
+    }
+    const image = images.find(isJsonRecord);
+    const url = image ? asString(image.absUrl) ?? asString(image.url) : undefined;
+    if (url) {
+      return url;
+    }
+  }
+  return undefined;
+}
+
+function formatTheDealDisplayValue(value: string): string {
+  return cleanText(value.replace(/[_-]+/g, ' ')).replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
 /**

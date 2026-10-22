@@ -1,6 +1,7 @@
 import { checkProductNow } from '../checker';
 import { fetchAndParseProduct } from '../parser';
 import { TrackedProduct } from '../types';
+import { recordSuccessfulCheck } from '../../data/database';
 
 jest.mock('../parser', () => ({
   fetchAndParseProduct: jest.fn()
@@ -60,5 +61,51 @@ describe('checkProductNow', () => {
     await checkProductNow(variantProduct, 'manual_single');
 
     expect(fetchAndParseProduct).toHaveBeenCalledWith(variantProduct.canonicalUrl, variantProduct.variant);
+  });
+
+  it('preserves The Deal page title when an exact variation check returns a catalog name', async () => {
+    const variantProduct: TrackedProduct = {
+      ...outOfStockProduct,
+      url: 'https://www.thedealoutlet.com/ae-en/serve-slide-1.0-fabric/0188147CMA0025.html',
+      canonicalUrl: 'https://www.thedealoutlet.com/ae-en/serve-slide-1.0-fabric/0188147CMA0025.html',
+      siteKey: 'the_deal',
+      title: 'Serve Slide 1.0 Fabric',
+      currentPriceMinor: 9200,
+      lastAvailability: 'in_stock',
+      variant: {
+        id: '0188147CMA0025|color=blue|size=42sEU',
+        label: 'Color: Blue · Size: 42 EU',
+        attributes: [
+          { name: 'Color', value: 'Blue' },
+          { name: 'Size', value: '42 EU' }
+        ],
+        url: 'https://www.thedealoutlet.com/on/demandware.store/Sites-TheDealOutlet_AE-Site/en_AE/Product-Variation?dwvar_0188147CMA0025_color=blue&dwvar_0188147CMA0025_size=42sEU&pid=0188147CMA0025&quantity=1'
+      }
+    };
+    (fetchAndParseProduct as jest.Mock).mockResolvedValue({
+      ok: true,
+      product: {
+        siteKey: 'the_deal',
+        canonicalUrl: variantProduct.canonicalUrl,
+        title: 'SERVE SLIDE 10 124 2 CMA',
+        priceMinor: 9200,
+        currency: 'AED',
+        availability: 'in_stock',
+        selectedVariant: variantProduct.variant
+      }
+    });
+    (recordSuccessfulCheck as jest.Mock).mockResolvedValue({
+      status: 'ok',
+      previousPriceMinor: 9200,
+      newPriceMinor: 9200
+    });
+
+    await checkProductNow(variantProduct, 'manual_single');
+
+    expect(recordSuccessfulCheck).toHaveBeenCalledWith(
+      variantProduct,
+      expect.objectContaining({ title: 'Serve Slide 1.0 Fabric' }),
+      'manual_single'
+    );
   });
 });

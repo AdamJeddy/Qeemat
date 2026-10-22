@@ -27,6 +27,7 @@ const SITE_COLORS: Record<SiteKey, string> = {
   faces_uae: '#111827',
   centrepoint_uae: '#1F2937',
   namshi: '#000000',
+  the_deal: '#000000',
   sharaf_dg: '#1E041A',
   brands_for_less: '#E31E24',
 };

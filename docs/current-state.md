@@ -1,6 +1,6 @@
 # Qeemat Current State
 
-**Last reconciled with the implementation:** 2026-08-04
+**Last reconciled with the implementation:** 2026-10-22
 **App version:** 0.5.5-alpha
 
 This is the repo handoff for the current app. Product-planning documents are useful for intent, but this file describes shipped behavior and active limitations.
@@ -29,6 +29,7 @@ The app uses a small manual route stack in `App.tsx`, not React Navigation. Ther
 | Faces UAE | Supported | Salesforce Commerce Cloud structured product data; session redirects use the native WebView fallback when needed. |
 | Centrepoint UAE | Supported | Centrepoint storefront JSON-LD plus source-defined color and size controls across group brands such as Splash. |
 | Namshi UAE | Supported | Structured product data plus source size controls are tracked by size when the initial response provides stock state; parent/color choices use their own product URLs. |
+| The Deal UAE | Supported | Salesforce Commerce Cloud product data plus source color and size controls; exact variation endpoints preserve the chosen option for later AED price and stock checks. |
 | Sharaf DG UAE | Supported | AED product metadata plus source-linked configuration URLs are tracked exactly when the initial response exposes complete option controls. |
 | Brands For Less UAE | Experimental | Parser and WebView fallback exist, but Cloudflare blocks reliable fetching; hidden from the supported-store UI. |
 
@@ -44,7 +45,7 @@ The site registry is `src/domain/sites.ts`. It controls hostnames, enabled statu
 
 ### Add flow and product detail
 
-- The add flow detects supported stores, replaces the store list with a single detected-store status for valid links, and brings the parsed result into view before saving. It then collects check preference, alert mode, and an optional target price. When a page exposes reliable variant data, the user must select an in-stock source option such as size before saving; that exact option is shown on cards and details and is used for later checks. Centrepoint size choices use the current product URL and source button ID, while color-only pages retain the current color and product route without guessing neighboring colors. Namshi size choices use the current product/color URL, while Sharaf DG linked configurations retain the source URL that preselects the exact item. Sephora and Faces shade labels remain page-level because their initial pages do not provide complete per-shade stock state. Android browsers can share a product URL directly to Qeemat, which opens this flow and automatically finds the product so the user can choose its variant and tracking settings.
+- The add flow detects supported stores, replaces the store list with a single detected-store status for valid links, and brings the parsed result into view before saving. It then collects check preference, alert mode, and an optional target price. When a page exposes reliable variant data, the user must select an in-stock source option such as size before saving; that exact option is shown on cards and details and is used for later checks. Centrepoint size choices use the current product URL and source button ID, while color-only pages retain the current color and product route without guessing neighboring colors. Namshi size choices use the current product/color URL, The Deal selections retain an exact Salesforce variation endpoint, and Sharaf DG linked configurations retain the source URL that preselects the exact item. Sephora and Faces shade labels remain page-level because their initial pages do not provide complete per-shade stock state. Android browsers can share a product URL directly to Qeemat, which opens this flow and automatically finds the product so the user can choose its variant and tracking settings.
 - AYM excludes the daily option in the picker because its effective minimum interval is 72 hours. Existing daily AYM products are clamped in tracking settings.
 - Product detail shows current price, chart, stats, snapshot history, `Check now`, `Open link`, and `Copy product link` actions.
 - Snapshot sources are presented as `Check now`, `Recheck all`, or `Background`.
@@ -68,7 +69,7 @@ The site registry is `src/domain/sites.ts`. It controls hostnames, enabled statu
 - Confirmed out-of-stock products can parse successfully without a price. Storage preserves the last known product price and the UI shows an OOS state.
 - Confirmed Amazon OOS pages deliberately leave price unset: recommendation carousels can contain prices belonging to other products.
 - Amazon prices use the broadly available Buy Box price: sale prices are tracked, while Prime-exclusive discounts and alternate-seller prices are ignored. If that base Buy Box price is not unambiguous, the check reports that no current price was found instead of guessing.
-- AYM, Ounass, Level Shoes, Nike UAE, Sun & Sand Sports, Adidas UAE, PUMA UAE, Decathlon UAE, Namshi, and Centrepoint expose reliable initial-page variant data when the markup includes source IDs, labels, stock state, and price. Centrepoint color-only pages can track the current source product route; its alternate color buttons are not promoted without exact linked URLs. Sharaf DG exposes linked configuration variants when the source provides option controls and preselecting URLs; the saved URL is fetched for each later check so a different configuration cannot be substituted. Noon, Amazon, Sephora, Faces, and Brands For Less retain page-level tracking unless a future initial response meets the same standard; Qeemat never makes extra requests to discover neighbours or guesses an unavailable option.
+- AYM, Ounass, Level Shoes, Nike UAE, Sun & Sand Sports, Adidas UAE, PUMA UAE, Decathlon UAE, Namshi, Centrepoint, and The Deal expose reliable initial-page variant data when the markup includes source IDs, labels, stock state, and price. Centrepoint color-only pages can track the current source product route; its alternate color buttons are not promoted without exact linked URLs. The Deal and Sharaf DG retain exact source variation URLs for later checks so a different configuration cannot be substituted. Noon, Amazon, Sephora, Faces, and Brands For Less retain page-level tracking unless a future initial response meets the same standard; Qeemat never makes extra requests to discover neighbours or guesses an unavailable option.
 - Challenge pages return `blocked`; pages without required product data return parser or price errors as appropriate.
 
 Parser code is in `src/domain/parser.ts`; types are in `src/domain/types.ts`; tests are in `src/domain/__tests__/`.
@@ -143,3 +144,4 @@ For a terminal Android build, use JDK 17+ and make `adb` available from Android 
 - **#30:** Namshi UAE support with structured product parsing and source-defined size tracking.
 - **#31:** Sharaf DG UAE support with product metadata parsing and source-linked configuration tracking.
 - **#35:** Centrepoint UAE support with Splash-compatible structured product parsing and source-defined color/size tracking.
+- **#54:** The Deal UAE support with source color/size selections and exact variation URLs for AED price and availability checks.

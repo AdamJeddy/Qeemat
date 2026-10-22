@@ -34,7 +34,11 @@ export async function checkProductNow(product: TrackedProduct, source: SnapshotS
     return;
   }
 
-  const parsed = result.product;
+  // The Deal's exact variation endpoint uses an internal catalogue name that
+  // is less useful than the human product-page title saved by the user.
+  const parsed = product.siteKey === 'the_deal' && product.variant
+    ? { ...result.product, title: product.title }
+    : result.product;
   const saved = await recordSuccessfulCheck(product, parsed, source);
 
   // Detect availability transition (e.g. in_stock → out_of_stock)

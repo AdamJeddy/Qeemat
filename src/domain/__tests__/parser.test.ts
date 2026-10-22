@@ -34,8 +34,228 @@ const sharafDgIphoneOneTbUrl = 'https://uae.sharafdg.com/product/apple-iphone-17
 const centrepointTshirtUrl = 'https://www.centrepointstores.com/ae/en/buy-splash-basics-plain-regular-fit-crew-neck-tshirt-with-short-sleeves/p/8600471';
 const centrepointShoeUrl = 'https://www.centrepointstores.com/ae/en/buy-le-confort-men-slipon-ankle-sneakers/p/24SS220-DBLACK';
 const centrepointSunglassesUrl = 'https://www.centrepointstores.com/ae/en/buy-lee-cooper-polarized-60-mm-navigator-sunglasses-lc1001c03/p/167009212';
+const theDealUrl = 'https://www.thedealoutlet.com/ae-en/serve-slide-1.0-fabric/0188147CMA0025.html';
+const theDealVariantUrl =
+  'https://www.thedealoutlet.com/on/demandware.store/Sites-TheDealOutlet_AE-Site/en_AE/Product-Variation?dwvar_0188147CMA0025_color=blue&dwvar_0188147CMA0025_size=42sEU&pid=0188147CMA0025&quantity=1';
 
 describe('parseProductHtml', () => {
+  it('parses The Deal color and size choices with exact stock states', () => {
+    const html = `
+      <html>
+        <head>
+          <link rel="canonical" href="${theDealUrl}" />
+          <script type="application/ld+json">
+            {
+              "@context": "https://schema.org",
+              "@type": "Product",
+              "name": "Serve Slide 1.0 Fabric",
+              "sku": "018826684228",
+              "image": ["https://www.thedealoutlet.com/images/black-slide.jpg"],
+              "offers": {
+                "@type": "Offer",
+                "priceCurrency": "AED",
+                "price": "92.00",
+                "availability": "https://schema.org/InStock"
+              }
+            }
+          </script>
+        </head>
+        <body>
+          <div class="attribute-item" data-attr="color">
+            <button class="js-swatch-item" data-url="https://www.thedealoutlet.com/on/demandware.store/Sites-TheDealOutlet_AE-Site/en_AE/Product-Variation?dwvar_0188147CMA0025_color=blue&amp;dwvar_0188147CMA0025_size=42sEU&amp;pid=0188147CMA0025&amp;quantity=1">
+              <img data-attr-value="blue" class="color-value swatch-value" src="https://www.thedealoutlet.com/images/blue-slide.jpg" />
+            </button>
+            <button class="js-swatch-item" data-url="https://www.thedealoutlet.com/on/demandware.store/Sites-TheDealOutlet_AE-Site/en_AE/Product-Variation?dwvar_0188147CMA0025_color=&amp;dwvar_0188147CMA0025_size=42sEU&amp;pid=0188147CMA0025&amp;quantity=1">
+              <img data-attr-value="black" class="color-value swatch-value selected" src="https://www.thedealoutlet.com/images/black-slide.jpg" />
+            </button>
+          </div>
+          <div class="attribute-item" data-attr="size">
+            <span class="js-attribute-btn attribute-list-item selected" data-attr-value="42sEU" data-url="https://www.thedealoutlet.com/on/demandware.store/Sites-TheDealOutlet_AE-Site/en_AE/Product-Variation?dwvar_0188147CMA0025_color=black&amp;dwvar_0188147CMA0025_size=&amp;pid=0188147CMA0025&amp;quantity=1">42 EU</span>
+            <span class="js-attribute-btn attribute-list-item disabled" data-attr-value="44p5" data-url="https://www.thedealoutlet.com/on/demandware.store/Sites-TheDealOutlet_AE-Site/en_AE/Product-Variation?dwvar_0188147CMA0025_color=black&amp;dwvar_0188147CMA0025_size=44p5&amp;pid=0188147CMA0025&amp;quantity=1">44.5 EU</span>
+          </div>
+        </body>
+      </html>
+    `;
+
+    const parsed = parseProductHtml('the_deal', theDealUrl, html);
+
+    expect(parsed).toEqual(expect.objectContaining({
+      siteKey: 'the_deal',
+      canonicalUrl: theDealUrl,
+      title: 'Serve Slide 1.0 Fabric',
+      priceMinor: 9200,
+      currency: 'AED',
+      availability: 'in_stock'
+    }));
+    expect(parsed?.variants).toEqual([
+      expect.objectContaining({
+        id: '0188147CMA0025|color=black|size=42sEU',
+        label: 'Color: Black · Size: 42 EU',
+        attributes: [
+          { name: 'Color', value: 'Black' },
+          { name: 'Size', value: '42 EU' }
+        ],
+        priceMinor: 9200,
+        availability: 'in_stock',
+        url: 'https://www.thedealoutlet.com/on/demandware.store/Sites-TheDealOutlet_AE-Site/en_AE/Product-Variation?dwvar_0188147CMA0025_color=black&dwvar_0188147CMA0025_size=42sEU&pid=0188147CMA0025&quantity=1'
+      }),
+      expect.objectContaining({
+        id: '0188147CMA0025|color=black|size=44p5',
+        label: 'Color: Black · Size: 44.5 EU',
+        availability: 'out_of_stock'
+      }),
+      expect.objectContaining({
+        id: '0188147CMA0025|color=blue|size=42sEU',
+        label: 'Color: Blue · Size: 42 EU',
+        imageUrl: 'https://www.thedealoutlet.com/images/blue-slide.jpg',
+        availability: 'in_stock'
+      })
+    ]);
+  });
+
+  it('parses an exact in-stock The Deal variation response', () => {
+    const variationJson = JSON.stringify({
+      queryString: {
+        variables: {
+          color: { value: 'blue' },
+          size: { value: '42sEU' }
+        }
+      },
+      product: {
+        available: true,
+        id: '018826684218',
+        masterId: '0188147CMA0025',
+        productName: 'Serve Slide 1.0 Fabric',
+        price: { sales: { value: 92, currency: 'AED', formatted: '92 AED' } },
+        images: {
+          large: [{ absUrl: 'https://www.thedealoutlet.com/images/blue-slide.jpg' }]
+        },
+        variationAttributes: [
+          {
+            attributeId: 'color',
+            displayName: 'Color',
+            values: [
+              { value: 'blue', displayValue: 'Blue', selected: true, selectable: true, url: theDealVariantUrl }
+            ]
+          },
+          {
+            attributeId: 'size',
+            displayName: 'Size',
+            values: [
+              { value: '42sEU', displayValue: '42 EU', selected: true, selectable: true, url: theDealVariantUrl },
+              { value: '44p5', displayValue: '44.5 EU', selected: false, selectable: false }
+            ]
+          }
+        ],
+        selectedProductUrl: '/ae-en/serve-slide-1.0-fabric/0188147CMA0025.html?dwvar_0188147CMA0025_color=blue&dwvar_0188147CMA0025_size=42sEU&quantity=1'
+      }
+    });
+    const html = `<html><body><pre>${variationJson.replace(/&/g, '&amp;')}</pre></body></html>`;
+    const selectedVariant = {
+      id: '0188147CMA0025|color=blue|size=42sEU',
+      label: 'Color: Blue · Size: 42 EU',
+      attributes: [
+        { name: 'Color', value: 'Blue' },
+        { name: 'Size', value: '42 EU' }
+      ],
+      url: theDealVariantUrl
+    };
+
+    const parsed = parseProductHtml('the_deal', theDealVariantUrl, html, selectedVariant);
+
+    expect(parsed).toEqual(expect.objectContaining({
+      title: 'Serve Slide 1.0 Fabric',
+      priceMinor: 9200,
+      currency: 'AED',
+      availability: 'in_stock',
+      sku: '018826684218',
+      imageUrl: 'https://www.thedealoutlet.com/images/blue-slide.jpg',
+      selectedVariant
+    }));
+  });
+
+  it('preserves the exact The Deal selection when that variation is sold out', () => {
+    const outOfStockUrl =
+      'https://www.thedealoutlet.com/on/demandware.store/Sites-TheDealOutlet_AE-Site/en_AE/Product-Variation?dwvar_0188147CMA0025_color=black&dwvar_0188147CMA0025_size=44p5&pid=0188147CMA0025&quantity=1';
+    const selectedVariant = {
+      id: '0188147CMA0025|color=black|size=44p5',
+      label: 'Color: Black · Size: 44.5 EU',
+      attributes: [
+        { name: 'Color', value: 'Black' },
+        { name: 'Size', value: '44.5 EU' }
+      ],
+      url: outOfStockUrl
+    };
+    const html = JSON.stringify({
+      queryString: {
+        variables: {
+          color: { value: 'black' },
+          size: { value: '44p5' }
+        }
+      },
+      product: {
+        available: false,
+        id: '018826684230',
+        masterId: '0188147CMA0025',
+        productName: 'Serve Slide 1.0 Fabric',
+        price: { sales: { value: 115, currency: 'AED', formatted: '115 AED' } },
+        variationAttributes: [
+          {
+            attributeId: 'color',
+            displayName: 'Color',
+            values: [{ value: 'black', displayValue: 'Black', selected: true, selectable: false }]
+          },
+          {
+            attributeId: 'size',
+            displayName: 'Size',
+            values: [{ value: '44p5', displayValue: '44.5 EU', selected: true, selectable: false }]
+          }
+        ]
+      }
+    });
+
+    expect(parseProductHtml('the_deal', outOfStockUrl, html, selectedVariant)).toEqual(
+      expect.objectContaining({
+        availability: 'out_of_stock',
+        priceMinor: undefined,
+        selectedVariant
+      })
+    );
+  });
+
+  it('tracks a one-size The Deal product at page level', () => {
+    const oneSizeUrl =
+      'https://www.thedealoutlet.com/ae-en/ember-small-embellished-pebbled-leather-messenger-bag/023327198678.html';
+    const html = `
+      <link rel="canonical" href="${oneSizeUrl}" />
+      <script type="application/ld+json">
+        {
+          "@type": "Product",
+          "name": "Ember Small Embellished Pebbled Leather Messenger Bag",
+          "sku": "023327198678",
+          "offers": {
+            "@type": "Offer",
+            "priceCurrency": "AED",
+            "price": "995.00",
+            "availability": "http://schema.org/InStock"
+          }
+        }
+      </script>
+      <div class="attribute-item" data-attr="size">
+        <span class="js-attribute-btn attribute-list-item selected" data-attr-value="1SZ" data-url="null">ONE SIZE</span>
+      </div>
+    `;
+
+    const parsed = parseProductHtml('the_deal', oneSizeUrl, html);
+
+    expect(parsed).toEqual(expect.objectContaining({
+      title: 'Ember Small Embellished Pebbled Leather Messenger Bag',
+      priceMinor: 99500,
+      availability: 'in_stock'
+    }));
+    expect(parsed?.variants).toBeUndefined();
+  });
+
   it('parses Noon product JSON-LD with multiple offers', () => {
     const html = `
       <html>
@@ -1826,6 +2046,11 @@ describe('detectSupportedSite', () => {
     expect(detectSupportedSite(centrepointTshirtUrl)?.key).toBe('centrepoint_uae');
     expect(detectSupportedSite('https://centrepointstores.com/ae/en/buy-example/p/12345')?.key).toBe('centrepoint_uae');
   });
+
+  it('detects The Deal product and variation URLs', () => {
+    expect(detectSupportedSite(theDealUrl)?.key).toBe('the_deal');
+    expect(detectSupportedSite(theDealVariantUrl)?.key).toBe('the_deal');
+  });
 });
 
 describe('detectSharedUrl', () => {
@@ -1900,6 +2125,25 @@ describe('fetchAndParseProduct', () => {
       })
     });
     expect(fetchPageHtmlViaWebView).toHaveBeenCalledWith(salomonUrl);
+  });
+
+  it('uses the Android WebView fallback when The Deal rejects the native request', async () => {
+    globalThis.fetch = jest.fn().mockRejectedValue(new Error('network failed')) as unknown as typeof fetch;
+    jest.mocked(fetchPageHtmlViaWebView).mockResolvedValue(`
+      <link rel="canonical" href="${theDealUrl}" />
+      <script type="application/ld+json">{"@type":"Product","name":"Serve Slide 1.0 Fabric","sku":"018826684228","offers":{"@type":"Offer","price":"92","priceCurrency":"AED","availability":"https://schema.org/InStock"}}</script>
+    `);
+
+    await expect(fetchAndParseProduct(theDealUrl)).resolves.toEqual({
+      ok: true,
+      product: expect.objectContaining({
+        siteKey: 'the_deal',
+        title: 'Serve Slide 1.0 Fabric',
+        priceMinor: 9200,
+        availability: 'in_stock'
+      })
+    });
+    expect(fetchPageHtmlViaWebView).toHaveBeenCalledWith(theDealUrl);
   });
 
   it('uses the native Android request profile for Decathlon UAE', async () => {
