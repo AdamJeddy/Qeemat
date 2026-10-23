@@ -2,7 +2,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   BackHandler,
+  Easing,
   Image,
   Keyboard,
   Linking,
@@ -427,11 +429,49 @@ function WatchlistControlsSheet({
   onSort: (value: WatchlistSort) => void;
   onClear: () => void;
 }) {
+  const { height } = useWindowDimensions();
+  const [mounted, setMounted] = useState(visible);
+  const transition = useRef(new Animated.Value(0)).current;
+  const sheetTranslateY = transition.interpolate({
+    inputRange: [0, 1],
+    outputRange: [height, 0]
+  });
+  const backdropOpacity = transition.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 0.34]
+  });
+
+  useEffect(() => {
+    if (visible) {
+      setMounted(true);
+    }
+
+    const animation = Animated.timing(transition, {
+      toValue: visible ? 1 : 0,
+      duration: visible ? 260 : 180,
+      easing: visible ? Easing.out(Easing.cubic) : Easing.in(Easing.cubic),
+      useNativeDriver: true
+    });
+
+    animation.start(({ finished }) => {
+      if (finished && !visible) {
+        setMounted(false);
+      }
+    });
+
+    return () => animation.stop();
+  }, [transition, visible]);
+
+  if (!mounted) {
+    return null;
+  }
+
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
+    <Modal visible transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
       <View style={styles.controlSheetOverlay}>
+        <Animated.View pointerEvents="none" style={[styles.controlSheetScrim, { opacity: backdropOpacity }]} />
         <Pressable accessibilityRole="button" accessibilityLabel="Close filters" style={styles.controlSheetBackdrop} onPress={onClose} />
-        <View style={styles.controlSheet}>
+        <Animated.View style={[styles.controlSheet, { transform: [{ translateY: sheetTranslateY }] }]}>
           <View style={styles.controlSheetHeader}>
             <View>
               <AppText weight="bold" style={styles.controlSheetTitle}>Filter & sort</AppText>
@@ -474,7 +514,7 @@ function WatchlistControlsSheet({
             ) : null}
             <PrimaryButton label="Clear filters" variant="outline" onPress={onClear} />
           </ScrollView>
-        </View>
+        </Animated.View>
       </View>
     </Modal>
   );
@@ -2182,7 +2222,10 @@ const styles = StyleSheet.create({
   },
   controlSheetOverlay: {
     flex: 1,
-    justifyContent: 'flex-end',
+    justifyContent: 'flex-end'
+  },
+  controlSheetScrim: {
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(15, 23, 42, 0.34)'
   },
   controlSheetBackdrop: {
