@@ -179,6 +179,15 @@ export const SUPPORTED_SITES: SupportedSite[] = [
     iconAsset: require('../../assets/site-icons/namshi.png')
   },
   {
+    key: 'the_deal',
+    displayName: 'The Deal UAE',
+    shortName: 'The Deal',
+    hostnames: ['thedealoutlet.com', 'www.thedealoutlet.com'],
+    status: 'supported',
+    notes: 'Salesforce Commerce Cloud product pages expose AED prices, source color and size controls, and exact variation endpoints for stock checks.',
+    iconAsset: require('../../assets/site-icons/the_deal.png')
+  },
+  {
     key: 'sharaf_dg',
     displayName: 'Sharaf DG UAE',
     shortName: 'Sharaf DG',
