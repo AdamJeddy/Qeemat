@@ -60,7 +60,7 @@ export async function checkProductNow(product: TrackedProduct, source: SnapshotS
         checkedAt: new Date().toISOString()
       });
     }
-  } else if (previousAvailability === 'out_of_stock') {
+  } else if (previousAvailability === 'out_of_stock' && newAvailability === 'in_stock') {
     await recordActivityEvent({
       trackedProductId: product.id,
       productTitle: product.title,

@@ -80,11 +80,29 @@ describe('variant notifications', () => {
   });
 
   it('respects a product setting that turns off back-in-stock alerts', async () => {
-    const restocked: ParsedProduct = { ...outOfStock, availability: 'in_stock', priceMinor: 45000 };
+    const restocked: ParsedProduct = { ...outOfStock, availability: 'in_stock', priceMinor: 50000 };
 
     await maybeNotifyForCheck({ ...product, restockAlertEnabled: false }, restocked, product.currentPriceMinor, restocked.priceMinor, 'out_of_stock');
 
     expect(NativeModules.QeematNotifications.notifyPriceAlert).not.toHaveBeenCalled();
+  });
+
+  it('still sends a price-drop alert after restocking when the restock alert is disabled', async () => {
+    const restocked: ParsedProduct = { ...outOfStock, availability: 'in_stock', priceMinor: 49000 };
+
+    await maybeNotifyForCheck(
+      { ...product, restockAlertEnabled: false, minimumPriceDropMinor: 1000 },
+      restocked,
+      50000,
+      49000,
+      'out_of_stock'
+    );
+
+    expect(NativeModules.QeematNotifications.notifyPriceAlert).toHaveBeenCalledWith(
+      'Price dropped',
+      'Example sneaker (Size: EU 43) changed from AED 500 to AED 490.',
+      7
+    );
   });
 
   it('only sends a price-drop alert when the configured minimum is met', async () => {

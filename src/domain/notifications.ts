@@ -83,8 +83,8 @@ export async function maybeNotifyForCheck(
         `${productLabel} is available again.`,
         product.id
       ).catch(() => false);
+      return;
     }
-    return;
   }
 
   const notification = buildNotification(product, parsed, previousPriceMinor, newPriceMinor);

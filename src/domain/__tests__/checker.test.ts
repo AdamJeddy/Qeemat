@@ -85,6 +85,30 @@ describe('checkProductNow', () => {
     expect(recordActivityEvent).not.toHaveBeenCalled();
   });
 
+  it('does not record a restock activity event when availability is unknown', async () => {
+    (fetchAndParseProduct as jest.Mock).mockResolvedValue({
+      ok: true,
+      product: {
+        siteKey: 'noon',
+        canonicalUrl: outOfStockProduct.canonicalUrl,
+        title: outOfStockProduct.title,
+        priceMinor: 9000,
+        currency: 'AED',
+        availability: 'unknown'
+      }
+    });
+    (recordSuccessfulCheck as jest.Mock).mockResolvedValue({
+      status: 'price_changed',
+      previousPriceMinor: 10000,
+      newPriceMinor: 9000
+    });
+
+    await checkProductNow(outOfStockProduct, 'manual_single');
+
+    expect(recordActivityEvent).toHaveBeenCalledWith(expect.objectContaining({ priceDirection: 'down' }));
+    expect(recordActivityEvent).not.toHaveBeenCalledWith(expect.objectContaining({ availability: 'in_stock' }));
+  });
+
   it('checks the exact saved variant instead of the page-level product', async () => {
     const variantProduct: TrackedProduct = {
       ...outOfStockProduct,

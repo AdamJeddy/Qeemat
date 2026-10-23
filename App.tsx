@@ -901,6 +901,7 @@ export function AddScreen({ initialUrl, shareEventId, navigate }: { initialUrl?:
     () => resolveSelectedVariant(variants, selectedVariantAttributes),
     [variants, selectedVariantAttributes]
   );
+  const selectedCurrency = selectedVariant?.currency ?? parsedProduct?.currency ?? 'AED';
   const previewProduct = useMemo(() => {
     if (!parsedProduct || !selectedVariant) {
       return parsedProduct;
@@ -1083,7 +1084,7 @@ export function AddScreen({ initialUrl, shareEventId, navigate }: { initialUrl?:
             {alertMode === 'target_price' ? (
               <View style={styles.inputWrap}>
                 <AppText weight="semibold" muted>
-                  AED
+                  {selectedCurrency}
                 </AppText>
                 <TextInput
                   value={targetPrice}
@@ -1101,7 +1102,7 @@ export function AddScreen({ initialUrl, shareEventId, navigate }: { initialUrl?:
                 <AppText weight="semibold">Minimum price drop alert</AppText>
                 <AppText muted style={styles.fieldHint}>Only notify when the price drops by at least this amount.</AppText>
                 <View style={styles.inputWrap}>
-                  <AppText weight="semibold" muted>AED</AppText>
+                  <AppText weight="semibold" muted>{selectedCurrency}</AppText>
                   <TextInput
                     value={minimumPriceDrop}
                     onChangeText={setMinimumPriceDrop}
@@ -1466,7 +1467,7 @@ function TrackingSettingsScreen({ productId, navigate }: { productId: number; na
         {alertMode === 'target_price' ? (
           <View style={styles.inputWrap}>
             <AppText weight="semibold" muted>
-              AED
+              {product?.currency ?? 'AED'}
             </AppText>
             <TextInput value={targetPrice} onChangeText={setTargetPrice} keyboardType="decimal-pad" maxFontSizeMultiplier={1.3} style={styles.input} />
           </View>
@@ -1476,7 +1477,7 @@ function TrackingSettingsScreen({ productId, navigate }: { productId: number; na
             <AppText weight="semibold">Minimum price drop alert</AppText>
             <AppText muted style={styles.fieldHint}>Only notify when the price drops by at least this amount.</AppText>
             <View style={styles.inputWrap}>
-              <AppText weight="semibold" muted>AED</AppText>
+              <AppText weight="semibold" muted>{product?.currency ?? 'AED'}</AppText>
               <TextInput value={minimumPriceDrop} onChangeText={setMinimumPriceDrop} keyboardType="decimal-pad" placeholder="Any drop" placeholderTextColor={colors.textSoft} maxFontSizeMultiplier={1.3} style={styles.input} />
             </View>
           </View>
