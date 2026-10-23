@@ -78,14 +78,20 @@ describe('sortWatchlistProducts', () => {
       title: 'Camera',
       currentPriceMinor: 80000,
       updatedAt: '2026-10-19T10:00:00.000Z'
+    },
+    {
+      id: 4,
+      siteKey: 'amazon_ae' as const,
+      title: 'Unavailable product',
+      updatedAt: '2026-10-18T10:00:00.000Z'
     }
   ];
 
   it('sorts by the selected watchlist metric without mutating the source', () => {
-    expect(sortWatchlistProducts(sortable, 'lowest_price').map((product) => product.id)).toEqual([2, 1, 3]);
-    expect(sortWatchlistProducts(sortable, 'largest_drop').map((product) => product.id)).toEqual([1, 2, 3]);
-    expect(sortWatchlistProducts(sortable, 'closest_to_target').map((product) => product.id)).toEqual([2, 1, 3]);
-    expect(sortWatchlistProducts(sortable, 'name').map((product) => product.id)).toEqual([2, 3, 1]);
-    expect(sortable.map((product) => product.id)).toEqual([1, 2, 3]);
+    expect(sortWatchlistProducts(sortable, 'lowest_price').map((product) => product.id)).toEqual([2, 1, 3, 4]);
+    expect(sortWatchlistProducts(sortable, 'largest_drop').map((product) => product.id)).toEqual([1, 2, 3, 4]);
+    expect(sortWatchlistProducts(sortable, 'closest_to_target').map((product) => product.id)).toEqual([2, 1, 3, 4]);
+    expect(sortWatchlistProducts(sortable, 'name').map((product) => product.id)).toEqual([2, 3, 4, 1]);
+    expect(sortable.map((product) => product.id)).toEqual([1, 2, 3, 4]);
   });
 });

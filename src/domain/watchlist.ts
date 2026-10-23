@@ -69,15 +69,35 @@ function compareUpdated(left: { updatedAt: string }, right: { updatedAt: string 
 }
 
 function compareNumber(left: number | undefined, right: number | undefined): number {
-  const normalizedLeft = left ?? Number.POSITIVE_INFINITY;
-  const normalizedRight = right ?? Number.POSITIVE_INFINITY;
-  return normalizedLeft - normalizedRight;
+  if (left === undefined && right === undefined) {
+    return 0;
+  }
+
+  if (left === undefined) {
+    return 1;
+  }
+
+  if (right === undefined) {
+    return -1;
+  }
+
+  return left - right;
 }
 
 function compareNumberDescending(left: number | undefined, right: number | undefined): number {
-  const normalizedLeft = left ?? Number.NEGATIVE_INFINITY;
-  const normalizedRight = right ?? Number.NEGATIVE_INFINITY;
-  return normalizedRight - normalizedLeft;
+  if (left === undefined && right === undefined) {
+    return 0;
+  }
+
+  if (left === undefined) {
+    return 1;
+  }
+
+  if (right === undefined) {
+    return -1;
+  }
+
+  return right - left;
 }
 
 function priceDrop(product: SortableProduct): number | undefined {

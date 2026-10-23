@@ -45,19 +45,21 @@ export async function checkProductNow(product: TrackedProduct, source: SnapshotS
 
   // Record activity events
   if (newAvailability === 'out_of_stock') {
-    // OOS transition event
-    await recordActivityEvent({
-      trackedProductId: product.id,
-      productTitle: product.title,
-      productImageUrl: product.imageUrl,
-      previousPriceMinor: saved.previousPriceMinor,
-      newPriceMinor: saved.newPriceMinor ?? 0,
-      currency: parsed.currency ?? product.currency,
-      priceDirection: 'first',
-      availability: 'out_of_stock',
-      source,
-      checkedAt: new Date().toISOString()
-    });
+    if (previousAvailability !== 'out_of_stock') {
+      // OOS transition event
+      await recordActivityEvent({
+        trackedProductId: product.id,
+        productTitle: product.title,
+        productImageUrl: product.imageUrl,
+        previousPriceMinor: saved.previousPriceMinor,
+        newPriceMinor: saved.newPriceMinor ?? 0,
+        currency: parsed.currency ?? product.currency,
+        priceDirection: 'first',
+        availability: 'out_of_stock',
+        source,
+        checkedAt: new Date().toISOString()
+      });
+    }
   } else if (previousAvailability === 'out_of_stock') {
     await recordActivityEvent({
       trackedProductId: product.id,
