@@ -49,12 +49,49 @@ const outOfStock: ParsedProduct = {
 };
 
 describe('variant notifications', () => {
+  beforeEach(() => {
+    jest.mocked(NativeModules.QeematNotifications.notifyPriceAlert).mockClear();
+  });
+
   it('includes the saved option in an out-of-stock notification', async () => {
     await maybeNotifyForCheck(product, outOfStock, product.currentPriceMinor, undefined, 'in_stock');
 
     expect(NativeModules.QeematNotifications.notifyPriceAlert).toHaveBeenCalledWith(
       'Out of stock',
       'Example sneaker (Size: EU 43) is currently out of stock.',
+      7
+    );
+  });
+
+  it('notifies when an out-of-stock product returns to stock', async () => {
+    const restocked: ParsedProduct = {
+      ...outOfStock,
+      availability: 'in_stock',
+      priceMinor: 45000
+    };
+
+    await maybeNotifyForCheck(product, restocked, product.currentPriceMinor, restocked.priceMinor, 'out_of_stock');
+
+    expect(NativeModules.QeematNotifications.notifyPriceAlert).toHaveBeenCalledWith(
+      'Back in stock',
+      'Example sneaker (Size: EU 43) is available again.',
+      7
+    );
+  });
+
+  it('only sends a price-drop alert when the configured minimum is met', async () => {
+    const configuredProduct = { ...product, minimumPriceDropMinor: 1000 };
+    const dropped: ParsedProduct = { ...outOfStock, availability: 'in_stock', priceMinor: 49500 };
+
+    await maybeNotifyForCheck(configuredProduct, dropped, 50000, 49500, 'in_stock');
+
+    expect(NativeModules.QeematNotifications.notifyPriceAlert).not.toHaveBeenCalled();
+
+    await maybeNotifyForCheck(configuredProduct, dropped, 50000, 49000, 'in_stock');
+
+    expect(NativeModules.QeematNotifications.notifyPriceAlert).toHaveBeenCalledWith(
+      'Price dropped',
+      'Example sneaker (Size: EU 43) changed from AED 500 to AED 490.',
       7
     );
   });

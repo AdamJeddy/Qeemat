@@ -23,10 +23,6 @@ function staggerDelayMs(source: SnapshotSource): number {
 }
 
 export async function checkProductNow(product: TrackedProduct, source: SnapshotSource): Promise<void> {
-  if (product.lastAvailability === 'out_of_stock') {
-    return;
-  }
-
   const result = await fetchAndParseProduct(product.canonicalUrl || product.url, product.variant);
 
   if (!result.ok) {
@@ -59,6 +55,19 @@ export async function checkProductNow(product: TrackedProduct, source: SnapshotS
       currency: parsed.currency ?? product.currency,
       priceDirection: 'first',
       availability: 'out_of_stock',
+      source,
+      checkedAt: new Date().toISOString()
+    });
+  } else if (previousAvailability === 'out_of_stock') {
+    await recordActivityEvent({
+      trackedProductId: product.id,
+      productTitle: product.title,
+      productImageUrl: product.imageUrl,
+      previousPriceMinor: saved.previousPriceMinor,
+      newPriceMinor: saved.newPriceMinor ?? product.currentPriceMinor ?? 0,
+      currency: parsed.currency ?? product.currency,
+      priceDirection: 'first',
+      availability: 'in_stock',
       source,
       checkedAt: new Date().toISOString()
     });

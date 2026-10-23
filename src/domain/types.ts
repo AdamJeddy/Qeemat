@@ -83,6 +83,14 @@ export type TrackedProduct = {
   /** Previous price from the check before the most recent one. Used to compute price direction on cards. */
   previousPriceMinor?: number;
   targetPriceMinor?: number;
+  /** Minimum AED amount a price must drop before a price-drop alert is sent. */
+  minimumPriceDropMinor?: number;
+  /** Defaults to true for existing trackers. */
+  restockAlertEnabled?: boolean;
+  /** Optional local-only grouping for the watchlist. */
+  folder?: string;
+  /** Optional local-only labels for the watchlist. */
+  tags?: string[];
   alertMode: AlertMode;
   checkPreference: CheckPreference;
   isActive: boolean;
@@ -122,6 +130,10 @@ export type ProductDraft = {
   checkPreference: CheckPreference;
   alertMode: AlertMode;
   targetPriceMinor?: number;
+  minimumPriceDropMinor?: number;
+  restockAlertEnabled?: boolean;
+  folder?: string;
+  tags?: string[];
   variant?: VariantSelection;
 };
 

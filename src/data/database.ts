@@ -101,6 +101,10 @@ export async function createTrackedProduct(draft: ProductDraft): Promise<number>
     currentPriceMinor: parsed.priceMinor,
     previousPriceMinor: undefined,
     targetPriceMinor: draft.targetPriceMinor,
+    minimumPriceDropMinor: draft.minimumPriceDropMinor,
+    restockAlertEnabled: draft.restockAlertEnabled ?? true,
+    folder: normalizeFolder(draft.folder),
+    tags: normalizeTags(draft.tags),
     alertMode: draft.alertMode,
     checkPreference: draft.checkPreference,
     isActive: true,
@@ -145,6 +149,10 @@ export async function updateTrackingSettings(
     alertMode: AlertMode;
     checkPreference: CheckPreference;
     targetPriceMinor?: number;
+    minimumPriceDropMinor?: number;
+    restockAlertEnabled?: boolean;
+    folder?: string;
+    tags?: string[];
     isActive: boolean;
   }
 ): Promise<void> {
@@ -160,6 +168,10 @@ export async function updateTrackingSettings(
             alertMode: settings.alertMode,
             checkPreference: settings.checkPreference,
             targetPriceMinor: settings.targetPriceMinor,
+            minimumPriceDropMinor: settings.minimumPriceDropMinor,
+            restockAlertEnabled: settings.restockAlertEnabled ?? product.restockAlertEnabled ?? true,
+            folder: normalizeFolder(settings.folder),
+            tags: normalizeTags(settings.tags),
             isActive: settings.isActive,
             updatedAt: now
           }
@@ -426,7 +438,11 @@ async function readStore(): Promise<LocalStore> {
       products: parsed.products.map((product) => ({
         ...product,
         checkPreference: normalizeCheckPreference(product.checkPreference),
-        lastAvailability: product.lastAvailability ?? 'unknown'
+        lastAvailability: product.lastAvailability ?? 'unknown',
+        minimumPriceDropMinor: normalizeMinimumPriceDrop(product.minimumPriceDropMinor),
+        restockAlertEnabled: product.restockAlertEnabled ?? true,
+        folder: normalizeFolder(product.folder),
+        tags: normalizeTags(product.tags)
       })),
       snapshots: parsed.snapshots.map((snapshot) => ({
         ...snapshot,
@@ -442,4 +458,17 @@ async function readStore(): Promise<LocalStore> {
 
 async function writeStore(store: LocalStore): Promise<void> {
   await AsyncStorage.setItem(STORE_KEY, JSON.stringify(store));
+}
+
+function normalizeMinimumPriceDrop(value: number | undefined): number | undefined {
+  return value !== undefined && Number.isFinite(value) && value > 0 ? Math.round(value) : undefined;
+}
+
+function normalizeFolder(value: string | undefined): string | undefined {
+  const folder = value?.trim();
+  return folder ? folder.slice(0, 40) : undefined;
+}
+
+function normalizeTags(values: string[] | undefined): string[] {
+  return [...new Set((values ?? []).map((value) => value.trim()).filter(Boolean).map((value) => value.slice(0, 24)))];
 }

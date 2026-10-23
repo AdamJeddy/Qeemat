@@ -36,10 +36,27 @@ const outOfStockProduct: TrackedProduct = {
 };
 
 describe('checkProductNow', () => {
-  it('does not fetch a product already confirmed out of stock', async () => {
+  it('rechecks a product already confirmed out of stock so it can detect a restock', async () => {
+    (fetchAndParseProduct as jest.Mock).mockResolvedValue({
+      ok: true,
+      product: {
+        siteKey: 'noon',
+        canonicalUrl: outOfStockProduct.canonicalUrl,
+        title: outOfStockProduct.title,
+        priceMinor: 9000,
+        currency: 'AED',
+        availability: 'in_stock'
+      }
+    });
+    (recordSuccessfulCheck as jest.Mock).mockResolvedValue({
+      status: 'price_changed',
+      previousPriceMinor: 10000,
+      newPriceMinor: 9000
+    });
+
     await checkProductNow(outOfStockProduct, 'manual_single');
 
-    expect(fetchAndParseProduct).not.toHaveBeenCalled();
+    expect(fetchAndParseProduct).toHaveBeenCalledWith(outOfStockProduct.canonicalUrl, undefined);
   });
 
   it('checks the exact saved variant instead of the page-level product', async () => {
