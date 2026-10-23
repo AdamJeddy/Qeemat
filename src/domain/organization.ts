@@ -34,6 +34,10 @@ export function mergeTags(selectedTags: string[], newTags: string[], knownTags: 
   return tags;
 }
 
+export function removeTags(selectedTags: string[], tagsToRemove: string[]): string[] {
+  return selectedTags.filter((tag) => !tagsToRemove.some((removed) => sameName(tag, removed)));
+}
+
 export function uniqueOrganizationNames(names: Array<string | undefined>): string[] {
   return names.reduce<string[]>((unique, name) => {
     const normalized = name?.trim();

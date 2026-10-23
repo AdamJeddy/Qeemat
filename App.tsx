@@ -69,6 +69,7 @@ import {
   initializeDatabase,
   listActivityEvents,
   listTrackedProducts,
+  updateTrackedProducts,
   updateTrackingSettings
 } from './src/data/database';
 import { runBackgroundCheckOnce, scheduleBackgroundChecks, checkBatteryOptimizationExempt, requestBatteryOptimizationExemption, openAppSystemSettings } from './src/domain/backgroundScheduler';
@@ -520,6 +521,56 @@ function WatchlistControlsSheet({
   );
 }
 
+function BulkEditSheet({ visible, mode, folders, knownTags, selectedProducts, onClose, onApply }: {
+  visible: boolean;
+  mode?: 'folder' | 'tags';
+  folders: string[];
+  knownTags: string[];
+  selectedProducts: TrackedProduct[];
+  onClose: () => void;
+  onApply: (update: Parameters<typeof updateTrackedProducts>[1]) => Promise<void>;
+}) {
+  const [folder, setFolder] = useState('');
+  const [addTags, setAddTags] = useState<string[]>([]);
+  const [removeTags, setRemoveTags] = useState<string[]>([]);
+  const selectedTags = useMemo(() => getWatchlistTags(selectedProducts), [selectedProducts]);
+
+  useEffect(() => {
+    if (visible) {
+      setFolder('');
+      setAddTags([]);
+      setRemoveTags([]);
+    }
+  }, [visible]);
+
+  if (!mode) {
+    return null;
+  }
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
+      <View style={styles.controlSheetOverlay}>
+        <Pressable style={styles.controlSheetBackdrop} onPress={onClose} />
+        <View style={styles.controlSheet}>
+          <View style={styles.controlSheetHeader}>
+            <View><AppText weight="bold" style={styles.controlSheetTitle}>{mode === 'folder' ? 'Move products' : 'Edit tags'}</AppText><AppText muted style={styles.fieldHint}>{selectedProducts.length} selected</AppText></View>
+            <Pressable onPress={onClose} style={styles.controlSheetClose}><X size={20} color={colors.text} /></Pressable>
+          </View>
+          {mode === 'folder' ? <>
+            <FolderPicker value={folder} folders={folders} onChange={setFolder} />
+            <Pressable onPress={() => onApply({ clearFolder: true })} style={styles.bulkClearFolder}><AppText weight="semibold" style={styles.clearControlsText}>Remove from folder</AppText></Pressable>
+            <PrimaryButton label="Move products" onPress={() => onApply({ folder })} disabled={!folder.trim()} />
+          </> : <>
+            <TagEditor tags={addTags} knownTags={knownTags} onChange={setAddTags} />
+            {selectedTags.length > 0 ? <View style={styles.fieldGroup}><AppText weight="semibold">Remove tags</AppText><View style={styles.selectedTags}>{selectedTags.map((tag) => <Pressable key={tag} onPress={() => setRemoveTags((current) => current.includes(tag) ? current.filter((value) => value !== tag) : [...current, tag])} style={[styles.selectedTag, removeTags.includes(tag) && styles.selectedTagRemove]}><AppText weight="semibold" style={styles.selectedTagText}>#{tag}</AppText></Pressable>)}</View></View> : null}
+            <PrimaryButton label="Apply tags" onPress={() => onApply({ addTags, removeTags })} disabled={!addTags.length && !removeTags.length} />
+          </>}
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
   const [products, setProducts] = useState<TrackedProduct[]>([]);
   const [loading, setLoading] = useState(true);
@@ -530,6 +581,9 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
   const [tagFilter, setTagFilter] = useState<string | undefined>();
   const [sort, setSort] = useState<WatchlistSort>('recently_updated');
   const [showControls, setShowControls] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
+  const [selectedProductIds, setSelectedProductIds] = useState<Set<number>>(new Set());
+  const [bulkMode, setBulkMode] = useState<'folder' | 'tags' | undefined>();
 
   const loadProducts = useCallback(async () => {
     setProducts(await listTrackedProducts());
@@ -578,12 +632,13 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
 
   const [oosExpanded, setOosExpanded] = useState(false);
 
-  const trackedSites = useMemo(() => getWatchlistSites(products), [products]);
+  const visibleProducts = useMemo(() => products.filter((product) => Boolean(product.isArchived) === showArchived), [products, showArchived]);
+  const trackedSites = useMemo(() => getWatchlistSites(visibleProducts), [visibleProducts]);
   const folders = useMemo(() => getWatchlistFolders(products), [products]);
   const tags = useMemo(() => getWatchlistTags(products), [products]);
   const filteredProducts = useMemo(
-    () => sortWatchlistProducts(filterWatchlistProducts(products, storeFilter, { folder: folderFilter, tag: tagFilter }), sort),
-    [products, storeFilter, folderFilter, tagFilter, sort]
+    () => sortWatchlistProducts(filterWatchlistProducts(visibleProducts, storeFilter, { folder: folderFilter, tag: tagFilter }), sort),
+    [visibleProducts, storeFilter, folderFilter, tagFilter, sort]
   );
   const inStock = filteredProducts.filter((p) => p.lastAvailability !== 'out_of_stock');
   const oos = filteredProducts.filter((p) => p.lastAvailability === 'out_of_stock');
@@ -600,6 +655,37 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
     setFolderFilter(undefined);
     setTagFilter(undefined);
     setSort('recently_updated');
+  }
+
+  function toggleSelection(id: number) {
+    setSelectedProductIds((selected) => {
+      const next = new Set(selected);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function startSelection(id: number) {
+    setSelectedProductIds((selected) => new Set(selected).add(id));
+  }
+
+  async function applyBulk(update: Parameters<typeof updateTrackedProducts>[1]) {
+    await updateTrackedProducts([...selectedProductIds], update);
+    setSelectedProductIds(new Set());
+    setBulkMode(undefined);
+    await loadProducts();
+  }
+
+  function confirmBulkDelete() {
+    const count = selectedProductIds.size;
+    Alert.alert(`Delete ${count} ${count === 1 ? 'product' : 'products'}?`, 'Their saved price history will be removed.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: async () => {
+        await Promise.all([...selectedProductIds].map((id) => deleteTrackedProduct(id)));
+        setSelectedProductIds(new Set());
+        await loadProducts();
+      } }
+    ]);
   }
 
   useEffect(() => {
@@ -634,29 +720,34 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
           </View>
           <View style={styles.countPill}>
             <AppText weight="semibold" style={styles.countText}>
-              {filteredProducts.length} {filteredProducts.length === 1 ? 'item' : 'items'}
+            {showArchived ? 'Archived' : `${filteredProducts.length} ${filteredProducts.length === 1 ? 'item' : 'items'}`}
             </AppText>
           </View>
         </View>
+        <View style={styles.watchlistToolbar}>
         <Pressable accessibilityRole="button" onPress={() => setShowControls(true)} style={({ pressed }) => [styles.controlsButton, pressed && styles.storeFilterButtonPressed]}>
           <SlidersHorizontal size={18} color={colors.primary} />
           <AppText weight="semibold" style={styles.controlsButtonText}>Filter & sort</AppText>
           {activeControlCount > 0 ? <View style={styles.controlsCount}><AppText weight="bold" style={styles.controlsCountText}>{activeControlCount}</AppText></View> : null}
         </Pressable>
+        <Pressable accessibilityRole="button" onPress={() => { setShowArchived((value) => !value); setSelectedProductIds(new Set()); }} style={styles.archiveToggle}>
+          <AppText weight="semibold" style={styles.archiveToggleText}>{showArchived ? 'Show active' : 'Archived'}</AppText>
+        </Pressable>
+        </View>
         {activeControlSummary ? (
           <View style={styles.activeControlsRow}>
             <AppText muted numberOfLines={1} style={styles.activeControlsSummary}>{activeControlSummary}</AppText>
             <Pressable accessibilityRole="button" onPress={clearControls}><AppText weight="semibold" style={styles.clearControlsText}>Clear</AppText></Pressable>
           </View>
         ) : null}
-        <PrimaryButton
+        {selectedProductIds.size === 0 ? <PrimaryButton
           label="Recheck all prices"
           variant="outline"
           onPress={recheckAllPrices}
           loading={checkingAll}
           disabled={!products.length || loading}
           icon={!checkingAll ? <RefreshCcw size={18} color={colors.primary} /> : undefined}
-        />
+        /> : <View style={styles.selectionHeader}><AppText weight="bold">{selectedProductIds.size} selected</AppText><Pressable onPress={() => setSelectedProductIds(new Set())}><AppText weight="semibold" style={styles.clearControlsText}>Cancel</AppText></Pressable></View>}
 
         <WatchlistControlsSheet
           visible={showControls}
@@ -715,8 +806,9 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
               <ProductCard
                 key={product.id}
                 product={product}
-                onPress={() => navigate({ name: 'detail', id: product.id })}
-                onRemove={() => handleRemoveProduct(product)}
+                onPress={() => selectedProductIds.size ? toggleSelection(product.id) : navigate({ name: 'detail', id: product.id })}
+                onLongPress={() => startSelection(product.id)} selected={selectedProductIds.has(product.id)}
+                onRemove={selectedProductIds.size ? undefined : () => handleRemoveProduct(product)}
               />
             ))}
           </View>
@@ -724,13 +816,20 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
 
         <View style={styles.cardList}>
           {inStock.map((product) => (
-            <ProductCard key={product.id} product={product} onPress={() => navigate({ name: 'detail', id: product.id })} />
+            <ProductCard key={product.id} product={product} onPress={() => selectedProductIds.size ? toggleSelection(product.id) : navigate({ name: 'detail', id: product.id })} onLongPress={() => startSelection(product.id)} selected={selectedProductIds.has(product.id)} />
           ))}
         </View>
       </ScrollView>
-      <Pressable style={styles.fab} onPress={() => navigate({ name: 'add' })}>
+      {selectedProductIds.size > 0 ? <View style={styles.bulkActionBar}>
+        <Pressable onPress={() => setBulkMode('folder')}><AppText weight="semibold" style={styles.bulkActionText}>Move</AppText></Pressable>
+        <Pressable onPress={() => setBulkMode('tags')}><AppText weight="semibold" style={styles.bulkActionText}>Tags</AppText></Pressable>
+        <Pressable onPress={() => applyBulk({ isActive: !filteredProducts.filter((product) => selectedProductIds.has(product.id)).every((product) => product.isActive) })}><AppText weight="semibold" style={styles.bulkActionText}>{filteredProducts.filter((product) => selectedProductIds.has(product.id)).every((product) => product.isActive) ? 'Pause' : 'Resume'}</AppText></Pressable>
+        <Pressable onPress={() => applyBulk({ isArchived: !showArchived })}><AppText weight="semibold" style={styles.bulkActionText}>{showArchived ? 'Restore' : 'Archive'}</AppText></Pressable>
+        <Pressable onPress={confirmBulkDelete}><AppText weight="semibold" style={styles.bulkDeleteText}>Delete</AppText></Pressable>
+      </View> : <Pressable style={styles.fab} onPress={() => navigate({ name: 'add' })}>
         <Plus size={30} color="#FFFFFF" />
-      </Pressable>
+      </Pressable>}
+      <BulkEditSheet visible={bulkMode !== undefined} mode={bulkMode} folders={folders} knownTags={tags} selectedProducts={products.filter((product) => selectedProductIds.has(product.id))} onClose={() => setBulkMode(undefined)} onApply={applyBulk} />
     </View>
   );
 }
@@ -2260,6 +2359,53 @@ const styles = StyleSheet.create({
   },
   controlSheetContent: {
     gap: 20
+  },
+  watchlistToolbar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10
+  },
+  archiveToggle: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceMuted
+  },
+  archiveToggleText: {
+    color: colors.textMuted,
+    fontSize: 13
+  },
+  selectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 16
+  },
+  bulkActionBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 8,
+    backgroundColor: colors.surface,
+    borderTopWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 18,
+    paddingVertical: 18
+  },
+  bulkActionText: {
+    color: colors.primary,
+    fontSize: 13
+  },
+  bulkDeleteText: {
+    color: colors.red,
+    fontSize: 13
+  },
+  bulkClearFolder: {
+    alignSelf: 'flex-start',
+    marginBottom: 14
+  },
+  selectedTagRemove: {
+    backgroundColor: colors.redSoft,
+    borderColor: colors.red
   },
   filterSection: {
     gap: 8

@@ -2,7 +2,7 @@ jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock')
 );
 
-import { createTrackedProduct, deleteAllLocalData, getTrackedProduct, initializeDatabase, updateTrackingSettings } from '../database';
+import { createTrackedProduct, deleteAllLocalData, getTrackedProduct, initializeDatabase, updateTrackedProducts, updateTrackingSettings } from '../database';
 
 describe('createTrackedProduct', () => {
   beforeEach(async () => {
@@ -107,5 +107,21 @@ describe('createTrackedProduct', () => {
     });
 
     expect(await getTrackedProduct(id)).toEqual(expect.objectContaining({ folder: 'Running', tags: ['Sale'] }));
+  });
+
+  it('updates folders, tags, activity, and archive state for selected products only', async () => {
+    const first = await createTrackedProduct({
+      sourceUrl: 'https://www.noon.com/first', checkPreference: 'daily', alertMode: 'price_drop', folder: 'Running', tags: ['Sale'],
+      parsed: { siteKey: 'noon', canonicalUrl: 'https://www.noon.com/first', title: 'First', priceMinor: 10000, currency: 'AED', availability: 'in_stock' }
+    });
+    const second = await createTrackedProduct({
+      sourceUrl: 'https://www.noon.com/second', checkPreference: 'daily', alertMode: 'price_drop', tags: ['Gift'],
+      parsed: { siteKey: 'noon', canonicalUrl: 'https://www.noon.com/second', title: 'Second', priceMinor: 10000, currency: 'AED', availability: 'in_stock' }
+    });
+
+    await updateTrackedProducts([first, second], { folder: ' running ', addTags: ['Race'], removeTags: ['sale'], isActive: false, isArchived: true });
+
+    expect(await getTrackedProduct(first)).toEqual(expect.objectContaining({ folder: 'Running', tags: ['Race'], isActive: false, isArchived: true }));
+    expect(await getTrackedProduct(second)).toEqual(expect.objectContaining({ folder: 'Running', tags: ['Gift', 'Race'], isActive: false, isArchived: true }));
   });
 });

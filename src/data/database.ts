@@ -15,7 +15,7 @@ import {
 } from '../domain/types';
 import { nowIso } from '../domain/dates';
 import { normalizeCheckPreference } from '../domain/dates';
-import { mergeTags, normalizeFolderName, uniqueOrganizationNames } from '../domain/organization';
+import { mergeTags, normalizeFolderName, removeTags, uniqueOrganizationNames } from '../domain/organization';
 
 const STORE_KEY = 'qeemat.local-store.v1';
 
@@ -191,6 +191,50 @@ export async function deleteTrackedProduct(id: number): Promise<void> {
     ...store,
     products: store.products.filter((product) => product.id !== id),
     snapshots: store.snapshots.filter((snapshot) => snapshot.trackedProductId !== id)
+  });
+}
+
+export type BulkTrackingUpdate = {
+  folder?: string;
+  clearFolder?: boolean;
+  addTags?: string[];
+  removeTags?: string[];
+  isActive?: boolean;
+  isArchived?: boolean;
+};
+
+export async function updateTrackedProducts(ids: number[], update: BulkTrackingUpdate): Promise<void> {
+  if (!ids.length) {
+    return;
+  }
+
+  const selectedIds = new Set(ids);
+  const store = await readStore();
+  const now = nowIso();
+  const knownFolders = uniqueOrganizationNames(store.products.map((product) => product.folder));
+  const knownTags = uniqueOrganizationNames(store.products.flatMap((product) => product.tags ?? []));
+
+  await writeStore({
+    ...store,
+    products: store.products.map((product) => {
+      if (!selectedIds.has(product.id)) {
+        return product;
+      }
+
+      const tags = mergeTags(
+        removeTags(product.tags ?? [], update.removeTags ?? []),
+        update.addTags ?? [],
+        knownTags
+      );
+      return {
+        ...product,
+        folder: update.clearFolder ? undefined : update.folder === undefined ? product.folder : normalizeFolderName(update.folder, knownFolders),
+        tags,
+        isActive: update.isActive ?? product.isActive,
+        isArchived: update.isArchived ?? product.isArchived ?? false,
+        updatedAt: now
+      };
+    })
   });
 }
 
@@ -449,6 +493,7 @@ async function readStore(): Promise<LocalStore> {
         lastAvailability: product.lastAvailability ?? 'unknown',
         minimumPriceDropMinor: normalizeMinimumPriceDrop(product.minimumPriceDropMinor),
         restockAlertEnabled: product.restockAlertEnabled ?? true,
+        isArchived: product.isArchived ?? false,
         folder: normalizeFolderName(product.folder, knownFolders),
         tags: mergeTags([], product.tags ?? [], knownTags)
       })),

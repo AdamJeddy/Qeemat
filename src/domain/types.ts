@@ -91,6 +91,8 @@ export type TrackedProduct = {
   folder?: string;
   /** Optional local-only labels for the watchlist. */
   tags?: string[];
+  /** Archived products stay local but are hidden from the active watchlist and checks. */
+  isArchived?: boolean;
   alertMode: AlertMode;
   checkPreference: CheckPreference;
   isActive: boolean;
