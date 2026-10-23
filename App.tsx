@@ -70,7 +70,7 @@ import { checkAllActiveProducts, checkProductById } from './src/domain/checker';
 import { availableCheckPreferences, formatRelativeTime, formatSnapshotTime } from './src/domain/dates';
 import { getOnboardingState, markOnboardingCompleted } from './src/domain/onboarding';
 import { ensureNotificationPermission, openNotificationSettings } from './src/domain/notifications';
-import { fetchAndParseProduct } from './src/domain/parser';
+import { fetchAndParseProduct, fetchTheDealVariantForSaving } from './src/domain/parser';
 import { formatPrice, parseTargetPriceInput } from './src/domain/price';
 import { cleanUrl, detectSharedUrl, detectSupportedSite, getSiteByKey, normalizeUrl, SUPPORTED_SITES } from './src/domain/sites';
 import { ActivityEvent, AlertMode, CheckPreference, ParsedProduct, PriceSnapshot, ProductWithSnapshots, SnapshotSource, TrackedProduct } from './src/domain/types';
@@ -666,7 +666,16 @@ export function AddScreen({ initialUrl, shareEventId, navigate }: { initialUrl?:
       return;
     }
     setSaving(true);
-    const productToSave = previewProduct ?? parsedProduct;
+    let productToSave = previewProduct ?? parsedProduct;
+    if (parsedProduct.siteKey === 'the_deal' && selectedVariant) {
+      const result = await fetchTheDealVariantForSaving(parsedProduct, toVariantSelection(selectedVariant));
+      if (!result.ok) {
+        setError(result.message);
+        setSaving(false);
+        return;
+      }
+      productToSave = result.product;
+    }
     const id = await createTrackedProduct({
       parsed: productToSave,
       sourceUrl: normalizedUrl,

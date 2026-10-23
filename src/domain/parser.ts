@@ -161,6 +161,39 @@ export async function fetchAndParseProduct(rawUrl: string, selectedVariant?: Var
   return { ok: true, product: parsed };
 }
 
+/**
+ * The Deal only exposes the current page configuration's price in its initial
+ * HTML. Resolve the selected variation before its first snapshot is saved so
+ * an alternate option cannot inherit the default option's price.
+ */
+export async function fetchTheDealVariantForSaving(
+  product: ParsedProduct,
+  selectedVariant: VariantSelection
+): Promise<ParseProductResult> {
+  const result = await fetchAndParseProduct(product.canonicalUrl, selectedVariant);
+  if (!result.ok) {
+    return result;
+  }
+
+  if (result.product.availability === 'out_of_stock' || result.product.priceMinor === undefined) {
+    return {
+      ok: false,
+      code: 'price_not_found',
+      message: 'Qeemat could not confirm a current price for this selected option.'
+    };
+  }
+
+  return {
+    ok: true,
+    product: {
+      ...result.product,
+      // Variation responses can use an internal catalog name, while the
+      // product page contains the customer-facing title shown to the user.
+      title: product.title
+    }
+  };
+}
+
 async function fetchAndParseWithFetch(
   normalizedUrl: string,
   siteKey: SiteKey,

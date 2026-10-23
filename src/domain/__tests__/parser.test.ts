@@ -1,4 +1,4 @@
-import { fetchAndParseProduct, parseProductHtml } from '../parser';
+import { fetchAndParseProduct, fetchTheDealVariantForSaving, parseProductHtml } from '../parser';
 import { parsePriceToMinor } from '../price';
 import { cleanUrl, detectSharedUrl, detectSupportedSite } from '../sites';
 import { SiteKey } from '../types';
@@ -2144,6 +2144,71 @@ describe('fetchAndParseProduct', () => {
       })
     });
     expect(fetchPageHtmlViaWebView).toHaveBeenCalledWith(theDealUrl);
+  });
+
+  it('resolves a selected The Deal variant price before saving a tracker', async () => {
+    const selectedVariant = {
+      id: '0188147CMA0025|color=blue|size=42sEU',
+      label: 'Color: Blue · Size: 42 EU',
+      attributes: [
+        { name: 'Color', value: 'Blue' },
+        { name: 'Size', value: '42 EU' }
+      ],
+      url: theDealVariantUrl
+    };
+    const fetchMock = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      url: theDealVariantUrl,
+      text: async () => JSON.stringify({
+        queryString: {
+          variables: {
+            color: { value: 'blue' },
+            size: { value: '42sEU' }
+          }
+        },
+        product: {
+          available: true,
+          id: '018826684218',
+          masterId: '0188147CMA0025',
+          productName: 'SERVE SLIDE 10 124 2 CMA',
+          price: { sales: { value: 115, currency: 'AED' } },
+          variationAttributes: [
+            {
+              attributeId: 'color',
+              displayName: 'Color',
+              values: [{ value: 'blue', displayValue: 'Blue', selected: true, selectable: true }]
+            },
+            {
+              attributeId: 'size',
+              displayName: 'Size',
+              values: [{ value: '42sEU', displayValue: '42 EU', selected: true, selectable: true }]
+            }
+          ]
+        }
+      })
+    }));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const result = await fetchTheDealVariantForSaving({
+      siteKey: 'the_deal',
+      canonicalUrl: theDealUrl,
+      title: 'Serve Slide 1.0 Fabric',
+      priceMinor: 9200,
+      currency: 'AED',
+      availability: 'in_stock'
+    }, selectedVariant);
+
+    expect(fetchMock).toHaveBeenCalledWith(theDealVariantUrl, expect.any(Object));
+    expect(result).toEqual({
+      ok: true,
+      product: expect.objectContaining({
+        title: 'Serve Slide 1.0 Fabric',
+        priceMinor: 11500,
+        currency: 'AED',
+        selectedVariant
+      })
+    });
   });
 
   it('uses the native Android request profile for Decathlon UAE', async () => {
