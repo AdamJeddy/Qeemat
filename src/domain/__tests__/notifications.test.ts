@@ -79,6 +79,14 @@ describe('variant notifications', () => {
     );
   });
 
+  it('respects a product setting that turns off back-in-stock alerts', async () => {
+    const restocked: ParsedProduct = { ...outOfStock, availability: 'in_stock', priceMinor: 45000 };
+
+    await maybeNotifyForCheck({ ...product, restockAlertEnabled: false }, restocked, product.currentPriceMinor, restocked.priceMinor, 'out_of_stock');
+
+    expect(NativeModules.QeematNotifications.notifyPriceAlert).not.toHaveBeenCalled();
+  });
+
   it('only sends a price-drop alert when the configured minimum is met', async () => {
     const configuredProduct = { ...product, minimumPriceDropMinor: 1000 };
     const dropped: ParsedProduct = { ...outOfStock, availability: 'in_stock', priceMinor: 49500 };

@@ -1,6 +1,6 @@
 # Qeemat Current State
 
-**Last reconciled with the implementation:** 2026-10-22
+**Last reconciled with the implementation:** 2026-10-23
 **App version:** 0.5.5-alpha
 
 This is the repo handoff for the current app. Product-planning documents are useful for intent, but this file describes shipped behavior and active limitations.
@@ -39,15 +39,15 @@ The site registry is `src/domain/sites.ts`. It controls hostnames, enabled statu
 
 ### Watchlist and activity
 
-- The watchlist supports pull-to-refresh, manual `Recheck all prices`, price-direction arrows, and a collapsible out-of-stock section below in-stock products. When products from multiple stores are tracked, a logo-only store rail filters both sections; it contains only stores already in the watchlist.
-- Product cards show a site icon, price, status, and the most recent price-change direction. OOS cards are dimmed and show an amber out-of-stock badge.
-- The Activity tab is newest-first, groups events by date, shows old and new prices with direction/source badges, and can open an existing product. Events remain visible but non-tappable after a product is deleted.
+- The watchlist supports pull-to-refresh, manual `Recheck all prices`, price-direction arrows, and a collapsible out-of-stock section below in-stock products. When products from multiple stores are tracked, a logo-only store rail filters both sections; text rails filter local folders and tags, and sort by recency, lowest price, largest drop, closest target, or name.
+- Product cards show a site icon, local folder/tags when present, price, status, and the most recent price-change direction. OOS cards are dimmed and show an amber out-of-stock badge.
+- The Activity tab is newest-first, groups events by date, shows old and new prices with direction/source badges, records both out-of-stock and back-in-stock transitions, and can open an existing product. Events remain visible but non-tappable after a product is deleted.
 
 ### Add flow and product detail
 
-- The add flow detects supported stores, replaces the store list with a single detected-store status for valid links, and brings the parsed result into view before saving. It then collects check preference, alert mode, and an optional target price. When a page exposes reliable variant data, the user must select an in-stock source option such as size before saving; that exact option is shown on cards and details and is used for later checks. Centrepoint size choices use the current product URL and source button ID, while color-only pages retain the current color and product route without guessing neighboring colors. Namshi size choices use the current product/color URL, The Deal selections retain an exact Salesforce variation endpoint, and Sharaf DG linked configurations retain the source URL that preselects the exact item. Sephora and Faces shade labels remain page-level because their initial pages do not provide complete per-shade stock state. Android browsers can share a product URL directly to Qeemat, which opens this flow and automatically finds the product so the user can choose its variant and tracking settings.
+- The add flow detects supported stores, replaces the store list with a single detected-store status for valid links, and brings the parsed result into view before saving. It then collects check preference, alert mode, optional target price, optional minimum price-drop threshold, back-in-stock preference, and local folder/tags. When a page exposes reliable variant data, the user must select an in-stock source option such as size before saving; that exact option is shown on cards and details and is used for later checks. Centrepoint size choices use the current product URL and source button ID, while color-only pages retain the current color and product route without guessing neighboring colors. Namshi size choices use the current product/color URL, The Deal selections retain an exact Salesforce variation endpoint, and Sharaf DG linked configurations retain the source URL that preselects the exact item. Sephora and Faces shade labels remain page-level because their initial pages do not provide complete per-shade stock state. Android browsers can share a product URL directly to Qeemat, which opens this flow and automatically finds the product so the user can choose its variant and tracking settings.
 - AYM excludes the daily option in the picker because its effective minimum interval is 72 hours. Existing daily AYM products are clamped in tracking settings.
-- Product detail shows current price, chart, stats, snapshot history, `Check now`, `Open link`, and `Copy product link` actions.
+- Product detail shows current price, chart, local low/high/average/history-distance insights, snapshot history, `Check now`, `Open link`, and `Copy product link` actions.
 - Snapshot sources are presented as `Check now`, `Recheck all`, or `Background`.
 
 ### Settings, onboarding, and navigation
@@ -76,7 +76,7 @@ Parser code is in `src/domain/parser.ts`; types are in `src/domain/types.ts`; te
 
 ### Out-of-stock handling
 
-Out-of-stock is a successful parser result, not a generic missing-price error. Each supported parser has site-specific availability signals, and structured data with unknown availability falls through to those parsers. The database preserves `currentPriceMinor` when an OOS result has no price, and snapshots retain availability for history.
+Out-of-stock is a successful parser result, not a generic missing-price error. Each supported parser has site-specific availability signals, and structured data with unknown availability falls through to those parsers. The database preserves `currentPriceMinor` when an OOS result has no price, and snapshots retain availability for history. OOS products continue to be checked so Qeemat can record and optionally notify a back-in-stock transition.
 
 No price-change activity event or notification is created for an OOS result without a price. The detail screen shows an amber banner explaining whether it is displaying the last known price or no recorded price.
 

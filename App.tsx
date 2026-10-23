@@ -13,6 +13,7 @@ import {
   ScrollView,
   StatusBar,
   StyleSheet,
+  Switch,
   TextInput,
   useWindowDimensions,
   View
@@ -71,12 +72,21 @@ import { availableCheckPreferences, formatRelativeTime, formatSnapshotTime } fro
 import { getOnboardingState, markOnboardingCompleted } from './src/domain/onboarding';
 import { ensureNotificationPermission, openNotificationSettings } from './src/domain/notifications';
 import { fetchAndParseProduct, fetchTheDealVariantForSaving } from './src/domain/parser';
+import { calculatePriceInsights } from './src/domain/priceInsights';
 import { formatPrice, parseTargetPriceInput } from './src/domain/price';
 import { cleanUrl, detectSharedUrl, detectSupportedSite, getSiteByKey, normalizeUrl, SUPPORTED_SITES } from './src/domain/sites';
 import { ActivityEvent, AlertMode, CheckPreference, ParsedProduct, PriceSnapshot, ProductWithSnapshots, SnapshotSource, TrackedProduct } from './src/domain/types';
 import { colors, radius, shadow } from './src/theme/theme';
 import { isCompactLayout } from './src/theme/layout';
-import { filterWatchlistProducts, getWatchlistSites, WatchlistStoreFilter } from './src/domain/watchlist';
+import {
+  filterWatchlistProducts,
+  getWatchlistFolders,
+  getWatchlistSites,
+  getWatchlistTags,
+  sortWatchlistProducts,
+  WatchlistSort,
+  WatchlistStoreFilter
+} from './src/domain/watchlist';
 import { resolveSelectedVariant, toVariantSelection, updateSelectedVariantAttributes, VariantAttributes } from './src/domain/variants';
 
 type TabKey = 'watchlist' | 'activity' | 'settings';
@@ -98,11 +108,23 @@ const ALERT_OPTIONS: { value: AlertMode; label: string; description: string }[] 
   { value: 'target_price', label: 'Target', description: 'Below price' }
 ];
 
+const WATCHLIST_SORT_OPTIONS: { value: WatchlistSort; label: string }[] = [
+  { value: 'recently_updated', label: 'Recent' },
+  { value: 'lowest_price', label: 'Lowest price' },
+  { value: 'largest_drop', label: 'Biggest drop' },
+  { value: 'closest_to_target', label: 'Closest target' },
+  { value: 'name', label: 'Name' }
+];
+
 const BACKGROUND_TIME_PRESETS = [
   { label: 'Morning', hour: 9 },
   { label: 'Afternoon', hour: 14 },
   { label: 'Evening', hour: 20 }
 ];
+
+function parseTagsInput(value: string): string[] {
+  return [...new Set(value.split(',').map((tag) => tag.trim()).filter(Boolean))];
+}
 
 export default function App() {
   const [route, setRoute] = useState<Route>({ name: 'tabs', tab: 'watchlist' });
@@ -340,6 +362,40 @@ function Header({ title, onBack }: { title: string; onBack?: () => void }) {
   );
 }
 
+function WatchlistFilterRail({
+  label,
+  options,
+  selected,
+  onSelect
+}: {
+  label: string;
+  options: { value?: string; label: string }[];
+  selected?: string;
+  onSelect: (value?: string) => void;
+}) {
+  return (
+    <View style={styles.filterSection}>
+      <AppText weight="semibold" style={styles.filterLabel}>{label}</AppText>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.textFilterRail}>
+        {options.map((option) => {
+          const active = selected === option.value;
+          return (
+            <Pressable
+              key={option.value ?? 'all'}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active }}
+              onPress={() => onSelect(option.value)}
+              style={({ pressed }) => [styles.textFilterButton, active && styles.textFilterButtonSelected, pressed && styles.storeFilterButtonPressed]}
+            >
+              <AppText weight="semibold" style={[styles.textFilterText, active && styles.textFilterTextSelected]}>{option.label}</AppText>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
+}
+
 function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
   const { width, fontScale } = useWindowDimensions();
   const compact = isCompactLayout(width, fontScale);
@@ -348,6 +404,9 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
   const [refreshing, setRefreshing] = useState(false);
   const [checkingAll, setCheckingAll] = useState(false);
   const [storeFilter, setStoreFilter] = useState<WatchlistStoreFilter>('all');
+  const [folderFilter, setFolderFilter] = useState<string | undefined>();
+  const [tagFilter, setTagFilter] = useState<string | undefined>();
+  const [sort, setSort] = useState<WatchlistSort>('recently_updated');
 
   const loadProducts = useCallback(async () => {
     setProducts(await listTrackedProducts());
@@ -397,9 +456,11 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
   const [oosExpanded, setOosExpanded] = useState(false);
 
   const trackedSites = useMemo(() => getWatchlistSites(products), [products]);
+  const folders = useMemo(() => getWatchlistFolders(products), [products]);
+  const tags = useMemo(() => getWatchlistTags(products), [products]);
   const filteredProducts = useMemo(
-    () => filterWatchlistProducts(products, storeFilter),
-    [products, storeFilter]
+    () => sortWatchlistProducts(filterWatchlistProducts(products, storeFilter, { folder: folderFilter, tag: tagFilter }), sort),
+    [products, storeFilter, folderFilter, tagFilter, sort]
   );
   const inStock = filteredProducts.filter((p) => p.lastAvailability !== 'out_of_stock');
   const oos = filteredProducts.filter((p) => p.lastAvailability === 'out_of_stock');
@@ -409,6 +470,15 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
       setStoreFilter('all');
     }
   }, [storeFilter, trackedSites]);
+
+  useEffect(() => {
+    if (folderFilter && !folders.includes(folderFilter)) {
+      setFolderFilter(undefined);
+    }
+    if (tagFilter && !tags.includes(tagFilter)) {
+      setTagFilter(undefined);
+    }
+  }, [folderFilter, folders, tagFilter, tags]);
 
   return (
     <View style={styles.app}>
@@ -472,6 +542,28 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
               );
             })}
           </ScrollView>
+        ) : null}
+        <WatchlistFilterRail
+          label="Sort"
+          options={WATCHLIST_SORT_OPTIONS}
+          selected={sort}
+          onSelect={(value) => setSort((value as WatchlistSort | undefined) ?? 'recently_updated')}
+        />
+        {folders.length > 0 ? (
+          <WatchlistFilterRail
+            label="Folder"
+            options={[{ label: 'All folders' }, ...folders.map((folder) => ({ value: folder, label: folder }))]}
+            selected={folderFilter}
+            onSelect={setFolderFilter}
+          />
+        ) : null}
+        {tags.length > 0 ? (
+          <WatchlistFilterRail
+            label="Tags"
+            options={[{ label: 'All tags' }, ...tags.map((tag) => ({ value: tag, label: `#${tag}` }))]}
+            selected={tagFilter}
+            onSelect={setTagFilter}
+          />
         ) : null}
         <PrimaryButton
           label="Recheck all prices"
@@ -568,6 +660,10 @@ export function AddScreen({ initialUrl, shareEventId, navigate }: { initialUrl?:
   const [checkPreference, setCheckPreference] = useState<CheckPreference>('daily');
   const [alertMode, setAlertMode] = useState<AlertMode>('price_drop');
   const [targetPrice, setTargetPrice] = useState('');
+  const [minimumPriceDrop, setMinimumPriceDrop] = useState('');
+  const [restockAlertEnabled, setRestockAlertEnabled] = useState(true);
+  const [folder, setFolder] = useState('');
+  const [tags, setTags] = useState('');
   const [selectedVariantAttributes, setSelectedVariantAttributes] = useState<VariantAttributes>({});
   const scrollRef = useRef<ScrollView>(null);
   const shouldFocusParsedResult = useRef(false);
@@ -682,6 +778,10 @@ export function AddScreen({ initialUrl, shareEventId, navigate }: { initialUrl?:
       checkPreference,
       alertMode,
       targetPriceMinor: alertMode === 'target_price' ? targetPriceMinor : undefined,
+      minimumPriceDropMinor: alertMode === 'price_drop' ? parseTargetPriceInput(minimumPriceDrop) : undefined,
+      restockAlertEnabled,
+      folder,
+      tags: parseTagsInput(tags),
       variant: productToSave.selectedVariant
     });
     setSaving(false);
@@ -811,6 +911,44 @@ export function AddScreen({ initialUrl, shareEventId, navigate }: { initialUrl?:
                 />
               </View>
             ) : null}
+            {alertMode === 'price_drop' ? (
+              <View style={styles.fieldGroup}>
+                <AppText weight="semibold">Minimum price drop alert</AppText>
+                <AppText muted style={styles.fieldHint}>Only notify when the price drops by at least this amount.</AppText>
+                <View style={styles.inputWrap}>
+                  <AppText weight="semibold" muted>AED</AppText>
+                  <TextInput
+                    value={minimumPriceDrop}
+                    onChangeText={setMinimumPriceDrop}
+                    keyboardType="decimal-pad"
+                    placeholder="Any drop"
+                    placeholderTextColor={colors.textSoft}
+                    maxFontSizeMultiplier={1.3}
+                    style={styles.input}
+                  />
+                </View>
+              </View>
+            ) : null}
+            <View style={styles.settingToggleRow}>
+              <View style={styles.flex}>
+                <AppText weight="semibold">Back-in-stock alerts</AppText>
+                <AppText muted style={styles.fieldHint}>Let me know when an unavailable item returns.</AppText>
+              </View>
+              <Switch value={restockAlertEnabled} onValueChange={setRestockAlertEnabled} trackColor={{ true: colors.primary }} />
+            </View>
+            <View style={styles.fieldGroup}>
+              <AppText weight="semibold">Folder</AppText>
+              <View style={styles.inputWrap}>
+                <TextInput value={folder} onChangeText={setFolder} placeholder="Running, Gifts, Home" placeholderTextColor={colors.textSoft} maxFontSizeMultiplier={1.3} style={styles.input} />
+              </View>
+            </View>
+            <View style={styles.fieldGroup}>
+              <AppText weight="semibold">Tags</AppText>
+              <AppText muted style={styles.fieldHint}>Separate tags with commas.</AppText>
+              <View style={styles.inputWrap}>
+                <TextInput value={tags} onChangeText={setTags} placeholder="sale, race day" placeholderTextColor={colors.textSoft} maxFontSizeMultiplier={1.3} style={styles.input} />
+              </View>
+            </View>
             <PrimaryButton
               label="Confirm Tracking"
               onPress={saveProduct}
@@ -897,7 +1035,7 @@ export function DetailScreen({ productId, navigate }: { productId: number; navig
 
   const { product, snapshots } = data;
   const productLink = getTrackedProductLink(product);
-  const stats = getPriceStats(snapshots);
+  const insights = calculatePriceInsights(snapshots);
   const status = product.lastErrorCode ?? snapshots[0]?.status ?? 'ok';
   const checkFailed = status !== 'ok' && status !== 'price_changed';
   const isOos = product.lastAvailability === 'out_of_stock';
@@ -971,12 +1109,18 @@ export function DetailScreen({ productId, navigate }: { productId: number; navig
             </AppText>
           </View>
         ) : null}
+        <SectionTitle title="Price insights" />
+        <View style={styles.statsRow}>
+          <StatCard label="Lowest price" price={insights.lowestPriceMinor} currency={product.currency} tone="green" />
+          <StatCard label="Highest price" price={insights.highestPriceMinor} currency={product.currency} tone="red" />
+        </View>
+        <View style={styles.statsRow}>
+          <StatCard label="Average price" price={insights.averagePriceMinor} currency={product.currency} tone="neutral" />
+          <StatCard label={insights.dropFromHighestPercent ? `${insights.dropFromHighestPercent}% below high` : 'Below high'} price={insights.dropFromHighestMinor} currency={product.currency} tone="green" />
+        </View>
+        <AppText muted style={styles.insightCaption}>{insights.observations} {insights.observations === 1 ? 'priced check' : 'priced checks'} recorded locally.</AppText>
         <SectionTitle title="Price History" />
         <PriceChart snapshots={snapshots} />
-        <View style={styles.statsRow}>
-          <StatCard label="Lowest price" price={stats.lowest} currency={product.currency} tone="green" />
-          <StatCard label="Highest price" price={stats.highest} currency={product.currency} tone="red" />
-        </View>
         <SectionTitle title="Price Snapshots" />
         <SnapshotList snapshots={snapshots} currency={product.currency} />
       </ScrollView>
@@ -1082,6 +1226,10 @@ function TrackingSettingsScreen({ productId, navigate }: { productId: number; na
   const [checkPreference, setCheckPreference] = useState<CheckPreference>('daily');
   const [alertMode, setAlertMode] = useState<AlertMode>('price_drop');
   const [targetPrice, setTargetPrice] = useState('');
+  const [minimumPriceDrop, setMinimumPriceDrop] = useState('');
+  const [restockAlertEnabled, setRestockAlertEnabled] = useState(true);
+  const [folder, setFolder] = useState('');
+  const [tags, setTags] = useState('');
 
   useEffect(() => {
     getTrackedProduct(productId).then((row) => {
@@ -1097,6 +1245,10 @@ function TrackingSettingsScreen({ productId, navigate }: { productId: number; na
 
       setAlertMode(row.alertMode);
       setTargetPrice(row.targetPriceMinor ? String(row.targetPriceMinor / 100) : '');
+      setMinimumPriceDrop(row.minimumPriceDropMinor ? String(row.minimumPriceDropMinor / 100) : '');
+      setRestockAlertEnabled(row.restockAlertEnabled ?? true);
+      setFolder(row.folder ?? '');
+      setTags((row.tags ?? []).join(', '));
     });
   }, [productId]);
 
@@ -1105,6 +1257,10 @@ function TrackingSettingsScreen({ productId, navigate }: { productId: number; na
       alertMode,
       checkPreference,
       targetPriceMinor: alertMode === 'target_price' ? parseTargetPriceInput(targetPrice) : undefined,
+      minimumPriceDropMinor: alertMode === 'price_drop' ? parseTargetPriceInput(minimumPriceDrop) : undefined,
+      restockAlertEnabled,
+      folder,
+      tags: parseTagsInput(tags),
       isActive: product?.isActive ?? true
     });
     navigate({ name: 'detail', id: productId });
@@ -1143,6 +1299,36 @@ function TrackingSettingsScreen({ productId, navigate }: { productId: number; na
             <TextInput value={targetPrice} onChangeText={setTargetPrice} keyboardType="decimal-pad" maxFontSizeMultiplier={1.3} style={styles.input} />
           </View>
         ) : null}
+        {alertMode === 'price_drop' ? (
+          <View style={styles.fieldGroup}>
+            <AppText weight="semibold">Minimum price drop alert</AppText>
+            <AppText muted style={styles.fieldHint}>Only notify when the price drops by at least this amount.</AppText>
+            <View style={styles.inputWrap}>
+              <AppText weight="semibold" muted>AED</AppText>
+              <TextInput value={minimumPriceDrop} onChangeText={setMinimumPriceDrop} keyboardType="decimal-pad" placeholder="Any drop" placeholderTextColor={colors.textSoft} maxFontSizeMultiplier={1.3} style={styles.input} />
+            </View>
+          </View>
+        ) : null}
+        <View style={styles.settingToggleRow}>
+          <View style={styles.flex}>
+            <AppText weight="semibold">Back-in-stock alerts</AppText>
+            <AppText muted style={styles.fieldHint}>Notify when this unavailable product returns.</AppText>
+          </View>
+          <Switch value={restockAlertEnabled} onValueChange={setRestockAlertEnabled} trackColor={{ true: colors.primary }} />
+        </View>
+        <View style={styles.fieldGroup}>
+          <AppText weight="semibold">Folder</AppText>
+          <View style={styles.inputWrap}>
+            <TextInput value={folder} onChangeText={setFolder} placeholder="Running, Gifts, Home" placeholderTextColor={colors.textSoft} maxFontSizeMultiplier={1.3} style={styles.input} />
+          </View>
+        </View>
+        <View style={styles.fieldGroup}>
+          <AppText weight="semibold">Tags</AppText>
+          <AppText muted style={styles.fieldHint}>Separate tags with commas.</AppText>
+          <View style={styles.inputWrap}>
+            <TextInput value={tags} onChangeText={setTags} placeholder="sale, race day" placeholderTextColor={colors.textSoft} maxFontSizeMultiplier={1.3} style={styles.input} />
+          </View>
+        </View>
         <PrimaryButton label="Save settings" onPress={save} />
         <PrimaryButton label="Delete product" variant="danger" onPress={confirmDelete} icon={<Trash2 size={18} color={colors.red} />} />
       </ScrollView>
@@ -1234,6 +1420,12 @@ function ActivityScreen({ navigate }: { navigate: (route: Route) => void }) {
                             </AppText>
                           ) : null}
                         </>
+                      ) : event.availability === 'in_stock' ? (
+                        <>
+                          <Check size={18} color={colors.green} />
+                          <AppText weight="semibold" style={styles.restockActivityLabel}>Back in stock</AppText>
+                          <AppText weight="bold" style={styles.activityNewPrice}>{formatPrice(event.newPriceMinor, event.currency)}</AppText>
+                        </>
                       ) : (
                         <>
                           {event.previousPriceMinor !== undefined ? (
@@ -1267,7 +1459,7 @@ function ActivityScreen({ navigate }: { navigate: (route: Route) => void }) {
                       )}
                     </View>
                     <View style={styles.activityMetaRow}>
-                      {event.priceDirection === 'first' && event.availability !== 'out_of_stock' ? (
+                      {event.priceDirection === 'first' && !event.availability ? (
                         <View style={styles.activityFirstBadge}>
                           <AppText weight="semibold" style={styles.activityFirstBadgeText}>
                             Started tracking
@@ -1279,6 +1471,11 @@ function ActivityScreen({ navigate }: { navigate: (route: Route) => void }) {
                           <AppText weight="semibold" style={styles.oosActivityBadgeText}>
                             Out of stock
                           </AppText>
+                        </View>
+                      ) : null}
+                      {event.availability === 'in_stock' ? (
+                        <View style={styles.restockActivityBadge}>
+                          <AppText weight="semibold" style={styles.restockActivityBadgeText}>Back in stock</AppText>
                         </View>
                       ) : null}
                       <View style={[styles.sourceBadge, snapshotSourceBadgeStyle(event.source)]}>
@@ -1616,23 +1813,15 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function StatCard({ label, price, currency, tone }: { label: string; price?: number; currency: string; tone: 'green' | 'red' }) {
+function StatCard({ label, price, currency, tone }: { label: string; price?: number; currency: string; tone: 'green' | 'red' | 'neutral' }) {
   return (
     <View style={styles.statCard}>
       <AppText muted>{label}</AppText>
-      <AppText weight="bold" style={[styles.statPrice, tone === 'green' ? styles.greenText : styles.redText]}>
+      <AppText weight="bold" style={[styles.statPrice, tone === 'green' ? styles.greenText : tone === 'red' ? styles.redText : undefined]}>
         {formatPrice(price, currency)}
       </AppText>
     </View>
   );
-}
-
-function getPriceStats(snapshots: PriceSnapshot[]) {
-  const prices = snapshots.map((snapshot) => snapshot.priceMinor).filter((price): price is number => price !== undefined);
-  return {
-    lowest: prices.length ? Math.min(...prices) : undefined,
-    highest: prices.length ? Math.max(...prices) : undefined
-  };
 }
 
 type SnapshotGroup = {
@@ -1787,6 +1976,34 @@ const styles = StyleSheet.create({
   storeFilterRailCompact: {
     gap: 6
   },
+  filterSection: {
+    gap: 8
+  },
+  filterLabel: {
+    fontSize: 14
+  },
+  textFilterRail: {
+    gap: 8,
+    paddingVertical: 2
+  },
+  textFilterButton: {
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 12,
+    paddingVertical: 9
+  },
+  textFilterButtonSelected: {
+    borderColor: colors.primary,
+    backgroundColor: colors.blueSoft
+  },
+  textFilterText: {
+    fontSize: 13
+  },
+  textFilterTextSelected: {
+    color: colors.primary
+  },
   storeFilterButton: {
     width: 44,
     height: 44,
@@ -1922,6 +2139,23 @@ const styles = StyleSheet.create({
   },
   formLabel: {
     fontSize: 17
+  },
+  fieldGroup: {
+    gap: 8
+  },
+  fieldHint: {
+    fontSize: 13,
+    lineHeight: 18
+  },
+  settingToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 14,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface
   },
   inputWrap: {
     minHeight: 68,
@@ -2132,6 +2366,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12
   },
+  insightCaption: {
+    fontSize: 12,
+    marginTop: -8
+  },
   statCard: {
     flex: 1,
     backgroundColor: colors.surface,
@@ -2153,6 +2391,20 @@ const styles = StyleSheet.create({
   },
   changedPrice: {
     color: colors.green
+  },
+  restockActivityLabel: {
+    color: colors.green,
+    fontSize: 14
+  },
+  restockActivityBadge: {
+    backgroundColor: colors.greenSoft,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4
+  },
+  restockActivityBadgeText: {
+    color: colors.green,
+    fontSize: 11
   },
   snapshotList: {
     backgroundColor: colors.surface,

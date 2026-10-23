@@ -75,13 +75,15 @@ export async function maybeNotifyForCheck(
     return;
   }
 
-  if (previousAvailability === 'out_of_stock' && parsed.availability === 'in_stock' && product.restockAlertEnabled !== false) {
-    const productLabel = formatProductLabel(product, parsed);
-    await notificationModule.notifyPriceAlert(
-      'Back in stock',
-      `${productLabel} is available again.`,
-      product.id
-    ).catch(() => false);
+  if (previousAvailability === 'out_of_stock' && parsed.availability === 'in_stock') {
+    if (product.restockAlertEnabled !== false) {
+      const productLabel = formatProductLabel(product, parsed);
+      await notificationModule.notifyPriceAlert(
+        'Back in stock',
+        `${productLabel} is available again.`,
+        product.id
+      ).catch(() => false);
+    }
     return;
   }
 
