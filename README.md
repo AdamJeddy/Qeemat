@@ -10,12 +10,14 @@ Qeemat is an Android-first, local-first price tracker for UAE shopping sites and
 - Clean tracking URLs before saving and fetching. Recognised Amazon links are normalized to a stable `/dp/<ASIN>` URL.
 - Show watchlist cards, price history, activity events, price-change indicators, and out-of-stock status while preserving the last known price.
 - Check a product or all products manually; choose daily, every-three-days, or weekly checking and price-drop, any-change, or target-price alerts.
+- Set a minimum AED price-drop threshold, receive back-in-stock alerts, and choose both controls per tracker.
 - Open or copy a cleaned product link from product detail.
 - Share a product URL from an Android browser directly to Qeemat; the add flow identifies and loads it automatically.
 - Select and save an exact in-stock, source-defined variant when a product page reliably provides one. Stores without that evidence remain page-level.
 - Centrepoint size controls and current color-only products retain their source identifiers and exact product URL for later checks.
 - Namshi size selections, The Deal color and size combinations, and Sharaf DG linked configurations retain the source URL needed to recheck the exact saved option.
-- Filter a multi-store watchlist with compact, logo-only store controls.
+- Organize products with local folders and tags; filter a multi-store watchlist by store, folder, or tag, and sort it by recency, price, drop, target proximity, or name.
+- Review local price insights including recorded low, high, average, and distance from the historical high.
 - Run best-effort Android background checks with local alerts, notification/battery-optimization guidance, and run diagnostics.
 - Reflow cards, previews, details, and settings controls on compact phone widths and when large system text reduces available space.
 

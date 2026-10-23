@@ -15,6 +15,7 @@ import {
 } from '../domain/types';
 import { nowIso } from '../domain/dates';
 import { normalizeCheckPreference } from '../domain/dates';
+import { mergeTags, normalizeFolderName, uniqueOrganizationNames } from '../domain/organization';
 
 const STORE_KEY = 'qeemat.local-store.v1';
 
@@ -89,6 +90,8 @@ export async function createTrackedProduct(draft: ProductDraft): Promise<number>
   const now = nowIso();
   const productId = store.nextProductId;
   const parsed = draft.parsed;
+  const knownFolders = uniqueOrganizationNames(store.products.map((product) => product.folder));
+  const knownTags = uniqueOrganizationNames(store.products.flatMap((product) => product.tags ?? []));
 
   const product: TrackedProduct = {
     id: productId,
@@ -101,6 +104,10 @@ export async function createTrackedProduct(draft: ProductDraft): Promise<number>
     currentPriceMinor: parsed.priceMinor,
     previousPriceMinor: undefined,
     targetPriceMinor: draft.targetPriceMinor,
+    minimumPriceDropMinor: draft.minimumPriceDropMinor,
+    restockAlertEnabled: draft.restockAlertEnabled ?? true,
+    folder: normalizeFolderName(draft.folder, knownFolders),
+    tags: mergeTags([], draft.tags ?? [], knownTags),
     alertMode: draft.alertMode,
     checkPreference: draft.checkPreference,
     isActive: true,
@@ -145,11 +152,17 @@ export async function updateTrackingSettings(
     alertMode: AlertMode;
     checkPreference: CheckPreference;
     targetPriceMinor?: number;
+    minimumPriceDropMinor?: number;
+    restockAlertEnabled?: boolean;
+    folder?: string;
+    tags?: string[];
     isActive: boolean;
   }
 ): Promise<void> {
   const store = await readStore();
   const now = nowIso();
+  const knownFolders = uniqueOrganizationNames(store.products.map((product) => product.folder));
+  const knownTags = uniqueOrganizationNames(store.products.flatMap((product) => product.tags ?? []));
 
   await writeStore({
     ...store,
@@ -160,6 +173,10 @@ export async function updateTrackingSettings(
             alertMode: settings.alertMode,
             checkPreference: settings.checkPreference,
             targetPriceMinor: settings.targetPriceMinor,
+            minimumPriceDropMinor: settings.minimumPriceDropMinor,
+            restockAlertEnabled: settings.restockAlertEnabled ?? product.restockAlertEnabled ?? true,
+            folder: normalizeFolderName(settings.folder, knownFolders),
+            tags: mergeTags([], settings.tags ?? [], knownTags),
             isActive: settings.isActive,
             updatedAt: now
           }
@@ -420,13 +437,20 @@ async function readStore(): Promise<LocalStore> {
   try {
     const parsed = JSON.parse(raw) as LocalStore;
 
+    const knownFolders = uniqueOrganizationNames(parsed.products.map((product) => product.folder));
+    const knownTags = uniqueOrganizationNames(parsed.products.flatMap((product) => product.tags ?? []));
+
     return {
       ...parsed,
       nextActivityId: parsed.nextActivityId ?? 1,
       products: parsed.products.map((product) => ({
         ...product,
         checkPreference: normalizeCheckPreference(product.checkPreference),
-        lastAvailability: product.lastAvailability ?? 'unknown'
+        lastAvailability: product.lastAvailability ?? 'unknown',
+        minimumPriceDropMinor: normalizeMinimumPriceDrop(product.minimumPriceDropMinor),
+        restockAlertEnabled: product.restockAlertEnabled ?? true,
+        folder: normalizeFolderName(product.folder, knownFolders),
+        tags: mergeTags([], product.tags ?? [], knownTags)
       })),
       snapshots: parsed.snapshots.map((snapshot) => ({
         ...snapshot,
@@ -442,4 +466,8 @@ async function readStore(): Promise<LocalStore> {
 
 async function writeStore(store: LocalStore): Promise<void> {
   await AsyncStorage.setItem(STORE_KEY, JSON.stringify(store));
+}
+
+function normalizeMinimumPriceDrop(value: number | undefined): number | undefined {
+  return value !== undefined && Number.isFinite(value) && value > 0 ? Math.round(value) : undefined;
 }

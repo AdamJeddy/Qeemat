@@ -66,6 +66,12 @@ export function ProductCard({ product, onPress, onRemove }: ProductCardProps) {
           <SiteIcon siteKey={product.siteKey} size={14} />
           <AppText style={styles.badgeText}>{site.shortName}</AppText>
         </View>
+        {product.folder || product.tags?.length ? (
+          <View style={styles.metadataRow}>
+            {product.folder ? <AppText muted style={styles.metadataText}>{product.folder}</AppText> : null}
+            {product.tags?.slice(0, 2).map((tag) => <AppText key={tag} muted style={styles.metadataText}>#{tag}</AppText>)}
+          </View>
+        ) : null}
         {product.variant ? <AppText muted style={styles.variantLabel}>{product.variant.label}</AppText> : null}
         {checkFailed || isOos ? <AppText muted style={styles.caption}>Last known price</AppText> : null}
         <View style={styles.priceRow}>
@@ -192,6 +198,15 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     fontSize: 12
+  },
+  metadataRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 6
+  },
+  metadataText: {
+    fontSize: 11
   },
   variantLabel: {
     fontSize: 12,
