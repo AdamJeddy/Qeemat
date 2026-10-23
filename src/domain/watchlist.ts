@@ -1,4 +1,5 @@
 import { SiteKey } from './types';
+import { uniqueOrganizationNames } from './organization';
 
 export type WatchlistStoreFilter = 'all' | SiteKey;
 export type WatchlistSort = 'recently_updated' | 'lowest_price' | 'largest_drop' | 'closest_to_target' | 'name';
@@ -22,11 +23,11 @@ export function getWatchlistSites(products: SiteProduct[]): SiteKey[] {
 }
 
 export function getWatchlistFolders(products: OrganizableProduct[]): string[] {
-  return [...new Set(products.map((product) => product.folder).filter((folder): folder is string => Boolean(folder)))];
+  return uniqueOrganizationNames(products.map((product) => product.folder));
 }
 
 export function getWatchlistTags(products: OrganizableProduct[]): string[] {
-  return [...new Set(products.flatMap((product) => product.tags ?? []))];
+  return uniqueOrganizationNames(products.flatMap((product) => product.tags ?? []));
 }
 
 export function filterWatchlistProducts<T extends OrganizableProduct>(

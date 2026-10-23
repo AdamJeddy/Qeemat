@@ -86,4 +86,26 @@ describe('createTrackedProduct', () => {
       checkPreference: 'weekly'
     }));
   });
+
+  it('reuses existing folder and tag casing when saving another product', async () => {
+    await createTrackedProduct({
+      sourceUrl: 'https://www.noon.com/first',
+      checkPreference: 'daily',
+      alertMode: 'price_drop',
+      folder: 'Running',
+      tags: ['Sale'],
+      parsed: { siteKey: 'noon', canonicalUrl: 'https://www.noon.com/first', title: 'First product', priceMinor: 10000, currency: 'AED', availability: 'in_stock' }
+    });
+
+    const id = await createTrackedProduct({
+      sourceUrl: 'https://www.noon.com/second',
+      checkPreference: 'daily',
+      alertMode: 'price_drop',
+      folder: ' running ',
+      tags: ['sale', 'sale'],
+      parsed: { siteKey: 'noon', canonicalUrl: 'https://www.noon.com/second', title: 'Second product', priceMinor: 10000, currency: 'AED', availability: 'in_stock' }
+    });
+
+    expect(await getTrackedProduct(id)).toEqual(expect.objectContaining({ folder: 'Running', tags: ['Sale'] }));
+  });
 });

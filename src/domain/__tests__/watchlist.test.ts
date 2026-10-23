@@ -50,6 +50,11 @@ describe('watchlist organization', () => {
     expect(getWatchlistFolders(organized)).toEqual(['Running', 'Tech']);
     expect(getWatchlistTags(organized)).toEqual(['race', 'shoes', 'gift', 'sale']);
   });
+
+  it('does not expose case-only duplicate folders or tags', () => {
+    expect(getWatchlistFolders([{ ...products[0], folder: 'Running' }, { ...products[1], folder: 'running' }])).toEqual(['Running']);
+    expect(getWatchlistTags([{ ...products[0], tags: ['Sale'] }, { ...products[1], tags: ['sale'] }])).toEqual(['Sale']);
+  });
 });
 
 describe('sortWatchlistProducts', () => {
