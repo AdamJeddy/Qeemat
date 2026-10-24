@@ -89,8 +89,8 @@ export type TrackedProduct = {
   restockAlertEnabled?: boolean;
   /** Optional local-only grouping for the watchlist. */
   folder?: string;
-  /** Optional local-only labels for the watchlist. */
-  tags?: string[];
+  /** Archived products stay local but are hidden from the active watchlist and checks. */
+  isArchived?: boolean;
   alertMode: AlertMode;
   checkPreference: CheckPreference;
   isActive: boolean;
@@ -133,7 +133,6 @@ export type ProductDraft = {
   minimumPriceDropMinor?: number;
   restockAlertEnabled?: boolean;
   folder?: string;
-  tags?: string[];
   variant?: VariantSelection;
 };
 

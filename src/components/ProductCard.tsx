@@ -14,9 +14,11 @@ type ProductCardProps = {
   product: TrackedProduct;
   onPress: () => void;
   onRemove?: () => void;
+  onLongPress?: () => void;
+  selected?: boolean;
 };
 
-export function ProductCard({ product, onPress, onRemove }: ProductCardProps) {
+export function ProductCard({ product, onPress, onRemove, onLongPress, selected }: ProductCardProps) {
   const { width, fontScale } = useWindowDimensions();
   const compact = isCompactLayout(width, fontScale);
   const site = getSiteByKey(product.siteKey);
@@ -52,7 +54,8 @@ export function ProductCard({ product, onPress, onRemove }: ProductCardProps) {
   const showErrorPill = status !== 'ok' && status !== 'price_changed' && !isOos;
 
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.card, compact && styles.cardCompact, pressed && styles.pressed]}>
+    <Pressable onPress={onPress} onLongPress={onLongPress} delayLongPress={250} style={({ pressed }) => [styles.card, compact && styles.cardCompact, selected && styles.cardSelected, pressed && styles.pressed]}>
+      {selected ? <View style={styles.selectionMark}><CheckCircle2 size={22} color={colors.primary} /></View> : null}
       <View style={[styles.imageWrap, compact && styles.imageWrapCompact]}>
         {product.imageUrl ? <Image source={{ uri: product.imageUrl }} style={[styles.image, compact && styles.imageCompact, isOos && styles.imageMuted]} resizeMode="contain" /> : null}
       </View>
@@ -66,10 +69,9 @@ export function ProductCard({ product, onPress, onRemove }: ProductCardProps) {
           <SiteIcon siteKey={product.siteKey} size={14} />
           <AppText style={styles.badgeText}>{site.shortName}</AppText>
         </View>
-        {product.folder || product.tags?.length ? (
+        {product.folder ? (
           <View style={styles.metadataRow}>
             {product.folder ? <AppText muted style={styles.metadataText}>{product.folder}</AppText> : null}
-            {product.tags?.slice(0, 2).map((tag) => <AppText key={tag} muted style={styles.metadataText}>#{tag}</AppText>)}
           </View>
         ) : null}
         {product.variant ? <AppText muted style={styles.variantLabel}>{product.variant.label}</AppText> : null}
@@ -152,6 +154,19 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.84
+  },
+  cardSelected: {
+    borderColor: colors.primary,
+    borderWidth: 2,
+    backgroundColor: colors.blueSoft
+  },
+  selectionMark: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    zIndex: 1,
+    backgroundColor: colors.surface,
+    borderRadius: 14
   },
   imageWrap: {
     width: 88,

@@ -2106,6 +2106,24 @@ describe('fetchAndParseProduct', () => {
     jest.restoreAllMocks();
   });
 
+  it('times out a stalled native request so a background batch can continue', async () => {
+    jest.useFakeTimers();
+    globalThis.fetch = jest.fn(() => new Promise<Response>(() => undefined)) as unknown as typeof fetch;
+
+    try {
+      const result = fetchAndParseProduct(noonUrl);
+      await jest.advanceTimersByTimeAsync(25_000);
+
+      await expect(result).resolves.toEqual({
+        ok: false,
+        code: 'network_error',
+        message: 'The product page took too long to respond.'
+      });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('uses the Android WebView fallback when Salomon rejects the native request', async () => {
     globalThis.fetch = jest.fn().mockRejectedValue(new Error('network failed')) as unknown as typeof fetch;
     jest.mocked(fetchPageHtmlViaWebView).mockResolvedValue(`
