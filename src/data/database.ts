@@ -77,6 +77,19 @@ export async function getProductWithSnapshots(id: number): Promise<ProductWithSn
   };
 }
 
+export async function listProductsWithSnapshots(): Promise<ProductWithSnapshots[]> {
+  const store = await readStore();
+
+  return [...store.products]
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+    .map((product) => ({
+      product,
+      snapshots: store.snapshots
+        .filter((snapshot) => snapshot.trackedProductId === product.id)
+        .sort((left, right) => right.checkedAt.localeCompare(left.checkedAt))
+    }));
+}
+
 export async function listSnapshots(productId: number, limit = 60): Promise<PriceSnapshot[]> {
   const store = await readStore();
   return store.snapshots

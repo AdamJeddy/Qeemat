@@ -28,6 +28,7 @@ import {
   ArrowLeft,
   Bell,
   Check,
+  ChevronRight,
   ChevronDown,
   ChevronUp,
   CircleAlert,
@@ -42,6 +43,7 @@ import {
   Settings as SettingsIcon,
   SlidersHorizontal,
   SquareStack,
+  Sparkles,
   Store,
   Trash2,
   TrendingDown,
@@ -72,6 +74,7 @@ import {
   getTrackedProduct,
   initializeDatabase,
   listActivityEvents,
+  listProductsWithSnapshots,
   listTrackedProducts,
   updateTrackedProducts,
   updateTrackingSettings
@@ -97,8 +100,9 @@ import {
   WatchlistStoreFilter
 } from './src/domain/watchlist';
 import { resolveSelectedVariant, toVariantSelection, updateSelectedVariantAttributes, VariantAttributes } from './src/domain/variants';
+import { buildOpportunityFeed, Opportunity } from './src/domain/opportunities';
 
-type TabKey = 'watchlist' | 'activity' | 'settings';
+type TabKey = 'watchlist' | 'opportunities' | 'activity' | 'settings';
 type Route =
   | { name: 'tabs'; tab: TabKey }
   | { name: 'add'; initialUrl?: string; shareEventId?: number }
@@ -324,10 +328,12 @@ function TabsScreen({ tab, navigate }: { tab: TabKey; navigate: (route: Route) =
   return (
     <View style={styles.app}>
       {tab === 'watchlist' ? <WatchlistScreen navigate={navigate} /> : null}
+      {tab === 'opportunities' ? <OpportunityScreen navigate={navigate} /> : null}
       {tab === 'activity' ? <ActivityScreen navigate={navigate} /> : null}
       {tab === 'settings' ? <SettingsScreen /> : null}
       <View style={styles.tabBar}>
         <TabButton active={tab === 'watchlist'} label="Watchlist" icon={<SquareStack />} onPress={() => navigate({ name: 'tabs', tab: 'watchlist' })} />
+        <TabButton active={tab === 'opportunities'} label="For you" icon={<Sparkles />} onPress={() => navigate({ name: 'tabs', tab: 'opportunities' })} />
         <TabButton active={tab === 'activity'} label="Activity" icon={<Clock />} onPress={() => navigate({ name: 'tabs', tab: 'activity' })} />
         <TabButton active={tab === 'settings'} label="Settings" icon={<SettingsIcon />} onPress={() => navigate({ name: 'tabs', tab: 'settings' })} />
       </View>
@@ -1725,6 +1731,150 @@ function EmptyActivity() {
   );
 }
 
+export function OpportunityScreen({ navigate }: { navigate: (route: Route) => void }) {
+  const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const load = useCallback(async () => {
+    const products = await listProductsWithSnapshots();
+    setOpportunities(buildOpportunityFeed(products));
+  }, []);
+
+  useEffect(() => {
+    load().finally(() => setLoading(false));
+  }, [load]);
+
+  const refresh = useCallback(async () => {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  }, [load]);
+
+  if (loading) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator color={colors.primary} />
+      </View>
+    );
+  }
+
+  return (
+    <ScrollView
+      contentContainerStyle={styles.screenContent}
+      showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.primary} />}
+    >
+      <View style={styles.opportunityHeader}>
+        <View style={styles.opportunityHeaderIcon}>
+          <Sparkles size={22} color={colors.primary} />
+        </View>
+        <View style={styles.flex}>
+          <AppText weight="bold" style={styles.heading}>For you</AppText>
+          <AppText muted>Price signals worth a closer look.</AppText>
+        </View>
+      </View>
+
+      {opportunities.length > 0 ? (
+        <AppText muted style={styles.opportunitySupportCopy}>
+          Based on prices Qeemat has checked for your watchlist.
+        </AppText>
+      ) : null}
+
+      {opportunities.length === 0 ? <EmptyOpportunities /> : null}
+      <View style={styles.cardList}>
+        {opportunities.map((opportunity) => (
+          <Pressable
+            key={opportunity.product.id}
+            onPress={() => navigate({ name: 'detail', id: opportunity.product.id })}
+            style={({ pressed }) => [styles.opportunityCard, pressed && styles.opportunityCardPressed]}
+          >
+            {opportunity.product.imageUrl ? (
+              <Image source={{ uri: opportunity.product.imageUrl }} style={styles.opportunityImage} resizeMode="contain" />
+            ) : (
+              <View style={styles.opportunityImagePlaceholder}>
+                <Store size={20} color={colors.textMuted} />
+              </View>
+            )}
+            <View style={styles.opportunityBody}>
+              <View style={styles.opportunityTitleRow}>
+                <AppText weight="semibold" numberOfLines={2} style={styles.opportunityTitle}>
+                  {opportunity.product.title}
+                </AppText>
+                <ChevronRight size={18} color={colors.textMuted} />
+              </View>
+              <View style={styles.opportunityPriceRow}>
+                <AppText weight="bold" style={styles.opportunityPrice}>
+                  {formatPrice(opportunity.currentPriceMinor, opportunity.product.currency)}
+                </AppText>
+                <View style={[styles.opportunityBadge, opportunityBadgeStyle(opportunity.reason)]}>
+                  <AppText weight="semibold" style={opportunityBadgeTextStyle(opportunity.reason)}>
+                    {opportunityLabel(opportunity)}
+                  </AppText>
+                </View>
+              </View>
+              <AppText muted style={styles.opportunityDetail}>
+                {opportunityDescription(opportunity)}
+              </AppText>
+              <AppText muted style={styles.opportunityChecked}>
+                Checked {formatRelativeTime(opportunity.observedAt)}
+              </AppText>
+            </View>
+          </Pressable>
+        ))}
+      </View>
+    </ScrollView>
+  );
+}
+
+function EmptyOpportunities() {
+  return (
+    <View style={styles.emptyCard}>
+      <View style={styles.emptyIcon}>
+        <Sparkles size={24} color={colors.primary} />
+      </View>
+      <AppText weight="bold" style={styles.emptyTitle}>Nothing urgent right now</AppText>
+      <AppText muted style={styles.emptyCopy}>
+        We will highlight target hits, proven lows, and meaningful price drops as Qeemat checks your products.
+      </AppText>
+    </View>
+  );
+}
+
+function opportunityLabel(opportunity: Opportunity): string {
+  if (opportunity.reason === 'target_hit') {
+    return 'Target hit';
+  }
+
+  if (opportunity.reason === 'new_low') {
+    return 'New low';
+  }
+
+  return `${opportunity.percent}% drop`;
+}
+
+function opportunityDescription(opportunity: Opportunity): string {
+  const savings = formatPrice(opportunity.savingsMinor, opportunity.product.currency);
+
+  if (opportunity.reason === 'target_hit') {
+    return `${savings} below your target price.`;
+  }
+
+  if (opportunity.reason === 'new_low') {
+    return `${savings} below the highest price you have recorded.`;
+  }
+
+  return `${savings} lower than the previous check.`;
+}
+
+function opportunityBadgeStyle(reason: Opportunity['reason']) {
+  return reason === 'target_hit' ? styles.opportunityBadgeTarget : styles.opportunityBadgeDrop;
+}
+
+function opportunityBadgeTextStyle(reason: Opportunity['reason']) {
+  return reason === 'target_hit' ? styles.opportunityBadgeTextTarget : styles.opportunityBadgeTextDrop;
+}
+
 function SettingsScreen() {
   const { width, fontScale } = useWindowDimensions();
   const compact = isCompactLayout(width, fontScale);
@@ -2866,6 +3016,100 @@ const styles = StyleSheet.create({
   },
   bottomActionHalf: {
     flex: 1
+  },
+  opportunityHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12
+  },
+  opportunityHeaderIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.blueSoft
+  },
+  opportunitySupportCopy: {
+    fontSize: 13,
+    lineHeight: 19
+  },
+  opportunityCard: {
+    flexDirection: 'row',
+    gap: 12,
+    padding: 12,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    ...shadow
+  },
+  opportunityCardPressed: {
+    opacity: 0.82
+  },
+  opportunityImage: {
+    width: 76,
+    height: 92,
+    borderRadius: radius.sm,
+    backgroundColor: colors.surfaceMuted
+  },
+  opportunityImagePlaceholder: {
+    width: 76,
+    height: 92,
+    borderRadius: radius.sm,
+    backgroundColor: colors.surfaceMuted,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  opportunityBody: {
+    flex: 1,
+    minWidth: 0,
+    gap: 6
+  },
+  opportunityTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6
+  },
+  opportunityTitle: {
+    flex: 1,
+    fontSize: 15,
+    lineHeight: 20
+  },
+  opportunityPriceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8
+  },
+  opportunityPrice: {
+    fontSize: 18
+  },
+  opportunityBadge: {
+    borderRadius: radius.sm,
+    paddingHorizontal: 8,
+    paddingVertical: 5
+  },
+  opportunityBadgeTarget: {
+    backgroundColor: colors.blueSoft
+  },
+  opportunityBadgeDrop: {
+    backgroundColor: colors.greenSoft
+  },
+  opportunityBadgeTextTarget: {
+    color: colors.primary,
+    fontSize: 12
+  },
+  opportunityBadgeTextDrop: {
+    color: colors.green,
+    fontSize: 12
+  },
+  opportunityDetail: {
+    fontSize: 13,
+    lineHeight: 18
+  },
+  opportunityChecked: {
+    fontSize: 11
   },
   activityCard: {
     flexDirection: 'row',
