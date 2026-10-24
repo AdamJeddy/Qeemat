@@ -2,7 +2,6 @@ import {
   filterWatchlistProducts,
   getWatchlistFolders,
   getWatchlistSites,
-  getWatchlistTags,
   sortWatchlistProducts
 } from '../watchlist';
 
@@ -28,32 +27,30 @@ describe('filterWatchlistProducts', () => {
     expect(filterWatchlistProducts(products, 'nike_uae')).toEqual([products[0], products[2]]);
   });
 
-  it('combines store, folder, and tag filters', () => {
+  it('combines store and folder filters', () => {
     const organized = [
-      { ...products[0], folder: 'Running', tags: ['race', 'shoes'] },
-      { ...products[1], folder: 'Tech', tags: ['gift'] },
-      { ...products[2], folder: 'Running', tags: ['sale'] }
+      { ...products[0], folder: 'Running' },
+      { ...products[1], folder: 'Tech' },
+      { ...products[2], folder: 'Running' }
     ];
 
-    expect(filterWatchlistProducts(organized, 'nike_uae', { folder: 'Running', tag: 'sale' })).toEqual([organized[2]]);
+    expect(filterWatchlistProducts(organized, 'nike_uae', { folder: 'Running' })).toEqual([organized[0], organized[2]]);
   });
 });
 
 describe('watchlist organization', () => {
   const organized = [
-    { ...products[0], folder: 'Running', tags: ['race', 'shoes'] },
-    { ...products[1], folder: 'Tech', tags: ['gift'] },
-    { ...products[2], folder: 'Running', tags: ['sale', 'shoes'] }
+    { ...products[0], folder: 'Running' },
+    { ...products[1], folder: 'Tech' },
+    { ...products[2], folder: 'Running' }
   ];
 
-  it('lists each folder and tag once', () => {
+  it('lists each folder once', () => {
     expect(getWatchlistFolders(organized)).toEqual(['Running', 'Tech']);
-    expect(getWatchlistTags(organized)).toEqual(['race', 'shoes', 'gift', 'sale']);
   });
 
-  it('does not expose case-only duplicate folders or tags', () => {
+  it('does not expose case-only duplicate folders', () => {
     expect(getWatchlistFolders([{ ...products[0], folder: 'Running' }, { ...products[1], folder: 'running' }])).toEqual(['Running']);
-    expect(getWatchlistTags([{ ...products[0], tags: ['Sale'] }, { ...products[1], tags: ['sale'] }])).toEqual(['Sale']);
   });
 });
 

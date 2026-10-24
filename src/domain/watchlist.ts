@@ -5,11 +5,10 @@ export type WatchlistStoreFilter = 'all' | SiteKey;
 export type WatchlistSort = 'recently_updated' | 'lowest_price' | 'largest_drop' | 'closest_to_target' | 'name';
 export type WatchlistCollectionFilter = {
   folder?: string;
-  tag?: string;
 };
 
 type SiteProduct = { siteKey: SiteKey };
-type OrganizableProduct = SiteProduct & { folder?: string; tags?: string[] };
+type OrganizableProduct = SiteProduct & { folder?: string };
 type SortableProduct = SiteProduct & {
   title: string;
   currentPriceMinor?: number;
@@ -26,10 +25,6 @@ export function getWatchlistFolders(products: OrganizableProduct[]): string[] {
   return uniqueOrganizationNames(products.map((product) => product.folder));
 }
 
-export function getWatchlistTags(products: OrganizableProduct[]): string[] {
-  return uniqueOrganizationNames(products.flatMap((product) => product.tags ?? []));
-}
-
 export function filterWatchlistProducts<T extends OrganizableProduct>(
   products: T[],
   storeFilter: WatchlistStoreFilter,
@@ -38,8 +33,7 @@ export function filterWatchlistProducts<T extends OrganizableProduct>(
   return products.filter((product) => {
     const matchesStore = storeFilter === 'all' || product.siteKey === storeFilter;
     const matchesFolder = !collectionFilter.folder || product.folder === collectionFilter.folder;
-    const matchesTag = !collectionFilter.tag || product.tags?.includes(collectionFilter.tag);
-    return matchesStore && matchesFolder && matchesTag;
+    return matchesStore && matchesFolder;
   });
 }
 

@@ -15,7 +15,7 @@ import {
 } from '../domain/types';
 import { nowIso } from '../domain/dates';
 import { normalizeCheckPreference } from '../domain/dates';
-import { mergeTags, normalizeFolderName, uniqueOrganizationNames } from '../domain/organization';
+import { normalizeFolderName, uniqueOrganizationNames } from '../domain/organization';
 
 const STORE_KEY = 'qeemat.local-store.v1';
 
@@ -104,7 +104,6 @@ export async function createTrackedProduct(draft: ProductDraft): Promise<number>
   const productId = store.nextProductId;
   const parsed = draft.parsed;
   const knownFolders = uniqueOrganizationNames(store.products.map((product) => product.folder));
-  const knownTags = uniqueOrganizationNames(store.products.flatMap((product) => product.tags ?? []));
 
   const product: TrackedProduct = {
     id: productId,
@@ -120,7 +119,6 @@ export async function createTrackedProduct(draft: ProductDraft): Promise<number>
     minimumPriceDropMinor: draft.minimumPriceDropMinor,
     restockAlertEnabled: draft.restockAlertEnabled ?? true,
     folder: normalizeFolderName(draft.folder, knownFolders),
-    tags: mergeTags([], draft.tags ?? [], knownTags),
     alertMode: draft.alertMode,
     checkPreference: draft.checkPreference,
     isActive: true,
@@ -168,14 +166,12 @@ export async function updateTrackingSettings(
     minimumPriceDropMinor?: number;
     restockAlertEnabled?: boolean;
     folder?: string;
-    tags?: string[];
     isActive: boolean;
   }
 ): Promise<void> {
   const store = await readStore();
   const now = nowIso();
   const knownFolders = uniqueOrganizationNames(store.products.map((product) => product.folder));
-  const knownTags = uniqueOrganizationNames(store.products.flatMap((product) => product.tags ?? []));
 
   await writeStore({
     ...store,
@@ -189,7 +185,6 @@ export async function updateTrackingSettings(
             minimumPriceDropMinor: settings.minimumPriceDropMinor,
             restockAlertEnabled: settings.restockAlertEnabled ?? product.restockAlertEnabled ?? true,
             folder: normalizeFolderName(settings.folder, knownFolders),
-            tags: mergeTags([], settings.tags ?? [], knownTags),
             isActive: settings.isActive,
             updatedAt: now
           }
@@ -199,11 +194,55 @@ export async function updateTrackingSettings(
 }
 
 export async function deleteTrackedProduct(id: number): Promise<void> {
+  await deleteTrackedProducts([id]);
+}
+
+export async function deleteTrackedProducts(ids: number[]): Promise<void> {
+  if (!ids.length) {
+    return;
+  }
+
+  const idsToDelete = new Set(ids);
   const store = await readStore();
   await writeStore({
     ...store,
-    products: store.products.filter((product) => product.id !== id),
-    snapshots: store.snapshots.filter((snapshot) => snapshot.trackedProductId !== id)
+    products: store.products.filter((product) => !idsToDelete.has(product.id)),
+    snapshots: store.snapshots.filter((snapshot) => !idsToDelete.has(snapshot.trackedProductId))
+  });
+}
+
+export type BulkTrackingUpdate = {
+  folder?: string;
+  clearFolder?: boolean;
+  isActive?: boolean;
+  isArchived?: boolean;
+};
+
+export async function updateTrackedProducts(ids: number[], update: BulkTrackingUpdate): Promise<void> {
+  if (!ids.length) {
+    return;
+  }
+
+  const selectedIds = new Set(ids);
+  const store = await readStore();
+  const now = nowIso();
+  const knownFolders = uniqueOrganizationNames(store.products.map((product) => product.folder));
+
+  await writeStore({
+    ...store,
+    products: store.products.map((product) => {
+      if (!selectedIds.has(product.id)) {
+        return product;
+      }
+
+      return {
+        ...product,
+        folder: update.clearFolder ? undefined : update.folder === undefined ? product.folder : normalizeFolderName(update.folder, knownFolders),
+        isActive: update.isActive ?? product.isActive,
+        isArchived: update.isArchived ?? product.isArchived ?? false,
+        updatedAt: now
+      };
+    })
   });
 }
 
@@ -451,7 +490,6 @@ async function readStore(): Promise<LocalStore> {
     const parsed = JSON.parse(raw) as LocalStore;
 
     const knownFolders = uniqueOrganizationNames(parsed.products.map((product) => product.folder));
-    const knownTags = uniqueOrganizationNames(parsed.products.flatMap((product) => product.tags ?? []));
 
     return {
       ...parsed,
@@ -462,8 +500,8 @@ async function readStore(): Promise<LocalStore> {
         lastAvailability: product.lastAvailability ?? 'unknown',
         minimumPriceDropMinor: normalizeMinimumPriceDrop(product.minimumPriceDropMinor),
         restockAlertEnabled: product.restockAlertEnabled ?? true,
-        folder: normalizeFolderName(product.folder, knownFolders),
-        tags: mergeTags([], product.tags ?? [], knownTags)
+        isArchived: product.isArchived ?? false,
+        folder: normalizeFolderName(product.folder, knownFolders)
       })),
       snapshots: parsed.snapshots.map((snapshot) => ({
         ...snapshot,
