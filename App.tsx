@@ -1324,7 +1324,7 @@ export function DetailScreen({ productId, navigate }: { productId: number; navig
         <StatCard label="Average price" price={insights.averagePriceMinor} currency={product.currency} tone="neutral" emphasized />
         <AppText muted style={styles.insightCaption}>{insights.observations} {insights.observations === 1 ? 'priced check' : 'priced checks'} recorded locally.</AppText>
         <SectionTitle title="Price History" />
-        <PriceChart snapshots={snapshots} />
+        <PriceChart snapshots={snapshots} currency={product.currency} />
         <SectionTitle title="Price Snapshots" />
         <SnapshotList snapshots={snapshots} currency={product.currency} />
       </ScrollView>
