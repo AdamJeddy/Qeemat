@@ -56,7 +56,15 @@ describe('PriceChart', () => {
     expect(renderedText(tree!)).toContain('↑ AED 15 increase');
 
     act(() => {
-      tree!.root.findAll((node) => typeof node.props.accessibilityLabel === 'string' && node.props.accessibilityLabel.includes('AED 90'))[0].props.onPress();
+      tree!.root.findByProps({ accessibilityLabel: 'Price history chart' }).props.onLayout({
+        nativeEvent: { layout: { width: 320 } }
+      });
+    });
+
+    act(() => {
+      tree!.root.findByProps({ accessibilityLabel: 'Price history chart' }).props.onPress({
+        nativeEvent: { locationX: 160 }
+      });
     });
 
     expect(renderedText(tree!)).toContain('AED 90');
@@ -70,7 +78,7 @@ describe('PriceChart', () => {
       tree = renderer.create(<PriceChart snapshots={snapshots} currency="AED" />);
     });
 
-    expect(renderedText(tree!)).toContain('Tap a point for its date and price. Green marks a drop; orange marks an increase.');
+    expect(renderedText(tree!)).toContain('Tap a point to view its date and price. Green marks a drop; orange marks an increase.');
   });
 });
 

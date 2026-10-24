@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import Svg, { Circle, Defs, Line, LinearGradient, Path, Stop } from 'react-native-svg';
 
 import { formatPrice } from '../domain/price';
@@ -36,6 +36,7 @@ export function PriceChart({ snapshots, currency }: PriceChartProps) {
     [snapshots]
   );
   const [selectedId, setSelectedId] = useState<number | undefined>();
+  const [chartWidth, setChartWidth] = useState(0);
 
   useEffect(() => {
     setSelectedId(points[points.length - 1]?.id);
@@ -63,6 +64,13 @@ export function PriceChart({ snapshots, currency }: PriceChartProps) {
   const linePath = coords.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ');
   const areaPath = `${linePath} L ${coords[coords.length - 1].x} ${height - padding} L ${coords[0].x} ${height - padding} Z`;
   const selectedCoord = coords[selectedIndex];
+  const selectPointAt = (locationX: number) => {
+    const usableWidth = Math.max(1, chartWidth - (padding / width) * chartWidth * 2);
+    const offset = Math.max(0, Math.min(usableWidth, locationX - (padding / width) * chartWidth));
+    const index = Math.round((offset / usableWidth) * (points.length - 1));
+
+    setSelectedId(points[index].id);
+  };
 
   return (
     <View style={styles.chart}>
@@ -78,8 +86,16 @@ export function PriceChart({ snapshots, currency }: PriceChartProps) {
         </View>
       </View>
 
-      <View style={styles.canvas}>
-        <Svg viewBox={`0 0 ${width} ${height}`} width="100%" height="100%">
+      <Pressable
+        accessible
+        accessibilityRole="button"
+        accessibilityLabel="Price history chart"
+        accessibilityHint="Tap a point to view its price and date"
+        onLayout={(event) => setChartWidth(event.nativeEvent.layout.width)}
+        onPress={(event) => selectPointAt(event.nativeEvent.locationX)}
+        style={styles.canvas}
+      >
+        <Svg pointerEvents="none" viewBox={`0 0 ${width} ${height}`} width="100%" height="100%">
           <Defs>
             <LinearGradient id="priceFill" x1="0" y1="0" x2="0" y2="1">
               <Stop offset="0" stopColor={colors.primary} stopOpacity="0.16" />
@@ -125,29 +141,14 @@ export function PriceChart({ snapshots, currency }: PriceChartProps) {
               />
             );
           })}
-          {coords.map((coord, index) => {
-            const point = points[index];
-            return (
-              <Circle
-                key={`hit-${point.id}`}
-                cx={coord.x}
-                cy={coord.y}
-                r={18}
-                fill="transparent"
-                accessible
-                accessibilityLabel={`Show ${formatPrice(point.priceMinor, currency)} on ${formatChartDate(point.checkedAt)}`}
-                onPress={() => setSelectedId(point.id)}
-              />
-            );
-          })}
         </Svg>
-      </View>
+      </Pressable>
 
       <View style={styles.axis}>
         <AppText muted style={styles.axisLabel}>{formatAxisDate(points[0].checkedAt)}</AppText>
         <AppText muted style={styles.axisLabel}>{formatAxisDate(points[points.length - 1].checkedAt)}</AppText>
       </View>
-      <AppText muted style={styles.hint}>Tap a point for its date and price. Green marks a drop; orange marks an increase.</AppText>
+      <AppText muted style={styles.hint}>Tap a point to view its date and price. Green marks a drop; orange marks an increase.</AppText>
     </View>
   );
 }
