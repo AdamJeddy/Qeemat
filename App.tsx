@@ -840,7 +840,7 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
 
 function BulkActionButton({ label, icon, destructive, onPress }: { label: string; icon: React.ReactNode; destructive?: boolean; onPress: () => void }) {
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={`${label} selected products`} onPress={onPress} style={({ pressed }) => [styles.bulkActionButton, destructive && styles.bulkActionButtonDestructive, pressed && styles.bulkActionButtonPressed]}>
+    <Pressable accessibilityRole="button" accessibilityLabel={`${label} selected products`} onPress={onPress} style={({ pressed }) => [styles.bulkActionButton, pressed && styles.bulkActionButtonPressed]}>
       {icon}
       <AppText weight="semibold" style={destructive ? styles.bulkDeleteText : styles.bulkActionText}>{label}</AppText>
     </Pressable>
@@ -2398,33 +2398,32 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 6,
     backgroundColor: colors.surface,
-    borderTopWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: 12,
-    paddingVertical: 10
+    borderRadius: radius.lg,
+    marginHorizontal: 12,
+    marginBottom: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    ...shadow
   },
   bulkActionButton: {
     flex: 1,
     minWidth: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
+    gap: 2,
     borderRadius: radius.md,
-    paddingVertical: 8
-  },
-  bulkActionButtonDestructive: {
-    backgroundColor: colors.redSoft
+    paddingVertical: 4
   },
   bulkActionButtonPressed: {
     opacity: 0.72
   },
   bulkActionText: {
     color: colors.primary,
-    fontSize: 11
+    fontSize: 10
   },
   bulkDeleteText: {
     color: colors.red,
-    fontSize: 11
+    fontSize: 10
   },
   bulkClearFolder: {
     alignSelf: 'flex-start',
