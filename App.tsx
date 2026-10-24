@@ -24,6 +24,7 @@ import {
 import Clipboard from '@react-native-clipboard/clipboard';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import {
+  Archive,
   ArrowLeft,
   Bell,
   Check,
@@ -32,9 +33,12 @@ import {
   CircleAlert,
   Clock,
   Copy,
+  FolderInput,
   Link2,
   PackageX,
+  Pause,
   Plus,
+  Tag,
   RefreshCcw,
   Settings as SettingsIcon,
   SlidersHorizontal,
@@ -821,16 +825,25 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
         </View>
       </ScrollView>
       {selectedProductIds.size > 0 ? <View style={styles.bulkActionBar}>
-        <Pressable onPress={() => setBulkMode('folder')}><AppText weight="semibold" style={styles.bulkActionText}>Move</AppText></Pressable>
-        <Pressable onPress={() => setBulkMode('tags')}><AppText weight="semibold" style={styles.bulkActionText}>Tags</AppText></Pressable>
-        <Pressable onPress={() => applyBulk({ isActive: !filteredProducts.filter((product) => selectedProductIds.has(product.id)).every((product) => product.isActive) })}><AppText weight="semibold" style={styles.bulkActionText}>{filteredProducts.filter((product) => selectedProductIds.has(product.id)).every((product) => product.isActive) ? 'Pause' : 'Resume'}</AppText></Pressable>
-        <Pressable onPress={() => applyBulk({ isArchived: !showArchived })}><AppText weight="semibold" style={styles.bulkActionText}>{showArchived ? 'Restore' : 'Archive'}</AppText></Pressable>
-        <Pressable onPress={confirmBulkDelete}><AppText weight="semibold" style={styles.bulkDeleteText}>Delete</AppText></Pressable>
+        <BulkActionButton label="Move" icon={<FolderInput size={20} color={colors.primary} />} onPress={() => setBulkMode('folder')} />
+        <BulkActionButton label="Tags" icon={<Tag size={20} color={colors.primary} />} onPress={() => setBulkMode('tags')} />
+        <BulkActionButton label={filteredProducts.filter((product) => selectedProductIds.has(product.id)).every((product) => product.isActive) ? 'Pause' : 'Resume'} icon={<Pause size={20} color={colors.primary} />} onPress={() => applyBulk({ isActive: !filteredProducts.filter((product) => selectedProductIds.has(product.id)).every((product) => product.isActive) })} />
+        <BulkActionButton label={showArchived ? 'Restore' : 'Archive'} icon={<Archive size={20} color={colors.primary} />} onPress={() => applyBulk({ isArchived: !showArchived })} />
+        <BulkActionButton label="Delete" icon={<Trash2 size={20} color={colors.red} />} destructive onPress={confirmBulkDelete} />
       </View> : <Pressable style={styles.fab} onPress={() => navigate({ name: 'add' })}>
         <Plus size={30} color="#FFFFFF" />
       </Pressable>}
       <BulkEditSheet visible={bulkMode !== undefined} mode={bulkMode} folders={folders} knownTags={tags} selectedProducts={products.filter((product) => selectedProductIds.has(product.id))} onClose={() => setBulkMode(undefined)} onApply={applyBulk} />
     </View>
+  );
+}
+
+function BulkActionButton({ label, icon, destructive, onPress }: { label: string; icon: React.ReactNode; destructive?: boolean; onPress: () => void }) {
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel={`${label} selected products`} onPress={onPress} style={({ pressed }) => [styles.bulkActionButton, destructive && styles.bulkActionButtonDestructive, pressed && styles.bulkActionButtonPressed]}>
+      {icon}
+      <AppText weight="semibold" style={destructive ? styles.bulkDeleteText : styles.bulkActionText}>{label}</AppText>
+    </Pressable>
   );
 }
 
@@ -2383,21 +2396,35 @@ const styles = StyleSheet.create({
   },
   bulkActionBar: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 8,
+    gap: 6,
     backgroundColor: colors.surface,
     borderTopWidth: 1,
     borderColor: colors.border,
-    paddingHorizontal: 18,
-    paddingVertical: 18
+    paddingHorizontal: 12,
+    paddingVertical: 10
+  },
+  bulkActionButton: {
+    flex: 1,
+    minWidth: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    borderRadius: radius.md,
+    paddingVertical: 8
+  },
+  bulkActionButtonDestructive: {
+    backgroundColor: colors.redSoft
+  },
+  bulkActionButtonPressed: {
+    opacity: 0.72
   },
   bulkActionText: {
     color: colors.primary,
-    fontSize: 13
+    fontSize: 11
   },
   bulkDeleteText: {
     color: colors.red,
-    fontSize: 13
+    fontSize: 11
   },
   bulkClearFolder: {
     alignSelf: 'flex-start',
