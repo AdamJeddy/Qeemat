@@ -54,6 +54,8 @@ const SEPHORA_REQUEST_HEADERS: Record<string, string> = {
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36'
 };
 
+const FETCH_TIMEOUT_MS = 25_000;
+
 function getRequestHeaders(siteKey: SiteKey): Record<string, string> {
   // Decathlon accepts Android's native request profile but rejects browser
   // impersonation when the TLS client is not a browser.
@@ -200,16 +202,36 @@ async function fetchAndParseWithFetch(
   selectedVariant?: VariantSelection
 ): Promise<ParseProductResult> {
   let response: Response;
+  let timedOut = false;
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
   try {
-    response = await fetch(normalizedUrl, {
-      headers: getRequestHeaders(siteKey)
+    const timeout = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => {
+        timedOut = true;
+        controller?.abort();
+        reject(new Error('Product fetch timed out.'));
+      }, FETCH_TIMEOUT_MS);
     });
+
+    response = await Promise.race([
+      fetch(normalizedUrl, {
+        headers: getRequestHeaders(siteKey),
+        signal: controller?.signal
+      }),
+      timeout
+    ]);
   } catch {
     return {
       ok: false,
       code: 'network_error',
-      message: 'Could not reach the product page.'
+      message: timedOut ? 'The product page took too long to respond.' : 'Could not reach the product page.'
     };
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
   }
 
   if (response.status === 401 || response.status === 403 || response.status === 429) {
