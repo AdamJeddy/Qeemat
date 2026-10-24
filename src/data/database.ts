@@ -15,7 +15,7 @@ import {
 } from '../domain/types';
 import { nowIso } from '../domain/dates';
 import { normalizeCheckPreference } from '../domain/dates';
-import { mergeTags, normalizeFolderName, removeTags, uniqueOrganizationNames } from '../domain/organization';
+import { normalizeFolderName, uniqueOrganizationNames } from '../domain/organization';
 
 const STORE_KEY = 'qeemat.local-store.v1';
 
@@ -91,7 +91,6 @@ export async function createTrackedProduct(draft: ProductDraft): Promise<number>
   const productId = store.nextProductId;
   const parsed = draft.parsed;
   const knownFolders = uniqueOrganizationNames(store.products.map((product) => product.folder));
-  const knownTags = uniqueOrganizationNames(store.products.flatMap((product) => product.tags ?? []));
 
   const product: TrackedProduct = {
     id: productId,
@@ -107,7 +106,6 @@ export async function createTrackedProduct(draft: ProductDraft): Promise<number>
     minimumPriceDropMinor: draft.minimumPriceDropMinor,
     restockAlertEnabled: draft.restockAlertEnabled ?? true,
     folder: normalizeFolderName(draft.folder, knownFolders),
-    tags: mergeTags([], draft.tags ?? [], knownTags),
     alertMode: draft.alertMode,
     checkPreference: draft.checkPreference,
     isActive: true,
@@ -155,14 +153,12 @@ export async function updateTrackingSettings(
     minimumPriceDropMinor?: number;
     restockAlertEnabled?: boolean;
     folder?: string;
-    tags?: string[];
     isActive: boolean;
   }
 ): Promise<void> {
   const store = await readStore();
   const now = nowIso();
   const knownFolders = uniqueOrganizationNames(store.products.map((product) => product.folder));
-  const knownTags = uniqueOrganizationNames(store.products.flatMap((product) => product.tags ?? []));
 
   await writeStore({
     ...store,
@@ -176,7 +172,6 @@ export async function updateTrackingSettings(
             minimumPriceDropMinor: settings.minimumPriceDropMinor,
             restockAlertEnabled: settings.restockAlertEnabled ?? product.restockAlertEnabled ?? true,
             folder: normalizeFolderName(settings.folder, knownFolders),
-            tags: mergeTags([], settings.tags ?? [], knownTags),
             isActive: settings.isActive,
             updatedAt: now
           }
@@ -197,8 +192,6 @@ export async function deleteTrackedProduct(id: number): Promise<void> {
 export type BulkTrackingUpdate = {
   folder?: string;
   clearFolder?: boolean;
-  addTags?: string[];
-  removeTags?: string[];
   isActive?: boolean;
   isArchived?: boolean;
 };
@@ -212,7 +205,6 @@ export async function updateTrackedProducts(ids: number[], update: BulkTrackingU
   const store = await readStore();
   const now = nowIso();
   const knownFolders = uniqueOrganizationNames(store.products.map((product) => product.folder));
-  const knownTags = uniqueOrganizationNames(store.products.flatMap((product) => product.tags ?? []));
 
   await writeStore({
     ...store,
@@ -221,15 +213,9 @@ export async function updateTrackedProducts(ids: number[], update: BulkTrackingU
         return product;
       }
 
-      const tags = mergeTags(
-        removeTags(product.tags ?? [], update.removeTags ?? []),
-        update.addTags ?? [],
-        knownTags
-      );
       return {
         ...product,
         folder: update.clearFolder ? undefined : update.folder === undefined ? product.folder : normalizeFolderName(update.folder, knownFolders),
-        tags,
         isActive: update.isActive ?? product.isActive,
         isArchived: update.isArchived ?? product.isArchived ?? false,
         updatedAt: now
@@ -482,7 +468,6 @@ async function readStore(): Promise<LocalStore> {
     const parsed = JSON.parse(raw) as LocalStore;
 
     const knownFolders = uniqueOrganizationNames(parsed.products.map((product) => product.folder));
-    const knownTags = uniqueOrganizationNames(parsed.products.flatMap((product) => product.tags ?? []));
 
     return {
       ...parsed,
@@ -494,8 +479,7 @@ async function readStore(): Promise<LocalStore> {
         minimumPriceDropMinor: normalizeMinimumPriceDrop(product.minimumPriceDropMinor),
         restockAlertEnabled: product.restockAlertEnabled ?? true,
         isArchived: product.isArchived ?? false,
-        folder: normalizeFolderName(product.folder, knownFolders),
-        tags: mergeTags([], product.tags ?? [], knownTags)
+        folder: normalizeFolderName(product.folder, knownFolders)
       })),
       snapshots: parsed.snapshots.map((snapshot) => ({
         ...snapshot,

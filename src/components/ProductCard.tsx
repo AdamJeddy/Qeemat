@@ -69,10 +69,9 @@ export function ProductCard({ product, onPress, onRemove, onLongPress, selected 
           <SiteIcon siteKey={product.siteKey} size={14} />
           <AppText style={styles.badgeText}>{site.shortName}</AppText>
         </View>
-        {product.folder || product.tags?.length ? (
+        {product.folder ? (
           <View style={styles.metadataRow}>
             {product.folder ? <AppText muted style={styles.metadataText}>{product.folder}</AppText> : null}
-            {product.tags?.slice(0, 2).map((tag) => <AppText key={tag} muted style={styles.metadataText}>#{tag}</AppText>)}
           </View>
         ) : null}
         {product.variant ? <AppText muted style={styles.variantLabel}>{product.variant.label}</AppText> : null}

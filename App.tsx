@@ -38,7 +38,6 @@ import {
   PackageX,
   Pause,
   Plus,
-  Tag,
   RefreshCcw,
   Settings as SettingsIcon,
   SlidersHorizontal,
@@ -83,7 +82,6 @@ import { getOnboardingState, markOnboardingCompleted } from './src/domain/onboar
 import { ensureNotificationPermission, openNotificationSettings } from './src/domain/notifications';
 import { fetchAndParseProduct, fetchTheDealVariantForSaving } from './src/domain/parser';
 import { calculatePriceInsights } from './src/domain/priceInsights';
-import { mergeTags, splitTagInput } from './src/domain/organization';
 import { formatPrice, parseTargetPriceInput } from './src/domain/price';
 import { cleanUrl, detectSharedUrl, detectSupportedSite, getSiteByKey, normalizeUrl, SUPPORTED_SITES } from './src/domain/sites';
 import { ActivityEvent, AlertMode, CheckPreference, ParsedProduct, PriceSnapshot, ProductWithSnapshots, SnapshotSource, TrackedProduct } from './src/domain/types';
@@ -93,7 +91,6 @@ import {
   filterWatchlistProducts,
   getWatchlistFolders,
   getWatchlistSites,
-  getWatchlistTags,
   sortWatchlistProducts,
   WatchlistSort,
   WatchlistStoreFilter
@@ -408,14 +405,11 @@ function WatchlistControlsSheet({
   onClose,
   trackedSites,
   folders,
-  tags,
   storeFilter,
   folderFilter,
-  tagFilter,
   sort,
   onStoreFilter,
   onFolderFilter,
-  onTagFilter,
   onSort,
   onClear
 }: {
@@ -423,14 +417,11 @@ function WatchlistControlsSheet({
   onClose: () => void;
   trackedSites: WatchlistStoreFilter[];
   folders: string[];
-  tags: string[];
   storeFilter: WatchlistStoreFilter;
   folderFilter?: string;
-  tagFilter?: string;
   sort: WatchlistSort;
   onStoreFilter: (value: WatchlistStoreFilter) => void;
   onFolderFilter: (value?: string) => void;
-  onTagFilter: (value?: string) => void;
   onSort: (value: WatchlistSort) => void;
   onClear: () => void;
 }) {
@@ -509,14 +500,6 @@ function WatchlistControlsSheet({
                 onSelect={onFolderFilter}
               />
             ) : null}
-            {tags.length > 0 ? (
-              <WatchlistFilterRail
-                label="Tags"
-                options={[{ label: 'All tags' }, ...tags.map((tag) => ({ value: tag, label: `#${tag}` }))]}
-                selected={tagFilter}
-                onSelect={onTagFilter}
-              />
-            ) : null}
             <PrimaryButton label="Clear filters" variant="outline" onPress={onClear} />
           </ScrollView>
         </Animated.View>
@@ -525,31 +508,20 @@ function WatchlistControlsSheet({
   );
 }
 
-function BulkEditSheet({ visible, mode, folders, knownTags, selectedProducts, onClose, onApply }: {
+function BulkEditSheet({ visible, folders, selectedCount, onClose, onApply }: {
   visible: boolean;
-  mode?: 'folder' | 'tags';
   folders: string[];
-  knownTags: string[];
-  selectedProducts: TrackedProduct[];
+  selectedCount: number;
   onClose: () => void;
   onApply: (update: Parameters<typeof updateTrackedProducts>[1]) => Promise<void>;
 }) {
   const [folder, setFolder] = useState('');
-  const [addTags, setAddTags] = useState<string[]>([]);
-  const [removeTags, setRemoveTags] = useState<string[]>([]);
-  const selectedTags = useMemo(() => getWatchlistTags(selectedProducts), [selectedProducts]);
 
   useEffect(() => {
     if (visible) {
       setFolder('');
-      setAddTags([]);
-      setRemoveTags([]);
     }
   }, [visible]);
-
-  if (!mode) {
-    return null;
-  }
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
@@ -557,18 +529,12 @@ function BulkEditSheet({ visible, mode, folders, knownTags, selectedProducts, on
         <Pressable style={styles.controlSheetBackdrop} onPress={onClose} />
         <View style={styles.controlSheet}>
           <View style={styles.controlSheetHeader}>
-            <View><AppText weight="bold" style={styles.controlSheetTitle}>{mode === 'folder' ? 'Move products' : 'Edit tags'}</AppText><AppText muted style={styles.fieldHint}>{selectedProducts.length} selected</AppText></View>
+            <View><AppText weight="bold" style={styles.controlSheetTitle}>Move products</AppText><AppText muted style={styles.fieldHint}>{selectedCount} selected</AppText></View>
             <Pressable onPress={onClose} style={styles.controlSheetClose}><X size={20} color={colors.text} /></Pressable>
           </View>
-          {mode === 'folder' ? <>
-            <FolderPicker value={folder} folders={folders} onChange={setFolder} />
-            <Pressable onPress={() => onApply({ clearFolder: true })} style={styles.bulkClearFolder}><AppText weight="semibold" style={styles.clearControlsText}>Remove from folder</AppText></Pressable>
-            <PrimaryButton label="Move products" onPress={() => onApply({ folder })} disabled={!folder.trim()} />
-          </> : <>
-            <TagEditor tags={addTags} knownTags={knownTags} onChange={setAddTags} />
-            {selectedTags.length > 0 ? <View style={styles.fieldGroup}><AppText weight="semibold">Remove tags</AppText><View style={styles.selectedTags}>{selectedTags.map((tag) => <Pressable key={tag} onPress={() => setRemoveTags((current) => current.includes(tag) ? current.filter((value) => value !== tag) : [...current, tag])} style={[styles.selectedTag, removeTags.includes(tag) && styles.selectedTagRemove]}><AppText weight="semibold" style={styles.selectedTagText}>#{tag}</AppText></Pressable>)}</View></View> : null}
-            <PrimaryButton label="Apply tags" onPress={() => onApply({ addTags, removeTags })} disabled={!addTags.length && !removeTags.length} />
-          </>}
+          <FolderPicker value={folder} folders={folders} onChange={setFolder} />
+          <Pressable onPress={() => onApply({ clearFolder: true })} style={styles.bulkClearFolder}><AppText weight="semibold" style={styles.clearControlsText}>Remove from folder</AppText></Pressable>
+          <PrimaryButton label="Move products" onPress={() => onApply({ folder })} disabled={!folder.trim()} />
         </View>
       </View>
     </Modal>
@@ -582,12 +548,11 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
   const [checkingAll, setCheckingAll] = useState(false);
   const [storeFilter, setStoreFilter] = useState<WatchlistStoreFilter>('all');
   const [folderFilter, setFolderFilter] = useState<string | undefined>();
-  const [tagFilter, setTagFilter] = useState<string | undefined>();
   const [sort, setSort] = useState<WatchlistSort>('recently_updated');
   const [showControls, setShowControls] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const [selectedProductIds, setSelectedProductIds] = useState<Set<number>>(new Set());
-  const [bulkMode, setBulkMode] = useState<'folder' | 'tags' | undefined>();
+  const [showBulkFolderPicker, setShowBulkFolderPicker] = useState(false);
 
   const loadProducts = useCallback(async () => {
     setProducts(await listTrackedProducts());
@@ -639,25 +604,22 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
   const visibleProducts = useMemo(() => products.filter((product) => Boolean(product.isArchived) === showArchived), [products, showArchived]);
   const trackedSites = useMemo(() => getWatchlistSites(visibleProducts), [visibleProducts]);
   const folders = useMemo(() => getWatchlistFolders(products), [products]);
-  const tags = useMemo(() => getWatchlistTags(products), [products]);
   const filteredProducts = useMemo(
-    () => sortWatchlistProducts(filterWatchlistProducts(visibleProducts, storeFilter, { folder: folderFilter, tag: tagFilter }), sort),
-    [visibleProducts, storeFilter, folderFilter, tagFilter, sort]
+    () => sortWatchlistProducts(filterWatchlistProducts(visibleProducts, storeFilter, { folder: folderFilter }), sort),
+    [visibleProducts, storeFilter, folderFilter, sort]
   );
   const inStock = filteredProducts.filter((p) => p.lastAvailability !== 'out_of_stock');
   const oos = filteredProducts.filter((p) => p.lastAvailability === 'out_of_stock');
-  const activeControlCount = (storeFilter !== 'all' ? 1 : 0) + (folderFilter ? 1 : 0) + (tagFilter ? 1 : 0) + (sort !== 'recently_updated' ? 1 : 0);
+  const activeControlCount = (storeFilter !== 'all' ? 1 : 0) + (folderFilter ? 1 : 0) + (sort !== 'recently_updated' ? 1 : 0);
   const activeControlSummary = [
     storeFilter === 'all' ? undefined : getSiteByKey(storeFilter).shortName,
     folderFilter,
-    tagFilter ? `#${tagFilter}` : undefined,
     sort === 'recently_updated' ? undefined : WATCHLIST_SORT_OPTIONS.find((option) => option.value === sort)?.label
   ].filter(Boolean).join(' · ');
 
   function clearControls() {
     setStoreFilter('all');
     setFolderFilter(undefined);
-    setTagFilter(undefined);
     setSort('recently_updated');
   }
 
@@ -676,7 +638,7 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
   async function applyBulk(update: Parameters<typeof updateTrackedProducts>[1]) {
     await updateTrackedProducts([...selectedProductIds], update);
     setSelectedProductIds(new Set());
-    setBulkMode(undefined);
+    setShowBulkFolderPicker(false);
     await loadProducts();
   }
 
@@ -702,10 +664,7 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
     if (folderFilter && !folders.includes(folderFilter)) {
       setFolderFilter(undefined);
     }
-    if (tagFilter && !tags.includes(tagFilter)) {
-      setTagFilter(undefined);
-    }
-  }, [folderFilter, folders, tagFilter, tags]);
+  }, [folderFilter, folders]);
 
   return (
     <View style={styles.app}>
@@ -758,14 +717,11 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
           onClose={() => setShowControls(false)}
           trackedSites={trackedSites}
           folders={folders}
-          tags={tags}
           storeFilter={storeFilter}
           folderFilter={folderFilter}
-          tagFilter={tagFilter}
           sort={sort}
           onStoreFilter={setStoreFilter}
           onFolderFilter={setFolderFilter}
-          onTagFilter={setTagFilter}
           onSort={setSort}
           onClear={clearControls}
         />
@@ -825,15 +781,14 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
         </View>
       </ScrollView>
       {selectedProductIds.size > 0 ? <View style={styles.bulkActionBar}>
-        <BulkActionButton label="Move" icon={<FolderInput size={20} color={colors.primary} />} onPress={() => setBulkMode('folder')} />
-        <BulkActionButton label="Tags" icon={<Tag size={20} color={colors.primary} />} onPress={() => setBulkMode('tags')} />
+        <BulkActionButton label="Move" icon={<FolderInput size={20} color={colors.primary} />} onPress={() => setShowBulkFolderPicker(true)} />
         <BulkActionButton label={filteredProducts.filter((product) => selectedProductIds.has(product.id)).every((product) => product.isActive) ? 'Pause' : 'Resume'} icon={<Pause size={20} color={colors.primary} />} onPress={() => applyBulk({ isActive: !filteredProducts.filter((product) => selectedProductIds.has(product.id)).every((product) => product.isActive) })} />
         <BulkActionButton label={showArchived ? 'Restore' : 'Archive'} icon={<Archive size={20} color={colors.primary} />} onPress={() => applyBulk({ isArchived: !showArchived })} />
         <BulkActionButton label="Delete" icon={<Trash2 size={20} color={colors.red} />} destructive onPress={confirmBulkDelete} />
       </View> : <Pressable style={styles.fab} onPress={() => navigate({ name: 'add' })}>
         <Plus size={30} color="#FFFFFF" />
       </Pressable>}
-      <BulkEditSheet visible={bulkMode !== undefined} mode={bulkMode} folders={folders} knownTags={tags} selectedProducts={products.filter((product) => selectedProductIds.has(product.id))} onClose={() => setBulkMode(undefined)} onApply={applyBulk} />
+      <BulkEditSheet visible={showBulkFolderPicker} folders={folders} selectedCount={selectedProductIds.size} onClose={() => setShowBulkFolderPicker(false)} onApply={applyBulk} />
     </View>
   );
 }
@@ -881,8 +836,7 @@ function useOrganizationOptions() {
   }, []);
 
   return useMemo(() => ({
-    folders: getWatchlistFolders(products),
-    tags: getWatchlistTags(products)
+    folders: getWatchlistFolders(products)
   }), [products]);
 }
 
@@ -916,77 +870,6 @@ function FolderPicker({ value, folders, onChange }: { value: string; folders: st
   );
 }
 
-function TagEditor({ tags, knownTags, onChange }: { tags: string[]; knownTags: string[]; onChange: (tags: string[]) => void }) {
-  const [input, setInput] = useState('');
-
-  function addTags(values: string[]) {
-    const next = mergeTags(tags, values, knownTags);
-    if (next.length !== tags.length || next.some((tag, index) => tag !== tags[index])) {
-      onChange(next);
-    }
-  }
-
-  function handleInputChange(value: string) {
-    if (!/[\s,]/.test(value)) {
-      setInput(value);
-      return;
-    }
-
-    const parts = value.split(/[\s,]+/);
-    const endsWithSeparator = /[\s,]$/.test(value);
-    const complete = endsWithSeparator ? parts : parts.slice(0, -1);
-    addTags(complete);
-    setInput(endsWithSeparator ? '' : parts[parts.length - 1] ?? '');
-  }
-
-  function commitInput() {
-    if (!input.trim()) {
-      return;
-    }
-    addTags(splitTagInput(input));
-    setInput('');
-  }
-
-  return (
-    <View style={styles.fieldGroup}>
-      <AppText weight="semibold">Tags</AppText>
-      <AppText muted style={styles.fieldHint}>Type a tag, then use space or comma to add it.</AppText>
-      {tags.length > 0 ? (
-        <View style={styles.selectedTags}>
-          {tags.map((tag) => (
-            <Pressable key={tag} accessibilityRole="button" accessibilityLabel={`Remove ${tag} tag`} onPress={() => onChange(tags.filter((selected) => selected !== tag))} style={styles.selectedTag}>
-              <AppText weight="semibold" style={styles.selectedTagText}>#{tag}</AppText>
-              <X size={14} color={colors.primary} />
-            </Pressable>
-          ))}
-        </View>
-      ) : null}
-      <View style={styles.inputWrap}>
-        <TextInput
-          value={input}
-          onChangeText={handleInputChange}
-          onSubmitEditing={commitInput}
-          blurOnSubmit={false}
-          returnKeyType="done"
-          placeholder="e.g. sale, running"
-          placeholderTextColor={colors.textSoft}
-          maxFontSizeMultiplier={1.3}
-          style={styles.input}
-        />
-      </View>
-      {knownTags.filter((tag) => !tags.some((selected) => selected.localeCompare(tag, undefined, { sensitivity: 'accent' }) === 0)).length > 0 ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.collectionPickerRail}>
-          {knownTags.filter((tag) => !tags.some((selected) => selected.localeCompare(tag, undefined, { sensitivity: 'accent' }) === 0)).map((tag) => (
-            <Pressable key={tag} accessibilityRole="button" accessibilityLabel={`Add ${tag} tag`} onPress={() => addTags([tag])} style={({ pressed }) => [styles.collectionPickerChip, pressed && styles.storeFilterButtonPressed]}>
-              <AppText weight="semibold" style={styles.collectionPickerChipText}>#{tag}</AppText>
-            </Pressable>
-          ))}
-        </ScrollView>
-      ) : null}
-    </View>
-  );
-}
-
 export function AddScreen({ initialUrl, shareEventId, navigate }: { initialUrl?: string; shareEventId?: number; navigate: (route: Route) => void }) {
   const [url, setUrl] = useState(initialUrl ?? '');
   const [parsedProduct, setParsedProduct] = useState<ParsedProduct | undefined>();
@@ -999,7 +882,6 @@ export function AddScreen({ initialUrl, shareEventId, navigate }: { initialUrl?:
   const [minimumPriceDrop, setMinimumPriceDrop] = useState('');
   const [restockAlertEnabled, setRestockAlertEnabled] = useState(true);
   const [folder, setFolder] = useState('');
-  const [tags, setTags] = useState<string[]>([]);
   const organizationOptions = useOrganizationOptions();
   const [selectedVariantAttributes, setSelectedVariantAttributes] = useState<VariantAttributes>({});
   const scrollRef = useRef<ScrollView>(null);
@@ -1119,7 +1001,6 @@ export function AddScreen({ initialUrl, shareEventId, navigate }: { initialUrl?:
       minimumPriceDropMinor: alertMode === 'price_drop' ? parseTargetPriceInput(minimumPriceDrop) : undefined,
       restockAlertEnabled,
       folder,
-      tags,
       variant: productToSave.selectedVariant
     });
     setSaving(false);
@@ -1275,7 +1156,6 @@ export function AddScreen({ initialUrl, shareEventId, navigate }: { initialUrl?:
               <Switch value={restockAlertEnabled} onValueChange={setRestockAlertEnabled} trackColor={{ true: colors.primary }} />
             </View>
             <FolderPicker value={folder} folders={organizationOptions.folders} onChange={setFolder} />
-            <TagEditor tags={tags} knownTags={organizationOptions.tags} onChange={setTags} />
             <PrimaryButton
               label="Confirm Tracking"
               onPress={saveProduct}
@@ -1553,7 +1433,6 @@ function TrackingSettingsScreen({ productId, navigate }: { productId: number; na
   const [minimumPriceDrop, setMinimumPriceDrop] = useState('');
   const [restockAlertEnabled, setRestockAlertEnabled] = useState(true);
   const [folder, setFolder] = useState('');
-  const [tags, setTags] = useState<string[]>([]);
   const organizationOptions = useOrganizationOptions();
 
   useEffect(() => {
@@ -1573,7 +1452,6 @@ function TrackingSettingsScreen({ productId, navigate }: { productId: number; na
       setMinimumPriceDrop(row.minimumPriceDropMinor ? String(row.minimumPriceDropMinor / 100) : '');
       setRestockAlertEnabled(row.restockAlertEnabled ?? true);
       setFolder(row.folder ?? '');
-      setTags(row.tags ?? []);
     });
   }, [productId]);
 
@@ -1585,7 +1463,6 @@ function TrackingSettingsScreen({ productId, navigate }: { productId: number; na
       minimumPriceDropMinor: alertMode === 'price_drop' ? parseTargetPriceInput(minimumPriceDrop) : undefined,
       restockAlertEnabled,
       folder,
-      tags,
       isActive: product?.isActive ?? true
     });
     navigate({ name: 'detail', id: productId });
@@ -1642,7 +1519,6 @@ function TrackingSettingsScreen({ productId, navigate }: { productId: number; na
           <Switch value={restockAlertEnabled} onValueChange={setRestockAlertEnabled} trackColor={{ true: colors.primary }} />
         </View>
         <FolderPicker value={folder} folders={organizationOptions.folders} onChange={setFolder} />
-        <TagEditor tags={tags} knownTags={organizationOptions.tags} onChange={setTags} />
         <PrimaryButton label="Save settings" onPress={save} />
         <PrimaryButton label="Delete product" variant="danger" onPress={confirmDelete} icon={<Trash2 size={18} color={colors.red} />} />
       </ScrollView>
@@ -2429,10 +2305,6 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     marginBottom: 14
   },
-  selectedTagRemove: {
-    backgroundColor: colors.redSoft,
-    borderColor: colors.red
-  },
   filterSection: {
     gap: 8
   },
@@ -2625,24 +2497,6 @@ const styles = StyleSheet.create({
   },
   collectionPickerChipTextSelected: {
     color: colors.primary
-  },
-  selectedTags: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8
-  },
-  selectedTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    borderRadius: radius.sm,
-    backgroundColor: colors.blueSoft,
-    paddingHorizontal: 10,
-    paddingVertical: 7
-  },
-  selectedTagText: {
-    color: colors.primary,
-    fontSize: 13
   },
   settingToggleRow: {
     flexDirection: 'row',
