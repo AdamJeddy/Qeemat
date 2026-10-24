@@ -64,14 +64,16 @@ export async function maybeNotifyForCheck(
     return;
   }
 
-  // OOS transition notification — fires regardless of price changes
-  if (previousAvailability !== 'out_of_stock' && parsed.availability === 'out_of_stock') {
-    const productLabel = formatProductLabel(product, parsed);
-    await notificationModule.notifyPriceAlert(
-      'Out of stock',
-      `${productLabel} is currently out of stock.`,
-      product.id
-    ).catch(() => false);
+  // OOS checks retain the last known price, so only alert on the transition.
+  if (parsed.availability === 'out_of_stock') {
+    if (previousAvailability !== 'out_of_stock') {
+      const productLabel = formatProductLabel(product, parsed);
+      await notificationModule.notifyPriceAlert(
+        'Out of stock',
+        `${productLabel} is currently out of stock.`,
+        product.id
+      ).catch(() => false);
+    }
     return;
   }
 

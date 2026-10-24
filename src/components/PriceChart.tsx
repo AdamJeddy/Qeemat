@@ -36,7 +36,7 @@ export function PriceChart({ snapshots, currency }: PriceChartProps) {
     [snapshots]
   );
   const [selectedId, setSelectedId] = useState<number | undefined>();
-  const [chartWidth, setChartWidth] = useState(0);
+  const [chartSize, setChartSize] = useState({ width: 0, height: 0 });
 
   useEffect(() => {
     setSelectedId(points[points.length - 1]?.id);
@@ -65,8 +65,12 @@ export function PriceChart({ snapshots, currency }: PriceChartProps) {
   const areaPath = `${linePath} L ${coords[coords.length - 1].x} ${height - padding} L ${coords[0].x} ${height - padding} Z`;
   const selectedCoord = coords[selectedIndex];
   const selectPointAt = (locationX: number) => {
-    const usableWidth = Math.max(1, chartWidth - (padding / width) * chartWidth * 2);
-    const offset = Math.max(0, Math.min(usableWidth, locationX - (padding / width) * chartWidth));
+    const scale = Math.min(chartSize.width / width, chartSize.height / height);
+    const renderedWidth = width * scale;
+    const horizontalOffset = (chartSize.width - renderedWidth) / 2;
+    const horizontalPadding = padding * scale;
+    const usableWidth = Math.max(1, renderedWidth - horizontalPadding * 2);
+    const offset = Math.max(0, Math.min(usableWidth, locationX - horizontalOffset - horizontalPadding));
     const index = Math.round((offset / usableWidth) * (points.length - 1));
 
     setSelectedId(points[index].id);
@@ -91,7 +95,7 @@ export function PriceChart({ snapshots, currency }: PriceChartProps) {
         accessibilityRole="button"
         accessibilityLabel="Price history chart"
         accessibilityHint="Tap a point to view its price and date"
-        onLayout={(event) => setChartWidth(event.nativeEvent.layout.width)}
+        onLayout={(event) => setChartSize(event.nativeEvent.layout)}
         onPress={(event) => selectPointAt(event.nativeEvent.locationX)}
         style={styles.canvas}
       >

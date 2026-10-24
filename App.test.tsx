@@ -18,7 +18,7 @@ jest.mock('./src/data/database', () => ({
   listProductsWithSnapshots: jest.fn()
 }));
 
-import { AddScreen, DetailScreen, OpportunityScreen } from './App';
+import { AddScreen, DetailScreen, getTrackedProductLink, OpportunityScreen } from './App';
 import { AppText } from './src/components/AppText';
 import { ProductCard } from './src/components/ProductCard';
 import { CheckStatus, TrackedProduct } from './src/domain/types';
@@ -182,6 +182,18 @@ describe('AddScreen', () => {
 });
 
 describe('DetailScreen', () => {
+  it('uses The Deal storefront URLs for customer-facing variant links', () => {
+    const storefrontUrl = 'https://www.thedealoutlet.com/ae-en/serve-slide-1.0-fabric/0188147CMA0025.html?dwvar_0188147CMA0025_color=blue';
+    const variationEndpoint = 'https://www.thedealoutlet.com/on/demandware.store/Sites-TheDealOutlet_AE-Site/en_AE/Product-Variation?pid=0188147CMA0025';
+
+    expect(getTrackedProductLink({
+      url: 'https://www.thedealoutlet.com/ae-en/serve-slide-1.0-fabric/0188147CMA0025.html',
+      canonicalUrl: storefrontUrl,
+      siteKey: 'the_deal',
+      variant: { id: 'blue', label: 'Color: Blue', attributes: [], url: variationEndpoint }
+    })).toBe(storefrontUrl);
+  });
+
   it('copies and opens the saved variant URL instead of the parent product URL', async () => {
     const parentUrl = 'https://uae.sharafdg.com/product/parent-configuration/';
     const variantUrl = 'https://uae.sharafdg.com/product/selected-configuration/';

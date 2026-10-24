@@ -87,6 +87,18 @@ describe('variant notifications', () => {
     expect(NativeModules.QeematNotifications.notifyPriceAlert).not.toHaveBeenCalled();
   });
 
+  it('does not repeat a target-price alert while a product remains out of stock', async () => {
+    await maybeNotifyForCheck(
+      { ...product, alertMode: 'target_price', targetPriceMinor: 10000 },
+      outOfStock,
+      9000,
+      9000,
+      'out_of_stock'
+    );
+
+    expect(NativeModules.QeematNotifications.notifyPriceAlert).not.toHaveBeenCalled();
+  });
+
   it('still sends a price-drop alert after restocking when the restock alert is disabled', async () => {
     const restocked: ParsedProduct = { ...outOfStock, availability: 'in_stock', priceMinor: 49000 };
 
