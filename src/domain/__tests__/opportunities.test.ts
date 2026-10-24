@@ -68,11 +68,12 @@ describe('buildOpportunityFeed', () => {
     expect(opportunities[2]).toMatchObject({ savingsMinor: 1000, percent: 10 });
   });
 
-  it('excludes paused, unavailable, and insignificant changes', () => {
+  it('excludes paused, unavailable, and drops below the unrounded threshold', () => {
     const opportunities = buildOpportunityFeed([
       record(product({ id: 1, isActive: false, previousPriceMinor: 12000 }), [snapshot(1, 12000, '2026-10-01T09:00:00.000Z'), snapshot(2, 10000, '2026-10-03T09:00:00.000Z')]),
       record(product({ id: 2, lastAvailability: 'out_of_stock', previousPriceMinor: 12000 }), [snapshot(3, 12000, '2026-10-01T09:00:00.000Z'), snapshot(4, 10000, '2026-10-03T09:00:00.000Z')]),
-      record(product({ id: 3, currentPriceMinor: 9900, previousPriceMinor: 10000 }), [snapshot(5, 10000, '2026-10-02T09:00:00.000Z'), snapshot(6, 9900, '2026-10-03T09:00:00.000Z')])
+      record(product({ id: 3, currentPriceMinor: 9900, previousPriceMinor: 10000 }), [snapshot(5, 10000, '2026-10-02T09:00:00.000Z'), snapshot(6, 9900, '2026-10-03T09:00:00.000Z')]),
+      record(product({ id: 4, currentPriceMinor: 9540, previousPriceMinor: 10000 }), [snapshot(7, 10000, '2026-10-02T09:00:00.000Z'), snapshot(8, 9540, '2026-10-03T09:00:00.000Z')])
     ]);
 
     expect(opportunities).toEqual([]);

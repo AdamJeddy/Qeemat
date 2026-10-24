@@ -88,14 +88,14 @@ function buildOpportunity({ product, snapshots }: ProductWithSnapshots): Opportu
 
   if (product.previousPriceMinor !== undefined && product.previousPriceMinor > currentPriceMinor) {
     const savingsMinor = product.previousPriceMinor - currentPriceMinor;
-    const percent = percentOf(savingsMinor, product.previousPriceMinor);
-    if (percent >= MINIMUM_RECENT_DROP_PERCENT) {
+    const rawPercent = (savingsMinor / product.previousPriceMinor) * 100;
+    if (rawPercent >= MINIMUM_RECENT_DROP_PERCENT) {
       return {
         product,
         reason: 'recent_drop',
         currentPriceMinor,
         savingsMinor,
-        percent,
+        percent: Math.round(rawPercent),
         observedAt
       };
     }
