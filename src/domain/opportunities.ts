@@ -41,6 +41,7 @@ export function buildOpportunityFeed(records: ProductWithSnapshots[]): Opportuni
 function buildOpportunity({ product, snapshots }: ProductWithSnapshots): Opportunity | undefined {
   if (
     !product.isActive ||
+    product.isArchived ||
     product.lastAvailability !== 'in_stock' ||
     product.currentPriceMinor === undefined
   ) {

@@ -1219,8 +1219,11 @@ function ProductPreview({
   );
 }
 
-export function getTrackedProductLink(product: Pick<TrackedProduct, 'url' | 'canonicalUrl' | 'variant'>): string {
-  return cleanUrl(product.variant?.url || product.canonicalUrl || product.url);
+export function getTrackedProductLink(product: Pick<TrackedProduct, 'url' | 'canonicalUrl' | 'siteKey' | 'variant'>): string {
+  const customerFacingUrl = product.siteKey === 'the_deal'
+    ? product.canonicalUrl || product.url
+    : product.variant?.url || product.canonicalUrl || product.url;
+  return cleanUrl(customerFacingUrl);
 }
 
 export function DetailScreen({ productId, navigate }: { productId: number; navigate: (route: Route) => void }) {
