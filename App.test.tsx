@@ -14,16 +14,18 @@ jest.mock('./src/domain/parser', () => ({
 }));
 jest.mock('./src/data/database', () => ({
   ...jest.requireActual('./src/data/database'),
-  getProductWithSnapshots: jest.fn()
+  getProductWithSnapshots: jest.fn(),
+  listProductsWithSnapshots: jest.fn()
 }));
 
-import { AddScreen, DetailScreen } from './App';
+import { AddScreen, DetailScreen, OpportunityScreen } from './App';
 import { AppText } from './src/components/AppText';
 import { ProductCard } from './src/components/ProductCard';
 import { CheckStatus, TrackedProduct } from './src/domain/types';
 
 const mockFetchAndParseProduct = jest.requireMock('./src/domain/parser').fetchAndParseProduct as jest.Mock;
 const mockGetProductWithSnapshots = jest.requireMock('./src/data/database').getProductWithSnapshots as jest.Mock;
+const mockListProductsWithSnapshots = jest.requireMock('./src/data/database').listProductsWithSnapshots as jest.Mock;
 const mockClipboardSetString = jest.requireMock('@react-native-clipboard/clipboard').setString as jest.Mock;
 
 describe('AddScreen', () => {
@@ -225,6 +227,53 @@ describe('DetailScreen', () => {
     expect(mockClipboardSetString).toHaveBeenCalledWith(variantUrl);
     expect(openUrl).toHaveBeenCalledWith(variantUrl);
     openUrl.mockRestore();
+  });
+});
+
+describe('OpportunityScreen', () => {
+  it('explains a target-hit opportunity and opens its product', async () => {
+    const navigate = jest.fn();
+    mockListProductsWithSnapshots.mockResolvedValueOnce([{
+      product: {
+        id: 77,
+        url: 'https://www.adidas.ae/product',
+        canonicalUrl: 'https://www.adidas.ae/product',
+        siteKey: 'adidas',
+        title: 'Target running shoes',
+        currency: 'AED',
+        currentPriceMinor: 8500,
+        targetPriceMinor: 9000,
+        alertMode: 'target_price',
+        checkPreference: 'daily',
+        isActive: true,
+        lastAvailability: 'in_stock',
+        lastCheckedAt: '2026-10-03T09:00:00.000Z',
+        lastSuccessAt: '2026-10-03T09:00:00.000Z',
+        createdAt: '2026-10-01T09:00:00.000Z',
+        updatedAt: '2026-10-03T09:00:00.000Z'
+      },
+      snapshots: [
+        { id: 1, trackedProductId: 77, priceMinor: 10000, currency: 'AED', availability: 'in_stock', status: 'price_changed', source: 'background', checkedAt: '2026-10-01T09:00:00.000Z' },
+        { id: 2, trackedProductId: 77, priceMinor: 9000, currency: 'AED', availability: 'in_stock', status: 'price_changed', source: 'background', checkedAt: '2026-10-02T09:00:00.000Z' },
+        { id: 3, trackedProductId: 77, priceMinor: 8500, currency: 'AED', availability: 'in_stock', status: 'price_changed', source: 'background', checkedAt: '2026-10-03T09:00:00.000Z' }
+      ]
+    }]);
+
+    let tree: renderer.ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(<OpportunityScreen navigate={navigate} />);
+      await Promise.resolve();
+    });
+
+    const text = tree!.root.findAllByType(AppText).map((node) => node.props.children).flat().join(' ');
+    expect(text).toContain('Target hit');
+    expect(text).toContain('AED 5 below your target price.');
+
+    act(() => {
+      tree!.root.findAll((node) => node.props.onPress && node.props.children)[0].props.onPress();
+    });
+
+    expect(navigate).toHaveBeenCalledWith({ name: 'detail', id: 77 });
   });
 });
 
