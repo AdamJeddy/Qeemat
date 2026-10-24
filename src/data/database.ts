@@ -181,11 +181,20 @@ export async function updateTrackingSettings(
 }
 
 export async function deleteTrackedProduct(id: number): Promise<void> {
+  await deleteTrackedProducts([id]);
+}
+
+export async function deleteTrackedProducts(ids: number[]): Promise<void> {
+  if (!ids.length) {
+    return;
+  }
+
+  const idsToDelete = new Set(ids);
   const store = await readStore();
   await writeStore({
     ...store,
-    products: store.products.filter((product) => product.id !== id),
-    snapshots: store.snapshots.filter((snapshot) => snapshot.trackedProductId !== id)
+    products: store.products.filter((product) => !idsToDelete.has(product.id)),
+    snapshots: store.snapshots.filter((snapshot) => !idsToDelete.has(snapshot.trackedProductId))
   });
 }
 

@@ -67,6 +67,7 @@ import {
   createTrackedProduct,
   deleteAllLocalData,
   deleteTrackedProduct,
+  deleteTrackedProducts,
   getProductWithSnapshots,
   getTrackedProduct,
   initializeDatabase,
@@ -608,6 +609,11 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
     () => sortWatchlistProducts(filterWatchlistProducts(visibleProducts, storeFilter, { folder: folderFilter }), sort),
     [visibleProducts, storeFilter, folderFilter, sort]
   );
+  const selectedProducts = useMemo(
+    () => products.filter((product) => selectedProductIds.has(product.id)),
+    [products, selectedProductIds]
+  );
+  const shouldPauseSelected = selectedProducts.length > 0 && selectedProducts.every((product) => product.isActive);
   const inStock = filteredProducts.filter((p) => p.lastAvailability !== 'out_of_stock');
   const oos = filteredProducts.filter((p) => p.lastAvailability === 'out_of_stock');
   const activeControlCount = (storeFilter !== 'all' ? 1 : 0) + (folderFilter ? 1 : 0) + (sort !== 'recently_updated' ? 1 : 0);
@@ -647,7 +653,7 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
     Alert.alert(`Delete ${count} ${count === 1 ? 'product' : 'products'}?`, 'Their saved price history will be removed.', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: async () => {
-        await Promise.all([...selectedProductIds].map((id) => deleteTrackedProduct(id)));
+        await deleteTrackedProducts([...selectedProductIds]);
         setSelectedProductIds(new Set());
         await loadProducts();
       } }
@@ -782,7 +788,7 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
       </ScrollView>
       {selectedProductIds.size > 0 ? <View style={styles.bulkActionBar}>
         <BulkActionButton label="Move" icon={<FolderInput size={20} color={colors.primary} />} onPress={() => setShowBulkFolderPicker(true)} />
-        <BulkActionButton label={filteredProducts.filter((product) => selectedProductIds.has(product.id)).every((product) => product.isActive) ? 'Pause' : 'Resume'} icon={<Pause size={20} color={colors.primary} />} onPress={() => applyBulk({ isActive: !filteredProducts.filter((product) => selectedProductIds.has(product.id)).every((product) => product.isActive) })} />
+        <BulkActionButton label={shouldPauseSelected ? 'Pause' : 'Resume'} icon={<Pause size={20} color={colors.primary} />} onPress={() => applyBulk({ isActive: !shouldPauseSelected })} />
         <BulkActionButton label={showArchived ? 'Restore' : 'Archive'} icon={<Archive size={20} color={colors.primary} />} onPress={() => applyBulk({ isArchived: !showArchived })} />
         <BulkActionButton label="Delete" icon={<Trash2 size={20} color={colors.red} />} destructive onPress={confirmBulkDelete} />
       </View> : <Pressable style={styles.fab} onPress={() => navigate({ name: 'add' })}>

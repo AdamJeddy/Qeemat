@@ -2,7 +2,7 @@ jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock')
 );
 
-import { createTrackedProduct, deleteAllLocalData, getTrackedProduct, initializeDatabase, updateTrackedProducts, updateTrackingSettings } from '../database';
+import { createTrackedProduct, deleteAllLocalData, deleteTrackedProducts, getTrackedProduct, initializeDatabase, updateTrackedProducts, updateTrackingSettings } from '../database';
 
 describe('createTrackedProduct', () => {
   beforeEach(async () => {
@@ -118,5 +118,18 @@ describe('createTrackedProduct', () => {
 
     expect(await getTrackedProduct(first)).toEqual(expect.objectContaining({ folder: 'Running', isActive: false, isArchived: true }));
     expect(await getTrackedProduct(second)).toEqual(expect.objectContaining({ folder: 'Running', isActive: false, isArchived: true }));
+  });
+
+  it('deletes every selected product in one storage update', async () => {
+    const ids = await Promise.all(['first', 'second', 'third'].map((name) => createTrackedProduct({
+      sourceUrl: `https://www.noon.com/${name}`,
+      checkPreference: 'daily',
+      alertMode: 'price_drop',
+      parsed: { siteKey: 'noon', canonicalUrl: `https://www.noon.com/${name}`, title: name, priceMinor: 10000, currency: 'AED', availability: 'in_stock' }
+    })));
+
+    await deleteTrackedProducts(ids);
+
+    await expect(Promise.all(ids.map(getTrackedProduct))).resolves.toEqual([undefined, undefined, undefined]);
   });
 });
