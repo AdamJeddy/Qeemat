@@ -2,7 +2,7 @@ jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock')
 );
 
-import { createTrackedProduct, deleteAllLocalData, getTrackedProduct, initializeDatabase, updateTrackingSettings } from '../database';
+import { createTrackedProduct, deleteAllLocalData, deleteTrackedProducts, getTrackedProduct, initializeDatabase, updateTrackedProducts, updateTrackingSettings } from '../database';
 
 describe('createTrackedProduct', () => {
   beforeEach(async () => {
@@ -57,7 +57,6 @@ describe('createTrackedProduct', () => {
       minimumPriceDropMinor: 2500,
       restockAlertEnabled: false,
       folder: ' Running ',
-      tags: ['sale', 'sale', ' race '],
       parsed: {
         siteKey: 'noon',
         canonicalUrl: 'https://www.noon.com/example',
@@ -74,7 +73,6 @@ describe('createTrackedProduct', () => {
       minimumPriceDropMinor: 5000,
       restockAlertEnabled: true,
       folder: 'Gifts',
-      tags: ['birthday', 'sale'],
       isActive: true
     });
 
@@ -82,18 +80,16 @@ describe('createTrackedProduct', () => {
       minimumPriceDropMinor: 5000,
       restockAlertEnabled: true,
       folder: 'Gifts',
-      tags: ['birthday', 'sale'],
       checkPreference: 'weekly'
     }));
   });
 
-  it('reuses existing folder and tag casing when saving another product', async () => {
+  it('reuses existing folder casing when saving another product', async () => {
     await createTrackedProduct({
       sourceUrl: 'https://www.noon.com/first',
       checkPreference: 'daily',
       alertMode: 'price_drop',
       folder: 'Running',
-      tags: ['Sale'],
       parsed: { siteKey: 'noon', canonicalUrl: 'https://www.noon.com/first', title: 'First product', priceMinor: 10000, currency: 'AED', availability: 'in_stock' }
     });
 
@@ -102,10 +98,38 @@ describe('createTrackedProduct', () => {
       checkPreference: 'daily',
       alertMode: 'price_drop',
       folder: ' running ',
-      tags: ['sale', 'sale'],
       parsed: { siteKey: 'noon', canonicalUrl: 'https://www.noon.com/second', title: 'Second product', priceMinor: 10000, currency: 'AED', availability: 'in_stock' }
     });
 
-    expect(await getTrackedProduct(id)).toEqual(expect.objectContaining({ folder: 'Running', tags: ['Sale'] }));
+    expect(await getTrackedProduct(id)).toEqual(expect.objectContaining({ folder: 'Running' }));
+  });
+
+  it('updates folders, activity, and archive state for selected products only', async () => {
+    const first = await createTrackedProduct({
+      sourceUrl: 'https://www.noon.com/first', checkPreference: 'daily', alertMode: 'price_drop', folder: 'Running',
+      parsed: { siteKey: 'noon', canonicalUrl: 'https://www.noon.com/first', title: 'First', priceMinor: 10000, currency: 'AED', availability: 'in_stock' }
+    });
+    const second = await createTrackedProduct({
+      sourceUrl: 'https://www.noon.com/second', checkPreference: 'daily', alertMode: 'price_drop',
+      parsed: { siteKey: 'noon', canonicalUrl: 'https://www.noon.com/second', title: 'Second', priceMinor: 10000, currency: 'AED', availability: 'in_stock' }
+    });
+
+    await updateTrackedProducts([first, second], { folder: ' running ', isActive: false, isArchived: true });
+
+    expect(await getTrackedProduct(first)).toEqual(expect.objectContaining({ folder: 'Running', isActive: false, isArchived: true }));
+    expect(await getTrackedProduct(second)).toEqual(expect.objectContaining({ folder: 'Running', isActive: false, isArchived: true }));
+  });
+
+  it('deletes every selected product in one storage update', async () => {
+    const ids = await Promise.all(['first', 'second', 'third'].map((name) => createTrackedProduct({
+      sourceUrl: `https://www.noon.com/${name}`,
+      checkPreference: 'daily',
+      alertMode: 'price_drop',
+      parsed: { siteKey: 'noon', canonicalUrl: `https://www.noon.com/${name}`, title: name, priceMinor: 10000, currency: 'AED', availability: 'in_stock' }
+    })));
+
+    await deleteTrackedProducts(ids);
+
+    await expect(Promise.all(ids.map(getTrackedProduct))).resolves.toEqual([undefined, undefined, undefined]);
   });
 });

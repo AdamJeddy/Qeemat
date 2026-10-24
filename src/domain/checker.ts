@@ -135,7 +135,7 @@ export async function checkAllActiveProductsFromBackground(limit = 8): Promise<v
 async function checkActiveProducts(limit: number, force: boolean, source: SnapshotSource): Promise<void> {
   const products = await listTrackedProducts();
   const dueProducts = products
-    .filter((product) => product.isActive)
+    .filter((product) => product.isActive && !product.isArchived)
     .filter((product) => force || isDueForCheck(product.lastCheckedAt, product.checkPreference, product.siteKey))
     .slice(0, limit);
 

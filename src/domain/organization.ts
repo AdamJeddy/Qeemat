@@ -15,25 +15,6 @@ export function normalizeFolderName(value: string | undefined, knownFolders: str
   return findExistingName(folder, knownFolders) ?? folder;
 }
 
-export function splitTagInput(value: string): string[] {
-  return value.split(/[\s,]+/).map((tag) => tag.trim()).filter(Boolean);
-}
-
-export function mergeTags(selectedTags: string[], newTags: string[], knownTags: string[] = []): string[] {
-  const tags: string[] = [];
-
-  for (const value of [...selectedTags, ...newTags]) {
-    const tag = value.trim().slice(0, 24);
-    if (!tag || tags.some((existing) => sameName(existing, tag))) {
-      continue;
-    }
-
-    tags.push(findExistingName(tag, knownTags) ?? tag);
-  }
-
-  return tags;
-}
-
 export function uniqueOrganizationNames(names: Array<string | undefined>): string[] {
   return names.reduce<string[]>((unique, name) => {
     const normalized = name?.trim();
