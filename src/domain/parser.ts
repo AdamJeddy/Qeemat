@@ -1680,10 +1680,6 @@ function buildTheDealVariants(
     const isCurrent = groups.every((group) => values[group.id] === currentValues[group.id]);
     const id = `${masterId}|${groups.map((group) => `${group.id}=${values[group.id]}`).join('|')}`;
     const availability = isCurrent ? currentAvailability : source?.availability ?? 'unknown';
-    if (availability === 'unknown') {
-      return;
-    }
-
     variants.set(id, {
       id,
       label: formatVariantLabel(attributes),
@@ -1699,15 +1695,22 @@ function buildTheDealVariants(
   const currentSource = groups
     .flatMap((group) => group.values)
     .find((value) => value.selected && value.url && value.url !== 'null');
-  addVariant(currentValues, currentSource);
+  const combinations = groups.reduce<Record<string, string>[]>(
+    (current, group) => current.flatMap((values) =>
+      group.values.map((value) => ({ ...values, [group.id]: value.value }))
+    ),
+    [{}]
+  );
 
-  for (const group of [...groups].reverse()) {
-    for (const value of group.values) {
-      if (value.selected) {
-        continue;
-      }
-      addVariant({ ...currentValues, [group.id]: value.value }, value);
+  for (const values of combinations) {
+    const changedGroups = groups.filter((group) => values[group.id] !== currentValues[group.id]);
+    let source = currentSource;
+    if (changedGroups.length === 1) {
+      source = changedGroups[0].values.find((value) => value.value === values[changedGroups[0].id]);
+    } else if (changedGroups.length > 1) {
+      source = undefined;
     }
+    addVariant(values, source);
   }
 
   return Array.from(variants.values());

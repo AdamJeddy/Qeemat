@@ -87,7 +87,7 @@ describe('parseProductHtml', () => {
       currency: 'AED',
       availability: 'in_stock'
     }));
-    expect(parsed?.variants).toEqual([
+    expect(parsed?.variants).toEqual(expect.arrayContaining([
       expect.objectContaining({
         id: '0188147CMA0025|color=black|size=42sEU',
         label: 'Color: Black · Size: 42 EU',
@@ -109,8 +109,15 @@ describe('parseProductHtml', () => {
         label: 'Color: Blue · Size: 42 EU',
         imageUrl: 'https://www.thedealoutlet.com/images/blue-slide.jpg',
         availability: 'in_stock'
+      }),
+      expect.objectContaining({
+        id: '0188147CMA0025|color=blue|size=44p5',
+        label: 'Color: Blue · Size: 44.5 EU',
+        availability: 'unknown',
+        url: 'https://www.thedealoutlet.com/on/demandware.store/Sites-TheDealOutlet_AE-Site/en_AE/Product-Variation?dwvar_0188147CMA0025_color=blue&dwvar_0188147CMA0025_size=44p5&pid=0188147CMA0025&quantity=1'
       })
-    ]);
+    ]));
+    expect(parsed?.variants).toHaveLength(4);
   });
 
   it('parses an exact in-stock The Deal variation response', () => {
