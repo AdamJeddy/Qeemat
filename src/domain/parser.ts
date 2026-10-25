@@ -401,7 +401,7 @@ export function parseProductHtml(
   }
 
   if (siteKey === 'the_deal') {
-    return resolveParsedVariant(parseTheDealProduct(siteKey, inputUrl, html, structured) ?? structured, selectedVariant);
+    return resolveParsedVariant(parseTheDealProduct(siteKey, inputUrl, html, structured, selectedVariant) ?? structured, selectedVariant);
   }
 
   if (siteKey === 'sharaf_dg') {
@@ -1478,11 +1478,12 @@ function parseTheDealProduct(
   siteKey: SiteKey,
   inputUrl: string,
   html: string,
-  structured?: ParsedProduct
+  structured?: ParsedProduct,
+  selectedVariant?: VariantSelection
 ): ParsedProduct | undefined {
   const variationResponse = extractTheDealVariationResponse(html);
   if (variationResponse) {
-    return parseTheDealVariationProduct(siteKey, inputUrl, variationResponse);
+    return parseTheDealVariationProduct(siteKey, inputUrl, variationResponse, selectedVariant);
   }
 
   if (!structured) {
@@ -1522,7 +1523,8 @@ function extractTheDealVariationResponse(html: string): JsonRecord | undefined {
 function parseTheDealVariationProduct(
   siteKey: SiteKey,
   inputUrl: string,
-  response: JsonRecord
+  response: JsonRecord,
+  selectedVariant?: VariantSelection
 ): ParsedProduct | undefined {
   const product = isJsonRecord(response.product) ? response.product : undefined;
   const title = asString(product?.productName);
@@ -1538,6 +1540,7 @@ function parseTheDealVariationProduct(
   const availability = parseTheDealJsonAvailability(product);
   const imageUrl = extractTheDealJsonImage(product.images);
   const groups = extractTheDealJsonVariantGroups(product, response);
+  const matchesRequestedSelection = !selectedVariant || matchesTheDealSelection(groups, selectedVariant);
   const selectedProductUrl = asString(product.selectedProductUrl);
   const canonicalUrl = selectedProductUrl ? absoluteUrl(selectedProductUrl, inputUrl) : inputUrl;
   const variants = buildTheDealVariants(
@@ -1560,8 +1563,21 @@ function parseTheDealVariationProduct(
     availability,
     rawPriceText: asString(sales?.formatted) ?? asString(sales?.decimalPrice),
     sku: cleanSku(asIdentifier(product.id)),
-    ...(variants.length > 0 ? { variants } : {})
+    ...(matchesRequestedSelection && variants.length > 0 ? { variants } : {})
   };
+}
+
+function matchesTheDealSelection(groups: TheDealVariantGroup[], selection: VariantSelection): boolean {
+  if (groups.length !== selection.attributes.length) {
+    return false;
+  }
+
+  return groups.every((group) => {
+    const selected = group.values.find((value) => value.selected);
+    return selected !== undefined && selection.attributes.some(
+      (attribute) => attribute.name === group.name && attribute.value === selected.displayValue
+    );
+  });
 }
 
 function extractTheDealHtmlVariantGroups(html: string): TheDealVariantGroup[] {
@@ -1680,10 +1696,6 @@ function buildTheDealVariants(
     const isCurrent = groups.every((group) => values[group.id] === currentValues[group.id]);
     const id = `${masterId}|${groups.map((group) => `${group.id}=${values[group.id]}`).join('|')}`;
     const availability = isCurrent ? currentAvailability : source?.availability ?? 'unknown';
-    if (availability === 'unknown') {
-      return;
-    }
-
     variants.set(id, {
       id,
       label: formatVariantLabel(attributes),
@@ -1699,15 +1711,22 @@ function buildTheDealVariants(
   const currentSource = groups
     .flatMap((group) => group.values)
     .find((value) => value.selected && value.url && value.url !== 'null');
-  addVariant(currentValues, currentSource);
+  const combinations = groups.reduce<Record<string, string>[]>(
+    (current, group) => current.flatMap((values) =>
+      group.values.map((value) => ({ ...values, [group.id]: value.value }))
+    ),
+    [{}]
+  );
 
-  for (const group of [...groups].reverse()) {
-    for (const value of group.values) {
-      if (value.selected) {
-        continue;
-      }
-      addVariant({ ...currentValues, [group.id]: value.value }, value);
+  for (const values of combinations) {
+    const changedGroups = groups.filter((group) => values[group.id] !== currentValues[group.id]);
+    let source = currentSource;
+    if (changedGroups.length === 1) {
+      source = changedGroups[0].values.find((value) => value.value === values[changedGroups[0].id]);
+    } else if (changedGroups.length > 1) {
+      source = undefined;
     }
+    addVariant(values, source);
   }
 
   return Array.from(variants.values());

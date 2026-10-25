@@ -17,7 +17,7 @@ export function getVariantOptionGroups(variants: ProductVariant[]): VariantOptio
       values: values.map((value) => ({
         value,
         disabled: !variants.some((variant) =>
-          variant.availability === 'in_stock' &&
+          variant.availability !== 'out_of_stock' &&
           getAttributeValue(variant.attributes, name) === value
         )
       }))
@@ -39,7 +39,7 @@ export function updateSelectedVariantAttributes(
     }
 
     const matchesCurrentSelection = variants.some(
-      (variant) => variant.availability === 'in_stock' && matchesAttributes(variant.attributes, next)
+      (variant) => variant.availability !== 'out_of_stock' && matchesAttributes(variant.attributes, next)
     );
     if (!matchesCurrentSelection) {
       delete next[attributeName];
@@ -52,7 +52,7 @@ export function updateSelectedVariantAttributes(
 export function resolveSelectedVariant(variants: ProductVariant[], selected: VariantAttributes): ProductVariant | undefined {
   return variants.find(
     (variant) =>
-      variant.availability === 'in_stock' &&
+      variant.availability !== 'out_of_stock' &&
       variant.attributes.length === Object.keys(selected).length &&
       matchesAttributes(variant.attributes, selected)
   );
