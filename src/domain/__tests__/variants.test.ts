@@ -83,6 +83,24 @@ describe('variant selection', () => {
     });
   });
 
+  it('keeps a selected cross-combination whose availability will be verified before saving', () => {
+    const unverifiedCombination: ProductVariant = {
+      id: 'white-42',
+      label: 'White · EU 42',
+      attributes: [
+        { name: 'Colour', value: 'White' },
+        { name: 'Size', value: 'EU 42' }
+      ],
+      availability: 'unknown'
+    };
+    const combinations = [...variants, unverifiedCombination];
+
+    expect(
+      updateSelectedVariantAttributes(combinations, { Colour: 'Black', Size: 'EU 42' }, 'Colour', 'White')
+    ).toEqual({ Colour: 'White', Size: 'EU 42' });
+    expect(resolveSelectedVariant(combinations, { Colour: 'White', Size: 'EU 42' })).toEqual(unverifiedCombination);
+  });
+
   it('resolves only the exact in-stock selected variant', () => {
     expect(resolveSelectedVariant(variants, { Colour: 'White', Size: 'EU 43' })).toEqual(variants[2]);
     expect(resolveSelectedVariant(variants, { Colour: 'Black', Size: 'EU 43' })).toBeUndefined();

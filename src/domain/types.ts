@@ -1,4 +1,4 @@
-export type SiteKey = 'noon' | 'nike_uae' | 'sun_sand_sports' | 'level_shoes' | 'ay_accessories' | 'ounass' | 'amazon_ae' | 'adidas' | 'puma_uae' | 'decathlon_uae' | 'sephora_uae' | 'faces_uae' | 'centrepoint_uae' | 'namshi' | 'sharaf_dg' | 'brands_for_less';
+export type SiteKey = 'noon' | 'nike_uae' | 'sun_sand_sports' | 'level_shoes' | 'ay_accessories' | 'ounass' | 'amazon_ae' | 'adidas' | 'puma_uae' | 'decathlon_uae' | 'salomon_gcc' | 'sephora_uae' | 'faces_uae' | 'centrepoint_uae' | 'namshi' | 'the_deal' | 'sharaf_dg' | 'brands_for_less';
 
 export type Availability = 'in_stock' | 'out_of_stock' | 'unknown';
 
@@ -83,6 +83,14 @@ export type TrackedProduct = {
   /** Previous price from the check before the most recent one. Used to compute price direction on cards. */
   previousPriceMinor?: number;
   targetPriceMinor?: number;
+  /** Minimum AED amount a price must drop before a price-drop alert is sent. */
+  minimumPriceDropMinor?: number;
+  /** Defaults to true for existing trackers. */
+  restockAlertEnabled?: boolean;
+  /** Optional local-only grouping for the watchlist. */
+  folder?: string;
+  /** Archived products stay local but are hidden from the active watchlist and checks. */
+  isArchived?: boolean;
   alertMode: AlertMode;
   checkPreference: CheckPreference;
   isActive: boolean;
@@ -122,6 +130,9 @@ export type ProductDraft = {
   checkPreference: CheckPreference;
   alertMode: AlertMode;
   targetPriceMinor?: number;
+  minimumPriceDropMinor?: number;
+  restockAlertEnabled?: boolean;
+  folder?: string;
   variant?: VariantSelection;
 };
 

@@ -54,6 +54,8 @@ const SEPHORA_REQUEST_HEADERS: Record<string, string> = {
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36'
 };
 
+const FETCH_TIMEOUT_MS = 25_000;
+
 function getRequestHeaders(siteKey: SiteKey): Record<string, string> {
   // Decathlon accepts Android's native request profile but rejects browser
   // impersonation when the TLS client is not a browser.
@@ -102,14 +104,15 @@ export async function fetchAndParseProduct(rawUrl: string, selectedVariant?: Var
     fetchResult = await fetchAndParseWithFetch(normalizedUrl, site.key, selectedVariant);
   }
 
-  // Sephora and Faces can redirect native clients through a session-establishing
-  // storefront route. Their WebView path handles that first-page navigation.
+  // Sephora, Faces, Salomon, and The Deal can reject the React Native networking client
+  // even though the device browser can load their storefront. Their WebView
+  // path handles the first-page navigation with Android's browser engine.
   if (fetchResult.ok) {
     return fetchResult;
   }
 
   const shouldUseWebViewFallback = fetchResult.code === 'blocked' ||
-    ((site.key === 'sephora_uae' || site.key === 'faces_uae') && fetchResult.code === 'network_error');
+    ((site.key === 'sephora_uae' || site.key === 'faces_uae' || site.key === 'salomon_gcc' || site.key === 'the_deal') && fetchResult.code === 'network_error');
   if (!shouldUseWebViewFallback) {
     return fetchResult;
   }
@@ -160,22 +163,75 @@ export async function fetchAndParseProduct(rawUrl: string, selectedVariant?: Var
   return { ok: true, product: parsed };
 }
 
+/**
+ * The Deal only exposes the current page configuration's price in its initial
+ * HTML. Resolve the selected variation before its first snapshot is saved so
+ * an alternate option cannot inherit the default option's price.
+ */
+export async function fetchTheDealVariantForSaving(
+  product: ParsedProduct,
+  selectedVariant: VariantSelection
+): Promise<ParseProductResult> {
+  const result = await fetchAndParseProduct(product.canonicalUrl, selectedVariant);
+  if (!result.ok) {
+    return result;
+  }
+
+  if (result.product.availability === 'out_of_stock' || result.product.priceMinor === undefined) {
+    return {
+      ok: false,
+      code: 'price_not_found',
+      message: 'Qeemat could not confirm a current price for this selected option.'
+    };
+  }
+
+  return {
+    ok: true,
+    product: {
+      ...result.product,
+      // Variation responses can use an internal catalog name, while the
+      // product page contains the customer-facing title shown to the user.
+      title: product.title
+    }
+  };
+}
+
 async function fetchAndParseWithFetch(
   normalizedUrl: string,
   siteKey: SiteKey,
   selectedVariant?: VariantSelection
 ): Promise<ParseProductResult> {
   let response: Response;
+  let timedOut = false;
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
   try {
-    response = await fetch(normalizedUrl, {
-      headers: getRequestHeaders(siteKey)
+    const timeout = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => {
+        timedOut = true;
+        controller?.abort();
+        reject(new Error('Product fetch timed out.'));
+      }, FETCH_TIMEOUT_MS);
     });
+
+    response = await Promise.race([
+      fetch(normalizedUrl, {
+        headers: getRequestHeaders(siteKey),
+        signal: controller?.signal
+      }),
+      timeout
+    ]);
   } catch {
     return {
       ok: false,
       code: 'network_error',
-      message: 'Could not reach the product page.'
+      message: timedOut ? 'The product page took too long to respond.' : 'Could not reach the product page.'
     };
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
   }
 
   if (response.status === 401 || response.status === 403 || response.status === 429) {
@@ -275,8 +331,10 @@ export function parseProductHtml(
     siteKey !== 'adidas' &&
     siteKey !== 'puma_uae' &&
     siteKey !== 'decathlon_uae' &&
+    siteKey !== 'salomon_gcc' &&
     siteKey !== 'centrepoint_uae' &&
     siteKey !== 'namshi' &&
+    siteKey !== 'the_deal' &&
     siteKey !== 'sharaf_dg'
   ) {
     return resolveParsedVariant(structured, selectedVariant);
@@ -326,6 +384,10 @@ export function parseProductHtml(
     return resolveParsedVariant(parseDecathlonProduct(siteKey, inputUrl, html) ?? structured, selectedVariant);
   }
 
+  if (siteKey === 'salomon_gcc') {
+    return resolveParsedVariant(parseSalomonProduct(siteKey, inputUrl, html, structured) ?? structured, selectedVariant);
+  }
+
   if (siteKey === 'centrepoint_uae') {
     return resolveParsedVariant(parseCentrepointProduct(siteKey, inputUrl, html, structured) ?? structured, selectedVariant);
   }
@@ -336,6 +398,10 @@ export function parseProductHtml(
 
   if (siteKey === 'namshi') {
     return resolveParsedVariant(parseNamshiProduct(siteKey, inputUrl, html, structured, selectedVariant) ?? structured, selectedVariant);
+  }
+
+  if (siteKey === 'the_deal') {
+    return resolveParsedVariant(parseTheDealProduct(siteKey, inputUrl, html, structured, selectedVariant) ?? structured, selectedVariant);
   }
 
   if (siteKey === 'sharaf_dg') {
@@ -436,7 +502,7 @@ function parseDecathlonProduct(siteKey: SiteKey, inputUrl: string, html: string)
     rawVariants.length === sourceVariants.length &&
     variants.length === rawVariants.length;
   const defaultVariant = variants.find((variant) => variant.availability === 'in_stock') ?? variants[0];
-  const imageUrl = extractDecathlonImage(product) ?? defaultVariant?.imageUrl;
+  const imageUrl = extractShopifyImage(product) ?? defaultVariant?.imageUrl;
 
   if (!title && !defaultVariant && !asIdentifier(product.id)) {
     return undefined;
@@ -457,7 +523,7 @@ function parseDecathlonProduct(siteKey: SiteKey, inputUrl: string, html: string)
     };
   }
 
-  const priceMinor = parseDecathlonPriceMinor(product.price);
+  const priceMinor = parseShopifyPriceMinor(product.price);
   if (!title && priceMinor === undefined) {
     return undefined;
   }
@@ -486,7 +552,7 @@ function extractDecathlonProductJson(html: string): JsonRecord | undefined {
 
 function parseDecathlonVariant(variant: JsonRecord, optionNames: string[]): ProductVariant | undefined {
   const id = asIdentifier(variant.id);
-  const priceMinor = parseDecathlonPriceMinor(variant.price);
+  const priceMinor = parseShopifyPriceMinor(variant.price);
   if (!id || priceMinor === undefined || typeof variant.available !== 'boolean' || optionNames.length === 0) {
     return undefined;
   }
@@ -510,11 +576,11 @@ function parseDecathlonVariant(variant: JsonRecord, optionNames: string[]): Prod
     currency: 'AED',
     availability: variant.available ? 'in_stock' : 'out_of_stock',
     sku: cleanSku(asString(variant.sku)) ?? id,
-    imageUrl: extractDecathlonImage(variant)
+    imageUrl: extractShopifyImage(variant)
   };
 }
 
-function parseDecathlonPriceMinor(value: unknown): number | undefined {
+function parseShopifyPriceMinor(value: unknown): number | undefined {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return Math.round(value);
   }
@@ -526,7 +592,105 @@ function parseDecathlonPriceMinor(value: unknown): number | undefined {
   return undefined;
 }
 
-function extractDecathlonImage(value: JsonRecord): string | undefined {
+function parseSalomonProduct(
+  siteKey: SiteKey,
+  inputUrl: string,
+  html: string,
+  structured?: ParsedProduct
+): ParsedProduct | undefined {
+  const optionNames = extractSalomonOptionNames(html);
+  const sourceVariants = extractSalomonVariantRecords(html);
+  const variants = sourceVariants
+    .map((variant) => parseSalomonVariant(variant, optionNames))
+    .filter((variant): variant is ProductVariant => variant !== undefined);
+  const hasCompleteVariants =
+    optionNames.length > 0 &&
+    sourceVariants.length > 0 &&
+    variants.length === sourceVariants.length;
+  const defaultVariant = variants.find((variant) => variant.availability === 'in_stock') ?? variants[0];
+
+  if (!structured || !hasCompleteVariants || !defaultVariant) {
+    return structured;
+  }
+
+  return {
+    ...structured,
+    siteKey,
+    canonicalUrl: inputUrl,
+    imageUrl: defaultVariant.imageUrl ?? structured.imageUrl,
+    priceMinor: defaultVariant.priceMinor,
+    currency: defaultVariant.currency,
+    availability: variants.some((variant) => variant.availability === 'in_stock') ? 'in_stock' : 'out_of_stock',
+    rawPriceText: defaultVariant.priceMinor === undefined ? undefined : String(defaultVariant.priceMinor / 100),
+    sku: defaultVariant.sku,
+    variants
+  };
+}
+
+function extractSalomonOptionNames(html: string): string[] {
+  const names: string[] = [];
+  const fieldsets = html.match(/<fieldset\b[^>]*>[\s\S]*?<\/fieldset>/gi) ?? [];
+
+  for (const fieldset of fieldsets) {
+    const match = fieldset.match(/<input\b[^>]*\bname=["']([^"']+)["']/i);
+    const name = match?.[1] ? cleanText(match[1]) : undefined;
+    const desktopName = name?.replace(/-mobile$/i, '');
+    if (name && desktopName && desktopName !== name && names.includes(desktopName)) {
+      continue;
+    }
+    if (name && !names.includes(name)) {
+      names.push(name);
+    }
+  }
+
+  return names;
+}
+
+function extractSalomonVariantRecords(html: string): JsonRecord[] {
+  const scripts = html.match(/<script\b(?=[^>]*\btype=["']application\/json["'])[^>]*>([\s\S]*?)<\/script>/gi) ?? [];
+
+  for (const script of scripts) {
+    const jsonText = script.replace(/^<script[^>]*>/i, '').replace(/<\/script>$/i, '').trim();
+    const records = parseJsonCandidates(jsonText).filter(isJsonRecord);
+    if (records.length > 0 && records.every((record) =>
+      asIdentifier(record.id) && typeof record.available === 'boolean' && parseShopifyPriceMinor(record.price) !== undefined
+    )) {
+      return records;
+    }
+  }
+
+  return [];
+}
+
+function parseSalomonVariant(variant: JsonRecord, optionNames: string[]): ProductVariant | undefined {
+  const id = asIdentifier(variant.id);
+  const priceMinor = parseShopifyPriceMinor(variant.price);
+  if (!id || priceMinor === undefined || typeof variant.available !== 'boolean' || optionNames.length === 0) {
+    return undefined;
+  }
+
+  const optionValues = optionNames.map((_, index) => asString(variant[`option${index + 1}`]));
+  const attributes = optionNames.flatMap((name, index) => {
+    const value = optionValues[index];
+    return value?.trim() ? [{ name, value: cleanText(value) }] : [];
+  });
+  if (attributes.length !== optionNames.length) {
+    return undefined;
+  }
+
+  return {
+    id,
+    label: formatVariantLabel(attributes),
+    attributes,
+    priceMinor,
+    currency: 'AED',
+    availability: variant.available ? 'in_stock' : 'out_of_stock',
+    sku: cleanSku(asString(variant.sku)) ?? id,
+    imageUrl: extractShopifyImage(variant)
+  };
+}
+
+function extractShopifyImage(value: JsonRecord): string | undefined {
   const featuredImage = value.featured_image;
   const source =
     asString(featuredImage) ??
@@ -1287,6 +1451,345 @@ function parseVariantControlAvailability(tag: string, pageAvailability: Availabi
   }
 
   return pageAvailability;
+}
+
+type TheDealVariantValue = {
+  value: string;
+  displayValue: string;
+  selected: boolean;
+  availability: Availability;
+  url?: string;
+  priceMinor?: number;
+  imageUrl?: string;
+};
+
+type TheDealVariantGroup = {
+  id: string;
+  name: string;
+  values: TheDealVariantValue[];
+};
+
+/**
+ * The Deal renders the current SFCC configuration in the product page and
+ * gives every source option an exact Product-Variation URL. That endpoint is
+ * also the authoritative response for later price and stock checks.
+ */
+function parseTheDealProduct(
+  siteKey: SiteKey,
+  inputUrl: string,
+  html: string,
+  structured?: ParsedProduct,
+  selectedVariant?: VariantSelection
+): ParsedProduct | undefined {
+  const variationResponse = extractTheDealVariationResponse(html);
+  if (variationResponse) {
+    return parseTheDealVariationProduct(siteKey, inputUrl, variationResponse, selectedVariant);
+  }
+
+  if (!structured) {
+    return undefined;
+  }
+
+  const masterId = extractTheDealMasterId(html);
+  if (!masterId) {
+    return structured;
+  }
+
+  const groups = extractTheDealHtmlVariantGroups(html);
+  const variants = buildTheDealVariants(
+    inputUrl,
+    masterId,
+    groups,
+    structured.priceMinor,
+    structured.currency,
+    structured.availability,
+    structured.imageUrl
+  );
+
+  return withProductVariants(structured, variants);
+}
+
+function extractTheDealVariationResponse(html: string): JsonRecord | undefined {
+  const direct = parseJsonCandidates(html.trim()).find(isJsonRecord);
+  if (direct && isJsonRecord(direct.product)) {
+    return direct;
+  }
+
+  const preformatted = matchString(html, /<pre\b[^>]*>([\s\S]*?)<\/pre>/i);
+  const wrapped = preformatted ? parseJsonCandidates(preformatted).find(isJsonRecord) : undefined;
+  return wrapped && isJsonRecord(wrapped.product) ? wrapped : undefined;
+}
+
+function parseTheDealVariationProduct(
+  siteKey: SiteKey,
+  inputUrl: string,
+  response: JsonRecord,
+  selectedVariant?: VariantSelection
+): ParsedProduct | undefined {
+  const product = isJsonRecord(response.product) ? response.product : undefined;
+  const title = asString(product?.productName);
+  const masterId = asIdentifier(product?.masterId) ?? extractTheDealMasterId(inputUrl);
+  if (!product || !title || !masterId) {
+    return undefined;
+  }
+
+  const price = isJsonRecord(product.price) ? product.price : undefined;
+  const sales = isJsonRecord(price?.sales) ? price.sales : undefined;
+  const priceMinor = parsePriceToMinor(asPriceValue(sales?.value) ?? asPriceValue(sales?.decimalPrice));
+  const currency = asString(sales?.currency) ?? 'AED';
+  const availability = parseTheDealJsonAvailability(product);
+  const imageUrl = extractTheDealJsonImage(product.images);
+  const groups = extractTheDealJsonVariantGroups(product, response);
+  const matchesRequestedSelection = !selectedVariant || matchesTheDealSelection(groups, selectedVariant);
+  const selectedProductUrl = asString(product.selectedProductUrl);
+  const canonicalUrl = selectedProductUrl ? absoluteUrl(selectedProductUrl, inputUrl) : inputUrl;
+  const variants = buildTheDealVariants(
+    inputUrl,
+    masterId,
+    groups,
+    priceMinor,
+    currency,
+    availability,
+    imageUrl
+  );
+
+  return {
+    siteKey,
+    canonicalUrl,
+    title: cleanText(title),
+    imageUrl,
+    priceMinor,
+    currency,
+    availability,
+    rawPriceText: asString(sales?.formatted) ?? asString(sales?.decimalPrice),
+    sku: cleanSku(asIdentifier(product.id)),
+    ...(matchesRequestedSelection && variants.length > 0 ? { variants } : {})
+  };
+}
+
+function matchesTheDealSelection(groups: TheDealVariantGroup[], selection: VariantSelection): boolean {
+  if (groups.length !== selection.attributes.length) {
+    return false;
+  }
+
+  return groups.every((group) => {
+    const selected = group.values.find((value) => value.selected);
+    return selected !== undefined && selection.attributes.some(
+      (attribute) => attribute.name === group.name && attribute.value === selected.displayValue
+    );
+  });
+}
+
+function extractTheDealHtmlVariantGroups(html: string): TheDealVariantGroup[] {
+  const colorValues: TheDealVariantValue[] = [];
+  const colorPattern = /<button\b(?=[^>]*\bclass=["'][^"']*\bjs-swatch-item\b[^"']*["'])[^>]*>([\s\S]*?)<\/button>/gi;
+  for (const match of html.matchAll(colorPattern)) {
+    const block = match[0];
+    const imageTag = block.match(/<img\b(?=[^>]*\bdata-attr-value\s*=)[^>]*>/i)?.[0];
+    const value = imageTag ? htmlAttribute(imageTag, 'data-attr-value') : undefined;
+    if (!value) {
+      continue;
+    }
+    colorValues.push({
+      value,
+      displayValue: formatTheDealDisplayValue(value),
+      selected: /\bselected\b/i.test(imageTag ?? ''),
+      availability: /\bdisabled\b/i.test(block) ? 'out_of_stock' : 'in_stock',
+      url: htmlAttribute(block, 'data-url'),
+      imageUrl: imageTag ? htmlAttribute(imageTag, 'src') : undefined
+    });
+  }
+
+  const sizeValues: TheDealVariantValue[] = [];
+  const sizePattern = /<span\b(?=[^>]*\bclass=["'][^"']*\bjs-attribute-btn\b[^"']*["'])[^>]*>([\s\S]*?)<\/span>/gi;
+  for (const match of html.matchAll(sizePattern)) {
+    const tag = match[0].slice(0, match[0].indexOf('>') + 1);
+    const value = htmlAttribute(tag, 'data-attr-value');
+    const displayValue = cleanText(stripHtmlTags(match[1] ?? ''));
+    if (!value || !displayValue) {
+      continue;
+    }
+    sizeValues.push({
+      value,
+      displayValue,
+      selected: /\bselected\b/i.test(tag),
+      availability: /\bdisabled\b/i.test(tag) ? 'out_of_stock' : 'in_stock',
+      url: htmlAttribute(tag, 'data-url')
+    });
+  }
+
+  return [
+    ...(colorValues.length > 0 ? [{ id: 'color', name: 'Color', values: colorValues }] : []),
+    ...(sizeValues.length > 0 ? [{ id: 'size', name: 'Size', values: sizeValues }] : [])
+  ];
+}
+
+function extractTheDealJsonVariantGroups(product: JsonRecord, response: JsonRecord): TheDealVariantGroup[] {
+  const attributes = Array.isArray(product.variationAttributes) ? product.variationAttributes : [];
+  const queryString = isJsonRecord(response.queryString) ? response.queryString : undefined;
+  const variables = isJsonRecord(queryString?.variables) ? queryString.variables : undefined;
+
+  return attributes.flatMap((attribute) => {
+    if (!isJsonRecord(attribute)) {
+      return [];
+    }
+    const id = asString(attribute.attributeId) ?? asString(attribute.id);
+    const name = asString(attribute.displayName) ?? id;
+    const values = Array.isArray(attribute.values) ? attribute.values : [];
+    if (!id || !name || values.length === 0) {
+      return [];
+    }
+
+    const selectedValue = isJsonRecord(attribute.selectedValue)
+      ? asString(attribute.selectedValue.value) ?? asString(attribute.selectedValue.id)
+      : undefined;
+    const queryVariable = isJsonRecord(variables?.[id]) ? variables[id] as JsonRecord : undefined;
+    const queryValue = asString(queryVariable?.value);
+    const parsedValues = values.flatMap((value) => {
+      if (!isJsonRecord(value)) {
+        return [];
+      }
+      const optionValue = asString(value.value) ?? asString(value.id);
+      const displayValue = asString(value.displayValue) ?? optionValue;
+      if (!optionValue || !displayValue) {
+        return [];
+      }
+
+      return [{
+        value: optionValue,
+        displayValue: cleanText(displayValue),
+        selected: value.selected === true || optionValue === selectedValue || optionValue === queryValue,
+        availability: value.selectable === false ? 'out_of_stock' as const : 'in_stock' as const,
+        url: asString(value.url),
+        priceMinor: parsePriceToMinor(asPriceValue(value.price)),
+        imageUrl: extractTheDealJsonImage(value.images)
+      }];
+    });
+
+    return parsedValues.length > 0 ? [{ id, name: cleanText(name), values: parsedValues }] : [];
+  });
+}
+
+function buildTheDealVariants(
+  inputUrl: string,
+  masterId: string,
+  groups: TheDealVariantGroup[],
+  priceMinor: number | undefined,
+  currency: string | undefined,
+  currentAvailability: Availability,
+  currentImageUrl?: string
+): ProductVariant[] {
+  if (groups.length === 0 || groups.some((group) => !group.values.some((value) => value.selected))) {
+    return [];
+  }
+
+  const currentValues = Object.fromEntries(
+    groups.map((group) => [group.id, group.values.find((value) => value.selected)?.value ?? ''])
+  );
+  const variants = new Map<string, ProductVariant>();
+
+  const addVariant = (values: Record<string, string>, source?: TheDealVariantValue) => {
+    const attributes = groups.map((group) => {
+      const value = group.values.find((candidate) => candidate.value === values[group.id]);
+      return { name: group.name, value: value?.displayValue ?? values[group.id] };
+    });
+    const isCurrent = groups.every((group) => values[group.id] === currentValues[group.id]);
+    const id = `${masterId}|${groups.map((group) => `${group.id}=${values[group.id]}`).join('|')}`;
+    const availability = isCurrent ? currentAvailability : source?.availability ?? 'unknown';
+    variants.set(id, {
+      id,
+      label: formatVariantLabel(attributes),
+      attributes,
+      url: buildTheDealVariationUrl(inputUrl, masterId, values, groups, source?.url),
+      priceMinor: isCurrent ? priceMinor : source?.priceMinor ?? priceMinor,
+      currency,
+      availability,
+      imageUrl: source?.imageUrl ?? currentImageUrl
+    });
+  };
+
+  const currentSource = groups
+    .flatMap((group) => group.values)
+    .find((value) => value.selected && value.url && value.url !== 'null');
+  const combinations = groups.reduce<Record<string, string>[]>(
+    (current, group) => current.flatMap((values) =>
+      group.values.map((value) => ({ ...values, [group.id]: value.value }))
+    ),
+    [{}]
+  );
+
+  for (const values of combinations) {
+    const changedGroups = groups.filter((group) => values[group.id] !== currentValues[group.id]);
+    let source = currentSource;
+    if (changedGroups.length === 1) {
+      source = changedGroups[0].values.find((value) => value.value === values[changedGroups[0].id]);
+    } else if (changedGroups.length > 1) {
+      source = undefined;
+    }
+    addVariant(values, source);
+  }
+
+  return Array.from(variants.values());
+}
+
+function buildTheDealVariationUrl(
+  inputUrl: string,
+  masterId: string,
+  values: Record<string, string>,
+  groups: TheDealVariantGroup[],
+  sourceUrl?: string
+): string {
+  const origin = inputUrl.match(/^(https?:\/\/[^/?#]+)/i)?.[1];
+  if (!origin) {
+    return sourceUrl && sourceUrl !== 'null' ? absoluteUrl(sourceUrl, inputUrl) : inputUrl;
+  }
+
+  const variationParams = groups.map((group) =>
+    `dwvar_${encodeURIComponent(masterId)}_${encodeURIComponent(group.id)}=${encodeURIComponent(values[group.id])}`
+  );
+  const query = [
+    ...variationParams,
+    `pid=${encodeURIComponent(masterId)}`,
+    'quantity=1'
+  ].join('&');
+  return `${origin}/on/demandware.store/Sites-TheDealOutlet_AE-Site/en_AE/Product-Variation?${query}`;
+}
+
+function extractTheDealMasterId(value: string): string | undefined {
+  return value.match(/\bdwvar_([^_&"']+)_(?:color|size)\b/i)?.[1];
+}
+
+function parseTheDealJsonAvailability(product: JsonRecord): Availability {
+  if (typeof product.available === 'boolean') {
+    return product.available ? 'in_stock' : 'out_of_stock';
+  }
+  const availability = isJsonRecord(product.availability) ? product.availability : undefined;
+  if (typeof availability?.notAvailable === 'boolean') {
+    return availability.notAvailable ? 'out_of_stock' : 'in_stock';
+  }
+  return 'unknown';
+}
+
+function extractTheDealJsonImage(value: unknown): string | undefined {
+  if (!isJsonRecord(value)) {
+    return undefined;
+  }
+  for (const key of ['large', 'hi-res', 'small', 'swatch']) {
+    const images = value[key];
+    if (!Array.isArray(images)) {
+      continue;
+    }
+    const image = images.find(isJsonRecord);
+    const url = image ? asString(image.absUrl) ?? asString(image.url) : undefined;
+    if (url) {
+      return url;
+    }
+  }
+  return undefined;
+}
+
+function formatTheDealDisplayValue(value: string): string {
+  return cleanText(value.replace(/[_-]+/g, ' ')).replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
 /**

@@ -1,7 +1,12 @@
-import { fetchAndParseProduct, parseProductHtml } from '../parser';
+import { fetchAndParseProduct, fetchTheDealVariantForSaving, parseProductHtml } from '../parser';
 import { parsePriceToMinor } from '../price';
 import { cleanUrl, detectSharedUrl, detectSupportedSite } from '../sites';
 import { SiteKey } from '../types';
+import { fetchPageHtmlViaWebView } from '../webViewFetcher';
+
+jest.mock('../webViewFetcher', () => ({
+  fetchPageHtmlViaWebView: jest.fn()
+}));
 
 const noonUrl =
   'https://www.noon.com/uae-en/galaxy-s25-ultra-ai-dual-sim-titanium-grey-12gb-ram-256gb-5g-middle-east-version/N70140492V/p/';
@@ -13,6 +18,7 @@ const amazonDeUrl = 'https://www.amazon.de/Logitech-Headphones-Cancelling-Microp
 const adidasUrl = 'https://www.adidas.ae/en/adicolor-classics-3-stripes-hoodie/IX7573.html';
 const pumaUrl = 'https://ae.puma.com/ae/en/pd/h-street-premium-sneakers-unisex/403777.html?color=02';
 const decathlonUrl = 'https://decathlon.ae/products/men-s-modular-and-durable-mountain-trekking-trousers-mt100';
+const salomonUrl = 'https://salomongcc.com/products/salomon-aero-blaze-2-white-running-shoes-l47426100';
 const sephoraUrl = 'https://www.sephora.me/ae-en/p/dior-addict-glass-lipstick-ultra-shine-and-hydrating-lip-gloss-stick/P1000214119?productVariantId=811716';
 const facesUrl = 'https://www.faces.ae/en/p/dior-addict-glass-ultra-shine-and-hydrating-stick-pm009117909944.html';
 const bflUrl = 'https://www.brandsforless.com/en-ae/women-paisley-print-tiered-dress-multicolor/1966137/p/';
@@ -28,8 +34,235 @@ const sharafDgIphoneOneTbUrl = 'https://uae.sharafdg.com/product/apple-iphone-17
 const centrepointTshirtUrl = 'https://www.centrepointstores.com/ae/en/buy-splash-basics-plain-regular-fit-crew-neck-tshirt-with-short-sleeves/p/8600471';
 const centrepointShoeUrl = 'https://www.centrepointstores.com/ae/en/buy-le-confort-men-slipon-ankle-sneakers/p/24SS220-DBLACK';
 const centrepointSunglassesUrl = 'https://www.centrepointstores.com/ae/en/buy-lee-cooper-polarized-60-mm-navigator-sunglasses-lc1001c03/p/167009212';
+const theDealUrl = 'https://www.thedealoutlet.com/ae-en/serve-slide-1.0-fabric/0188147CMA0025.html';
+const theDealVariantUrl =
+  'https://www.thedealoutlet.com/on/demandware.store/Sites-TheDealOutlet_AE-Site/en_AE/Product-Variation?dwvar_0188147CMA0025_color=blue&dwvar_0188147CMA0025_size=42sEU&pid=0188147CMA0025&quantity=1';
 
 describe('parseProductHtml', () => {
+  it('parses The Deal color and size choices with exact stock states', () => {
+    const html = `
+      <html>
+        <head>
+          <link rel="canonical" href="${theDealUrl}" />
+          <script type="application/ld+json">
+            {
+              "@context": "https://schema.org",
+              "@type": "Product",
+              "name": "Serve Slide 1.0 Fabric",
+              "sku": "018826684228",
+              "image": ["https://www.thedealoutlet.com/images/black-slide.jpg"],
+              "offers": {
+                "@type": "Offer",
+                "priceCurrency": "AED",
+                "price": "92.00",
+                "availability": "https://schema.org/InStock"
+              }
+            }
+          </script>
+        </head>
+        <body>
+          <div class="attribute-item" data-attr="color">
+            <button class="js-swatch-item" data-url="https://www.thedealoutlet.com/on/demandware.store/Sites-TheDealOutlet_AE-Site/en_AE/Product-Variation?dwvar_0188147CMA0025_color=blue&amp;dwvar_0188147CMA0025_size=42sEU&amp;pid=0188147CMA0025&amp;quantity=1">
+              <img data-attr-value="blue" class="color-value swatch-value" src="https://www.thedealoutlet.com/images/blue-slide.jpg" />
+            </button>
+            <button class="js-swatch-item" data-url="https://www.thedealoutlet.com/on/demandware.store/Sites-TheDealOutlet_AE-Site/en_AE/Product-Variation?dwvar_0188147CMA0025_color=&amp;dwvar_0188147CMA0025_size=42sEU&amp;pid=0188147CMA0025&amp;quantity=1">
+              <img data-attr-value="black" class="color-value swatch-value selected" src="https://www.thedealoutlet.com/images/black-slide.jpg" />
+            </button>
+          </div>
+          <div class="attribute-item" data-attr="size">
+            <span class="js-attribute-btn attribute-list-item selected" data-attr-value="42sEU" data-url="https://www.thedealoutlet.com/on/demandware.store/Sites-TheDealOutlet_AE-Site/en_AE/Product-Variation?dwvar_0188147CMA0025_color=black&amp;dwvar_0188147CMA0025_size=&amp;pid=0188147CMA0025&amp;quantity=1">42 EU</span>
+            <span class="js-attribute-btn attribute-list-item disabled" data-attr-value="44p5" data-url="https://www.thedealoutlet.com/on/demandware.store/Sites-TheDealOutlet_AE-Site/en_AE/Product-Variation?dwvar_0188147CMA0025_color=black&amp;dwvar_0188147CMA0025_size=44p5&amp;pid=0188147CMA0025&amp;quantity=1">44.5 EU</span>
+          </div>
+        </body>
+      </html>
+    `;
+
+    const parsed = parseProductHtml('the_deal', theDealUrl, html);
+
+    expect(parsed).toEqual(expect.objectContaining({
+      siteKey: 'the_deal',
+      canonicalUrl: theDealUrl,
+      title: 'Serve Slide 1.0 Fabric',
+      priceMinor: 9200,
+      currency: 'AED',
+      availability: 'in_stock'
+    }));
+    expect(parsed?.variants).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: '0188147CMA0025|color=black|size=42sEU',
+        label: 'Color: Black · Size: 42 EU',
+        attributes: [
+          { name: 'Color', value: 'Black' },
+          { name: 'Size', value: '42 EU' }
+        ],
+        priceMinor: 9200,
+        availability: 'in_stock',
+        url: 'https://www.thedealoutlet.com/on/demandware.store/Sites-TheDealOutlet_AE-Site/en_AE/Product-Variation?dwvar_0188147CMA0025_color=black&dwvar_0188147CMA0025_size=42sEU&pid=0188147CMA0025&quantity=1'
+      }),
+      expect.objectContaining({
+        id: '0188147CMA0025|color=black|size=44p5',
+        label: 'Color: Black · Size: 44.5 EU',
+        availability: 'out_of_stock'
+      }),
+      expect.objectContaining({
+        id: '0188147CMA0025|color=blue|size=42sEU',
+        label: 'Color: Blue · Size: 42 EU',
+        imageUrl: 'https://www.thedealoutlet.com/images/blue-slide.jpg',
+        availability: 'in_stock'
+      }),
+      expect.objectContaining({
+        id: '0188147CMA0025|color=blue|size=44p5',
+        label: 'Color: Blue · Size: 44.5 EU',
+        availability: 'unknown',
+        url: 'https://www.thedealoutlet.com/on/demandware.store/Sites-TheDealOutlet_AE-Site/en_AE/Product-Variation?dwvar_0188147CMA0025_color=blue&dwvar_0188147CMA0025_size=44p5&pid=0188147CMA0025&quantity=1'
+      })
+    ]));
+    expect(parsed?.variants).toHaveLength(4);
+  });
+
+  it('parses an exact in-stock The Deal variation response', () => {
+    const variationJson = JSON.stringify({
+      queryString: {
+        variables: {
+          color: { value: 'blue' },
+          size: { value: '42sEU' }
+        }
+      },
+      product: {
+        available: true,
+        id: '018826684218',
+        masterId: '0188147CMA0025',
+        productName: 'Serve Slide 1.0 Fabric',
+        price: { sales: { value: 92, currency: 'AED', formatted: '92 AED' } },
+        images: {
+          large: [{ absUrl: 'https://www.thedealoutlet.com/images/blue-slide.jpg' }]
+        },
+        variationAttributes: [
+          {
+            attributeId: 'color',
+            displayName: 'Color',
+            values: [
+              { value: 'blue', displayValue: 'Blue', selected: true, selectable: true, url: theDealVariantUrl }
+            ]
+          },
+          {
+            attributeId: 'size',
+            displayName: 'Size',
+            values: [
+              { value: '42sEU', displayValue: '42 EU', selected: true, selectable: true, url: theDealVariantUrl },
+              { value: '44p5', displayValue: '44.5 EU', selected: false, selectable: false }
+            ]
+          }
+        ],
+        selectedProductUrl: '/ae-en/serve-slide-1.0-fabric/0188147CMA0025.html?dwvar_0188147CMA0025_color=blue&dwvar_0188147CMA0025_size=42sEU&quantity=1'
+      }
+    });
+    const html = `<html><body><pre>${variationJson.replace(/&/g, '&amp;')}</pre></body></html>`;
+    const selectedVariant = {
+      id: '0188147CMA0025|color=blue|size=42sEU',
+      label: 'Color: Blue · Size: 42 EU',
+      attributes: [
+        { name: 'Color', value: 'Blue' },
+        { name: 'Size', value: '42 EU' }
+      ],
+      url: theDealVariantUrl
+    };
+
+    const parsed = parseProductHtml('the_deal', theDealVariantUrl, html, selectedVariant);
+
+    expect(parsed).toEqual(expect.objectContaining({
+      title: 'Serve Slide 1.0 Fabric',
+      priceMinor: 9200,
+      currency: 'AED',
+      availability: 'in_stock',
+      sku: '018826684218',
+      imageUrl: 'https://www.thedealoutlet.com/images/blue-slide.jpg',
+      selectedVariant
+    }));
+  });
+
+  it('preserves the exact The Deal selection when that variation is sold out', () => {
+    const outOfStockUrl =
+      'https://www.thedealoutlet.com/on/demandware.store/Sites-TheDealOutlet_AE-Site/en_AE/Product-Variation?dwvar_0188147CMA0025_color=black&dwvar_0188147CMA0025_size=44p5&pid=0188147CMA0025&quantity=1';
+    const selectedVariant = {
+      id: '0188147CMA0025|color=black|size=44p5',
+      label: 'Color: Black · Size: 44.5 EU',
+      attributes: [
+        { name: 'Color', value: 'Black' },
+        { name: 'Size', value: '44.5 EU' }
+      ],
+      url: outOfStockUrl
+    };
+    const html = JSON.stringify({
+      queryString: {
+        variables: {
+          color: { value: 'black' },
+          size: { value: '44p5' }
+        }
+      },
+      product: {
+        available: false,
+        id: '018826684230',
+        masterId: '0188147CMA0025',
+        productName: 'Serve Slide 1.0 Fabric',
+        price: { sales: { value: 115, currency: 'AED', formatted: '115 AED' } },
+        variationAttributes: [
+          {
+            attributeId: 'color',
+            displayName: 'Color',
+            values: [{ value: 'black', displayValue: 'Black', selected: true, selectable: false }]
+          },
+          {
+            attributeId: 'size',
+            displayName: 'Size',
+            values: [{ value: '44p5', displayValue: '44.5 EU', selected: true, selectable: false }]
+          }
+        ]
+      }
+    });
+
+    expect(parseProductHtml('the_deal', outOfStockUrl, html, selectedVariant)).toEqual(
+      expect.objectContaining({
+        availability: 'out_of_stock',
+        priceMinor: undefined,
+        selectedVariant
+      })
+    );
+  });
+
+  it('tracks a one-size The Deal product at page level', () => {
+    const oneSizeUrl =
+      'https://www.thedealoutlet.com/ae-en/ember-small-embellished-pebbled-leather-messenger-bag/023327198678.html';
+    const html = `
+      <link rel="canonical" href="${oneSizeUrl}" />
+      <script type="application/ld+json">
+        {
+          "@type": "Product",
+          "name": "Ember Small Embellished Pebbled Leather Messenger Bag",
+          "sku": "023327198678",
+          "offers": {
+            "@type": "Offer",
+            "priceCurrency": "AED",
+            "price": "995.00",
+            "availability": "http://schema.org/InStock"
+          }
+        }
+      </script>
+      <div class="attribute-item" data-attr="size">
+        <span class="js-attribute-btn attribute-list-item selected" data-attr-value="1SZ" data-url="null">ONE SIZE</span>
+      </div>
+    `;
+
+    const parsed = parseProductHtml('the_deal', oneSizeUrl, html);
+
+    expect(parsed).toEqual(expect.objectContaining({
+      title: 'Ember Small Embellished Pebbled Leather Messenger Bag',
+      priceMinor: 99500,
+      availability: 'in_stock'
+    }));
+    expect(parsed?.variants).toBeUndefined();
+  });
+
   it('parses Noon product JSON-LD with multiple offers', () => {
     const html = `
       <html>
@@ -908,6 +1141,61 @@ describe('parseProductHtml', () => {
     expect(parseProductHtml('decathlon_uae', decathlonUrl, incompleteRecordHtml)?.variants).toBeUndefined();
   });
 
+  it('uses Salomon Shopify variant records for the chosen exact size', () => {
+    const html = `
+      <script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"AERO BLAZE 2","image":"https://salomongcc.com/shoe.jpg","offers":{"@type":"Offer","price":"455.00","priceCurrency":"AED","availability":"https://schema.org/InStock"}}</script>
+      <fieldset><input name="Color" value="White" /></fieldset>
+      <fieldset><input name="Size (UK)" value="8" /></fieldset>
+      <fieldset><input name="Color-mobile" value="White" /></fieldset>
+      <fieldset><input name="Size (UK)-mobile" value="8" /></fieldset>
+      <script type="application/json">[
+        {"id":46178301018368,"option1":"White","option2":"8","sku":"L474261008","available":false,"price":45500,"featured_image":{"src":"//salomongcc.com/size-8.jpg"}},
+        {"id":46178301051136,"option1":"White","option2":"8.5","sku":"L474261008.5","available":true,"price":45500,"featured_image":{"src":"//salomongcc.com/size-8-5.jpg"}}
+      ]</script>
+    `;
+
+    const parsed = parseProductHtml('salomon_gcc', salomonUrl, html);
+
+    expect(parsed).toEqual(expect.objectContaining({
+      siteKey: 'salomon_gcc',
+      canonicalUrl: salomonUrl,
+      title: 'AERO BLAZE 2',
+      priceMinor: 45500,
+      currency: 'AED',
+      availability: 'in_stock',
+      sku: 'L474261008.5'
+    }));
+    expect(parsed?.variants).toEqual([
+      expect.objectContaining({
+        id: '46178301018368',
+        label: 'Color: White · Size (UK): 8',
+        priceMinor: 45500,
+        availability: 'out_of_stock',
+        imageUrl: 'https://salomongcc.com/size-8.jpg'
+      }),
+      expect.objectContaining({
+        id: '46178301051136',
+        availability: 'in_stock'
+      })
+    ]);
+
+    const selected = parseProductHtml('salomon_gcc', salomonUrl, html, {
+      id: '46178301018368',
+      label: 'Color: White · Size (UK): 8',
+      attributes: [
+        { name: 'Color', value: 'White' },
+        { name: 'Size (UK)', value: '8' }
+      ]
+    });
+
+    expect(selected).toEqual(expect.objectContaining({
+      priceMinor: undefined,
+      availability: 'out_of_stock',
+      sku: 'L474261008',
+      selectedVariant: expect.objectContaining({ id: '46178301018368' })
+    }));
+  });
+
   it('keeps Noon page-level when the initial response has labels but no stable source option ID', () => {
     const html = `
       <script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"Anzarun Lite","sku":"N44137847V","offers":{"@type":"Offer","price":"97","priceCurrency":"AED","availability":"https://schema.org/InStock"}}</script>
@@ -921,7 +1209,7 @@ describe('parseProductHtml', () => {
     const html = `
       <script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"Example product","sku":"SKU-1","offers":{"@type":"Offer","price":"100","priceCurrency":"AED","availability":"https://schema.org/InStock"}}</script>
     `;
-    const pageLevelSources: SiteKey[] = ['noon', 'nike_uae', 'sun_sand_sports', 'amazon_ae', 'adidas', 'puma_uae', 'decathlon_uae', 'sephora_uae', 'faces_uae', 'brands_for_less', 'namshi', 'sharaf_dg'];
+    const pageLevelSources: SiteKey[] = ['noon', 'nike_uae', 'sun_sand_sports', 'amazon_ae', 'adidas', 'puma_uae', 'decathlon_uae', 'salomon_gcc', 'sephora_uae', 'faces_uae', 'brands_for_less', 'namshi', 'sharaf_dg'];
 
     for (const siteKey of pageLevelSources) {
       expect(parseProductHtml(siteKey, 'https://example.com/product', html)?.variants).toBeUndefined();
@@ -1732,6 +2020,11 @@ describe('detectSupportedSite', () => {
     expect(detectSupportedSite('https://www.decathlon.ae/products/example')?.key).toBe('decathlon_uae');
   });
 
+  it('detects Salomon GCC product URLs', () => {
+    expect(detectSupportedSite(salomonUrl)?.key).toBe('salomon_gcc');
+    expect(detectSupportedSite('https://www.salomongcc.com/products/example')?.key).toBe('salomon_gcc');
+  });
+
   it('detects Sephora UAE and Faces UAE product URLs', () => {
     expect(detectSupportedSite(sephoraUrl)?.key).toBe('sephora_uae');
     expect(detectSupportedSite('https://sephora.me/ae-en/p/example/P10001')?.key).toBe('sephora_uae');
@@ -1759,6 +2052,11 @@ describe('detectSupportedSite', () => {
   it('detects Centrepoint product URLs', () => {
     expect(detectSupportedSite(centrepointTshirtUrl)?.key).toBe('centrepoint_uae');
     expect(detectSupportedSite('https://centrepointstores.com/ae/en/buy-example/p/12345')?.key).toBe('centrepoint_uae');
+  });
+
+  it('detects The Deal product and variation URLs', () => {
+    expect(detectSupportedSite(theDealUrl)?.key).toBe('the_deal');
+    expect(detectSupportedSite(theDealVariantUrl)?.key).toBe('the_deal');
   });
 });
 
@@ -1810,7 +2108,189 @@ describe('fetchAndParseProduct', () => {
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
+    jest.mocked(fetchPageHtmlViaWebView).mockReset();
+    jest.mocked(fetchPageHtmlViaWebView).mockResolvedValue(null);
     jest.restoreAllMocks();
+  });
+
+  it('times out a stalled native request so a background batch can continue', async () => {
+    jest.useFakeTimers();
+    globalThis.fetch = jest.fn(() => new Promise<Response>(() => undefined)) as unknown as typeof fetch;
+
+    try {
+      const result = fetchAndParseProduct(noonUrl);
+      await jest.advanceTimersByTimeAsync(25_000);
+
+      await expect(result).resolves.toEqual({
+        ok: false,
+        code: 'network_error',
+        message: 'The product page took too long to respond.'
+      });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('uses the Android WebView fallback when Salomon rejects the native request', async () => {
+    globalThis.fetch = jest.fn().mockRejectedValue(new Error('network failed')) as unknown as typeof fetch;
+    jest.mocked(fetchPageHtmlViaWebView).mockResolvedValue(`
+      <script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"AERO BLAZE 2","offers":{"@type":"Offer","price":"455","priceCurrency":"AED","availability":"https://schema.org/InStock"}}</script>
+      <fieldset><input name="Color" value="White" /></fieldset>
+      <fieldset><input name="Size (UK)" value="8.5" /></fieldset>
+      <script type="application/json">[{"id":46178301051136,"option1":"White","option2":"8.5","sku":"L474261008.5","available":true,"price":45500}]</script>
+    `);
+
+    await expect(fetchAndParseProduct(salomonUrl)).resolves.toEqual({
+      ok: true,
+      product: expect.objectContaining({
+        siteKey: 'salomon_gcc',
+        title: 'AERO BLAZE 2',
+        priceMinor: 45500,
+        availability: 'in_stock'
+      })
+    });
+    expect(fetchPageHtmlViaWebView).toHaveBeenCalledWith(salomonUrl);
+  });
+
+  it('uses the Android WebView fallback when The Deal rejects the native request', async () => {
+    globalThis.fetch = jest.fn().mockRejectedValue(new Error('network failed')) as unknown as typeof fetch;
+    jest.mocked(fetchPageHtmlViaWebView).mockResolvedValue(`
+      <link rel="canonical" href="${theDealUrl}" />
+      <script type="application/ld+json">{"@type":"Product","name":"Serve Slide 1.0 Fabric","sku":"018826684228","offers":{"@type":"Offer","price":"92","priceCurrency":"AED","availability":"https://schema.org/InStock"}}</script>
+    `);
+
+    await expect(fetchAndParseProduct(theDealUrl)).resolves.toEqual({
+      ok: true,
+      product: expect.objectContaining({
+        siteKey: 'the_deal',
+        title: 'Serve Slide 1.0 Fabric',
+        priceMinor: 9200,
+        availability: 'in_stock'
+      })
+    });
+    expect(fetchPageHtmlViaWebView).toHaveBeenCalledWith(theDealUrl);
+  });
+
+  it('resolves a selected The Deal variant price before saving a tracker', async () => {
+    const selectedVariant = {
+      id: '0188147CMA0025|color=blue|size=42sEU',
+      label: 'Color: Blue · Size: 42 EU',
+      attributes: [
+        { name: 'Color', value: 'Blue' },
+        { name: 'Size', value: '42 EU' }
+      ],
+      url: theDealVariantUrl
+    };
+    const fetchMock = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      url: theDealVariantUrl,
+      text: async () => JSON.stringify({
+        queryString: {
+          variables: {
+            color: { value: 'blue' },
+            size: { value: '42sEU' }
+          }
+        },
+        product: {
+          available: true,
+          id: '018826684218',
+          masterId: '0188147CMA0025',
+          productName: 'SERVE SLIDE 10 124 2 CMA',
+          price: { sales: { value: 115, currency: 'AED' } },
+          variationAttributes: [
+            {
+              attributeId: 'color',
+              displayName: 'Color',
+              values: [{ value: 'blue', displayValue: 'Blue', selected: true, selectable: true }]
+            },
+            {
+              attributeId: 'size',
+              displayName: 'Size',
+              values: [{ value: '42sEU', displayValue: '42 EU', selected: true, selectable: true }]
+            }
+          ]
+        }
+      })
+    }));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const result = await fetchTheDealVariantForSaving({
+      siteKey: 'the_deal',
+      canonicalUrl: theDealUrl,
+      title: 'Serve Slide 1.0 Fabric',
+      priceMinor: 9200,
+      currency: 'AED',
+      availability: 'in_stock'
+    }, selectedVariant);
+
+    expect(fetchMock).toHaveBeenCalledWith(theDealVariantUrl, expect.any(Object));
+    expect(result).toEqual({
+      ok: true,
+      product: expect.objectContaining({
+        title: 'Serve Slide 1.0 Fabric',
+        priceMinor: 11500,
+        currency: 'AED',
+        selectedVariant
+      })
+    });
+  });
+
+  it('rejects a The Deal variation response for a different selected configuration', async () => {
+    const requestedVariant = {
+      id: '0188147CMA0025|color=black|size=42sEU',
+      label: 'Color: Black · Size: 42 EU',
+      attributes: [
+        { name: 'Color', value: 'Black' },
+        { name: 'Size', value: '42 EU' }
+      ],
+      url: theDealVariantUrl
+    };
+    globalThis.fetch = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      url: theDealVariantUrl,
+      text: async () => JSON.stringify({
+        product: {
+          available: true,
+          id: '018826684218',
+          masterId: '0188147CMA0025',
+          productName: 'SERVE SLIDE 10 124 2 CMA',
+          price: { sales: { value: 115, currency: 'AED' } },
+          variationAttributes: [
+            {
+              attributeId: 'color',
+              displayName: 'Color',
+              values: [
+                { value: 'black', displayValue: 'Black', selected: false, selectable: true },
+                { value: 'blue', displayValue: 'Blue', selected: true, selectable: true }
+              ]
+            },
+            {
+              attributeId: 'size',
+              displayName: 'Size',
+              values: [
+                { value: '42sEU', displayValue: '42 EU', selected: false, selectable: true },
+                { value: '44p5', displayValue: '44.5 EU', selected: true, selectable: true }
+              ]
+            }
+          ]
+        }
+      })
+    })) as unknown as typeof fetch;
+
+    await expect(fetchTheDealVariantForSaving({
+      siteKey: 'the_deal',
+      canonicalUrl: theDealUrl,
+      title: 'Serve Slide 1.0 Fabric',
+      priceMinor: 9200,
+      currency: 'AED',
+      availability: 'in_stock'
+    }, requestedVariant)).resolves.toEqual({
+      ok: false,
+      code: 'variant_not_found',
+      message: 'The selected product option is no longer available on this page.'
+    });
   });
 
   it('uses the native Android request profile for Decathlon UAE', async () => {

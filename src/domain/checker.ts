@@ -23,10 +23,6 @@ function staggerDelayMs(source: SnapshotSource): number {
 }
 
 export async function checkProductNow(product: TrackedProduct, source: SnapshotSource): Promise<void> {
-  if (product.lastAvailability === 'out_of_stock') {
-    return;
-  }
-
   const result = await fetchAndParseProduct(product.canonicalUrl || product.url, product.variant);
 
   if (!result.ok) {
@@ -34,7 +30,11 @@ export async function checkProductNow(product: TrackedProduct, source: SnapshotS
     return;
   }
 
-  const parsed = result.product;
+  // The Deal's exact variation endpoint uses an internal catalogue name that
+  // is less useful than the human product-page title saved by the user.
+  const parsed = product.siteKey === 'the_deal' && product.variant
+    ? { ...result.product, title: product.title }
+    : result.product;
   const saved = await recordSuccessfulCheck(product, parsed, source);
 
   // Detect availability transition (e.g. in_stock → out_of_stock)
@@ -45,16 +45,31 @@ export async function checkProductNow(product: TrackedProduct, source: SnapshotS
 
   // Record activity events
   if (newAvailability === 'out_of_stock') {
-    // OOS transition event
+    if (previousAvailability !== 'out_of_stock') {
+      // OOS transition event
+      await recordActivityEvent({
+        trackedProductId: product.id,
+        productTitle: product.title,
+        productImageUrl: product.imageUrl,
+        previousPriceMinor: saved.previousPriceMinor,
+        newPriceMinor: saved.newPriceMinor ?? 0,
+        currency: parsed.currency ?? product.currency,
+        priceDirection: 'first',
+        availability: 'out_of_stock',
+        source,
+        checkedAt: new Date().toISOString()
+      });
+    }
+  } else if (previousAvailability === 'out_of_stock' && newAvailability === 'in_stock') {
     await recordActivityEvent({
       trackedProductId: product.id,
       productTitle: product.title,
       productImageUrl: product.imageUrl,
       previousPriceMinor: saved.previousPriceMinor,
-      newPriceMinor: saved.newPriceMinor ?? 0,
+      newPriceMinor: saved.newPriceMinor ?? product.currentPriceMinor ?? 0,
       currency: parsed.currency ?? product.currency,
       priceDirection: 'first',
-      availability: 'out_of_stock',
+      availability: 'in_stock',
       source,
       checkedAt: new Date().toISOString()
     });
@@ -120,7 +135,7 @@ export async function checkAllActiveProductsFromBackground(limit = 8): Promise<v
 async function checkActiveProducts(limit: number, force: boolean, source: SnapshotSource): Promise<void> {
   const products = await listTrackedProducts();
   const dueProducts = products
-    .filter((product) => product.isActive)
+    .filter((product) => product.isActive && !product.isArchived)
     .filter((product) => force || isDueForCheck(product.lastCheckedAt, product.checkPreference, product.siteKey))
     .slice(0, limit);
 

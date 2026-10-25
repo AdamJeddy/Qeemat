@@ -15,6 +15,7 @@ import {
 } from '../domain/types';
 import { nowIso } from '../domain/dates';
 import { normalizeCheckPreference } from '../domain/dates';
+import { normalizeFolderName, uniqueOrganizationNames } from '../domain/organization';
 
 const STORE_KEY = 'qeemat.local-store.v1';
 
@@ -76,6 +77,19 @@ export async function getProductWithSnapshots(id: number): Promise<ProductWithSn
   };
 }
 
+export async function listProductsWithSnapshots(): Promise<ProductWithSnapshots[]> {
+  const store = await readStore();
+
+  return [...store.products]
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+    .map((product) => ({
+      product,
+      snapshots: store.snapshots
+        .filter((snapshot) => snapshot.trackedProductId === product.id)
+        .sort((left, right) => right.checkedAt.localeCompare(left.checkedAt))
+    }));
+}
+
 export async function listSnapshots(productId: number, limit = 60): Promise<PriceSnapshot[]> {
   const store = await readStore();
   return store.snapshots
@@ -89,6 +103,7 @@ export async function createTrackedProduct(draft: ProductDraft): Promise<number>
   const now = nowIso();
   const productId = store.nextProductId;
   const parsed = draft.parsed;
+  const knownFolders = uniqueOrganizationNames(store.products.map((product) => product.folder));
 
   const product: TrackedProduct = {
     id: productId,
@@ -101,6 +116,9 @@ export async function createTrackedProduct(draft: ProductDraft): Promise<number>
     currentPriceMinor: parsed.priceMinor,
     previousPriceMinor: undefined,
     targetPriceMinor: draft.targetPriceMinor,
+    minimumPriceDropMinor: draft.minimumPriceDropMinor,
+    restockAlertEnabled: draft.restockAlertEnabled ?? true,
+    folder: normalizeFolderName(draft.folder, knownFolders),
     alertMode: draft.alertMode,
     checkPreference: draft.checkPreference,
     isActive: true,
@@ -145,11 +163,15 @@ export async function updateTrackingSettings(
     alertMode: AlertMode;
     checkPreference: CheckPreference;
     targetPriceMinor?: number;
+    minimumPriceDropMinor?: number;
+    restockAlertEnabled?: boolean;
+    folder?: string;
     isActive: boolean;
   }
 ): Promise<void> {
   const store = await readStore();
   const now = nowIso();
+  const knownFolders = uniqueOrganizationNames(store.products.map((product) => product.folder));
 
   await writeStore({
     ...store,
@@ -160,6 +182,9 @@ export async function updateTrackingSettings(
             alertMode: settings.alertMode,
             checkPreference: settings.checkPreference,
             targetPriceMinor: settings.targetPriceMinor,
+            minimumPriceDropMinor: settings.minimumPriceDropMinor,
+            restockAlertEnabled: settings.restockAlertEnabled ?? product.restockAlertEnabled ?? true,
+            folder: normalizeFolderName(settings.folder, knownFolders),
             isActive: settings.isActive,
             updatedAt: now
           }
@@ -169,11 +194,55 @@ export async function updateTrackingSettings(
 }
 
 export async function deleteTrackedProduct(id: number): Promise<void> {
+  await deleteTrackedProducts([id]);
+}
+
+export async function deleteTrackedProducts(ids: number[]): Promise<void> {
+  if (!ids.length) {
+    return;
+  }
+
+  const idsToDelete = new Set(ids);
   const store = await readStore();
   await writeStore({
     ...store,
-    products: store.products.filter((product) => product.id !== id),
-    snapshots: store.snapshots.filter((snapshot) => snapshot.trackedProductId !== id)
+    products: store.products.filter((product) => !idsToDelete.has(product.id)),
+    snapshots: store.snapshots.filter((snapshot) => !idsToDelete.has(snapshot.trackedProductId))
+  });
+}
+
+export type BulkTrackingUpdate = {
+  folder?: string;
+  clearFolder?: boolean;
+  isActive?: boolean;
+  isArchived?: boolean;
+};
+
+export async function updateTrackedProducts(ids: number[], update: BulkTrackingUpdate): Promise<void> {
+  if (!ids.length) {
+    return;
+  }
+
+  const selectedIds = new Set(ids);
+  const store = await readStore();
+  const now = nowIso();
+  const knownFolders = uniqueOrganizationNames(store.products.map((product) => product.folder));
+
+  await writeStore({
+    ...store,
+    products: store.products.map((product) => {
+      if (!selectedIds.has(product.id)) {
+        return product;
+      }
+
+      return {
+        ...product,
+        folder: update.clearFolder ? undefined : update.folder === undefined ? product.folder : normalizeFolderName(update.folder, knownFolders),
+        isActive: update.isActive ?? product.isActive,
+        isArchived: update.isArchived ?? product.isArchived ?? false,
+        updatedAt: now
+      };
+    })
   });
 }
 
@@ -420,13 +489,19 @@ async function readStore(): Promise<LocalStore> {
   try {
     const parsed = JSON.parse(raw) as LocalStore;
 
+    const knownFolders = uniqueOrganizationNames(parsed.products.map((product) => product.folder));
+
     return {
       ...parsed,
       nextActivityId: parsed.nextActivityId ?? 1,
       products: parsed.products.map((product) => ({
         ...product,
         checkPreference: normalizeCheckPreference(product.checkPreference),
-        lastAvailability: product.lastAvailability ?? 'unknown'
+        lastAvailability: product.lastAvailability ?? 'unknown',
+        minimumPriceDropMinor: normalizeMinimumPriceDrop(product.minimumPriceDropMinor),
+        restockAlertEnabled: product.restockAlertEnabled ?? true,
+        isArchived: product.isArchived ?? false,
+        folder: normalizeFolderName(product.folder, knownFolders)
       })),
       snapshots: parsed.snapshots.map((snapshot) => ({
         ...snapshot,
@@ -442,4 +517,8 @@ async function readStore(): Promise<LocalStore> {
 
 async function writeStore(store: LocalStore): Promise<void> {
   await AsyncStorage.setItem(STORE_KEY, JSON.stringify(store));
+}
+
+function normalizeMinimumPriceDrop(value: number | undefined): number | undefined {
+  return value !== undefined && Number.isFinite(value) && value > 0 ? Math.round(value) : undefined;
 }

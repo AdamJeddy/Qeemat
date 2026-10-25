@@ -6,7 +6,7 @@ Qeemat bundles a PNG favicon for every registered store and renders it through t
 
 ## Delivered
 
-- Thirteen local PNG assets are bundled in `assets/site-icons/`, including supported stores and the experimental Brands For Less integration.
+- Eighteen local PNG assets are bundled in `assets/site-icons/`, including supported stores and the experimental Brands For Less integration.
 - `SupportedSite.iconAsset` registers each favicon in the site registry.
 - `src/components/SiteIcon.tsx` renders the requested icon and falls back to a coloured letter-circle if an asset cannot load. Faces uses its purpose-built compact mark rather than the bundled PNG at runtime.
 - Icons appear in product cards, the add-flow store-detection row and chips, the product preview, and the settings store list.
