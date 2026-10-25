@@ -4,6 +4,7 @@ jest.mock('@react-native-async-storage/async-storage', () =>
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
+  clearDiscoveryData,
   dismissDiscoveryProduct,
   getDiscoveryCache,
   getDiscoveryPreferences,
@@ -68,5 +69,20 @@ describe('discovery persistence', () => {
       fetchedAt: '2026-10-25T10:00:00.000Z'
     });
     await expect(getDiscoveryCache('decathlon-outdoors')).resolves.toBeUndefined();
+  });
+
+  it('removes preferences and cached listings with other local data', async () => {
+    await saveDiscoveryPreferences({
+      completed: true,
+      categories: ['sport'],
+      favoriteBrands: [],
+      budgetsByCategory: {}
+    });
+    await saveDiscoveryCache('decathlon-fitness', [product], '2026-10-25T10:00:00.000Z');
+
+    await clearDiscoveryData();
+
+    await expect(getDiscoveryPreferences()).resolves.toMatchObject({ completed: false, categories: [] });
+    await expect(getDiscoveryCache('decathlon-fitness')).resolves.toBeUndefined();
   });
 });

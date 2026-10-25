@@ -73,6 +73,10 @@ export async function saveDiscoveryCache(collectionId: string, products: Discove
   }));
 }
 
+export async function clearDiscoveryData(): Promise<void> {
+  await AsyncStorage.multiRemove([PREFERENCES_KEY, CACHE_KEY]);
+}
+
 async function writePreferences(preferences: DiscoveryPreferences): Promise<void> {
   await AsyncStorage.setItem(PREFERENCES_KEY, JSON.stringify(normalizePreferences(preferences)));
 }

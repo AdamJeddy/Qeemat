@@ -33,6 +33,8 @@ export type DiscoveryProduct = {
   imageUrl?: string;
   /** Lowest currently-observed purchasable price, in currency minor units. */
   priceMinor?: number;
+  /** True when the listing exposes multiple purchasable variant prices. */
+  hasPriceRange?: boolean;
   currency: string;
   availability: Availability;
   observedAt: string;

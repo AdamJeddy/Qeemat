@@ -60,6 +60,13 @@ import { ProductCard } from './src/components/ProductCard';
 import { StatusPill } from './src/components/StatusPill';
 import { VariantSelector } from './src/components/VariantSelector';
 import {
+  DiscoveryFilterChip,
+  DiscoveryPreferencesSheet,
+  DiscoveryProductGrid,
+  DiscoverySetupCard,
+  EmptyDiscovery
+} from './src/components/Discovery';
+import {
   getBackgroundStatus,
   BackgroundStatus,
   markBackgroundSchedule,
@@ -79,6 +86,13 @@ import {
   updateTrackedProducts,
   updateTrackingSettings
 } from './src/data/database';
+import {
+  clearDiscoveryData,
+  dismissDiscoveryProduct,
+  getDiscoveryPreferences,
+  markDiscoveryProductsSeen,
+  saveDiscoveryPreferences
+} from './src/data/discovery';
 import { runBackgroundCheckOnce, scheduleBackgroundChecks, checkBatteryOptimizationExempt, requestBatteryOptimizationExemption, openAppSystemSettings } from './src/domain/backgroundScheduler';
 import { checkAllActiveProducts, checkProductById } from './src/domain/checker';
 import { availableCheckPreferences, formatRelativeTime, formatSnapshotTime } from './src/domain/dates';
@@ -88,7 +102,7 @@ import { fetchAndParseProduct, fetchTheDealVariantForSaving } from './src/domain
 import { calculatePriceInsights } from './src/domain/priceInsights';
 import { formatPrice, parseTargetPriceInput } from './src/domain/price';
 import { cleanUrl, detectSharedUrl, detectSupportedSite, getSiteByKey, normalizeUrl, SUPPORTED_SITES } from './src/domain/sites';
-import { ActivityEvent, AlertMode, CheckPreference, ParsedProduct, PriceSnapshot, ProductWithSnapshots, SnapshotSource, TrackedProduct } from './src/domain/types';
+import { ActivityEvent, AlertMode, CheckPreference, DiscoveryCategory, DiscoveryFilter, DiscoveryPreferences, DiscoveryProduct, ParsedProduct, PriceSnapshot, ProductWithSnapshots, SnapshotSource, TrackedProduct } from './src/domain/types';
 import { colors, radius, shadow } from './src/theme/theme';
 import { isCompactLayout } from './src/theme/layout';
 import {
@@ -101,11 +115,18 @@ import {
 } from './src/domain/watchlist';
 import { resolveSelectedVariant, toVariantSelection, updateSelectedVariantAttributes, VariantAttributes } from './src/domain/variants';
 import { buildOpportunityFeed, Opportunity } from './src/domain/opportunities';
+import {
+  buildDiscoverySections,
+  DISCOVERY_CATEGORY_LABELS,
+  filterDiscoveryProducts
+} from './src/domain/discovery';
+import { loadDiscoveryCatalog } from './src/domain/discoveryCatalog';
 
 type TabKey = 'watchlist' | 'opportunities' | 'activity' | 'settings';
 type Route =
   | { name: 'tabs'; tab: TabKey }
-  | { name: 'add'; initialUrl?: string; shareEventId?: number }
+  | { name: 'add'; initialUrl?: string; shareEventId?: number; returnTab?: TabKey }
+  | { name: 'listing'; title: string; filter?: DiscoveryFilter; withinBudget?: boolean }
   | { name: 'detail'; id: number }
   | { name: 'trackingSettings'; id: number };
 
@@ -136,7 +157,7 @@ const BACKGROUND_TIME_PRESETS = [
 ];
 
 export default function App() {
-  const [route, setRoute] = useState<Route>({ name: 'tabs', tab: 'watchlist' });
+  const [route, setRoute] = useState<Route>({ name: 'tabs', tab: 'opportunities' });
   const [ready, setReady] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const shareEventId = useRef(0);
@@ -220,7 +241,8 @@ export default function App() {
       <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
       <SafeAreaView style={styles.app}>
         {route.name === 'tabs' ? <TabsScreen tab={route.tab} navigate={setRoute} /> : null}
-        {route.name === 'add' ? <AddScreen initialUrl={route.initialUrl} shareEventId={route.shareEventId} navigate={setRoute} /> : null}
+        {route.name === 'add' ? <AddScreen initialUrl={route.initialUrl} shareEventId={route.shareEventId} returnTab={route.returnTab} navigate={setRoute} /> : null}
+        {route.name === 'listing' ? <DiscoveryListingScreen title={route.title} initialFilter={route.filter} initialWithinBudget={route.withinBudget} navigate={setRoute} /> : null}
         {route.name === 'detail' ? <DetailScreen productId={route.id} navigate={setRoute} /> : null}
         {route.name === 'trackingSettings' ? <TrackingSettingsScreen productId={route.id} navigate={setRoute} /> : null}
         {showOnboarding ? <OnboardingOverlay onClose={() => setShowOnboarding(false)} /> : null}
@@ -310,7 +332,11 @@ function OnboardingOverlay({ onClose }: { onClose: () => void }) {
 
 function getBackRoute(route: Route): Route | undefined {
   if (route.name === 'add') {
-    return { name: 'tabs', tab: 'watchlist' };
+    return { name: 'tabs', tab: route.returnTab ?? 'watchlist' };
+  }
+
+  if (route.name === 'listing') {
+    return { name: 'tabs', tab: 'opportunities' };
   }
 
   if (route.name === 'detail') {
@@ -882,7 +908,7 @@ function FolderPicker({ value, folders, onChange }: { value: string; folders: st
   );
 }
 
-export function AddScreen({ initialUrl, shareEventId, navigate }: { initialUrl?: string; shareEventId?: number; navigate: (route: Route) => void }) {
+export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { initialUrl?: string; shareEventId?: number; returnTab?: TabKey; navigate: (route: Route) => void }) {
   const [url, setUrl] = useState(initialUrl ?? '');
   const [parsedProduct, setParsedProduct] = useState<ParsedProduct | undefined>();
   const [loading, setLoading] = useState(false);
@@ -1016,12 +1042,23 @@ export function AddScreen({ initialUrl, shareEventId, navigate }: { initialUrl?:
       variant: productToSave.selectedVariant
     });
     setSaving(false);
+    if (returnTab === 'opportunities') {
+      Alert.alert(
+        'Now tracking',
+        'Qeemat will keep an eye on this option and let you know about meaningful price or stock changes.',
+        [
+          { text: 'Keep browsing', onPress: () => navigate({ name: 'tabs', tab: 'opportunities' }) },
+          { text: 'Set target price', onPress: () => navigate({ name: 'trackingSettings', id }) }
+        ]
+      );
+      return;
+    }
     navigate({ name: 'detail', id });
   }
 
   return (
     <View style={styles.app}>
-      <Header title="Add Product" onBack={() => navigate({ name: 'tabs', tab: 'watchlist' })} />
+      <Header title="Add Product" onBack={() => navigate({ name: 'tabs', tab: returnTab ?? 'watchlist' })} />
       <ScrollView
         ref={scrollRef}
         contentContainerStyle={[styles.screenContent, styles.addScreenContent]}
@@ -1736,12 +1773,28 @@ function EmptyActivity() {
 
 export function OpportunityScreen({ navigate }: { navigate: (route: Route) => void }) {
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
+  const [discoveryProducts, setDiscoveryProducts] = useState<DiscoveryProduct[]>([]);
+  const [preferences, setPreferences] = useState<DiscoveryPreferences>();
+  const [trackedProducts, setTrackedProducts] = useState<TrackedProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [showPreferences, setShowPreferences] = useState(false);
+  const [trackingProductId, setTrackingProductId] = useState<string>();
+  const [catalogState, setCatalogState] = useState<{ refreshedAt?: string; stale: boolean }>({ stale: false });
 
   const load = useCallback(async () => {
-    const products = await listProductsWithSnapshots();
-    setOpportunities(buildOpportunityFeed(products));
+    const [records, nextPreferences, catalog, tracked] = await Promise.all([
+      listProductsWithSnapshots(),
+      getDiscoveryPreferences(),
+      loadDiscoveryCatalog(),
+      listTrackedProducts()
+    ]);
+    setOpportunities(buildOpportunityFeed(records));
+    setPreferences(nextPreferences);
+    setDiscoveryProducts(catalog.products);
+    setTrackedProducts(tracked);
+    setCatalogState({ refreshedAt: catalog.refreshedAt, stale: catalog.stale });
+    await markDiscoveryProductsSeen(catalog.products.map((product) => product.id));
   }, []);
 
   useEffect(() => {
@@ -1753,6 +1806,95 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
     await load();
     setRefreshing(false);
   }, [load]);
+
+  const sections = useMemo(
+    () => preferences ? buildDiscoverySections(discoveryProducts, preferences) : { picks: [], newlyDiscovered: [], exploreDifferent: [] },
+    [discoveryProducts, preferences]
+  );
+  const availableCategories = useMemo(
+    () => [...new Set(discoveryProducts.map((product) => product.category))],
+    [discoveryProducts]
+  );
+  const favouriteBrandProducts = useMemo(
+    () => sections.picks.filter((product) => preferences?.favoriteBrands.includes(product.brand)),
+    [preferences?.favoriteBrands, sections.picks]
+  );
+  async function handleSavePreferences(update: Pick<DiscoveryPreferences, 'completed' | 'categories' | 'favoriteBrands' | 'budgetsByCategory'>) {
+    const saved = await saveDiscoveryPreferences(update);
+    setPreferences(saved);
+    setShowPreferences(false);
+  }
+
+  async function handleDismissInvitation() {
+    if (!preferences) {
+      return;
+    }
+    setPreferences(await saveDiscoveryPreferences({
+      completed: true,
+      categories: preferences.categories,
+      favoriteBrands: preferences.favoriteBrands,
+      budgetsByCategory: preferences.budgetsByCategory
+    }));
+  }
+
+  async function handleDismiss(productId: string) {
+    await dismissDiscoveryProduct(productId);
+    setPreferences(await getDiscoveryPreferences());
+  }
+
+  async function handleTrack(product: DiscoveryProduct) {
+    const known = trackedProducts.find((tracked) => cleanUrl(tracked.canonicalUrl || tracked.url) === cleanUrl(product.url));
+    if (known) {
+      navigate({ name: 'detail', id: known.id });
+      return;
+    }
+
+    setTrackingProductId(product.id);
+    const result = await fetchAndParseProduct(product.url).catch(() => ({
+      ok: false as const,
+      code: 'network_error' as const,
+      message: 'Qeemat could not reach this product right now. Try again in a moment.'
+    }));
+    setTrackingProductId(undefined);
+    if (!result.ok) {
+      Alert.alert('Could not start tracking', result.message);
+      return;
+    }
+
+    if (result.product.variants?.length) {
+      navigate({ name: 'add', initialUrl: product.url, shareEventId: Date.now(), returnTab: 'opportunities' });
+      return;
+    }
+
+    const id = await createTrackedProduct({
+      parsed: result.product,
+      sourceUrl: product.url,
+      checkPreference: 'daily',
+      alertMode: 'price_drop',
+      restockAlertEnabled: true
+    });
+    setTrackedProducts(await listTrackedProducts());
+    Alert.alert(
+      'Now tracking',
+      'Qeemat will keep an eye on the observed price and stock on this device.',
+      [
+        { text: 'Keep browsing' },
+        { text: 'Set target price', onPress: () => navigate({ name: 'trackingSettings', id }) }
+      ]
+    );
+  }
+
+  async function handleViewAtRetailer(product: DiscoveryProduct) {
+    try {
+      await Linking.openURL(product.url);
+    } catch {
+      Alert.alert('Could not open retailer', 'Please try again in a moment.');
+    }
+  }
+
+  function openBrandListing(brand: string) {
+    navigate({ name: 'listing', title: `${brand} products`, filter: { brand } });
+  }
 
   if (loading) {
     return (
@@ -1774,72 +1916,253 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
         </View>
         <View style={styles.flex}>
           <AppText weight="bold" style={styles.heading}>For you</AppText>
-          <AppText muted>Price signals worth a closer look.</AppText>
+          <AppText muted>Find things you want. Let Qeemat watch the price.</AppText>
         </View>
+        <Pressable accessibilityRole="button" accessibilityLabel="Edit discovery preferences" onPress={() => setShowPreferences(true)} style={styles.discoveryPreferencesButton}>
+          <SlidersHorizontal size={19} color={colors.primary} />
+        </Pressable>
       </View>
+
+      {!preferences?.completed ? <DiscoverySetupCard onPress={() => setShowPreferences(true)} onDismiss={handleDismissInvitation} /> : null}
 
       {opportunities.length > 0 ? (
-        <AppText muted style={styles.opportunitySupportCopy}>
-          Based on prices Qeemat has checked for your watchlist.
-        </AppText>
+        <View style={styles.discoverySection}>
+          <AppText weight="bold" style={styles.discoverySectionTitle}>Your tracked price opportunities</AppText>
+          <AppText muted style={styles.opportunitySupportCopy}>Price signals from products Qeemat has checked for your watchlist.</AppText>
+          <View style={styles.cardList}>
+            {opportunities.map((opportunity) => (
+              <Pressable key={opportunity.product.id} onPress={() => navigate({ name: 'detail', id: opportunity.product.id })} style={({ pressed }) => [styles.opportunityCard, pressed && styles.opportunityCardPressed]}>
+                {opportunity.product.imageUrl ? <Image source={{ uri: opportunity.product.imageUrl }} style={styles.opportunityImage} resizeMode="contain" /> : <View style={styles.opportunityImagePlaceholder}><Store size={20} color={colors.textMuted} /></View>}
+                <View style={styles.opportunityBody}>
+                  <View style={styles.opportunityTitleRow}>
+                    <AppText weight="semibold" numberOfLines={2} style={styles.opportunityTitle}>{opportunity.product.title}</AppText>
+                    <ChevronRight size={18} color={colors.textMuted} />
+                  </View>
+                  <View style={styles.opportunityPriceRow}>
+                    <AppText weight="bold" style={styles.opportunityPrice}>{formatPrice(opportunity.currentPriceMinor, opportunity.product.currency)}</AppText>
+                    <View style={[styles.opportunityBadge, opportunityBadgeStyle(opportunity.reason)]}><AppText weight="semibold" style={opportunityBadgeTextStyle(opportunity.reason)}>{opportunityLabel(opportunity)}</AppText></View>
+                  </View>
+                  <AppText muted style={styles.opportunityDetail}>{opportunityDescription(opportunity)}</AppText>
+                  <AppText muted style={styles.opportunityChecked}>Checked {formatRelativeTime(opportunity.observedAt)}</AppText>
+                </View>
+              </Pressable>
+            ))}
+          </View>
+        </View>
       ) : null}
 
-      {opportunities.length === 0 ? <EmptyOpportunities /> : null}
-      <View style={styles.cardList}>
-        {opportunities.map((opportunity) => (
-          <Pressable
-            key={opportunity.product.id}
-            onPress={() => navigate({ name: 'detail', id: opportunity.product.id })}
-            style={({ pressed }) => [styles.opportunityCard, pressed && styles.opportunityCardPressed]}
-          >
-            {opportunity.product.imageUrl ? (
-              <Image source={{ uri: opportunity.product.imageUrl }} style={styles.opportunityImage} resizeMode="contain" />
-            ) : (
-              <View style={styles.opportunityImagePlaceholder}>
-                <Store size={20} color={colors.textMuted} />
-              </View>
-            )}
-            <View style={styles.opportunityBody}>
-              <View style={styles.opportunityTitleRow}>
-                <AppText weight="semibold" numberOfLines={2} style={styles.opportunityTitle}>
-                  {opportunity.product.title}
-                </AppText>
-                <ChevronRight size={18} color={colors.textMuted} />
-              </View>
-              <View style={styles.opportunityPriceRow}>
-                <AppText weight="bold" style={styles.opportunityPrice}>
-                  {formatPrice(opportunity.currentPriceMinor, opportunity.product.currency)}
-                </AppText>
-                <View style={[styles.opportunityBadge, opportunityBadgeStyle(opportunity.reason)]}>
-                  <AppText weight="semibold" style={opportunityBadgeTextStyle(opportunity.reason)}>
-                    {opportunityLabel(opportunity)}
-                  </AppText>
-                </View>
-              </View>
-              <AppText muted style={styles.opportunityDetail}>
-                {opportunityDescription(opportunity)}
-              </AppText>
-              <AppText muted style={styles.opportunityChecked}>
-                Checked {formatRelativeTime(opportunity.observedAt)}
-              </AppText>
+      {discoveryProducts.length > 0 ? (
+        <>
+          <View style={styles.discoverySection}>
+            <AppText weight="bold" style={styles.discoverySectionTitle}>Picks for you</AppText>
+            <AppText muted style={styles.discoverySectionCopy}>Observed product prices from a supported UAE retailer.</AppText>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.discoveryFilterRail}>
+              <DiscoveryFilterChip label="All" selected onPress={() => navigate({ name: 'listing', title: 'All products' })} />
+              {availableCategories.map((category) => <DiscoveryFilterChip key={category} label={DISCOVERY_CATEGORY_LABELS[category]} selected={false} onPress={() => navigate({ name: 'listing', title: DISCOVERY_CATEGORY_LABELS[category], filter: { category } })} />)}
+              {preferences?.categories.some((category) => preferences.budgetsByCategory[category] !== undefined) ? <DiscoveryFilterChip label="Within budget" selected={false} onPress={() => navigate({ name: 'listing', title: 'Within your budgets', withinBudget: true })} /> : null}
+            </ScrollView>
+            <DiscoveryProductGrid products={sections.picks.slice(0, 6)} trackedProducts={trackedProducts} trackingProductId={trackingProductId} onTrack={handleTrack} onDismiss={handleDismiss} onMoreLikeThis={openBrandListing} onViewAtRetailer={handleViewAtRetailer} />
+          </View>
+
+          {favouriteBrandProducts.length > 0 ? (
+            <View style={styles.discoverySection}>
+              <AppText weight="bold" style={styles.discoverySectionTitle}>Explore your favourite brands</AppText>
+              <DiscoveryProductGrid products={favouriteBrandProducts.slice(0, 4)} trackedProducts={trackedProducts} trackingProductId={trackingProductId} onTrack={handleTrack} onDismiss={handleDismiss} onMoreLikeThis={openBrandListing} onViewAtRetailer={handleViewAtRetailer} />
             </View>
-          </Pressable>
-        ))}
-      </View>
+          ) : null}
+
+          {sections.newlyDiscovered.length > 0 ? (
+            <View style={styles.discoverySection}>
+              <AppText weight="bold" style={styles.discoverySectionTitle}>Newly discovered</AppText>
+              <AppText muted style={styles.discoverySectionCopy}>Products this device has not shown you before.</AppText>
+              <DiscoveryProductGrid products={sections.newlyDiscovered.slice(0, 4)} trackedProducts={trackedProducts} trackingProductId={trackingProductId} onTrack={handleTrack} onDismiss={handleDismiss} onMoreLikeThis={openBrandListing} onViewAtRetailer={handleViewAtRetailer} />
+            </View>
+          ) : null}
+
+          {sections.exploreDifferent.length > 0 ? (
+            <View style={styles.discoverySection}>
+              <AppText weight="bold" style={styles.discoverySectionTitle}>Explore something different</AppText>
+              <DiscoveryProductGrid products={sections.exploreDifferent.slice(0, 4)} trackedProducts={trackedProducts} trackingProductId={trackingProductId} onTrack={handleTrack} onDismiss={handleDismiss} onMoreLikeThis={openBrandListing} onViewAtRetailer={handleViewAtRetailer} />
+            </View>
+          ) : null}
+        </>
+      ) : <EmptyDiscovery onPreferences={() => setShowPreferences(true)} />}
+
+      {catalogState.refreshedAt ? <AppText muted style={styles.discoveryFreshness}>{catalogState.stale ? 'Showing saved discovery products from ' : 'Product prices observed '}{formatRelativeTime(catalogState.refreshedAt)}.</AppText> : null}
+      <DiscoveryPreferencesSheet visible={showPreferences} initialPreferences={preferences} onClose={() => setShowPreferences(false)} onSave={handleSavePreferences} />
     </ScrollView>
   );
 }
 
-function EmptyOpportunities() {
+function DiscoveryListingScreen({
+  title,
+  initialFilter = {},
+  initialWithinBudget = false,
+  navigate
+}: {
+  title: string;
+  initialFilter?: DiscoveryFilter;
+  initialWithinBudget?: boolean;
+  navigate: (route: Route) => void;
+}) {
+  const [products, setProducts] = useState<DiscoveryProduct[]>([]);
+  const [preferences, setPreferences] = useState<DiscoveryPreferences>();
+  const [trackedProducts, setTrackedProducts] = useState<TrackedProduct[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [trackingProductId, setTrackingProductId] = useState<string>();
+  const [catalogState, setCatalogState] = useState<{ refreshedAt?: string; stale: boolean }>({ stale: false });
+  const [category, setCategory] = useState<DiscoveryCategory | undefined>(initialFilter.category);
+  const [brand, setBrand] = useState(initialFilter.brand);
+  const [siteKey, setSiteKey] = useState(initialFilter.siteKey);
+  const [maximumPrice, setMaximumPrice] = useState(initialFilter.maximumPriceMinor ? String(initialFilter.maximumPriceMinor / 100) : '');
+  const [withinBudget, setWithinBudget] = useState(initialWithinBudget);
+
+  const load = useCallback(async () => {
+    const [nextPreferences, catalog, tracked] = await Promise.all([
+      getDiscoveryPreferences(),
+      loadDiscoveryCatalog(),
+      listTrackedProducts()
+    ]);
+    setPreferences(nextPreferences);
+    setProducts(catalog.products);
+    setTrackedProducts(tracked);
+    setCatalogState({ refreshedAt: catalog.refreshedAt, stale: catalog.stale });
+    await markDiscoveryProductsSeen(catalog.products.map((product) => product.id));
+  }, []);
+
+  useEffect(() => {
+    load().finally(() => setLoading(false));
+  }, [load]);
+
+  const sections = useMemo(
+    () => preferences ? buildDiscoverySections(products, preferences) : { picks: [], newlyDiscovered: [], exploreDifferent: [] },
+    [preferences, products]
+  );
+  const categories = useMemo(() => [...new Set(products.map((product) => product.category))], [products]);
+  const brands = useMemo(() => [...new Set(products.map((product) => product.brand))].sort(), [products]);
+  const retailers = useMemo(() => [...new Set(products.map((product) => product.siteKey))], [products]);
+  const filteredProducts = useMemo(() => {
+    const priceLimit = parseTargetPriceInput(maximumPrice);
+    const filtered = filterDiscoveryProducts(sections.picks, {
+      category,
+      brand,
+      siteKey,
+      maximumPriceMinor: priceLimit
+    });
+    return withinBudget
+      ? filtered.filter((product) => {
+        const budget = preferences?.budgetsByCategory[product.category];
+        return budget !== undefined && product.priceMinor !== undefined && product.priceMinor <= budget;
+      })
+      : filtered;
+  }, [brand, category, maximumPrice, preferences?.budgetsByCategory, sections.picks, siteKey, withinBudget]);
+
+  async function refresh() {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  }
+
+  async function handleDismiss(productId: string) {
+    await dismissDiscoveryProduct(productId);
+    setPreferences(await getDiscoveryPreferences());
+  }
+
+  async function handleTrack(product: DiscoveryProduct) {
+    const known = trackedProducts.find((tracked) => cleanUrl(tracked.canonicalUrl || tracked.url) === cleanUrl(product.url));
+    if (known) {
+      navigate({ name: 'detail', id: known.id });
+      return;
+    }
+
+    setTrackingProductId(product.id);
+    const result = await fetchAndParseProduct(product.url).catch(() => ({
+      ok: false as const,
+      code: 'network_error' as const,
+      message: 'Qeemat could not reach this product right now. Try again in a moment.'
+    }));
+    setTrackingProductId(undefined);
+    if (!result.ok) {
+      Alert.alert('Could not start tracking', result.message);
+      return;
+    }
+
+    if (result.product.variants?.length) {
+      navigate({ name: 'add', initialUrl: product.url, shareEventId: Date.now(), returnTab: 'opportunities' });
+      return;
+    }
+
+    const id = await createTrackedProduct({
+      parsed: result.product,
+      sourceUrl: product.url,
+      checkPreference: 'daily',
+      alertMode: 'price_drop',
+      restockAlertEnabled: true
+    });
+    setTrackedProducts(await listTrackedProducts());
+    Alert.alert('Now tracking', 'Qeemat will keep an eye on the observed price and stock on this device.', [
+      { text: 'Keep browsing' },
+      { text: 'Set target price', onPress: () => navigate({ name: 'trackingSettings', id }) }
+    ]);
+  }
+
+  async function handleViewAtRetailer(product: DiscoveryProduct) {
+    try {
+      await Linking.openURL(product.url);
+    } catch {
+      Alert.alert('Could not open retailer', 'Please try again in a moment.');
+    }
+  }
+
+  if (loading) {
+    return <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>;
+  }
+
   return (
-    <View style={styles.emptyCard}>
-      <View style={styles.emptyIcon}>
-        <Sparkles size={24} color={colors.primary} />
-      </View>
-      <AppText weight="bold" style={styles.emptyTitle}>Nothing urgent right now</AppText>
-      <AppText muted style={styles.emptyCopy}>
-        We will highlight target hits, proven lows, and meaningful price drops as Qeemat checks your products.
-      </AppText>
+    <View style={styles.app}>
+      <Header title={title} onBack={() => navigate({ name: 'tabs', tab: 'opportunities' })} />
+      <ScrollView
+        contentContainerStyle={styles.screenContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.primary} />}
+      >
+        <View style={styles.listingFilters}>
+          <AppText weight="bold" style={styles.listingFilterLabel}>Category</AppText>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.discoveryFilterRail}>
+            <DiscoveryFilterChip label="All" selected={!category} onPress={() => setCategory(undefined)} />
+            {categories.map((item) => <DiscoveryFilterChip key={item} label={DISCOVERY_CATEGORY_LABELS[item]} selected={category === item} onPress={() => setCategory(item)} />)}
+          </ScrollView>
+          <AppText weight="bold" style={styles.listingFilterLabel}>Brand</AppText>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.discoveryFilterRail}>
+            <DiscoveryFilterChip label="All" selected={!brand} onPress={() => setBrand(undefined)} />
+            {brands.map((item) => <DiscoveryFilterChip key={item} label={item} selected={brand === item} onPress={() => setBrand(item)} />)}
+          </ScrollView>
+          <AppText weight="bold" style={styles.listingFilterLabel}>Retailer</AppText>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.discoveryFilterRail}>
+            <DiscoveryFilterChip label="All" selected={!siteKey} onPress={() => setSiteKey(undefined)} />
+            {retailers.map((item) => <DiscoveryFilterChip key={item} label={getSiteByKey(item).shortName} selected={siteKey === item} onPress={() => setSiteKey(item)} />)}
+          </ScrollView>
+          <View style={styles.listingPriceRow}>
+            <View style={styles.listingPriceInputWrap}>
+              <AppText muted>AED</AppText>
+              <TextInput value={maximumPrice} onChangeText={setMaximumPrice} keyboardType="decimal-pad" placeholder="Maximum price" placeholderTextColor={colors.textSoft} style={styles.listingPriceInput} />
+            </View>
+            {preferences?.categories.some((item) => preferences.budgetsByCategory[item] !== undefined) ? <DiscoveryFilterChip label="Within my budgets" selected={withinBudget} onPress={() => setWithinBudget((current) => !current)} /> : null}
+          </View>
+        </View>
+        <AppText muted style={styles.listingCount}>{filteredProducts.length} {filteredProducts.length === 1 ? 'product' : 'products'} with observed prices</AppText>
+        <DiscoveryProductGrid
+          products={filteredProducts}
+          trackedProducts={trackedProducts}
+          trackingProductId={trackingProductId}
+          onTrack={handleTrack}
+          onDismiss={handleDismiss}
+          onMoreLikeThis={setBrand}
+          onViewAtRetailer={handleViewAtRetailer}
+        />
+        {catalogState.refreshedAt ? <AppText muted style={styles.discoveryFreshness}>{catalogState.stale ? 'Showing saved discovery products from ' : 'Product prices observed '}{formatRelativeTime(catalogState.refreshedAt)}.</AppText> : null}
+      </ScrollView>
     </View>
   );
 }
@@ -2135,7 +2458,7 @@ function SettingsScreen() {
         onPress={() =>
           Alert.alert('Delete local data?', 'This removes all tracked products and price history from this device.', [
             { text: 'Cancel', style: 'cancel' },
-            { text: 'Delete', style: 'destructive', onPress: () => deleteAllLocalData() }
+            { text: 'Delete', style: 'destructive', onPress: () => Promise.all([deleteAllLocalData(), clearDiscoveryData()]) }
           ])
         }
       />
@@ -3036,6 +3359,69 @@ const styles = StyleSheet.create({
   opportunitySupportCopy: {
     fontSize: 13,
     lineHeight: 19
+  },
+  discoveryPreferencesButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.blueSoft
+  },
+  discoverySection: {
+    gap: 12
+  },
+  discoverySectionTitle: {
+    fontSize: 18
+  },
+  discoverySectionCopy: {
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: -6
+  },
+  discoveryFilterRail: {
+    gap: 8,
+    paddingVertical: 2
+  },
+  discoveryFreshness: {
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: -2
+  },
+  listingFilters: {
+    gap: 8
+  },
+  listingFilterLabel: {
+    fontSize: 14,
+    marginTop: 4
+  },
+  listingPriceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 4
+  },
+  listingPriceInputWrap: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    backgroundColor: colors.surface
+  },
+  listingPriceInput: {
+    flex: 1,
+    minWidth: 0,
+    color: colors.text,
+    paddingVertical: 10
+  },
+  listingCount: {
+    fontSize: 13,
+    marginTop: -2
   },
   opportunityCard: {
     flexDirection: 'row',

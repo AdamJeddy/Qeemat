@@ -68,8 +68,8 @@ type ShopifyListingProduct = {
   title?: string;
   handle?: string;
   vendor?: string;
-  images?: { src?: string }[];
-  variants?: ShopifyVariant[];
+  images?: unknown[];
+  variants?: unknown[];
 };
 
 export function parseDecathlonListing(
@@ -77,11 +77,11 @@ export function parseDecathlonListing(
   category: DiscoveryCategory,
   observedAt: string
 ): DiscoveryProduct | undefined {
-  if (!isShopifyListingProduct(product) || !product.id || !product.title || !product.handle) {
+  if (!isShopifyListingProduct(product) || product.id === undefined || !product.title || !product.handle) {
     return undefined;
   }
 
-  const variants = product.variants ?? [];
+  const variants = (product.variants ?? []).filter(isShopifyVariant);
   const purchasableVariants = variants.filter((variant) => variant.available !== false);
   const priceVariants = purchasableVariants.length > 0 ? purchasableVariants : variants;
   const prices = priceVariants
@@ -95,8 +95,9 @@ export function parseDecathlonListing(
     brand: product.vendor?.trim() || 'Decathlon',
     title: product.title,
     url: `https://decathlon.ae/products/${product.handle}`,
-    imageUrl: product.images?.[0]?.src,
+    imageUrl: product.images?.map(readShopifyImageUrl).find((url) => url !== undefined),
     priceMinor: prices.length ? Math.min(...prices) : undefined,
+    hasPriceRange: new Set(prices).size > 1,
     currency: 'AED',
     availability: purchasableVariants.length > 0 ? 'in_stock' : variants.length > 0 ? 'out_of_stock' : 'unknown',
     observedAt
@@ -104,7 +105,30 @@ export function parseDecathlonListing(
 }
 
 function isShopifyListingProduct(value: unknown): value is ShopifyListingProduct {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  return (typeof candidate.id === 'string' || typeof candidate.id === 'number') &&
+    typeof candidate.title === 'string' &&
+    typeof candidate.handle === 'string' &&
+    (candidate.vendor === undefined || typeof candidate.vendor === 'string') &&
+    (candidate.images === undefined || Array.isArray(candidate.images)) &&
+    (candidate.variants === undefined || Array.isArray(candidate.variants));
+}
+
+function isShopifyVariant(value: unknown): value is ShopifyVariant {
   return Boolean(value) && typeof value === 'object';
+}
+
+function readShopifyImageUrl(value: unknown): string | undefined {
+  if (!value || typeof value !== 'object') {
+    return undefined;
+  }
+
+  const src = (value as { src?: unknown }).src;
+  return typeof src === 'string' ? src : undefined;
 }
 
 export function filterDiscoveryProducts(products: DiscoveryProduct[], filter: DiscoveryFilter): DiscoveryProduct[] {
@@ -138,7 +162,7 @@ export function buildDiscoverySections(products: DiscoveryProduct[], preferences
 
 export function preferredDiscoveryBrands(categories: DiscoveryCategory[]): string[] {
   const choices: Partial<Record<DiscoveryCategory, string[]>> = {
-    fashion: ['Nike', 'Adidas', 'PUMA', 'Kiprun', 'Quechua'],
+    fashion: ['Kiprun', 'Quechua', 'Decathlon'],
     beauty: ['Sephora Collection', 'Dior', 'NARS'],
     electronics: ['Apple', 'Samsung', 'Sony'],
     sport: ['Kiprun', 'Quechua', 'Domyos', 'Kalenji', 'Decathlon']

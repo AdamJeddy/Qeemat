@@ -114,7 +114,7 @@ describe('parseDecathlonListing', () => {
       vendor: 'Kiprun',
       images: [{ src: 'https://images.example/shoe.jpg' }],
       variants: [
-        { price: '239.00', available: false },
+        { price: '239.00', available: true },
         { price: '199.00', available: true }
       ]
     }, 'fashion', '2026-10-25T10:00:00.000Z');
@@ -125,8 +125,19 @@ describe('parseDecathlonListing', () => {
       url: 'https://decathlon.ae/products/kiprun-kd900x',
       imageUrl: 'https://images.example/shoe.jpg',
       priceMinor: 19900,
+      hasPriceRange: true,
       availability: 'in_stock',
       category: 'fashion'
     });
+  });
+
+  it('rejects malformed retailer listing records without throwing', () => {
+    expect(parseDecathlonListing({
+      id: 123,
+      title: 'Broken listing',
+      handle: 'broken-listing',
+      images: {},
+      variants: null
+    }, 'fashion', '2026-10-25T10:00:00.000Z')).toBeUndefined();
   });
 });
