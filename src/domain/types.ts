@@ -19,6 +19,41 @@ export type CheckStatus =
 
 export type SnapshotSource = 'unknown' | 'manual_single' | 'manual_batch' | 'background';
 
+/** Categories currently supported by the local discovery experience. */
+export type DiscoveryCategory = 'fashion' | 'beauty' | 'electronics' | 'sport';
+
+export type DiscoveryProduct = {
+  /** Stable identifier from the retailer catalogue. */
+  id: string;
+  siteKey: SiteKey;
+  category: DiscoveryCategory;
+  brand: string;
+  title: string;
+  url: string;
+  imageUrl?: string;
+  /** Lowest currently-observed purchasable price, in currency minor units. */
+  priceMinor?: number;
+  currency: string;
+  availability: Availability;
+  observedAt: string;
+};
+
+export type DiscoveryPreferences = {
+  completed: boolean;
+  categories: DiscoveryCategory[];
+  favoriteBrands: string[];
+  budgetsByCategory: Partial<Record<DiscoveryCategory, number>>;
+  dismissedProductIds: string[];
+  seenProductIds: string[];
+};
+
+export type DiscoveryFilter = {
+  category?: DiscoveryCategory;
+  siteKey?: SiteKey;
+  brand?: string;
+  maximumPriceMinor?: number;
+};
+
 export type SupportedSite = {
   key: SiteKey;
   displayName: string;
