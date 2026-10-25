@@ -2236,6 +2236,63 @@ describe('fetchAndParseProduct', () => {
     });
   });
 
+  it('rejects a The Deal variation response for a different selected configuration', async () => {
+    const requestedVariant = {
+      id: '0188147CMA0025|color=black|size=42sEU',
+      label: 'Color: Black · Size: 42 EU',
+      attributes: [
+        { name: 'Color', value: 'Black' },
+        { name: 'Size', value: '42 EU' }
+      ],
+      url: theDealVariantUrl
+    };
+    globalThis.fetch = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      url: theDealVariantUrl,
+      text: async () => JSON.stringify({
+        product: {
+          available: true,
+          id: '018826684218',
+          masterId: '0188147CMA0025',
+          productName: 'SERVE SLIDE 10 124 2 CMA',
+          price: { sales: { value: 115, currency: 'AED' } },
+          variationAttributes: [
+            {
+              attributeId: 'color',
+              displayName: 'Color',
+              values: [
+                { value: 'black', displayValue: 'Black', selected: false, selectable: true },
+                { value: 'blue', displayValue: 'Blue', selected: true, selectable: true }
+              ]
+            },
+            {
+              attributeId: 'size',
+              displayName: 'Size',
+              values: [
+                { value: '42sEU', displayValue: '42 EU', selected: false, selectable: true },
+                { value: '44p5', displayValue: '44.5 EU', selected: true, selectable: true }
+              ]
+            }
+          ]
+        }
+      })
+    })) as unknown as typeof fetch;
+
+    await expect(fetchTheDealVariantForSaving({
+      siteKey: 'the_deal',
+      canonicalUrl: theDealUrl,
+      title: 'Serve Slide 1.0 Fabric',
+      priceMinor: 9200,
+      currency: 'AED',
+      availability: 'in_stock'
+    }, requestedVariant)).resolves.toEqual({
+      ok: false,
+      code: 'variant_not_found',
+      message: 'The selected product option is no longer available on this page.'
+    });
+  });
+
   it('uses the native Android request profile for Decathlon UAE', async () => {
     const fetchMock = jest.fn(async () => ({
       ok: true,

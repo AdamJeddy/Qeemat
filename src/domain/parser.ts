@@ -401,7 +401,7 @@ export function parseProductHtml(
   }
 
   if (siteKey === 'the_deal') {
-    return resolveParsedVariant(parseTheDealProduct(siteKey, inputUrl, html, structured) ?? structured, selectedVariant);
+    return resolveParsedVariant(parseTheDealProduct(siteKey, inputUrl, html, structured, selectedVariant) ?? structured, selectedVariant);
   }
 
   if (siteKey === 'sharaf_dg') {
@@ -1478,11 +1478,12 @@ function parseTheDealProduct(
   siteKey: SiteKey,
   inputUrl: string,
   html: string,
-  structured?: ParsedProduct
+  structured?: ParsedProduct,
+  selectedVariant?: VariantSelection
 ): ParsedProduct | undefined {
   const variationResponse = extractTheDealVariationResponse(html);
   if (variationResponse) {
-    return parseTheDealVariationProduct(siteKey, inputUrl, variationResponse);
+    return parseTheDealVariationProduct(siteKey, inputUrl, variationResponse, selectedVariant);
   }
 
   if (!structured) {
@@ -1522,7 +1523,8 @@ function extractTheDealVariationResponse(html: string): JsonRecord | undefined {
 function parseTheDealVariationProduct(
   siteKey: SiteKey,
   inputUrl: string,
-  response: JsonRecord
+  response: JsonRecord,
+  selectedVariant?: VariantSelection
 ): ParsedProduct | undefined {
   const product = isJsonRecord(response.product) ? response.product : undefined;
   const title = asString(product?.productName);
@@ -1538,6 +1540,7 @@ function parseTheDealVariationProduct(
   const availability = parseTheDealJsonAvailability(product);
   const imageUrl = extractTheDealJsonImage(product.images);
   const groups = extractTheDealJsonVariantGroups(product, response);
+  const matchesRequestedSelection = !selectedVariant || matchesTheDealSelection(groups, selectedVariant);
   const selectedProductUrl = asString(product.selectedProductUrl);
   const canonicalUrl = selectedProductUrl ? absoluteUrl(selectedProductUrl, inputUrl) : inputUrl;
   const variants = buildTheDealVariants(
@@ -1560,8 +1563,21 @@ function parseTheDealVariationProduct(
     availability,
     rawPriceText: asString(sales?.formatted) ?? asString(sales?.decimalPrice),
     sku: cleanSku(asIdentifier(product.id)),
-    ...(variants.length > 0 ? { variants } : {})
+    ...(matchesRequestedSelection && variants.length > 0 ? { variants } : {})
   };
+}
+
+function matchesTheDealSelection(groups: TheDealVariantGroup[], selection: VariantSelection): boolean {
+  if (groups.length !== selection.attributes.length) {
+    return false;
+  }
+
+  return groups.every((group) => {
+    const selected = group.values.find((value) => value.selected);
+    return selected !== undefined && selection.attributes.some(
+      (attribute) => attribute.name === group.name && attribute.value === selected.displayValue
+    );
+  });
 }
 
 function extractTheDealHtmlVariantGroups(html: string): TheDealVariantGroup[] {
