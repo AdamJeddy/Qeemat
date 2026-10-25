@@ -73,11 +73,11 @@ type ShopifyListingProduct = {
 };
 
 export function parseDecathlonListing(
-  product: ShopifyListingProduct,
+  product: unknown,
   category: DiscoveryCategory,
   observedAt: string
 ): DiscoveryProduct | undefined {
-  if (!product.id || !product.title || !product.handle) {
+  if (!isShopifyListingProduct(product) || !product.id || !product.title || !product.handle) {
     return undefined;
   }
 
@@ -101,6 +101,10 @@ export function parseDecathlonListing(
     availability: purchasableVariants.length > 0 ? 'in_stock' : variants.length > 0 ? 'out_of_stock' : 'unknown',
     observedAt
   };
+}
+
+function isShopifyListingProduct(value: unknown): value is ShopifyListingProduct {
+  return Boolean(value) && typeof value === 'object';
 }
 
 export function filterDiscoveryProducts(products: DiscoveryProduct[], filter: DiscoveryFilter): DiscoveryProduct[] {
