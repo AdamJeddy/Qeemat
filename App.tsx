@@ -28,7 +28,6 @@ import {
   ArrowLeft,
   Bell,
   Check,
-  ChevronRight,
   ChevronDown,
   ChevronUp,
   CircleAlert,
@@ -81,7 +80,6 @@ import {
   getTrackedProduct,
   initializeDatabase,
   listActivityEvents,
-  listProductsWithSnapshots,
   listTrackedProducts,
   updateTrackedProducts,
   updateTrackingSettings
@@ -114,7 +112,6 @@ import {
   WatchlistStoreFilter
 } from './src/domain/watchlist';
 import { resolveSelectedVariant, toVariantSelection, updateSelectedVariantAttributes, VariantAttributes } from './src/domain/variants';
-import { buildOpportunityFeed, Opportunity } from './src/domain/opportunities';
 import {
   buildDiscoverySections,
   DISCOVERY_CATEGORY_LABELS,
@@ -1772,7 +1769,6 @@ function EmptyActivity() {
 }
 
 export function OpportunityScreen({ navigate }: { navigate: (route: Route) => void }) {
-  const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [discoveryProducts, setDiscoveryProducts] = useState<DiscoveryProduct[]>([]);
   const [preferences, setPreferences] = useState<DiscoveryPreferences>();
   const [trackedProducts, setTrackedProducts] = useState<TrackedProduct[]>([]);
@@ -1783,13 +1779,11 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
   const [catalogState, setCatalogState] = useState<{ refreshedAt?: string; stale: boolean }>({ stale: false });
 
   const load = useCallback(async () => {
-    const [records, nextPreferences, catalog, tracked] = await Promise.all([
-      listProductsWithSnapshots(),
+    const [nextPreferences, catalog, tracked] = await Promise.all([
       getDiscoveryPreferences(),
       loadDiscoveryCatalog(),
       listTrackedProducts()
     ]);
-    setOpportunities(buildOpportunityFeed(records));
     setPreferences(nextPreferences);
     setDiscoveryProducts(catalog.products);
     setTrackedProducts(tracked);
@@ -1910,8 +1904,8 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
       showsVerticalScrollIndicator={false}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.primary} />}
     >
-      <View style={styles.opportunityHeader}>
-        <View style={styles.opportunityHeaderIcon}>
+      <View style={styles.discoveryHeader}>
+        <View style={styles.discoveryHeaderIcon}>
           <Sparkles size={22} color={colors.primary} />
         </View>
         <View style={styles.flex}>
@@ -1924,32 +1918,6 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
       </View>
 
       {!preferences?.completed ? <DiscoverySetupCard onPress={() => setShowPreferences(true)} onDismiss={handleDismissInvitation} /> : null}
-
-      {opportunities.length > 0 ? (
-        <View style={styles.discoverySection}>
-          <AppText weight="bold" style={styles.discoverySectionTitle}>Your tracked price opportunities</AppText>
-          <AppText muted style={styles.opportunitySupportCopy}>Price signals from products Qeemat has checked for your watchlist.</AppText>
-          <View style={styles.cardList}>
-            {opportunities.map((opportunity) => (
-              <Pressable key={opportunity.product.id} onPress={() => navigate({ name: 'detail', id: opportunity.product.id })} style={({ pressed }) => [styles.opportunityCard, pressed && styles.opportunityCardPressed]}>
-                {opportunity.product.imageUrl ? <Image source={{ uri: opportunity.product.imageUrl }} style={styles.opportunityImage} resizeMode="contain" /> : <View style={styles.opportunityImagePlaceholder}><Store size={20} color={colors.textMuted} /></View>}
-                <View style={styles.opportunityBody}>
-                  <View style={styles.opportunityTitleRow}>
-                    <AppText weight="semibold" numberOfLines={2} style={styles.opportunityTitle}>{opportunity.product.title}</AppText>
-                    <ChevronRight size={18} color={colors.textMuted} />
-                  </View>
-                  <View style={styles.opportunityPriceRow}>
-                    <AppText weight="bold" style={styles.opportunityPrice}>{formatPrice(opportunity.currentPriceMinor, opportunity.product.currency)}</AppText>
-                    <View style={[styles.opportunityBadge, opportunityBadgeStyle(opportunity.reason)]}><AppText weight="semibold" style={opportunityBadgeTextStyle(opportunity.reason)}>{opportunityLabel(opportunity)}</AppText></View>
-                  </View>
-                  <AppText muted style={styles.opportunityDetail}>{opportunityDescription(opportunity)}</AppText>
-                  <AppText muted style={styles.opportunityChecked}>Checked {formatRelativeTime(opportunity.observedAt)}</AppText>
-                </View>
-              </Pressable>
-            ))}
-          </View>
-        </View>
-      ) : null}
 
       {discoveryProducts.length > 0 ? (
         <>
@@ -2165,40 +2133,6 @@ function DiscoveryListingScreen({
       </ScrollView>
     </View>
   );
-}
-
-function opportunityLabel(opportunity: Opportunity): string {
-  if (opportunity.reason === 'target_hit') {
-    return 'Target hit';
-  }
-
-  if (opportunity.reason === 'new_low') {
-    return 'New low';
-  }
-
-  return `${opportunity.percent}% drop`;
-}
-
-function opportunityDescription(opportunity: Opportunity): string {
-  const savings = formatPrice(opportunity.savingsMinor, opportunity.product.currency);
-
-  if (opportunity.reason === 'target_hit') {
-    return `${savings} below your target price.`;
-  }
-
-  if (opportunity.reason === 'new_low') {
-    return `${savings} below the highest price you have recorded.`;
-  }
-
-  return `${savings} lower than the previous check.`;
-}
-
-function opportunityBadgeStyle(reason: Opportunity['reason']) {
-  return reason === 'target_hit' ? styles.opportunityBadgeTarget : styles.opportunityBadgeDrop;
-}
-
-function opportunityBadgeTextStyle(reason: Opportunity['reason']) {
-  return reason === 'target_hit' ? styles.opportunityBadgeTextTarget : styles.opportunityBadgeTextDrop;
 }
 
 function SettingsScreen() {
@@ -3343,22 +3277,18 @@ const styles = StyleSheet.create({
   bottomActionHalf: {
     flex: 1
   },
-  opportunityHeader: {
+  discoveryHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12
   },
-  opportunityHeaderIcon: {
+  discoveryHeaderIcon: {
     width: 46,
     height: 46,
     borderRadius: 23,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.blueSoft
-  },
-  opportunitySupportCopy: {
-    fontSize: 13,
-    lineHeight: 19
   },
   discoveryPreferencesButton: {
     width: 42,
@@ -3422,83 +3352,6 @@ const styles = StyleSheet.create({
   listingCount: {
     fontSize: 13,
     marginTop: -2
-  },
-  opportunityCard: {
-    flexDirection: 'row',
-    gap: 12,
-    padding: 12,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    ...shadow
-  },
-  opportunityCardPressed: {
-    opacity: 0.82
-  },
-  opportunityImage: {
-    width: 76,
-    height: 92,
-    borderRadius: radius.sm,
-    backgroundColor: colors.surfaceMuted
-  },
-  opportunityImagePlaceholder: {
-    width: 76,
-    height: 92,
-    borderRadius: radius.sm,
-    backgroundColor: colors.surfaceMuted,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  opportunityBody: {
-    flex: 1,
-    minWidth: 0,
-    gap: 6
-  },
-  opportunityTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 6
-  },
-  opportunityTitle: {
-    flex: 1,
-    fontSize: 15,
-    lineHeight: 20
-  },
-  opportunityPriceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8
-  },
-  opportunityPrice: {
-    fontSize: 18
-  },
-  opportunityBadge: {
-    borderRadius: radius.sm,
-    paddingHorizontal: 8,
-    paddingVertical: 5
-  },
-  opportunityBadgeTarget: {
-    backgroundColor: colors.blueSoft
-  },
-  opportunityBadgeDrop: {
-    backgroundColor: colors.greenSoft
-  },
-  opportunityBadgeTextTarget: {
-    color: colors.primary,
-    fontSize: 12
-  },
-  opportunityBadgeTextDrop: {
-    color: colors.green,
-    fontSize: 12
-  },
-  opportunityDetail: {
-    fontSize: 13,
-    lineHeight: 18
-  },
-  opportunityChecked: {
-    fontSize: 11
   },
   activityCard: {
     flexDirection: 'row',

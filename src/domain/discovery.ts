@@ -13,6 +13,14 @@ export const DISCOVERY_CATEGORY_LABELS: Record<DiscoveryCategory, string> = {
   sport: 'Sport & outdoors'
 };
 
+/** Broad interests are collected before every retailer category is available. */
+export const DISCOVERY_INTEREST_CATEGORIES: DiscoveryCategory[] = [
+  'fashion',
+  'beauty',
+  'electronics',
+  'sport'
+];
+
 export type DiscoveryCollection = {
   id: string;
   label: string;

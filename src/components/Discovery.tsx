@@ -15,7 +15,7 @@ import { ChevronRight, EyeOff, Plus, Sparkles, X } from 'lucide-react-native';
 import { AppText } from './AppText';
 import { PrimaryButton } from './PrimaryButton';
 import { formatRelativeTime } from '../domain/dates';
-import { DISCOVERY_CATEGORY_LABELS, DISCOVERY_COLLECTIONS, preferredDiscoveryBrands } from '../domain/discovery';
+import { DISCOVERY_CATEGORY_LABELS, DISCOVERY_INTEREST_CATEGORIES, preferredDiscoveryBrands } from '../domain/discovery';
 import { cleanUrl, getSiteByKey } from '../domain/sites';
 import { DiscoveryCategory, DiscoveryPreferences, DiscoveryProduct, TrackedProduct } from '../domain/types';
 import { parseTargetPriceInput } from '../domain/price';
@@ -126,7 +126,7 @@ export function DiscoveryPreferencesSheet({
   onClose: () => void;
   onSave: (update: Pick<DiscoveryPreferences, 'completed' | 'categories' | 'favoriteBrands' | 'budgetsByCategory'>) => Promise<void>;
 }) {
-  const availableCategories = useMemo(() => [...new Set(DISCOVERY_COLLECTIONS.map((collection) => collection.category))], []);
+  const availableCategories = useMemo(() => DISCOVERY_INTEREST_CATEGORIES, []);
   const [step, setStep] = useState(0);
   const [categories, setCategories] = useState<DiscoveryCategory[]>([]);
   const [brands, setBrands] = useState<string[]>([]);

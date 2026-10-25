@@ -270,8 +270,7 @@ describe('OpportunityScreen', () => {
     mockLoadDiscoveryCatalog.mockResolvedValue({ products: [], stale: false });
   });
 
-  it('explains a target-hit opportunity and opens its product', async () => {
-    const navigate = jest.fn();
+  it('does not render tracked price opportunities in the discovery feed', async () => {
     mockListProductsWithSnapshots.mockResolvedValueOnce([{
       product: {
         id: 77,
@@ -300,24 +299,42 @@ describe('OpportunityScreen', () => {
 
     let tree: renderer.ReactTestRenderer;
     await act(async () => {
-      tree = renderer.create(<OpportunityScreen navigate={navigate} />);
+      tree = renderer.create(<OpportunityScreen navigate={jest.fn()} />);
       await new Promise<void>((resolve) => setImmediate(() => resolve()));
     });
 
     const text = tree!.root.findAllByType(AppText).map((node) => node.props.children).flat().join(' ');
-    expect(text).toContain('Target hit');
-    expect(text).toContain('AED 5 below your target price.');
+    expect(text).not.toContain('Your tracked price opportunities');
+    expect(text).not.toContain('Target hit');
+    expect(text).not.toContain('Target running shoes');
+  });
 
-    const productTitle = tree!.root.findAllByType(AppText).find((node) => node.props.children === 'Target running shoes');
-    let productCard = productTitle?.parent;
-    while (productCard && !productCard.props.onPress) {
-      productCard = productCard.parent;
-    }
-    act(() => {
-      productCard!.props.onPress();
+  it('offers every planned category during personalization, not just the live catalogue categories', async () => {
+    mockListProductsWithSnapshots.mockResolvedValueOnce([]);
+    mockGetDiscoveryPreferences.mockResolvedValueOnce({
+      completed: false,
+      categories: [],
+      favoriteBrands: [],
+      budgetsByCategory: {},
+      dismissedProductIds: [],
+      seenProductIds: []
+    });
+    let tree: renderer.ReactTestRenderer;
+
+    await act(async () => {
+      tree = renderer.create(<OpportunityScreen navigate={jest.fn()} />);
+      await new Promise<void>((resolve) => setImmediate(() => resolve()));
     });
 
-    expect(navigate).toHaveBeenCalledWith({ name: 'detail', id: 77 });
+    act(() => {
+      tree!.root.findByProps({ accessibilityLabel: 'Personalize discovery' }).props.onPress();
+    });
+
+    const text = tree!.root.findAllByType(AppText).map((node) => [node.props.children].flat().join('')).join(' ');
+    expect(text).toContain('Fashion & footwear');
+    expect(text).toContain('Beauty & fragrance');
+    expect(text).toContain('Electronics');
+    expect(text).toContain('Sport & outdoors');
   });
 
   it('shows cached discovery products with a clear price-tracking action', async () => {
