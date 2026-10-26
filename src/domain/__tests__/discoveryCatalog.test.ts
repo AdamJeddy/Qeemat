@@ -59,6 +59,53 @@ describe('multi-retailer discovery refresh', () => {
     expect([...new Set(DISCOVERY_COLLECTIONS.map((source) => source.siteKey))].sort()).toEqual(SUPPORTED_SITES.map((site) => site.key).sort());
   });
 
+  it('serializes overlapping loads so an older response cannot replace a newer refresh', async () => {
+    let releaseOlder!: () => void;
+    let markOlderStarted!: () => void;
+    const olderGate = new Promise<void>((resolve) => { releaseOlder = resolve; });
+    const olderStarted = new Promise<void>((resolve) => { markOlderStarted = resolve; });
+    const response = (price: string) => ({
+      ok: true,
+      json: async () => ({ products: [{ id: 101, title: 'Mat', handle: 'mat', vendor: 'Domyos', variants: [{ price, available: true }] }] })
+    });
+    const olderFetcher = jest.fn(async (url: string) => {
+      if (!url.includes('/collections/fitness/')) { return { ok: false, json: async () => ({}) }; }
+      markOlderStarted();
+      await olderGate;
+      return response('89.00');
+    });
+    const newerFetcher = jest.fn(async (url: string) => url.includes('/collections/fitness/')
+      ? response('79.00') : { ok: false, json: async () => ({}) });
+    const updates: { load: string; price?: number }[] = [];
+    const older = loadDiscoveryCatalog(olderFetcher, { onUpdate: (catalog) => {
+      updates.push({ load: 'older', price: catalog.products[0]?.priceMinor });
+    } });
+    await olderStarted;
+    const newer = loadDiscoveryCatalog(newerFetcher, { force: true, onUpdate: (catalog) => {
+      updates.push({ load: 'newer', price: catalog.products[0]?.priceMinor });
+    } });
+    // Let all unblocked work settle while the older retailer response is held.
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    const newerStartedEarly = newerFetcher.mock.calls.length > 0;
+    releaseOlder();
+    await Promise.all([older, newer]);
+
+    expect((await getDiscoveryCache('decathlon-fitness'))?.products[0].priceMinor).toBe(7900);
+    expect(newerStartedEarly).toBe(false);
+    expect(updates[updates.length - 1]).toEqual({ load: 'newer', price: 7900 });
+    expect(updates.slice(updates.findIndex((update) => update.load === 'newer')))
+      .not.toContainEqual(expect.objectContaining({ load: 'older' }));
+  });
+
+  it('allows a queued load to proceed after the previous load rejects', async () => {
+    const fetcher = jest.fn().mockResolvedValue({ ok: false, json: async () => ({}) });
+    const failed = loadDiscoveryCatalog(fetcher, { onUpdate: () => { throw new Error('Subscriber failed'); } });
+    const next = loadDiscoveryCatalog(fetcher);
+
+    await expect(failed).rejects.toThrow('Subscriber failed');
+    await expect(next).resolves.toEqual(expect.objectContaining({ products: [] }));
+  });
+
   it.each([
     ['2026-10-25T10:00:00Z', '2026-10-25T11:00:00Z', 7900],
     ['2026-10-25T12:00:00Z', '2026-10-25T11:00:00Z', 8900],

@@ -23,12 +23,22 @@ export type DiscoveryCatalogResult = {
 };
 
 let webViewQueue: Promise<unknown> = Promise.resolve();
+let catalogQueue: Promise<unknown> = Promise.resolve();
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 
-export async function loadDiscoveryCatalog(fetcher: DiscoveryFetcher = fetch, options: {
+type DiscoveryCatalogOptions = {
   force?: boolean;
   onUpdate?: (catalog: DiscoveryCatalogResult) => void;
-} = {}): Promise<DiscoveryCatalogResult> {
+};
+
+export function loadDiscoveryCatalog(fetcher: DiscoveryFetcher = fetch, options: DiscoveryCatalogOptions = {}): Promise<DiscoveryCatalogResult> {
+  // A pull-to-refresh must follow the current load's writes and notifications.
+  const request = catalogQueue.then(() => refreshDiscoveryCatalog(fetcher, options));
+  catalogQueue = request.catch(() => undefined);
+  return request;
+}
+
+async function refreshDiscoveryCatalog(fetcher: DiscoveryFetcher, options: DiscoveryCatalogOptions): Promise<DiscoveryCatalogResult> {
   const observedAt = new Date().toISOString();
   const entries = await Promise.all(DISCOVERY_COLLECTIONS.map(async (source) => ({
     source, cached: await getDiscoveryCache(source.id), failed: false
@@ -42,7 +52,7 @@ export async function loadDiscoveryCatalog(fetcher: DiscoveryFetcher = fetch, op
   });
   options.onUpdate?.(snapshot());
   let index = 0;
-  await Promise.all(Array.from({ length: 4 }, async () => {
+  const workers = await Promise.allSettled(Array.from({ length: 4 }, async () => {
     while (index < entries.length) {
       const entry = entries[index++];
       if (!options.force && entry.cached?.parserVersion === DISCOVERY_PARSER_VERSION && Date.now() - Date.parse(entry.cached.fetchedAt) < CACHE_TTL_MS) { continue; }
@@ -56,6 +66,9 @@ export async function loadDiscoveryCatalog(fetcher: DiscoveryFetcher = fetch, op
       options.onUpdate?.(snapshot());
     }
   }));
+  // Do not release the queue while another worker can still write or publish.
+  const failedWorker = workers.find((worker) => worker.status === 'rejected');
+  if (failedWorker?.status === 'rejected') { throw failedWorker.reason; }
   return snapshot();
 }
 
