@@ -79,5 +79,5 @@ async function main() {
     }
   }));
 }
-module.exports = {extractNavigation};
+module.exports = {extractNavigation, request};
 if (require.main === module) main().catch(error => {console.error(error.message);process.exitCode=1;});

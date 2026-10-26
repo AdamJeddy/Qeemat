@@ -39,3 +39,7 @@ Navigation HTML was fetched independently for every retailer with `scripts/audit
 - Report mapping and extraction separately. Preserve cached products when a page is blocked or empty and keep its error visible. Validate product-to-tracker accuracy, not just listing counts.
 
 This document will be updated with the final registry counts and actual extraction/device results as the source-by-source implementation lands.
+
+### Nike checkpoint
+
+Mapped 56 permanent listing pages from the retailer's own navigation: 27 clothing, 20 footwear, three bags and six accessories listings across men, women and kids. Every mapped page returned 12 products in the desktop extraction pass (56/56 successful). Exact URLs and source breadcrumbs are recorded in `src/domain/discoverySources/nike_uae.json`. These mappings are staged for the new on-demand browser; the current opening feed has not yet been switched to this registry.
