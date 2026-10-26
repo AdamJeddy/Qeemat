@@ -30,7 +30,7 @@ jest.mock('./src/domain/discoveryCatalog', () => ({
 
 import { AddScreen, DetailScreen, getTrackedProductLink, OpportunityScreen } from './App';
 import { AppText } from './src/components/AppText';
-import { DiscoveryFilterChip } from './src/components/Discovery';
+import { DiscoveryFilterChip, DiscoveryPreferencesSheet, DiscoveryProductGrid } from './src/components/Discovery';
 import { ProductCard } from './src/components/ProductCard';
 import { CheckStatus, TrackedProduct } from './src/domain/types';
 
@@ -377,18 +377,43 @@ describe('OpportunityScreen', () => {
     expect(text).toContain('Domyos training mat');
     expect(text).toContain('AED 89');
     expect(text).toContain('Track price');
-    expect(text).toContain('Newly discovered');
+    expect(text).toContain('1 product');
 
     const categoryChip = tree!.root.findAllByType(DiscoveryFilterChip).find((node) => node.props.label === 'Sport & outdoors');
     act(() => {
       categoryChip!.findByProps({ accessibilityRole: 'button' }).props.onPress();
     });
 
-    expect(navigate).toHaveBeenCalledWith({
-      name: 'listing',
-      title: 'Sport & outdoors',
-      filter: { category: 'sport' }
+    expect(navigate).not.toHaveBeenCalled();
+    expect(tree!.root.findAllByType(DiscoveryFilterChip).find((node) => node.props.label === 'Sport & outdoors')?.props.selected).toBe(true);
+  });
+
+  it('applies saved quiz interests and budgets to the same feed immediately', async () => {
+    const navigate = jest.fn();
+    const initial = { completed: true, categories: [], favoriteBrands: [], budgetsByCategory: {}, dismissedProductIds: [], seenProductIds: [] };
+    mockGetDiscoveryPreferences.mockResolvedValueOnce(initial);
+    const base = { siteKey: 'faces_uae', category: 'beauty', brand: 'Dior', currency: 'AED', availability: 'in_stock', observedAt: '2026-10-25T10:00:00Z' };
+    mockLoadDiscoveryCatalog.mockResolvedValueOnce({ products: [
+      { ...base, id: 'serum', title: 'Affordable serum', url: 'https://www.faces.ae/en/serum', priceMinor: 9000 },
+      { ...base, id: 'premium-serum', title: 'Premium serum', url: 'https://www.faces.ae/en/premium-serum', priceMinor: 25000 },
+      { ...base, id: 'shoes', title: 'Running shoes', category: 'sport', url: 'https://decathlon.ae/products/shoes', siteKey: 'decathlon_uae', priceMinor: 8000 }
+    ], stale: false });
+    const saved = { ...initial, categories: ['beauty'], budgetsByCategory: { beauty: 10000 } };
+    jest.requireMock('./src/data/discovery').saveDiscoveryPreferences.mockResolvedValueOnce(saved);
+    let tree: renderer.ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(<OpportunityScreen navigate={navigate} />);
+      await new Promise<void>((resolve) => setImmediate(resolve));
     });
+    expect(tree!.root.findByType(DiscoveryProductGrid).props.products).toHaveLength(3);
+    await act(async () => {
+      await tree!.root.findByType(DiscoveryPreferencesSheet).props.onSave(saved);
+    });
+    expect(tree!.root.findByType(DiscoveryProductGrid).props.products.map((product: { id: string }) => product.id)).toEqual(['serum']);
+    expect(navigate).not.toHaveBeenCalled();
+    act(() => tree!.root.findAllByType(DiscoveryFilterChip).find((node) => node.props.label === 'Sport & outdoors')!.props.onPress());
+    expect(tree!.root.findByType(DiscoveryProductGrid).props.products.map((product: { id: string }) => product.id)).toEqual(['shoes']);
+    expect(navigate).not.toHaveBeenCalled();
   });
 });
 

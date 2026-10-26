@@ -15,7 +15,7 @@ import { ChevronRight, EyeOff, Plus, Sparkles, X } from 'lucide-react-native';
 import { AppText } from './AppText';
 import { PrimaryButton } from './PrimaryButton';
 import { formatRelativeTime } from '../domain/dates';
-import { DISCOVERY_CATEGORY_LABELS, DISCOVERY_INTEREST_CATEGORIES, preferredDiscoveryBrands } from '../domain/discovery';
+import { DISCOVERY_CATEGORY_LABELS, DISCOVERY_INTEREST_CATEGORIES, preferredDiscoveryBrands, uniqueDiscoveryBrands } from '../domain/discovery';
 import { cleanUrl, getSiteByKey } from '../domain/sites';
 import { DiscoveryCategory, DiscoveryPreferences, DiscoveryProduct, TrackedProduct } from '../domain/types';
 import { parseTargetPriceInput } from '../domain/price';
@@ -80,6 +80,7 @@ export function DiscoveryProductGrid({
   onMoreLikeThis: (brand: string) => void;
   onViewAtRetailer: (product: DiscoveryProduct) => Promise<void>;
 }) {
+  const [preview, setPreview] = useState<DiscoveryProduct>();
   if (!products.length) {
     return <AppText muted style={styles.emptyFilter}>No products match these filters yet.</AppText>;
   }
@@ -91,7 +92,7 @@ export function DiscoveryProductGrid({
         const tracking = trackingProductId === product.id;
         return (
           <View key={product.id} style={styles.productCard}>
-            <Pressable accessibilityRole="button" accessibilityLabel={`Show more ${product.brand} products`} onPress={() => onMoreLikeThis(product.brand)} style={styles.productImageWrap}>
+            <Pressable accessibilityRole="button" accessibilityLabel={`View ${product.title}`} onPress={() => setPreview(product)} style={styles.productImageWrap}>
               {product.imageUrl ? <Image source={{ uri: product.imageUrl }} style={styles.productImage} resizeMode="contain" /> : <Sparkles size={24} color={colors.textMuted} />}
             </Pressable>
             <View style={styles.productBody}>
@@ -102,15 +103,26 @@ export function DiscoveryProductGrid({
               <Pressable accessibilityRole="button" onPress={() => onTrack(product)} style={({ pressed }) => [styles.trackButton, tracked && styles.trackedButton, pressed && styles.pressed]} disabled={tracking}>
                 {tracking ? <ActivityIndicator size="small" color={colors.surface} /> : <><Plus size={15} color={tracked ? colors.primary : colors.surface} /><AppText weight="semibold" style={[styles.trackButtonText, tracked && styles.trackedButtonText]}>{tracked ? 'Tracking' : 'Track price'}</AppText></>}
               </Pressable>
-              <View style={styles.feedbackRow}>
-                <Pressable accessibilityRole="link" accessibilityLabel={`View ${product.title} at retailer`} onPress={() => onViewAtRetailer(product)}><AppText weight="semibold" style={styles.feedbackLink}>View retailer</AppText></Pressable>
-                <Pressable accessibilityRole="button" accessibilityLabel={`Show more like ${product.brand}`} onPress={() => onMoreLikeThis(product.brand)}><AppText weight="semibold" style={styles.feedbackLink}>More like this</AppText></Pressable>
-                <Pressable accessibilityRole="button" accessibilityLabel={`Not interested in ${product.title}`} onPress={() => onDismiss(product.id)} style={styles.dismissButton}><EyeOff size={14} color={colors.textMuted} /><AppText muted style={styles.feedbackLink}>Not for me</AppText></Pressable>
-              </View>
             </View>
           </View>
         );
       })}
+      <Modal visible={Boolean(preview)} animationType="slide" onRequestClose={() => setPreview(undefined)}>
+        <SafeAreaView style={styles.sheet}>
+          <View style={styles.sheetHeader}><Pressable accessibilityRole="button" accessibilityLabel="Close product" onPress={() => setPreview(undefined)} style={styles.iconButton}><X size={22} color={colors.text} /></Pressable><AppText weight="bold">Product details</AppText></View>
+          {preview ? <ScrollView contentContainerStyle={styles.sheetContent}>
+            {preview.imageUrl ? <Image source={{ uri: preview.imageUrl }} resizeMode="contain" style={styles.previewImage} /> : null}
+            <AppText muted>{preview.brand} · {getSiteByKey(preview.siteKey).shortName}</AppText>
+            <AppText weight="bold" style={styles.emptyTitle}>{preview.title}</AppText>
+            <AppText weight="bold">{preview.hasPriceRange ? 'From ' : ''}{formatPrice(preview.priceMinor, preview.currency)}</AppText>
+            <AppText muted>Price observed {formatRelativeTime(preview.observedAt)}. Current details are verified when you track.</AppText>
+            <PrimaryButton label={trackedProducts.some((item) => cleanUrl(item.canonicalUrl || item.url) === cleanUrl(preview.url)) ? 'Open tracker' : 'Track price'} onPress={() => { setPreview(undefined); onTrack(preview); }} />
+            <PrimaryButton label="View at retailer" variant="outline" onPress={() => onViewAtRetailer(preview)} />
+            <PrimaryButton label="More like this" variant="outline" onPress={() => { setPreview(undefined); onMoreLikeThis(preview.brand); }} />
+            <PrimaryButton label="Not interested" variant="outline" icon={<EyeOff size={18} color={colors.primary} />} onPress={() => { setPreview(undefined); onDismiss(preview.id); }} />
+          </ScrollView> : null}
+        </SafeAreaView>
+      </Modal>
     </View>
   );
 }
@@ -118,11 +130,13 @@ export function DiscoveryProductGrid({
 export function DiscoveryPreferencesSheet({
   visible,
   initialPreferences,
+  products = [],
   onClose,
   onSave
 }: {
   visible: boolean;
   initialPreferences?: DiscoveryPreferences;
+  products?: DiscoveryProduct[];
   onClose: () => void;
   onSave: (update: Pick<DiscoveryPreferences, 'completed' | 'categories' | 'favoriteBrands' | 'budgetsByCategory'>) => Promise<void>;
 }) {
@@ -132,18 +146,20 @@ export function DiscoveryPreferencesSheet({
   const [brands, setBrands] = useState<string[]>([]);
   const [budgets, setBudgets] = useState<Partial<Record<DiscoveryCategory, string>>>({});
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string>();
 
   useEffect(() => {
     if (!visible) {
       return;
     }
     setStep(0);
+    setError(undefined);
     setCategories(initialPreferences?.categories ?? []);
     setBrands(initialPreferences?.favoriteBrands ?? []);
     setBudgets(Object.fromEntries(Object.entries(initialPreferences?.budgetsByCategory ?? {}).map(([category, value]) => [category, String((value ?? 0) / 100)])));
   }, [initialPreferences, visible]);
 
-  const brandChoices = preferredDiscoveryBrands(categories);
+  const brandChoices = uniqueDiscoveryBrands([...preferredDiscoveryBrands(categories), ...products.filter((product) => categories.includes(product.category)).map((product) => product.brand), ...brands]);
   const title = step === 0 ? 'What are you interested in?' : step === 1 ? 'Any favourite brands?' : 'What do you usually spend?';
   const copy = step === 0 ? 'Choose anything you would like to explore. You can change this later.' : step === 1 ? 'This helps us bring familiar brands to the top of your feed.' : 'Set an optional maximum per category. Leave blank for no budget.';
 
@@ -153,8 +169,9 @@ export function DiscoveryPreferencesSheet({
       return amount === undefined ? [] : [[category, amount]];
     })) as Partial<Record<DiscoveryCategory, number>>;
     setSaving(true);
-    await onSave({ completed: true, categories, favoriteBrands: brands, budgetsByCategory });
-    setSaving(false);
+    try { await onSave({ completed: true, categories, favoriteBrands: brands, budgetsByCategory }); }
+    catch { setError('Could not save your preferences. Please try again.'); }
+    finally { setSaving(false); }
   }
 
   return (
@@ -168,11 +185,13 @@ export function DiscoveryPreferencesSheet({
         <ScrollView contentContainerStyle={styles.sheetContent} keyboardShouldPersistTaps="handled">
           <AppText weight="bold" style={styles.sheetTitle}>{title}</AppText>
           <AppText muted style={styles.sheetCopy}>{copy}</AppText>
+          {error ? <AppText>{error}</AppText> : null}
           {step === 0 ? <View style={styles.choiceWrap}>{availableCategories.map((category) => <DiscoveryFilterChip key={category} label={DISCOVERY_CATEGORY_LABELS[category]} selected={categories.includes(category)} onPress={() => setCategories((current) => current.includes(category) ? current.filter((item) => item !== category) : [...current, category])} />)}</View> : null}
           {step === 1 ? <View style={styles.choiceWrap}><DiscoveryFilterChip label="No preference" selected={!brands.length} onPress={() => setBrands([])} />{brandChoices.length ? brandChoices.map((brand) => <DiscoveryFilterChip key={brand} label={brand} selected={brands.includes(brand)} onPress={() => setBrands((current) => current.includes(brand) ? current.filter((item) => item !== brand) : [...current, brand])} />) : <AppText muted>Select an interest first, or continue without brand preferences.</AppText>}</View> : null}
           {step === 2 ? <View style={styles.budgetList}>{categories.length ? categories.map((category) => <View key={category} style={styles.budgetRow}><AppText weight="semibold" style={styles.flex}>{DISCOVERY_CATEGORY_LABELS[category]}</AppText><View style={styles.budgetInput}><AppText muted>AED</AppText><TextInput value={budgets[category] ?? ''} onChangeText={(value) => setBudgets((current) => ({ ...current, [category]: value }))} keyboardType="decimal-pad" placeholder="Any" placeholderTextColor={colors.textSoft} style={styles.budgetTextInput} /></View></View>) : <AppText muted>Continue without a spending preference to see the live catalogue.</AppText>}</View> : null}
         </ScrollView>
         <View style={styles.sheetActions}>
+          <PrimaryButton label="Skip" variant="outline" onPress={() => { if (step === 0) { setCategories([]); } else if (step === 1) { setBrands([]); } else { setBudgets({}); } if (step < 2) { setStep((current) => current + 1); } else { onSave({ completed: true, categories, favoriteBrands: brands, budgetsByCategory: {} }).catch(() => setError('Could not save preferences.')); } }} disabled={saving} style={styles.sheetBack} />
           {step > 0 ? <PrimaryButton label="Back" variant="outline" onPress={() => setStep((current) => current - 1)} style={styles.sheetBack} /> : null}
           <PrimaryButton label={step === 2 ? 'Show my picks' : 'Continue'} onPress={step === 2 ? save : () => setStep((current) => current + 1)} loading={saving} style={styles.flex} />
         </View>
@@ -201,14 +220,15 @@ const styles = StyleSheet.create({
   filterChipTextSelected: { color: colors.primary },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   productCard: { width: '48%', flexGrow: 1, flexBasis: '46%', borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, overflow: 'hidden' },
-  productImageWrap: { height: 142, backgroundColor: colors.surfaceMuted, alignItems: 'center', justifyContent: 'center' },
+  productImageWrap: { height: 120, backgroundColor: colors.surfaceMuted, alignItems: 'center', justifyContent: 'center' },
+  previewImage: { width: '100%', height: 220 },
   productImage: { width: '100%', height: '100%' },
   productBody: { gap: 6, padding: 10 },
   productSource: { fontSize: 11 },
   productTitle: { fontSize: 14, lineHeight: 19, minHeight: 38 },
   productPrice: { fontSize: 16 },
   productObserved: { fontSize: 11 },
-  trackButton: { minHeight: 34, borderRadius: radius.sm, backgroundColor: colors.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, marginTop: 2, paddingHorizontal: 8 },
+  trackButton: { minHeight: 44, borderRadius: radius.sm, backgroundColor: colors.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, marginTop: 2, paddingHorizontal: 8 },
   trackedButton: { backgroundColor: colors.blueSoft },
   trackButtonText: { color: colors.surface, fontSize: 12 },
   trackedButtonText: { color: colors.primary },
