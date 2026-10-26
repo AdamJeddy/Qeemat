@@ -1,9 +1,12 @@
 import {
   buildDiscoverySections,
   filterDiscoveryProducts,
+  discoveryVariantChoices,
+  uniqueDiscoveryBrands,
   parseDecathlonListing
 } from '../discovery';
 import { DiscoveryPreferences, DiscoveryProduct } from '../types';
+import { resolveSelectedVariant } from '../variants';
 
 const preferences: DiscoveryPreferences = {
   completed: true,
@@ -72,11 +75,9 @@ describe('buildDiscoverySections', () => {
 
     expect(sections.picks.map((product) => product.id)).toEqual([
       'decathlon_uae:shoe',
-      'decathlon_uae:hidden',
-      'decathlon_uae:coat',
-      'decathlon_uae:tent'
+      'decathlon_uae:hidden'
     ]);
-    expect(sections.exploreDifferent.map((product) => product.id)).toEqual(['decathlon_uae:tent']);
+    expect(sections.exploreDifferent).toEqual([]);
   });
 
   it('hides dismissed products and labels unseen products as newly discovered', () => {
@@ -87,10 +88,16 @@ describe('buildDiscoverySections', () => {
     });
 
     expect(sections.picks.map((product) => product.id)).not.toContain('decathlon_uae:hidden');
-    expect(sections.newlyDiscovered.map((product) => product.id)).toEqual([
-      'decathlon_uae:coat',
-      'decathlon_uae:tent'
-    ]);
+    expect(sections.newlyDiscovered).toEqual([]);
+  });
+
+  it('spreads equally relevant picks across retailers when every interest is selected', () => {
+    const nike = { ...products[0], id: 'nike:1', siteKey: 'nike_uae' as const, brand: 'Nike' };
+    const beauty = { ...products[0], id: 'sephora:1', siteKey: 'sephora_uae' as const, category: 'beauty' as const, brand: 'Dior' };
+    const result = buildDiscoverySections([...products, nike, beauty], {
+      ...preferences, categories: ['fashion', 'beauty', 'electronics', 'sport'], favoriteBrands: [], budgetsByCategory: {}
+    });
+    expect(result.picks.slice(0, 4).map((product) => product.id)).toEqual([products[0].id, beauty.id, products[2].id, nike.id]);
   });
 });
 
@@ -102,6 +109,23 @@ describe('filterDiscoveryProducts', () => {
       brand: 'Kiprun',
       maximumPriceMinor: 20000
     }).map((product) => product.id)).toEqual(['decathlon_uae:shoe', 'decathlon_uae:hidden']);
+  });
+});
+
+describe('discovery choices', () => {
+  it('deduplicates retailer brand casing while retaining the preferred display name', () => {
+    expect(uniqueDiscoveryBrands(['Adidas', 'adidas', 'Nike', 'nike', 'Other brands'])).toEqual(['Adidas', 'Nike']);
+  });
+
+  it('hides model identifiers only when shopper choices still identify the exact variant', () => {
+    const variants = [
+      { id: 'black-42', label: 'Black 42', currency: 'AED', priceMinor: 10500, availability: 'in_stock' as const, attributes: [{ name: 'Model Code', value: '123' }, { name: 'Size', value: '42' }, { name: 'Color', value: 'Black' }] },
+      { id: 'beige-42', label: 'Beige 42', currency: 'AED', priceMinor: 10500, availability: 'in_stock' as const, attributes: [{ name: 'Model Code', value: '456' }, { name: 'Size', value: '42' }, { name: 'Color', value: 'Beige' }] }
+    ];
+    const choices = discoveryVariantChoices(variants);
+    expect(choices[0].attributes.map((attribute) => attribute.name)).toEqual(['Size', 'Color']);
+    expect(resolveSelectedVariant(choices, { Size: '42', Color: 'Beige' })?.id).toBe('beige-42');
+    expect(discoveryVariantChoices([{ ...variants[0] }, { ...variants[1], attributes: [{ name: 'Model Code', value: '456' }, { name: 'Size', value: '42' }, { name: 'Color', value: 'Black' }] }])[0].attributes).toHaveLength(3);
   });
 });
 

@@ -8,12 +8,16 @@ import { DEFAULT_DISCOVERY_PREFERENCES } from '../domain/discovery';
 
 const PREFERENCES_KEY = 'qeemat.discovery.preferences.v1';
 const CACHE_KEY = 'qeemat.discovery.cache.v1';
+const SOURCE_CACHE_PREFIX = 'qeemat.discovery.source.v2.';
 const MAX_FEEDBACK_IDS = 300;
 
 export type DiscoveryCacheEntry = {
   products: DiscoveryProduct[];
   fetchedAt: string;
+  parserVersion?: number;
 };
+
+export const DISCOVERY_PARSER_VERSION = 2;
 
 export async function getDiscoveryPreferences(): Promise<DiscoveryPreferences> {
   const raw = await AsyncStorage.getItem(PREFERENCES_KEY);
@@ -61,20 +65,24 @@ export async function dismissDiscoveryProduct(productId: string): Promise<void> 
 }
 
 export async function getDiscoveryCache(collectionId: string): Promise<DiscoveryCacheEntry | undefined> {
+  const raw = await AsyncStorage.getItem(`${SOURCE_CACHE_PREFIX}${collectionId}`);
+  if (raw) {
+    try {
+      const entry = JSON.parse(raw) as DiscoveryCacheEntry;
+      if (Array.isArray(entry.products) && typeof entry.fetchedAt === 'string') { return entry; }
+    } catch { /* Read the legacy cache if this entry is corrupt. */ }
+  }
   const cache = await readCache();
   return cache[collectionId];
 }
 
 export async function saveDiscoveryCache(collectionId: string, products: DiscoveryProduct[], fetchedAt: string): Promise<void> {
-  const cache = await readCache();
-  await AsyncStorage.setItem(CACHE_KEY, JSON.stringify({
-    ...cache,
-    [collectionId]: { products, fetchedAt }
-  }));
+  await AsyncStorage.setItem(`${SOURCE_CACHE_PREFIX}${collectionId}`, JSON.stringify({ products, fetchedAt, parserVersion: DISCOVERY_PARSER_VERSION }));
 }
 
 export async function clearDiscoveryData(): Promise<void> {
-  await AsyncStorage.multiRemove([PREFERENCES_KEY, CACHE_KEY]);
+  const keys = await AsyncStorage.getAllKeys();
+  await AsyncStorage.multiRemove([PREFERENCES_KEY, CACHE_KEY, ...keys.filter((key) => key.startsWith(SOURCE_CACHE_PREFIX))]);
 }
 
 async function writePreferences(preferences: DiscoveryPreferences): Promise<void> {
