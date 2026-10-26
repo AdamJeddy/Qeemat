@@ -33,7 +33,7 @@ describe('fetchDecathlonCollection', () => {
     );
 
     expect(fetcher).toHaveBeenCalledWith(
-      'https://decathlon.ae/collections/fitness/products.json?limit=24',
+      'https://decathlon.ae/collections/fitness/products.json?limit=100',
       expect.objectContaining({ headers: expect.objectContaining({ Accept: 'application/json' }) })
     );
     expect(products).toEqual([expect.objectContaining({

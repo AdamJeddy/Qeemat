@@ -1,4 +1,4 @@
-import { DiscoveryCollection, discoverySourceUrl, parseDecathlonListing } from './discovery';
+import { DiscoveryCollection, DISCOVERY_SOURCE_PRODUCT_LIMIT, discoverySourceUrl, parseDecathlonListing } from './discovery';
 import { DiscoveryProduct } from './types';
 
 type RecordValue = Record<string, unknown>;
@@ -37,7 +37,7 @@ export function parseDiscoveryListing(body: string, source: DiscoveryCollection,
           brand: item.brands?.[0]?.name });
       }
     } else if (payload && Array.isArray(payload.products)) {
-      return payload.products.map((item: unknown) => parseDecathlonListing(item, source.category, observedAt, source.siteKey))
+      return payload.products.slice(0, DISCOVERY_SOURCE_PRODUCT_LIMIT).map((item: unknown) => parseDecathlonListing(item, source.category, observedAt, source.siteKey))
         .filter((item: DiscoveryProduct | undefined): item is DiscoveryProduct => Boolean(item));
     }
     return unique(found);
@@ -205,7 +205,7 @@ export function decodeHtml(text: string): string {
     });
 }
 function textContent(html: string): string { return decodeHtml(html.replace(/<style[\s\S]*?<\/style>/g, '').replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim(); }
-function unique(products: DiscoveryProduct[]): DiscoveryProduct[] { return [...new Map(products.map((product) => [product.url, product])).values()].slice(0, 48); }
+function unique(products: DiscoveryProduct[]): DiscoveryProduct[] { return [...new Map(products.map((product) => [product.url, product])).values()].slice(0, DISCOVERY_SOURCE_PRODUCT_LIMIT); }
 function decodeFlight(html: string): string {
   return [...html.matchAll(/self\.__next_f\.push\((\[[\s\S]*?\])\)\s*;?\s*<\/script>/g)].map((match) => {
     try { return JSON.parse(match[1])[1] ?? ''; } catch { return ''; }

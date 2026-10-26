@@ -17,7 +17,7 @@ export type DiscoveryCacheEntry = {
   parserVersion?: number;
 };
 
-export const DISCOVERY_PARSER_VERSION = 2;
+export const DISCOVERY_PARSER_VERSION = 3;
 
 export async function getDiscoveryPreferences(): Promise<DiscoveryPreferences> {
   const raw = await AsyncStorage.getItem(PREFERENCES_KEY);

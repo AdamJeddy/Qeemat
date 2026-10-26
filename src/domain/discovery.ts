@@ -14,6 +14,8 @@ export const DISCOVERY_CATEGORY_LABELS: Record<DiscoveryCategory, string> = {
   sport: 'Sport & outdoors'
 };
 
+export const DISCOVERY_SOURCE_PRODUCT_LIMIT = 100;
+
 /** Broad interests are collected before every retailer category is available. */
 export const DISCOVERY_INTEREST_CATEGORIES: DiscoveryCategory[] = [
   'fashion',
@@ -62,14 +64,14 @@ export const DISCOVERY_COLLECTIONS: DiscoveryCollection[] = [
   { id: 'nike-women', label: 'Nike women', category: 'fashion', siteKey: 'nike_uae', url: 'https://www.nike.ae/en/womens/shoes', provider: 'html' },
   { id: 'sss-shoes', label: 'Sun & Sand shoes', category: 'sport', siteKey: 'sun_sand_sports', url: 'https://en-ae.sssports.com/mens/shoes', provider: 'html' },
   { id: 'level-sneakers', label: 'Level Shoes sneakers', category: 'fashion', siteKey: 'level_shoes', url: 'https://www.levelshoes.com/men/shoes/sneakers.html', provider: 'html' },
-  { id: 'ay-gear', label: 'Motorcycle gear', category: 'sport', siteKey: 'ay_accessories', url: 'https://ay-accessories.com/wp-json/wc/store/v1/products?per_page=24', provider: 'woocommerce' },
+  { id: 'ay-gear', label: 'Motorcycle gear', category: 'sport', siteKey: 'ay_accessories', url: `https://ay-accessories.com/wp-json/wc/store/v1/products?per_page=${DISCOVERY_SOURCE_PRODUCT_LIMIT}`, provider: 'woocommerce' },
   { id: 'ounass-beauty', label: 'Ounass beauty', category: 'beauty', siteKey: 'ounass', url: 'https://www.ounass.ae/women/beauty', provider: 'html' },
   { id: 'ounass-fashion', label: 'Ounass clothing', category: 'fashion', siteKey: 'ounass', url: 'https://www.ounass.ae/women/clothing', provider: 'html' },
   { id: 'noon-audio', label: 'Noon headphones', category: 'electronics', siteKey: 'noon', url: 'https://www.noon.com/uae-en/electronics-and-mobiles/portable-audio-and-video/headphones-24056/', provider: 'html' },
   { id: 'amazon-audio', label: 'Amazon UAE headphones', category: 'electronics', siteKey: 'amazon_ae', url: 'https://www.amazon.ae/s?k=headphones', provider: 'html' },
   { id: 'adidas-shoes', label: 'Adidas shoes', category: 'fashion', siteKey: 'adidas', url: 'https://www.adidas.ae/en/men-all-shoes', provider: 'html' },
   { id: 'puma-shoes', label: 'Puma shoes', category: 'sport', siteKey: 'puma_uae', url: 'https://ae.puma.com/ae/en/men/shoes', provider: 'html' },
-  { id: 'salomon-outdoors', label: 'Salomon outdoors', category: 'sport', siteKey: 'salomon_gcc', url: 'https://salomongcc.com/collections/shop-all-products/products.json?limit=24', provider: 'shopify' },
+  { id: 'salomon-outdoors', label: 'Salomon outdoors', category: 'sport', siteKey: 'salomon_gcc', url: `https://salomongcc.com/collections/shop-all-products/products.json?limit=${DISCOVERY_SOURCE_PRODUCT_LIMIT}`, provider: 'shopify' },
   { id: 'sephora-featured', label: 'Sephora featured beauty', category: 'beauty', siteKey: 'sephora_uae', url: 'https://www.sephora.me/ae-en', provider: 'html' },
   { id: 'faces-skincare', label: 'Faces skincare', category: 'beauty', siteKey: 'faces_uae', url: 'https://www.faces.ae/en/skincare', provider: 'html' },
   { id: 'centrepoint-women', label: 'Centrepoint women', category: 'fashion', siteKey: 'centrepoint_uae', url: 'https://www.centrepointstores.com/ae/en/c/women', provider: 'html' },
@@ -80,7 +82,7 @@ export const DISCOVERY_COLLECTIONS: DiscoveryCollection[] = [
 ];
 
 export function discoverySourceUrl(collection: DiscoveryCollection): string {
-  return collection.url ?? `https://decathlon.ae/collections/${collection.collectionHandle}/products.json?limit=24`;
+  return collection.url ?? `https://decathlon.ae/collections/${collection.collectionHandle}/products.json?limit=${DISCOVERY_SOURCE_PRODUCT_LIMIT}`;
 }
 
 export function discoveryCollectionPageUrl(collection: DiscoveryCollection): string {

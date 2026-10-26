@@ -18,17 +18,17 @@ All 18 entries in `SUPPORTED_SITES` have explicit discovery source registrations
 
 | Retailer | Exact URL fetched by the app | Content | Android result |
 |---|---|---|---|
-| Decathlon | [Footwear JSON](https://decathlon.ae/collections/men-footwear/products.json?limit=24), [Fitness JSON](https://decathlon.ae/collections/fitness/products.json?limit=24), [Hiking & Camping JSON](https://decathlon.ae/collections/hike-camp/products.json?limit=24) | Shoes, fitness equipment, outdoor gear | Products loaded |
+| Decathlon | [Footwear JSON](https://decathlon.ae/collections/men-footwear/products.json?limit=100), [Fitness JSON](https://decathlon.ae/collections/fitness/products.json?limit=100), [Hiking & Camping JSON](https://decathlon.ae/collections/hike-camp/products.json?limit=100) | Shoes, fitness equipment, outdoor gear | Products loaded |
 | Nike | [Men's shoes](https://www.nike.ae/en/mens/shoes), [Women's shoes](https://www.nike.ae/en/womens/shoes) | Nike footwear | Products loaded |
 | Sun & Sand Sports | [Men's shoes](https://en-ae.sssports.com/mens/shoes) | Multiple sports brands | Products loaded |
 | Level Shoes | [Men's sneakers](https://www.levelshoes.com/men/shoes/sneakers.html) | Multiple footwear brands | Products loaded |
-| Al Yousuf Accessories | [WooCommerce product feed](https://ay-accessories.com/wp-json/wc/store/v1/products?per_page=24) | Motorcycle helmets, communications and gear; [shop page](https://ay-accessories.com/shop/) | Products loaded |
+| Al Yousuf Accessories | [WooCommerce product feed](https://ay-accessories.com/wp-json/wc/store/v1/products?per_page=100) | Motorcycle helmets, communications and gear; [shop page](https://ay-accessories.com/shop/) | Products loaded |
 | Ounass | [Beauty](https://www.ounass.ae/women/beauty), [Clothing](https://www.ounass.ae/women/clothing) | Beauty brands and fashion | Products loaded |
 | Noon | [Headphones & Earphones](https://www.noon.com/uae-en/electronics-and-mobiles/portable-audio-and-video/headphones-24056/) | Electronics, multiple brands | Products loaded; rendered Android tiles need a separate extraction path from desktop inline state |
 | Amazon UAE | [Headphones search](https://www.amazon.ae/s?k=headphones) | Electronics, multiple brands | Products loaded; UAE feed only, not every Amazon regional domain |
 | Adidas | [Men's shoes](https://www.adidas.ae/en/men-all-shoes) | Adidas footwear | Products loaded; browser fallback sometimes required |
 | Puma | [Men's shoes](https://ae.puma.com/ae/en/men/shoes) | Puma footwear | Products loaded |
-| Salomon GCC | [Shop-all JSON](https://salomongcc.com/collections/shop-all-products/products.json?limit=24) | Outdoor footwear/apparel | Products loaded; native HTTP may be rate limited |
+| Salomon GCC | [Shop-all JSON](https://salomongcc.com/collections/shop-all-products/products.json?limit=100) | Outdoor footwear/apparel | Products loaded; native HTTP may be rate limited |
 | Sephora | [UAE featured products](https://www.sephora.me/ae-en) | Featured beauty, fragrance and makeup | Products loaded through Android fallback; currently the homepage's product collections, not full department pagination |
 | Faces | [Skincare](https://www.faces.ae/en/skincare) | Multiple beauty brands | Products loaded; storefront cookie/redirect handling matters |
 | Centrepoint | [Women](https://www.centrepointstores.com/ae/en/c/women) | Multiple fashion brands | Products loaded on Android; desktop request was challenged |
@@ -50,7 +50,9 @@ All 18 entries in `SUPPORTED_SITES` have explicit discovery source registrations
 
 ## Limits that still exist
 
-This is a set of selected collections, not every department or every SKU at every retailer. Providers currently fetch the first 24–48 usable products per collection; **Show more** reveals more of the locally fetched catalogue, not additional retailer pages. BFL remains unavailable. Additional source pages and pagination should be added with the same extraction and Android validation checks.
+This is a set of selected collections, not every department or every SKU at every retailer. On 26 October, the parameter-based Decathlon, Salomon and Al Yousuf feeds were increased from 24 to 100 products per request, and the local HTML/WooCommerce extraction cap was increased from 48 to 100. Live checks returned 51 Footwear, 100 Fitness, 100 Hiking/Camping, 97 usable Al Yousuf, and 100 Salomon products. Retailer responses can contain fewer usable products than requested.
+
+HTML listings still supply their retailer-defined first page; a higher local extraction cap does not fetch additional retailer pages. **Show more** continues to reveal the fetched catalogue in display batches of 24. Older caches automatically refresh after this limit change. BFL remains unavailable. Additional source pages and pagination should be added with the same extraction and Android validation checks.
 
 Storefront challenges can change between requests. A successful listing fetch does not guarantee that every product page will load; tracking reports a verification failure rather than saving an unverified item. Retailers that omit a brand are shown as `Other brands` instead of guessing from a product title.
 

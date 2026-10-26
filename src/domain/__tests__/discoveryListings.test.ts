@@ -53,6 +53,16 @@ describe('retailer listing extraction', () => {
     expect(parseDiscoveryListing(JSON.stringify(payload), source('ay_accessories'), observedAt)).toEqual([expect.objectContaining({ priceMinor: 54300 })]);
   });
 
+  it('retains 100 usable products from a larger feed instead of truncating it at 48', () => {
+    const payload = Array.from({ length: 120 }, (_, index) => ({
+      id: index + 1, name: `Helmet ${index + 1}`, permalink: `https://ay-accessories.com/product/helmet-${index + 1}/`,
+      prices: { price: '54300', currency_minor_unit: 2, currency_code: 'AED' }, is_in_stock: true
+    }));
+    const products = parseDiscoveryListing(JSON.stringify(payload), source('ay_accessories'), observedAt);
+    expect(products).toHaveLength(100);
+    expect(products[99].title).toBe('Helmet 100');
+  });
+
   it('treats a challenge page as unavailable supply rather than a successful empty refresh', () => {
     expect(parseDiscoveryListing('<html><title>Just a moment...</title>Cloudflare challenge</html>', source('brands_for_less'), observedAt)).toEqual([]);
   });

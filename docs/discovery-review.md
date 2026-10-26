@@ -50,14 +50,22 @@ The old experience did not deliver the agreed multi-category discovery promise. 
 ## Verification and remaining limits
 
 - Automated checks: 19 Jest suites, 190 passing tests, one existing skipped test; strict typecheck passed; lint had no errors and one existing unrelated inline-style warning.
-- Final code commits: `0c43d7c` (retailer supply/cache/ranking) and `dc2896c` (quiz and browsing). The arm64 standalone release build passed on 26 October, and APK signature verification passed. APK SHA-256: `f5f75dd937580776c4a252f6058baed58329813e03c9a24a9761a4b9b6f08056`.
+- Initial multi-retailer release commits: `0c43d7c` (retailer supply/cache/ranking) and `dc2896c` (quiz and browsing). That arm64 standalone release passed on 26 October, with APK signature verification. Initial APK SHA-256: `f5f75dd937580776c4a252f6058baed58329813e03c9a24a9761a4b9b6f08056`.
 - Physical Android checks covered real multi-retailer listing supply, same-page category selection, completing the quiz with a budget, exact variant persistence, and preserving the existing watchlist. On 26 October the final signed release APK installed successfully on SM-S928B and launched without Metro or an ADB port reverse. Installed metadata was `0.5.5-alpha`, versionCode `3`, with no `DEBUGGABLE` flag. The foreground app showed 672 products across 17 retailers after refreshing; the watchlist retained 23 items. No AndroidRuntime or ReactNativeJS errors were reported for the launched app process. Earlier journey screenshots above used the debug build; the release screenshot is below.
 
   ![Installed standalone release on 26 October](../artifacts/discovery-audit/15-release-installed.png)
 - A separate live Android product-page batch confirmed parsing for Decathlon, Nike, Sun & Sand, Ounass, Level Shoes, Al Yousuf, Puma and Amazon before the connection was lost. That batch did not finish; this is not a claim that a live product page from every retailer was revalidated. Existing per-store parser tests continue to pass, and each Track price action verifies its selected product page before saving.
 - Failure/cache behavior is regression tested. The phone's connectivity was not disabled to claim a physical airplane-mode test.
 - The category chips expose selection state; icon controls have names; tracking uses a 44dp target; save feedback uses a live region. TalkBack announcements, focus restoration across every modal, contrast measurements and large-font reflow still need a dedicated accessibility pass. Screenshots do not establish accessibility compliance.
-- BFL is the remaining supply failure. The first 24–48 usable records from selected collections are not a whole-retailer catalogue. [Every source URL and its actual limitations](discovery-sources.md) is listed separately.
+- BFL is the remaining supply failure. The 26 October limit update requests up to 100 records from parameter-based feeds and retains up to 100 usable records per HTML/WooCommerce listing. HTML sources still fetch their first retailer page; these selected collections are not a whole-retailer catalogue. [Every source URL and its actual limitations](discovery-sources.md) is listed separately.
 - There is no trustworthy “new to you” section yet: that needs real viewport impression tracking. Newly released, best-selling and historical-low claims are not invented.
 - The existing first-launch notification/battery prompts remain optional but still precede the first discovery session; deferring them until tracking would be a further onboarding improvement.
 - Retention has not been established by this build. The five-person, two-minute discovery test and voluntary one-week follow-up remain the product validation gate. No cohort analytics or discovery digest was added.
+
+## 26 October: increased source limits
+
+The parameter-based feeds now request 100 products and the listing parser retains up to 100 usable products per collection. Old caches automatically refresh. Live endpoint checks returned 51 Footwear, 100 Fitness, 100 Hiking/Camping, 97 usable Al Yousuf and 100 Salomon products. All 26 discovery tests passed; typecheck passed and lint retained only the existing unrelated inline-style warning.
+
+The updated signed standalone release installed and launched on SM-S928B. Its feed showed 1,136 products across 17 retailers after refresh. The Sources screen confirmed the `limit=100` URLs and actual counts. Display batches remain 24 cards; retailer HTML pagination is unchanged. No app-process AndroidRuntime/ReactNativeJS errors were reported. Updated APK SHA-256: `3edc66f2fb32f294d3f2b116132310ac49225e954043600deb69f1b385dfb032`.
+
+![Verified source URLs with limit 100](../artifacts/discovery-audit/16-source-limit-100.png)

@@ -1,6 +1,6 @@
 import { DISCOVERY_PARSER_VERSION, getDiscoveryCache, saveDiscoveryCache } from '../data/discovery';
 import { DiscoveryProduct } from './types';
-import { DiscoveryCollection, DISCOVERY_COLLECTIONS, discoverySourceUrl, parseDecathlonListing } from './discovery';
+import { DiscoveryCollection, DISCOVERY_COLLECTIONS, DISCOVERY_SOURCE_PRODUCT_LIMIT, discoverySourceUrl, parseDecathlonListing } from './discovery';
 import { parseDiscoveryListing } from './discoveryListings';
 import { fetchPageHtmlViaWebView } from './webViewFetcher';
 
@@ -104,6 +104,7 @@ export async function fetchDecathlonCollection(
   }
 
   return payload.products
+    .slice(0, DISCOVERY_SOURCE_PRODUCT_LIMIT)
     .map((product) => parseDecathlonListing(product, collection.category, observedAt, collection.siteKey))
     .filter((product): product is DiscoveryProduct => product !== undefined);
 }
