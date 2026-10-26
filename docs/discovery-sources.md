@@ -2,6 +2,8 @@
 
 Verified against source and a connected Galaxy S24 Ultra on 25 October 2026. This is a validation snapshot: retailer counts, prices, rate limits, and bot challenges can change.
 
+The final signed standalone release was installed and launched on that device on 26 October, showing 672 available products across 17 retailers after refresh. The earlier 649-product figures below describe the 25 October audit snapshot.
+
 The previous implementation used **only Decathlon**, through these three endpoints:
 
 - `https://decathlon.ae/collections/men-footwear/products.json?limit=24`
