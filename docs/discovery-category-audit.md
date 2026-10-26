@@ -43,3 +43,11 @@ This document will be updated with the final registry counts and actual extracti
 ### Nike checkpoint
 
 Mapped 56 permanent listing pages from the retailer's own navigation: 27 clothing, 20 footwear, three bags and six accessories listings across men, women and kids. Every mapped page returned 12 products in the desktop extraction pass (56/56 successful). Exact URLs and source breadcrumbs are recorded in `src/domain/discoverySources/nike_uae.json`. These mappings are staged for the new on-demand browser; the current opening feed has not yet been switched to this registry.
+
+### Sun & Sand Sports, Puma and Adidas checkpoints
+
+- Sun & Sand Sports: 104 named category listings mapped; 104/104 returned products in the desktop extraction pass, including clothing, footwear, accessories, cycling, boxing, swimming, fitness and racket-sport equipment.
+- Puma: 46 named listings mapped; 45/46 returned products. Men's underwear returned no usable product tiles and needs further inspection; it is not counted as validated supply.
+- Adidas: 108 permanent/category listings mapped. Seven pages returned products before the desktop client began receiving 2,760-byte JavaScript challenges with HTTP 200. The remaining pages are recorded as blocked/unverified, not empty inventory. Android browser-path validation is required before claiming complete extraction coverage.
+
+Each retailer has its own JSON map under `src/domain/discoverySources/`. The mappings retain source URLs, audience, department paths and whether a page is a department listing. Promotional sale copies and brand-filter URLs were excluded from this permanent category pass.
