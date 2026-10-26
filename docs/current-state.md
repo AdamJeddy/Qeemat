@@ -44,7 +44,9 @@ The site registry is `src/domain/sites.ts`. It controls hostnames, enabled statu
 - Long-press selection opens a compact floating action dock. Selected products can be moved to a folder, paused/resumed, archived/restored, or deleted in bulk.
 - Product cards show a site icon, local folder when present, price, status, and the most recent price-change direction. OOS cards are dimmed and show an amber out-of-stock badge.
 - The Activity tab is newest-first, groups events by date, shows old and new prices with direction/source badges, records both out-of-stock and back-in-stock transitions, and can open an existing product. Events remain visible but non-tappable after a product is deleted.
-- The `For you` tab is a local-only opportunity feed. It surfaces the five strongest active-product signals across target-price hits, new historical lows, and recent drops of at least five percent; paused, archived, and OOS products are excluded.
+- `For you` is the opening discovery tab. Its local quiz collects four interests, favourite brands and independent category budgets. Eligible picks obey interests/budgets and mix equally relevant categories/retailers. Category, brand, retailer and maximum-price filters update the same grid; Show more reveals batches of the cached catalogue. Price opportunities are no longer part of this tab.
+- Discovery has explicit listing sources for all 18 tracked retailers; 17 supplied products in the connected-Android validation, while BFL remained blocked. Per-collection caches preserve observed prices and age during failures, and the Sources control exposes exact endpoints/status. Discovery refreshes while browsing and does not enter tracked-product background checks. See [source URLs and limits](discovery-sources.md) and [UX review and device evidence](discovery-review.md).
+- Track price verifies the product page, saves existing defaults, and offers target settings afterward. Size/colour selection uses a sheet over the feed and preserves the exact source variant; existing trackers open their details. Secondary product actions live in the product-details modal.
 
 ### Add flow and product detail
 
@@ -134,5 +136,5 @@ For a terminal Android build, use JDK 17+ and make `adb` available from Android 
 - Price-drop thresholds and back-in-stock alerts are set per tracker.
 - Folder-based organisation, watchlist filtering/sorting, archive, and compact bulk actions support larger watchlists.
 - Product detail includes local price insights and an interactive price-history chart.
-- The local-only `For you` feed highlights target hits, new lows, and substantial recent drops.
+- The local-only `For you` experience discovers products across categories and retailers, applies saved shopping preferences, and lets users track without pasting a URL.
 - Salomon GCC and The Deal extend retailer support; The Deal saves only a response-verified color/size combination.

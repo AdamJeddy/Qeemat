@@ -28,7 +28,6 @@ import {
   ArrowLeft,
   Bell,
   Check,
-  ChevronRight,
   ChevronDown,
   ChevronUp,
   CircleAlert,
@@ -60,6 +59,13 @@ import { ProductCard } from './src/components/ProductCard';
 import { StatusPill } from './src/components/StatusPill';
 import { VariantSelector } from './src/components/VariantSelector';
 import {
+  DiscoveryFilterChip,
+  DiscoveryPreferencesSheet,
+  DiscoveryProductGrid,
+  DiscoverySetupCard,
+  EmptyDiscovery
+} from './src/components/Discovery';
+import {
   getBackgroundStatus,
   BackgroundStatus,
   markBackgroundSchedule,
@@ -74,11 +80,17 @@ import {
   getTrackedProduct,
   initializeDatabase,
   listActivityEvents,
-  listProductsWithSnapshots,
   listTrackedProducts,
   updateTrackedProducts,
   updateTrackingSettings
 } from './src/data/database';
+import {
+  clearDiscoveryData,
+  dismissDiscoveryProduct,
+  getDiscoveryPreferences,
+  markDiscoveryProductsSeen,
+  saveDiscoveryPreferences
+} from './src/data/discovery';
 import { runBackgroundCheckOnce, scheduleBackgroundChecks, checkBatteryOptimizationExempt, requestBatteryOptimizationExemption, openAppSystemSettings } from './src/domain/backgroundScheduler';
 import { checkAllActiveProducts, checkProductById } from './src/domain/checker';
 import { availableCheckPreferences, formatRelativeTime, formatSnapshotTime } from './src/domain/dates';
@@ -88,7 +100,7 @@ import { fetchAndParseProduct, fetchTheDealVariantForSaving } from './src/domain
 import { calculatePriceInsights } from './src/domain/priceInsights';
 import { formatPrice, parseTargetPriceInput } from './src/domain/price';
 import { cleanUrl, detectSharedUrl, detectSupportedSite, getSiteByKey, normalizeUrl, SUPPORTED_SITES } from './src/domain/sites';
-import { ActivityEvent, AlertMode, CheckPreference, ParsedProduct, PriceSnapshot, ProductWithSnapshots, SnapshotSource, TrackedProduct } from './src/domain/types';
+import { ActivityEvent, AlertMode, CheckPreference, DiscoveryCategory, DiscoveryPreferences, DiscoveryProduct, ParsedProduct, PriceSnapshot, ProductWithSnapshots, SnapshotSource, TrackedProduct } from './src/domain/types';
 import { colors, radius, shadow } from './src/theme/theme';
 import { isCompactLayout } from './src/theme/layout';
 import {
@@ -100,12 +112,23 @@ import {
   WatchlistStoreFilter
 } from './src/domain/watchlist';
 import { resolveSelectedVariant, toVariantSelection, updateSelectedVariantAttributes, VariantAttributes } from './src/domain/variants';
-import { buildOpportunityFeed, Opportunity } from './src/domain/opportunities';
+import {
+  buildDiscoverySections,
+  DISCOVERY_CATEGORY_LABELS,
+  DISCOVERY_INTEREST_CATEGORIES,
+  DISCOVERY_COLLECTIONS,
+  discoverySourceUrl,
+  discoveryCollectionPageUrl,
+  discoveryVariantChoices,
+  uniqueDiscoveryBrands,
+  filterDiscoveryProducts
+} from './src/domain/discovery';
+import { DiscoveryCatalogResult, loadDiscoveryCatalog } from './src/domain/discoveryCatalog';
 
 type TabKey = 'watchlist' | 'opportunities' | 'activity' | 'settings';
 type Route =
   | { name: 'tabs'; tab: TabKey }
-  | { name: 'add'; initialUrl?: string; shareEventId?: number }
+  | { name: 'add'; initialUrl?: string; shareEventId?: number; returnTab?: TabKey }
   | { name: 'detail'; id: number }
   | { name: 'trackingSettings'; id: number };
 
@@ -136,7 +159,7 @@ const BACKGROUND_TIME_PRESETS = [
 ];
 
 export default function App() {
-  const [route, setRoute] = useState<Route>({ name: 'tabs', tab: 'watchlist' });
+  const [route, setRoute] = useState<Route>({ name: 'tabs', tab: 'opportunities' });
   const [ready, setReady] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const shareEventId = useRef(0);
@@ -220,7 +243,7 @@ export default function App() {
       <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
       <SafeAreaView style={styles.app}>
         {route.name === 'tabs' ? <TabsScreen tab={route.tab} navigate={setRoute} /> : null}
-        {route.name === 'add' ? <AddScreen initialUrl={route.initialUrl} shareEventId={route.shareEventId} navigate={setRoute} /> : null}
+        {route.name === 'add' ? <AddScreen initialUrl={route.initialUrl} shareEventId={route.shareEventId} returnTab={route.returnTab} navigate={setRoute} /> : null}
         {route.name === 'detail' ? <DetailScreen productId={route.id} navigate={setRoute} /> : null}
         {route.name === 'trackingSettings' ? <TrackingSettingsScreen productId={route.id} navigate={setRoute} /> : null}
         {showOnboarding ? <OnboardingOverlay onClose={() => setShowOnboarding(false)} /> : null}
@@ -310,8 +333,9 @@ function OnboardingOverlay({ onClose }: { onClose: () => void }) {
 
 function getBackRoute(route: Route): Route | undefined {
   if (route.name === 'add') {
-    return { name: 'tabs', tab: 'watchlist' };
+    return { name: 'tabs', tab: route.returnTab ?? 'watchlist' };
   }
+
 
   if (route.name === 'detail') {
     return { name: 'tabs', tab: 'watchlist' };
@@ -882,7 +906,7 @@ function FolderPicker({ value, folders, onChange }: { value: string; folders: st
   );
 }
 
-export function AddScreen({ initialUrl, shareEventId, navigate }: { initialUrl?: string; shareEventId?: number; navigate: (route: Route) => void }) {
+export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { initialUrl?: string; shareEventId?: number; returnTab?: TabKey; navigate: (route: Route) => void }) {
   const [url, setUrl] = useState(initialUrl ?? '');
   const [parsedProduct, setParsedProduct] = useState<ParsedProduct | undefined>();
   const [loading, setLoading] = useState(false);
@@ -1016,12 +1040,23 @@ export function AddScreen({ initialUrl, shareEventId, navigate }: { initialUrl?:
       variant: productToSave.selectedVariant
     });
     setSaving(false);
+    if (returnTab === 'opportunities') {
+      Alert.alert(
+        'Now tracking',
+        'Qeemat will keep an eye on this option and let you know about meaningful price or stock changes.',
+        [
+          { text: 'Keep browsing', onPress: () => navigate({ name: 'tabs', tab: 'opportunities' }) },
+          { text: 'Set target price', onPress: () => navigate({ name: 'trackingSettings', id }) }
+        ]
+      );
+      return;
+    }
     navigate({ name: 'detail', id });
   }
 
   return (
     <View style={styles.app}>
-      <Header title="Add Product" onBack={() => navigate({ name: 'tabs', tab: 'watchlist' })} />
+      <Header title="Add Product" onBack={() => navigate({ name: 'tabs', tab: returnTab ?? 'watchlist' })} />
       <ScrollView
         ref={scrollRef}
         contentContainerStyle={[styles.screenContent, styles.addScreenContent]}
@@ -1735,24 +1770,188 @@ function EmptyActivity() {
 }
 
 export function OpportunityScreen({ navigate }: { navigate: (route: Route) => void }) {
-  const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
+  const [discoveryProducts, setDiscoveryProducts] = useState<DiscoveryProduct[]>([]);
+  const [preferences, setPreferences] = useState<DiscoveryPreferences>();
+  const [trackedProducts, setTrackedProducts] = useState<TrackedProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [showPreferences, setShowPreferences] = useState(false);
+  const [trackingProductId, setTrackingProductId] = useState<string>();
+  const [category, setCategory] = useState<DiscoveryCategory>();
+  const [brand, setBrand] = useState<string>();
+  const [retailer, setRetailer] = useState<DiscoveryProduct['siteKey']>();
+  const [browseAll, setBrowseAll] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const [showSources, setShowSources] = useState(false);
+  const [catalog, setCatalog] = useState<DiscoveryCatalogResult>();
+  const [visibleCount, setVisibleCount] = useState(24);
+  const [notice, setNotice] = useState<{ message: string; trackedId?: number }>();
+  const [pendingProduct, setPendingProduct] = useState<{ listing: DiscoveryProduct; parsed: ParsedProduct }>();
+  const [variantAttributes, setVariantAttributes] = useState<VariantAttributes>({});
+  const [savingVariant, setSavingVariant] = useState(false);
+  const [variantError, setVariantError] = useState<string>();
+  const trackingBusy = useRef(false);
+  const [maximumPrice, setMaximumPrice] = useState('');
+  const scrollRef = useRef<ScrollView>(null);
+  const [catalogState, setCatalogState] = useState<{ refreshedAt?: string; stale: boolean }>({ stale: false });
 
-  const load = useCallback(async () => {
-    const products = await listProductsWithSnapshots();
-    setOpportunities(buildOpportunityFeed(products));
+  const load = useCallback(async (force = false) => {
+    const [nextPreferences, tracked] = await Promise.all([
+      getDiscoveryPreferences(),
+      listTrackedProducts()
+    ]);
+    setPreferences(nextPreferences);
+    setTrackedProducts(tracked);
+    const update = (next: DiscoveryCatalogResult) => {
+      setCatalog(next);
+      setDiscoveryProducts(next.products);
+      setCatalogState({ refreshedAt: next.refreshedAt, stale: next.stale });
+      setLoading(false);
+    };
+    update(await loadDiscoveryCatalog(undefined, { force, onUpdate: update }));
   }, []);
 
   useEffect(() => {
-    load().finally(() => setLoading(false));
+    load().catch(() => setNotice({ message: 'Could not refresh products. Pull to try again.' })).finally(() => setLoading(false));
   }, [load]);
 
   const refresh = useCallback(async () => {
     setRefreshing(true);
-    await load();
-    setRefreshing(false);
+    try { await load(true); } finally { setRefreshing(false); }
   }, [load]);
+
+  const sections = useMemo(
+    () => preferences ? buildDiscoverySections(discoveryProducts, browseAll || category ? {
+      ...preferences, categories: category ? [category] : [], budgetsByCategory: browseAll ? {} : preferences.budgetsByCategory
+    } : preferences) : { picks: [], newlyDiscovered: [], exploreDifferent: [] },
+    [discoveryProducts, preferences, browseAll, category]
+  );
+  const availableCategories = useMemo(
+    () => DISCOVERY_INTEREST_CATEGORIES,
+    []
+  );
+  const filteredProducts = useMemo(() => filterDiscoveryProducts(sections.picks, {
+    category, brand, siteKey: retailer, maximumPriceMinor: parseTargetPriceInput(maximumPrice)
+  }), [sections.picks, category, brand, retailer, maximumPrice]);
+  const brands = useMemo(() => uniqueDiscoveryBrands(discoveryProducts.filter((product) => !category || product.category === category).map((product) => product.brand)), [category, discoveryProducts]);
+  const retailers = useMemo(() => [...new Set(discoveryProducts.map((product) => product.siteKey))], [discoveryProducts]);
+  const visibleProducts = filteredProducts.slice(0, visibleCount);
+  const variantChoices = discoveryVariantChoices(pendingProduct?.parsed.variants ?? []);
+  const selectedChoice = resolveSelectedVariant(variantChoices, variantAttributes);
+  const selectedVariant = pendingProduct?.parsed.variants?.find((variant) => variant.id === selectedChoice?.id);
+  const activeFilter = Boolean(category || brand || retailer || maximumPrice);
+
+  useEffect(() => { setVisibleCount(24); }, [category, brand, retailer, maximumPrice, browseAll]);
+
+  function resetBrowse() { setCategory(undefined); setBrand(undefined); setRetailer(undefined); setMaximumPrice(''); }
+  async function handleSavePreferences(update: Pick<DiscoveryPreferences, 'completed' | 'categories' | 'favoriteBrands' | 'budgetsByCategory'>) {
+    const saved = await saveDiscoveryPreferences(update);
+    setPreferences(saved);
+    setShowPreferences(false);
+    setVisibleCount(24);
+    resetBrowse();
+    setBrowseAll(false);
+    setNotice({ message: 'Picks updated.' });
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
+  }
+
+  async function handleDismissInvitation() {
+    if (!preferences) {
+      return;
+    }
+    setPreferences(await saveDiscoveryPreferences({
+      completed: true,
+      categories: preferences.categories,
+      favoriteBrands: preferences.favoriteBrands,
+      budgetsByCategory: preferences.budgetsByCategory
+    }));
+  }
+
+  async function handleDismiss(productId: string) {
+    await dismissDiscoveryProduct(productId);
+    setPreferences(await getDiscoveryPreferences());
+  }
+
+  async function handleTrack(product: DiscoveryProduct) {
+    if (trackingBusy.current) { return; }
+    const known = trackedProducts.find((tracked) => cleanUrl(tracked.canonicalUrl || tracked.url) === cleanUrl(product.url));
+    if (known) {
+      navigate({ name: 'detail', id: known.id });
+      return;
+    }
+
+    trackingBusy.current = true;
+    setTrackingProductId(product.id);
+    try {
+      const result = await fetchAndParseProduct(product.url).catch(() => ({
+        ok: false as const,
+        code: 'network_error' as const,
+        message: 'Qeemat could not reach this product right now. Try again in a moment.'
+      }));
+      if (!result.ok) {
+        setNotice({ message: result.message });
+        return;
+      }
+
+      if (result.product.variants?.length) {
+        setVariantAttributes({});
+        setVariantError(undefined);
+        setPendingProduct({ listing: product, parsed: result.product });
+        return;
+      }
+
+      const id = await createTrackedProduct({
+        parsed: result.product,
+        sourceUrl: product.url,
+        checkPreference: availableCheckPreferences(result.product.siteKey)[0] ?? 'daily',
+        alertMode: 'price_drop',
+        restockAlertEnabled: true
+      });
+      setTrackedProducts(await listTrackedProducts());
+      setNotice({ message: `Tracking ${result.product.title}`, trackedId: id });
+      await markDiscoveryProductsSeen([product.id]);
+    } catch { setNotice({ message: 'Could not save this product. Please try again.' }); }
+    finally { trackingBusy.current = false; setTrackingProductId(undefined); }
+  }
+
+  async function handleViewAtRetailer(product: DiscoveryProduct) {
+    try {
+      await Linking.openURL(product.url);
+    } catch {
+      Alert.alert('Could not open retailer', 'Please try again in a moment.');
+    }
+  }
+
+  function openBrandListing(selectedBrand: string) {
+    setBrand(selectedBrand);
+    setCategory(undefined);
+    setBrowseAll(true);
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
+  }
+
+  async function saveVariant() {
+    if (!pendingProduct || !selectedVariant || savingVariant) { return; }
+    setSavingVariant(true);
+    try {
+      let parsed: ParsedProduct = { ...pendingProduct.parsed, imageUrl: selectedVariant.imageUrl ?? pendingProduct.parsed.imageUrl,
+        priceMinor: selectedVariant.priceMinor, currency: selectedVariant.currency ?? pendingProduct.parsed.currency,
+        availability: selectedVariant.availability, sku: selectedVariant.sku ?? pendingProduct.parsed.sku,
+        selectedVariant: { ...toVariantSelection(selectedVariant), label: selectedChoice?.attributes.map((attribute) => attribute.value).join(' · ') ?? selectedVariant.label } };
+      if (parsed.siteKey === 'the_deal') {
+        const result = await fetchTheDealVariantForSaving(parsed, toVariantSelection(selectedVariant));
+        if (!result.ok) { setVariantError(result.message); return; }
+        parsed = result.product;
+      }
+      const existing = (await listTrackedProducts()).find((item) => cleanUrl(item.canonicalUrl || item.url) === cleanUrl(parsed.canonicalUrl || pendingProduct.listing.url) && item.variant?.id === selectedVariant.id);
+      const id = existing?.id ?? await createTrackedProduct({ parsed, sourceUrl: pendingProduct.listing.url,
+        variant: parsed.selectedVariant, checkPreference: availableCheckPreferences(parsed.siteKey)[0] ?? 'daily', alertMode: 'price_drop', restockAlertEnabled: true });
+      setTrackedProducts(await listTrackedProducts());
+      setNotice({ message: existing ? 'You are already tracking this option.' : `Tracking ${parsed.selectedVariant?.label ?? selectedVariant.label}`, trackedId: id });
+      await markDiscoveryProductsSeen([pendingProduct.listing.id]);
+      setPendingProduct(undefined);
+    } catch { setVariantError('Could not save this option. Please try again.'); }
+    finally { setSavingVariant(false); }
+  }
 
   if (loading) {
     return (
@@ -1764,119 +1963,85 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
 
   return (
     <ScrollView
+      ref={scrollRef}
       contentContainerStyle={styles.screenContent}
       showsVerticalScrollIndicator={false}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.primary} />}
     >
-      <View style={styles.opportunityHeader}>
-        <View style={styles.opportunityHeaderIcon}>
+      <View style={styles.discoveryHeader}>
+        <View style={styles.discoveryHeaderIcon}>
           <Sparkles size={22} color={colors.primary} />
         </View>
         <View style={styles.flex}>
           <AppText weight="bold" style={styles.heading}>For you</AppText>
-          <AppText muted>Price signals worth a closer look.</AppText>
+          <AppText muted>Find things you want. Let Qeemat watch the price.</AppText>
         </View>
+        <Pressable accessibilityRole="button" accessibilityLabel="Edit discovery preferences" onPress={() => setShowPreferences(true)} style={styles.discoveryPreferencesButton}>
+          <SlidersHorizontal size={19} color={colors.primary} />
+        </Pressable>
       </View>
 
-      {opportunities.length > 0 ? (
-        <AppText muted style={styles.opportunitySupportCopy}>
-          Based on prices Qeemat has checked for your watchlist.
-        </AppText>
-      ) : null}
+      {!preferences?.completed ? <DiscoverySetupCard onPress={() => setShowPreferences(true)} onDismiss={handleDismissInvitation} /> : null}
 
-      {opportunities.length === 0 ? <EmptyOpportunities /> : null}
-      <View style={styles.cardList}>
-        {opportunities.map((opportunity) => (
-          <Pressable
-            key={opportunity.product.id}
-            onPress={() => navigate({ name: 'detail', id: opportunity.product.id })}
-            style={({ pressed }) => [styles.opportunityCard, pressed && styles.opportunityCardPressed]}
-          >
-            {opportunity.product.imageUrl ? (
-              <Image source={{ uri: opportunity.product.imageUrl }} style={styles.opportunityImage} resizeMode="contain" />
-            ) : (
-              <View style={styles.opportunityImagePlaceholder}>
-                <Store size={20} color={colors.textMuted} />
-              </View>
-            )}
-            <View style={styles.opportunityBody}>
-              <View style={styles.opportunityTitleRow}>
-                <AppText weight="semibold" numberOfLines={2} style={styles.opportunityTitle}>
-                  {opportunity.product.title}
-                </AppText>
-                <ChevronRight size={18} color={colors.textMuted} />
-              </View>
-              <View style={styles.opportunityPriceRow}>
-                <AppText weight="bold" style={styles.opportunityPrice}>
-                  {formatPrice(opportunity.currentPriceMinor, opportunity.product.currency)}
-                </AppText>
-                <View style={[styles.opportunityBadge, opportunityBadgeStyle(opportunity.reason)]}>
-                  <AppText weight="semibold" style={opportunityBadgeTextStyle(opportunity.reason)}>
-                    {opportunityLabel(opportunity)}
-                  </AppText>
-                </View>
-              </View>
-              <AppText muted style={styles.opportunityDetail}>
-                {opportunityDescription(opportunity)}
-              </AppText>
-              <AppText muted style={styles.opportunityChecked}>
-                Checked {formatRelativeTime(opportunity.observedAt)}
-              </AppText>
+      {discoveryProducts.length > 0 ? (
+        <>
+          <View style={styles.discoverySection}>
+            <AppText weight="bold" style={styles.discoverySectionTitle}>{category ? DISCOVERY_CATEGORY_LABELS[category] : browseAll ? 'Explore all products' : 'Picks for you'}</AppText>
+            <AppText muted style={styles.discoverySectionCopy}>{browseAll ? 'Explore every available retailer.' : preferences?.categories.length ? `Based on your ${preferences.categories.length} ${preferences.categories.length === 1 ? 'interest' : 'interests'}${Object.keys(preferences.budgetsByCategory).length ? ' and category budgets' : ''}.` : 'Discover products across your favourite stores.'}</AppText>
+            <View style={styles.discoveryCategoryChoices}>
+              <DiscoveryFilterChip label="For you" selected={!browseAll && !category} onPress={() => { resetBrowse(); setBrowseAll(false); }} />
+              <DiscoveryFilterChip label="All" selected={browseAll && !category} onPress={() => { resetBrowse(); setBrowseAll(true); }} />
+              {availableCategories.map((item) => <DiscoveryFilterChip key={item} label={DISCOVERY_CATEGORY_LABELS[item]} selected={category === item} onPress={() => { setCategory(category === item ? undefined : item); setBrand(undefined); }} />)}
             </View>
-          </Pressable>
-        ))}
-      </View>
+            <View style={styles.discoveryToolbar}>
+              <AppText muted style={styles.discoveryResultCount}>{filteredProducts.length} {filteredProducts.length === 1 ? 'product' : 'products'} · {new Set(filteredProducts.map((product) => product.siteKey)).size} retailers</AppText>
+              <Pressable accessibilityRole="button" onPress={() => setShowFilters((value) => !value)} style={styles.discoveryToolbarAction}><SlidersHorizontal size={16} color={colors.primary} /><AppText style={styles.discoveryLink}>Filters{activeFilter ? ' •' : ''}</AppText></Pressable>
+              <Pressable accessibilityRole="button" onPress={() => setShowSources(true)} style={styles.discoveryToolbarAction}><AppText style={styles.discoveryLink}>Sources</AppText></Pressable>
+            </View>
+            {showFilters ? <View style={styles.listingFilters}>
+              <AppText weight="semibold">Retailer</AppText>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.discoveryFilterRail}>
+                <DiscoveryFilterChip label="Any retailer" selected={!retailer} onPress={() => setRetailer(undefined)} />
+                {retailers.map((site) => <DiscoveryFilterChip key={site} label={getSiteByKey(site).shortName} selected={retailer === site} onPress={() => setRetailer(retailer === site ? undefined : site)} />)}
+              </ScrollView>
+              <AppText weight="semibold">Brand</AppText>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.discoveryFilterRail}>
+                <DiscoveryFilterChip label="Any brand" selected={!brand} onPress={() => setBrand(undefined)} />
+                {brands.map((item) => <DiscoveryFilterChip key={item} label={item} selected={brand === item} onPress={() => setBrand(brand === item ? undefined : item)} />)}
+              </ScrollView>
+              <TextInput accessibilityLabel="Maximum discovery price in AED" value={maximumPrice} onChangeText={setMaximumPrice} keyboardType="decimal-pad" placeholder="Maximum price (AED)" placeholderTextColor={colors.textSoft} style={styles.listingPriceInput} />
+            </View> : null}
+            {activeFilter ? <View style={styles.titleRow}><AppText muted>{[category && DISCOVERY_CATEGORY_LABELS[category], brand, retailer && getSiteByKey(retailer).shortName, maximumPrice && `Under AED ${maximumPrice}`].filter(Boolean).join(' · ')}</AppText><Pressable accessibilityRole="button" onPress={resetBrowse}><AppText style={styles.discoveryLink}>Clear filters</AppText></Pressable></View> : null}
+            {notice ? <View accessibilityLiveRegion="polite" style={styles.discoveryNotice}><AppText style={styles.flex} numberOfLines={2}>{notice.message}</AppText>{notice.trackedId ? <Pressable accessibilityRole="button" onPress={() => navigate({ name: 'trackingSettings', id: notice.trackedId! })}><AppText style={styles.discoveryLink}>Set target price</AppText></Pressable> : null}<Pressable accessibilityRole="button" accessibilityLabel="Dismiss message" onPress={() => setNotice(undefined)}><X size={18} color={colors.textMuted} /></Pressable></View> : null}
+            {!filteredProducts.length ? <View style={styles.discoverySection}><AppText muted>No products match your interests, budgets, and filters right now.</AppText><PrimaryButton label="Explore all products" variant="outline" onPress={() => { resetBrowse(); setBrowseAll(true); }} /></View> : null}
+            <DiscoveryProductGrid products={visibleProducts} trackedProducts={trackedProducts} trackingProductId={trackingProductId} onTrack={handleTrack} onDismiss={handleDismiss} onMoreLikeThis={openBrandListing} onViewAtRetailer={handleViewAtRetailer} />
+            {filteredProducts.length > visibleCount ? <PrimaryButton label={`Show more (${filteredProducts.length - visibleCount} remaining)`} variant="outline" onPress={() => setVisibleCount((count) => count + 24)} /> : null}
+          </View>
+        </>
+      ) : <EmptyDiscovery onPreferences={() => setShowPreferences(true)} />}
+
+      {catalogState.refreshedAt ? <AppText muted style={styles.discoveryFreshness}>{catalogState.stale ? 'Showing saved discovery products from ' : 'Product prices observed '}{formatRelativeTime(catalogState.refreshedAt)}.</AppText> : null}
+      {catalog?.failedCollectionIds?.length ? <Pressable accessibilityRole="button" onPress={() => setShowSources(true)}><AppText muted style={styles.discoveryFreshness}>{catalog.failedCollectionIds.length} collections could not refresh. View source status.</AppText></Pressable> : null}
+      <DiscoveryPreferencesSheet visible={showPreferences} initialPreferences={preferences} products={discoveryProducts} onClose={() => setShowPreferences(false)} onSave={handleSavePreferences} />
+      <Modal visible={showSources} animationType="slide" onRequestClose={() => setShowSources(false)}>
+        <SafeAreaView style={styles.app}><Header title="Discovery sources" onBack={() => setShowSources(false)} /><ScrollView contentContainerStyle={styles.screenContent}><AppText muted>Listing pages used to find products. Tap a collection to review it at the retailer.</AppText>{DISCOVERY_COLLECTIONS.map((source) => {
+          const state = catalog?.sources?.find((item) => item.id === source.id);
+          return <Pressable accessibilityRole="link" key={source.id} onPress={() => Linking.openURL(discoveryCollectionPageUrl(source)).catch(() => undefined)} style={styles.discoverySection}><AppText weight="semibold">{getSiteByKey(source.siteKey).shortName} · {source.label}</AppText><AppText muted>{state?.failed ? state.count ? `Refresh unavailable · ${state.count} saved products` : 'Unavailable — no products loaded' : state?.count ? `${state.count} products · ${formatRelativeTime(state.fetchedAt)}` : 'Loading collection…'}</AppText><AppText style={styles.discoveryLink}>{discoverySourceUrl(source)}</AppText></Pressable>;
+        })}</ScrollView></SafeAreaView>
+      </Modal>
+      <Modal visible={Boolean(pendingProduct)} transparent animationType="slide" onRequestClose={() => !savingVariant && setPendingProduct(undefined)}>
+        <View style={styles.discoveryModalBackdrop}><SafeAreaView edges={['bottom']} style={styles.discoveryOptionSheet}><Header title="Choose your option" onBack={() => !savingVariant && setPendingProduct(undefined)} /><ScrollView contentContainerStyle={styles.screenContent}>
+          <AppText weight="bold" style={styles.discoverySectionTitle}>{pendingProduct?.parsed.title}</AppText>
+          <VariantSelector variants={variantChoices} selectedAttributes={variantAttributes} onSelect={(name, value) => setVariantAttributes((current) => updateSelectedVariantAttributes(variantChoices, current, name, value))} />
+          <AppText muted>{selectedVariant ? `${selectedChoice?.attributes.map((attribute) => attribute.value).join(' · ')} · ${formatPrice(selectedVariant.priceMinor, selectedVariant.currency ?? pendingProduct?.parsed.currency ?? 'AED')}` : 'Choose an available option to track its exact price and stock.'}</AppText>
+          {variantError ? <AppText accessibilityLiveRegion="polite">{variantError}</AppText> : null}
+          <PrimaryButton label="Track this option" onPress={saveVariant} disabled={!selectedVariant} loading={savingVariant} />
+        </ScrollView></SafeAreaView></View>
+      </Modal>
     </ScrollView>
   );
 }
 
-function EmptyOpportunities() {
-  return (
-    <View style={styles.emptyCard}>
-      <View style={styles.emptyIcon}>
-        <Sparkles size={24} color={colors.primary} />
-      </View>
-      <AppText weight="bold" style={styles.emptyTitle}>Nothing urgent right now</AppText>
-      <AppText muted style={styles.emptyCopy}>
-        We will highlight target hits, proven lows, and meaningful price drops as Qeemat checks your products.
-      </AppText>
-    </View>
-  );
-}
-
-function opportunityLabel(opportunity: Opportunity): string {
-  if (opportunity.reason === 'target_hit') {
-    return 'Target hit';
-  }
-
-  if (opportunity.reason === 'new_low') {
-    return 'New low';
-  }
-
-  return `${opportunity.percent}% drop`;
-}
-
-function opportunityDescription(opportunity: Opportunity): string {
-  const savings = formatPrice(opportunity.savingsMinor, opportunity.product.currency);
-
-  if (opportunity.reason === 'target_hit') {
-    return `${savings} below your target price.`;
-  }
-
-  if (opportunity.reason === 'new_low') {
-    return `${savings} below the highest price you have recorded.`;
-  }
-
-  return `${savings} lower than the previous check.`;
-}
-
-function opportunityBadgeStyle(reason: Opportunity['reason']) {
-  return reason === 'target_hit' ? styles.opportunityBadgeTarget : styles.opportunityBadgeDrop;
-}
-
-function opportunityBadgeTextStyle(reason: Opportunity['reason']) {
-  return reason === 'target_hit' ? styles.opportunityBadgeTextTarget : styles.opportunityBadgeTextDrop;
-}
 
 function SettingsScreen() {
   const { width, fontScale } = useWindowDimensions();
@@ -2135,7 +2300,7 @@ function SettingsScreen() {
         onPress={() =>
           Alert.alert('Delete local data?', 'This removes all tracked products and price history from this device.', [
             { text: 'Cancel', style: 'cancel' },
-            { text: 'Delete', style: 'destructive', onPress: () => deleteAllLocalData() }
+            { text: 'Delete', style: 'destructive', onPress: () => Promise.all([deleteAllLocalData(), clearDiscoveryData()]) }
           ])
         }
       />
@@ -3020,12 +3185,20 @@ const styles = StyleSheet.create({
   bottomActionHalf: {
     flex: 1
   },
-  opportunityHeader: {
+  discoveryHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12
   },
-  opportunityHeaderIcon: {
+  discoveryToolbarAction: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 6 },
+  discoveryModalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: colors.scrim },
+  discoveryOptionSheet: { height: '75%', backgroundColor: colors.background, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, overflow: 'hidden' },
+  discoveryToolbar: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  discoveryResultCount: { flex: 1, fontSize: 12 },
+  discoveryCategoryChoices: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  discoveryLink: { color: colors.primary, fontSize: 13 },
+  discoveryNotice: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: radius.md, backgroundColor: colors.blueSoft },
+  discoveryHeaderIcon: {
     width: 46,
     height: 46,
     borderRadius: 23,
@@ -3033,86 +3206,68 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: colors.blueSoft
   },
-  opportunitySupportCopy: {
-    fontSize: 13,
-    lineHeight: 19
-  },
-  opportunityCard: {
-    flexDirection: 'row',
-    gap: 12,
-    padding: 12,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    ...shadow
-  },
-  opportunityCardPressed: {
-    opacity: 0.82
-  },
-  opportunityImage: {
-    width: 76,
-    height: 92,
-    borderRadius: radius.sm,
-    backgroundColor: colors.surfaceMuted
-  },
-  opportunityImagePlaceholder: {
-    width: 76,
-    height: 92,
-    borderRadius: radius.sm,
-    backgroundColor: colors.surfaceMuted,
+  discoveryPreferencesButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     alignItems: 'center',
-    justifyContent: 'center'
-  },
-  opportunityBody: {
-    flex: 1,
-    minWidth: 0,
-    gap: 6
-  },
-  opportunityTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 6
-  },
-  opportunityTitle: {
-    flex: 1,
-    fontSize: 15,
-    lineHeight: 20
-  },
-  opportunityPriceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8
-  },
-  opportunityPrice: {
-    fontSize: 18
-  },
-  opportunityBadge: {
-    borderRadius: radius.sm,
-    paddingHorizontal: 8,
-    paddingVertical: 5
-  },
-  opportunityBadgeTarget: {
+    justifyContent: 'center',
     backgroundColor: colors.blueSoft
   },
-  opportunityBadgeDrop: {
-    backgroundColor: colors.greenSoft
+  discoverySection: {
+    gap: 12
   },
-  opportunityBadgeTextTarget: {
-    color: colors.primary,
-    fontSize: 12
+  discoverySectionTitle: {
+    fontSize: 18
   },
-  opportunityBadgeTextDrop: {
-    color: colors.green,
-    fontSize: 12
-  },
-  opportunityDetail: {
+  discoverySectionCopy: {
     fontSize: 13,
-    lineHeight: 18
+    lineHeight: 19,
+    marginTop: -6
   },
-  opportunityChecked: {
-    fontSize: 11
+  discoveryFilterRail: {
+    gap: 8,
+    paddingVertical: 2
+  },
+  discoveryFreshness: {
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: -2
+  },
+  listingFilters: {
+    gap: 8
+  },
+  listingFilterLabel: {
+    fontSize: 14,
+    marginTop: 4
+  },
+  listingPriceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 4
+  },
+  listingPriceInputWrap: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    backgroundColor: colors.surface
+  },
+  listingPriceInput: {
+    flex: 1,
+    minWidth: 0,
+    color: colors.text,
+    paddingVertical: 10
+  },
+  listingCount: {
+    fontSize: 13,
+    marginTop: -2
   },
   activityCard: {
     flexDirection: 'row',

@@ -29,11 +29,15 @@ class QeematWebViewFetcherModule(private val reactContext: ReactApplicationConte
   fun fetchPageHtml(url: String, promise: Promise) {
     val handler = Handler(Looper.getMainLooper())
     var resolved = false
+    var activeWebView: WebView? = null
 
     // Total timeout guard (includes Cloudflare challenge time)
     val timeoutRunnable = Runnable {
       if (!resolved) {
         resolved = true
+        activeWebView?.stopLoading()
+        activeWebView?.destroy()
+        activeWebView = null
         promise.reject("WEBVIEW_TIMEOUT", "WebView page load timed out after ${TOTAL_TIMEOUT_MS}ms")
       }
     }
@@ -58,6 +62,7 @@ class QeematWebViewFetcherModule(private val reactContext: ReactApplicationConte
         }
         return@post
       }
+      activeWebView = webView
 
       webView.webViewClient = object : WebViewClient() {
         private var pageLoadCount = 0

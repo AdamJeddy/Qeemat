@@ -17,9 +17,20 @@ jest.mock('./src/data/database', () => ({
   getProductWithSnapshots: jest.fn(),
   listProductsWithSnapshots: jest.fn()
 }));
+jest.mock('./src/data/discovery', () => ({
+  ...jest.requireActual('./src/data/discovery'),
+  dismissDiscoveryProduct: jest.fn(),
+  getDiscoveryPreferences: jest.fn(),
+  markDiscoveryProductsSeen: jest.fn(),
+  saveDiscoveryPreferences: jest.fn()
+}));
+jest.mock('./src/domain/discoveryCatalog', () => ({
+  loadDiscoveryCatalog: jest.fn()
+}));
 
 import { AddScreen, DetailScreen, getTrackedProductLink, OpportunityScreen } from './App';
 import { AppText } from './src/components/AppText';
+import { DiscoveryFilterChip, DiscoveryPreferencesSheet, DiscoveryProductGrid } from './src/components/Discovery';
 import { ProductCard } from './src/components/ProductCard';
 import { CheckStatus, TrackedProduct } from './src/domain/types';
 
@@ -27,6 +38,9 @@ const mockFetchAndParseProduct = jest.requireMock('./src/domain/parser').fetchAn
 const mockGetProductWithSnapshots = jest.requireMock('./src/data/database').getProductWithSnapshots as jest.Mock;
 const mockListProductsWithSnapshots = jest.requireMock('./src/data/database').listProductsWithSnapshots as jest.Mock;
 const mockClipboardSetString = jest.requireMock('@react-native-clipboard/clipboard').setString as jest.Mock;
+const mockGetDiscoveryPreferences = jest.requireMock('./src/data/discovery').getDiscoveryPreferences as jest.Mock;
+const mockMarkDiscoveryProductsSeen = jest.requireMock('./src/data/discovery').markDiscoveryProductsSeen as jest.Mock;
+const mockLoadDiscoveryCatalog = jest.requireMock('./src/domain/discoveryCatalog').loadDiscoveryCatalog as jest.Mock;
 
 describe('AddScreen', () => {
   beforeEach(() => {
@@ -243,8 +257,20 @@ describe('DetailScreen', () => {
 });
 
 describe('OpportunityScreen', () => {
-  it('explains a target-hit opportunity and opens its product', async () => {
-    const navigate = jest.fn();
+  beforeEach(() => {
+    mockGetDiscoveryPreferences.mockResolvedValue({
+      completed: true,
+      categories: [],
+      favoriteBrands: [],
+      budgetsByCategory: {},
+      dismissedProductIds: [],
+      seenProductIds: []
+    });
+    mockMarkDiscoveryProductsSeen.mockResolvedValue(undefined);
+    mockLoadDiscoveryCatalog.mockResolvedValue({ products: [], stale: false });
+  });
+
+  it('does not render tracked price opportunities in the discovery feed', async () => {
     mockListProductsWithSnapshots.mockResolvedValueOnce([{
       product: {
         id: 77,
@@ -273,19 +299,121 @@ describe('OpportunityScreen', () => {
 
     let tree: renderer.ReactTestRenderer;
     await act(async () => {
-      tree = renderer.create(<OpportunityScreen navigate={navigate} />);
-      await Promise.resolve();
+      tree = renderer.create(<OpportunityScreen navigate={jest.fn()} />);
+      await new Promise<void>((resolve) => setImmediate(() => resolve()));
     });
 
     const text = tree!.root.findAllByType(AppText).map((node) => node.props.children).flat().join(' ');
-    expect(text).toContain('Target hit');
-    expect(text).toContain('AED 5 below your target price.');
+    expect(text).not.toContain('Your tracked price opportunities');
+    expect(text).not.toContain('Target hit');
+    expect(text).not.toContain('Target running shoes');
+  });
 
-    act(() => {
-      tree!.root.findAll((node) => node.props.onPress && node.props.children)[0].props.onPress();
+  it('offers every planned category during personalization, not just the live catalogue categories', async () => {
+    mockListProductsWithSnapshots.mockResolvedValueOnce([]);
+    mockGetDiscoveryPreferences.mockResolvedValueOnce({
+      completed: false,
+      categories: [],
+      favoriteBrands: [],
+      budgetsByCategory: {},
+      dismissedProductIds: [],
+      seenProductIds: []
+    });
+    let tree: renderer.ReactTestRenderer;
+
+    await act(async () => {
+      tree = renderer.create(<OpportunityScreen navigate={jest.fn()} />);
+      await new Promise<void>((resolve) => setImmediate(() => resolve()));
     });
 
-    expect(navigate).toHaveBeenCalledWith({ name: 'detail', id: 77 });
+    act(() => {
+      tree!.root.findByProps({ accessibilityLabel: 'Personalize discovery' }).props.onPress();
+    });
+
+    const text = tree!.root.findAllByType(AppText).map((node) => [node.props.children].flat().join('')).join(' ');
+    expect(text).toContain('Fashion & footwear');
+    expect(text).toContain('Beauty & fragrance');
+    expect(text).toContain('Electronics');
+    expect(text).toContain('Sport & outdoors');
+  });
+
+  it('shows cached discovery products with a clear price-tracking action', async () => {
+    const navigate = jest.fn();
+    mockListProductsWithSnapshots.mockResolvedValueOnce([]);
+    mockGetDiscoveryPreferences.mockResolvedValueOnce({
+      completed: true,
+      categories: ['sport'],
+      favoriteBrands: ['Domyos'],
+      budgetsByCategory: { sport: 10000 },
+      dismissedProductIds: [],
+      seenProductIds: []
+    });
+    mockLoadDiscoveryCatalog.mockResolvedValueOnce({
+      products: [{
+        id: 'decathlon_uae:mat',
+        siteKey: 'decathlon_uae',
+        category: 'sport',
+        brand: 'Domyos',
+        title: 'Domyos training mat',
+        url: 'https://decathlon.ae/products/training-mat',
+        imageUrl: undefined,
+        priceMinor: 8900,
+        currency: 'AED',
+        availability: 'in_stock',
+        observedAt: '2026-10-25T10:00:00.000Z'
+      }],
+      refreshedAt: '2026-10-25T10:00:00.000Z',
+      stale: false
+    });
+    let tree: renderer.ReactTestRenderer;
+
+    await act(async () => {
+      tree = renderer.create(<OpportunityScreen navigate={navigate} />);
+      await new Promise<void>((resolve) => setImmediate(() => resolve()));
+    });
+
+    const text = tree!.root.findAllByType(AppText).map((node) => [node.props.children].flat().join('')).join(' ');
+    expect(text).toContain('Picks for you');
+    expect(text).toContain('Domyos training mat');
+    expect(text).toContain('AED 89');
+    expect(text).toContain('Track price');
+    expect(text).toContain('1 product');
+
+    const categoryChip = tree!.root.findAllByType(DiscoveryFilterChip).find((node) => node.props.label === 'Sport & outdoors');
+    act(() => {
+      categoryChip!.findByProps({ accessibilityRole: 'button' }).props.onPress();
+    });
+
+    expect(navigate).not.toHaveBeenCalled();
+    expect(tree!.root.findAllByType(DiscoveryFilterChip).find((node) => node.props.label === 'Sport & outdoors')?.props.selected).toBe(true);
+  });
+
+  it('applies saved quiz interests and budgets to the same feed immediately', async () => {
+    const navigate = jest.fn();
+    const initial = { completed: true, categories: [], favoriteBrands: [], budgetsByCategory: {}, dismissedProductIds: [], seenProductIds: [] };
+    mockGetDiscoveryPreferences.mockResolvedValueOnce(initial);
+    const base = { siteKey: 'faces_uae', category: 'beauty', brand: 'Dior', currency: 'AED', availability: 'in_stock', observedAt: '2026-10-25T10:00:00Z' };
+    mockLoadDiscoveryCatalog.mockResolvedValueOnce({ products: [
+      { ...base, id: 'serum', title: 'Affordable serum', url: 'https://www.faces.ae/en/serum', priceMinor: 9000 },
+      { ...base, id: 'premium-serum', title: 'Premium serum', url: 'https://www.faces.ae/en/premium-serum', priceMinor: 25000 },
+      { ...base, id: 'shoes', title: 'Running shoes', category: 'sport', url: 'https://decathlon.ae/products/shoes', siteKey: 'decathlon_uae', priceMinor: 8000 }
+    ], stale: false });
+    const saved = { ...initial, categories: ['beauty'], budgetsByCategory: { beauty: 10000 } };
+    jest.requireMock('./src/data/discovery').saveDiscoveryPreferences.mockResolvedValueOnce(saved);
+    let tree: renderer.ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(<OpportunityScreen navigate={navigate} />);
+      await new Promise<void>((resolve) => setImmediate(resolve));
+    });
+    expect(tree!.root.findByType(DiscoveryProductGrid).props.products).toHaveLength(3);
+    await act(async () => {
+      await tree!.root.findByType(DiscoveryPreferencesSheet).props.onSave(saved);
+    });
+    expect(tree!.root.findByType(DiscoveryProductGrid).props.products.map((product: { id: string }) => product.id)).toEqual(['serum']);
+    expect(navigate).not.toHaveBeenCalled();
+    act(() => tree!.root.findAllByType(DiscoveryFilterChip).find((node) => node.props.label === 'Sport & outdoors')!.props.onPress());
+    expect(tree!.root.findByType(DiscoveryProductGrid).props.products.map((product: { id: string }) => product.id)).toEqual(['shoes']);
+    expect(navigate).not.toHaveBeenCalled();
   });
 });
 
