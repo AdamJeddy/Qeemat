@@ -19,7 +19,7 @@ Qeemat is an Android-first, local-first price tracker for UAE shopping sites and
 - Organize products with local folders, archive inactive items, and filter a multi-store watchlist by store or folder. Sort it by recency, price, drop, target proximity, or name.
 - Select products in bulk to move them to a folder, pause/resume tracking, archive/restore, or delete them.
 - Review local price insights including recorded low, high, average, and distance from the historical high; tap the chart to inspect individual snapshots.
-- Use the local `For you` feed to surface target-price hits, new lows, and meaningful recent drops across active products.
+- Discover products in the opening `For you` feed, personalize by interests/brands/category budgets, filter without leaving the page, and track with verified product options. [Source URLs, coverage and limits](docs/discovery-sources.md).
 - Run best-effort Android background checks with local alerts, notification/battery-optimization guidance, and run diagnostics.
 - Reflow cards, previews, details, and settings controls on compact phone widths and when large system text reduces available space.
 
