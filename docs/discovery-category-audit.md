@@ -34,6 +34,7 @@ Navigation HTML was fetched independently for every retailer with `scripts/audit
 
 - Separate clothing, footwear, bags, accessories, jewellery, watches, makeup, skincare, fragrance and haircare. Split technology into actual departments such as phones, computers, tablets, television, audio, cameras and gaming.
 - Preserve the original broad preference selections by migrating them into the corresponding new interests and budget ceilings. Keep tracking data untouched.
+- The user explicitly confirmed that this release should enable **all departments, including groceries**. Include price-basis/unit handling and protect tracking from pack-size or pricing-basis changes; do not silently exclude groceries.
 - Retain exact source labels, department paths, audiences and URLs in a per-retailer registry. Distinguish permanent categories from brand filters, editorial pages, services and promotions.
 - Make mapped listings individually selectable in the app. Fetch selected pages on demand and keep a varied initial feed; an expanded registry must not trigger thousands of requests at launch.
 - Report mapping and extraction separately. Preserve cached products when a page is blocked or empty and keep its error visible. Validate product-to-tracker accuracy, not just listing counts.
