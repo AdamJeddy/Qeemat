@@ -3,6 +3,7 @@ import { Availability, ParsedProduct, ProductVariant, SiteKey, VariantAttribute,
 import { parsePriceToMinor } from './price';
 import { fetchPageHtmlViaWebView } from './webViewFetcher';
 import { findTrackedVariant } from './variants';
+import { parseCarrefourProduct } from './carrefour';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -57,9 +58,9 @@ const SEPHORA_REQUEST_HEADERS: Record<string, string> = {
 const FETCH_TIMEOUT_MS = 25_000;
 
 function getRequestHeaders(siteKey: SiteKey): Record<string, string> {
-  // Decathlon accepts Android's native request profile but rejects browser
+  // These storefronts accept Android's native request profile. Decathlon rejects browser
   // impersonation when the TLS client is not a browser.
-  if (siteKey === 'decathlon_uae') {
+  if (siteKey === 'decathlon_uae' || siteKey === 'carrefour_uae') {
     return {};
   }
 
@@ -112,6 +113,7 @@ export async function fetchAndParseProduct(rawUrl: string, selectedVariant?: Var
   }
 
   const shouldUseWebViewFallback = fetchResult.code === 'blocked' ||
+    (site.key === 'carrefour_uae' && (fetchResult.code === 'network_error' || fetchResult.code === 'site_parser_failed')) ||
     ((site.key === 'sephora_uae' || site.key === 'faces_uae' || site.key === 'salomon_gcc' || site.key === 'the_deal') && fetchResult.code === 'network_error');
   if (!shouldUseWebViewFallback) {
     return fetchResult;
@@ -260,7 +262,7 @@ async function fetchAndParseWithFetch(
     };
   }
 
-  const parsed = parseProductHtml(siteKey, response.url || normalizedUrl, html, selectedVariant);
+  const parsed = parseProductHtml(siteKey, siteKey === 'carrefour_uae' ? normalizedUrl : response.url || normalizedUrl, html, selectedVariant);
 
   if (!parsed?.title) {
     return {
@@ -305,6 +307,9 @@ export function parseProductHtml(
   html: string,
   selectedVariant?: VariantSelection
 ): ParsedProduct | undefined {
+  if (siteKey === 'carrefour_uae') {
+    return resolveParsedVariant(parseCarrefourProduct(inputUrl, html), selectedVariant);
+  }
   // Detect 404 / product-not-found pages that still serve product meta
   if (isProduct404Page(html)) {
     return undefined;

@@ -1,10 +1,30 @@
 import { DiscoveryCollection, DISCOVERY_SOURCE_PRODUCT_LIMIT, discoverySourceUrl, parseDecathlonListing } from './discovery';
 import { DiscoveryProduct } from './types';
+import { carrefourAvailability, carrefourOfferUrl, readCarrefourRecords } from './carrefour';
 
 type RecordValue = Record<string, unknown>;
 
 /** Parse only retailer-owned listing data; never evaluate scripts from a store. */
 export function parseDiscoveryListing(body: string, source: DiscoveryCollection, observedAt: string): DiscoveryProduct[] {
+  if (source.siteKey === 'carrefour_uae') {
+    const products: DiscoveryProduct[] = [];
+    for (const record of readCarrefourRecords(body)) {
+      const item = asRecord(record.additionalAttributes);
+      if (typeof item.productName !== 'string' || typeof item.productId !== 'string' || typeof item.productUrl !== 'string' || item.currency !== 'AED') { continue; }
+      const base = item.productUrl.startsWith('/mafuae/en/') ? `https://www.carrefouruae.com${item.productUrl}` : item.productUrl;
+      const url = carrefourOfferUrl(base, item);
+      const price = Number(item.sellingPrice);
+      if (!url || url.match(/\/p\/(\d+)/)?.[1] !== item.productId || !Number.isFinite(price) || price <= 0) { continue; }
+      const stock = asRecord(item.stock);
+      const rawBrand = asRecord(record.analytics).brandName;
+      const brand = typeof rawBrand === 'string' && !rawBrand.startsWith('$') ? rawBrand.replace(/^(?:nonfood|food)_/i, '').replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()) : 'Other brands';
+      products.push({ id: `carrefour_uae:${item.productId}:${item.shopId}:${item.offerId}:${item.intent}`, siteKey: 'carrefour_uae', category: source.category,
+        title: item.productName.trim(), brand, url, priceMinor: Math.round(price * 100), currency: 'AED',
+        imageUrl: typeof item.imageUrl === 'string' ? item.imageUrl : undefined,
+        availability: carrefourAvailability(stock.stockLevelStatus, stock.value), observedAt });
+    }
+    return unique(products);
+  }
   const found: DiscoveryProduct[] = [];
   const origin = discoverySourceUrl(source).match(/^https:\/\/[^/]+/)![0];
   function add(value: { id?: unknown; title?: unknown; url?: unknown; image?: unknown; price?: unknown; brand?: unknown; available?: unknown; currency?: unknown; range?: boolean }) {

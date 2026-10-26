@@ -11,6 +11,15 @@ export const SUPPORTED_SITES: SupportedSite[] = [
     iconAsset: require('../../assets/site-icons/noon.png')
   },
   {
+    key: 'carrefour_uae',
+    displayName: 'Carrefour UAE',
+    shortName: 'Carrefour',
+    hostnames: ['carrefouruae.com', 'www.carrefouruae.com'],
+    status: 'supported',
+    notes: 'UAE product pages expose seller-specific offer prices and stock. Tracking preserves the seller, offer and delivery selection instead of following the cheapest seller.',
+    iconAsset: require('../../assets/site-icons/carrefour_uae.png')
+  },
+  {
     key: 'nike_uae',
     displayName: 'Nike UAE',
     shortName: 'Nike',
