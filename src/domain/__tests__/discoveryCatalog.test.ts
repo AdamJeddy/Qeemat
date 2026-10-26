@@ -59,6 +59,42 @@ describe('multi-retailer discovery refresh', () => {
     expect([...new Set(DISCOVERY_COLLECTIONS.map((source) => source.siteKey))].sort()).toEqual(SUPPORTED_SITES.map((site) => site.key).sort());
   });
 
+  it.each([
+    ['2026-10-25T10:00:00Z', '2026-10-25T11:00:00Z', 7900],
+    ['2026-10-25T12:00:00Z', '2026-10-25T11:00:00Z', 8900],
+    ['2026-10-25T11:00:00Z', '2026-10-25T11:00:00Z', 8900]
+  ])('merges cached duplicates by observation time (%s, %s)', async (firstObservedAt, secondObservedAt, expectedPrice) => {
+    const product = { id: 'decathlon_uae:101', siteKey: 'decathlon_uae' as const, category: 'sport' as const, title: 'Mat', brand: 'Domyos', url: 'https://decathlon.ae/products/mat', priceMinor: 8900, currency: 'AED', availability: 'in_stock' as const, observedAt: firstObservedAt };
+    await saveDiscoveryCache('decathlon-footwear', [product], firstObservedAt);
+    await saveDiscoveryCache('decathlon-fitness', [{ ...product, priceMinor: 7900, observedAt: secondObservedAt }], secondObservedAt);
+
+    const result = await loadDiscoveryCatalog(jest.fn().mockResolvedValue({ ok: false }), { force: true });
+
+    expect(result.products).toEqual([expect.objectContaining({ id: product.id, priceMinor: expectedPrice })]);
+  });
+
+  it('keeps a refreshed in-stock observation when an earlier collection fails', async () => {
+    const observedAt = '2026-10-25T10:00:00Z';
+    const product = { id: 'decathlon_uae:101', siteKey: 'decathlon_uae' as const, category: 'sport' as const, title: 'Mat', brand: 'Domyos', url: 'https://decathlon.ae/products/mat', priceMinor: 8900, currency: 'AED', availability: 'out_of_stock' as const, observedAt };
+    await saveDiscoveryCache('decathlon-footwear', [product], observedAt);
+    const fetcher = jest.fn(async (url: string) => ({
+      ok: url.includes('/collections/fitness/'),
+      json: async () => ({ products: [{ id: 101, title: 'Mat', handle: 'mat', vendor: 'Domyos', variants: [{ price: '79.00', available: true }] }] })
+    }));
+    const observations: string[] = [];
+
+    const result = await loadDiscoveryCatalog(fetcher, { force: true, onUpdate: (catalog) => {
+      observations.push(catalog.products[0].availability);
+    } });
+
+    expect(result.failedCollectionIds).toContain('decathlon-footwear');
+    expect(result.failedCollectionIds).not.toContain('decathlon-fitness');
+    expect(result.products).toEqual([expect.objectContaining({ id: product.id, priceMinor: 7900, availability: 'in_stock' })]);
+    expect(Date.parse(result.products[0].observedAt)).toBeGreaterThan(Date.parse(observedAt));
+    expect(observations[0]).toBe('out_of_stock');
+    expect(observations.slice(observations.indexOf('in_stock'))).not.toContain('out_of_stock');
+  });
+
   it('preserves successful retailer caches during concurrent writes and partial failure', async () => {
     const product = { id: 'decathlon:1', siteKey: 'decathlon_uae' as const, category: 'sport' as const, title: 'Mat', brand: 'Domyos', url: 'https://decathlon.ae/products/mat', priceMinor: 8900, currency: 'AED', availability: 'in_stock' as const, observedAt: '2026-10-25T10:00:00Z' };
     await Promise.all([

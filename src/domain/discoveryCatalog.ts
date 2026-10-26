@@ -116,7 +116,8 @@ function isProductListing(value: unknown): value is { products: unknown[] } {
 function uniqueProducts(products: DiscoveryProduct[]): DiscoveryProduct[] {
   const byId = new Map<string, DiscoveryProduct>();
   for (const product of products) {
-    if (!byId.has(product.id)) {
+    const existing = byId.get(product.id);
+    if (!existing || Date.parse(product.observedAt) > Date.parse(existing.observedAt)) {
       byId.set(product.id, product);
     }
   }
