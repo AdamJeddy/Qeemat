@@ -25,6 +25,7 @@ Qeemat is an Android-first, local-first price tracker for UAE shopping sites and
 
 Supported stores:
 
+- Carrefour UAE (seller-specific product tracking and electronics discovery)
 - Noon UAE
 - Nike UAE
 - Sun & Sand Sports UAE

@@ -12,6 +12,7 @@ type SiteIconProps = {
 
 /** Per-site tint colour used as a fallback when no favicon asset is available. */
 const SITE_COLORS: Record<SiteKey, string> = {
+  carrefour_uae: '#005AA9',
   noon: '#F7CF25',
   nike_uae: '#000000',
   sun_sand_sports: '#E2231A',

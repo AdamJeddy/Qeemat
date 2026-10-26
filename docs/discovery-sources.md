@@ -14,10 +14,13 @@ The last endpoint returned an empty product array in this audit. It has been rep
 
 ## Current sources
 
-All 18 entries in `SUPPORTED_SITES` have explicit discovery source registrations. **17 retailers supplied products on Android; Brands For Less did not.** The observed personalized feed contained **649 available products across four categories**. These are locally fetched listings, not a bundled sample catalogue.
+Carrefour UAE was added on 26 October after the original audit below. The registry now covers 19 retailers, including experimental BFL. Its Headphones & Earphones collection uses `https://www.carrefouruae.com/mafuae/en/c/NF1210300`; desktop and native Android responses supplied 61 distinct seller-specific product listings. This addition does not broaden the other retailers' selected collections; category coverage is a separate follow-up.
+
+The original 25 October audit covered all 18 retailers then registered. **17 retailers supplied products on Android; Brands For Less did not.** That observed personalized feed contained **649 available products across four categories**, before the later source-limit increase and Carrefour addition. These are locally fetched listings, not a bundled sample catalogue.
 
 | Retailer | Exact URL fetched by the app | Content | Android result |
 |---|---|---|---|
+| Carrefour UAE | [Headphones & Earphones](https://www.carrefouruae.com/mafuae/en/c/NF1210300) | Electronics; source brands kept separate from Carrefour and its marketplace sellers | See [Carrefour validation](carrefour-validation.md) |
 | Decathlon | [Footwear JSON](https://decathlon.ae/collections/men-footwear/products.json?limit=100), [Fitness JSON](https://decathlon.ae/collections/fitness/products.json?limit=100), [Hiking & Camping JSON](https://decathlon.ae/collections/hike-camp/products.json?limit=100) | Shoes, fitness equipment, outdoor gear | Products loaded |
 | Nike | [Men's shoes](https://www.nike.ae/en/mens/shoes), [Women's shoes](https://www.nike.ae/en/womens/shoes) | Nike footwear | Products loaded |
 | Sun & Sand Sports | [Men's shoes](https://en-ae.sssports.com/mens/shoes) | Multiple sports brands | Products loaded |

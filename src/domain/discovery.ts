@@ -78,7 +78,8 @@ export const DISCOVERY_COLLECTIONS: DiscoveryCollection[] = [
   { id: 'namshi-shoes', label: 'Namshi shoes', category: 'fashion', siteKey: 'namshi', url: 'https://www.namshi.com/uae-en/men-shoes/all-collection/', provider: 'html' },
   { id: 'deal-clothing', label: 'The Deal clothing', category: 'fashion', siteKey: 'the_deal', url: 'https://www.thedealoutlet.com/ae-en/flash_sale_26/women/clothing', provider: 'html' },
   { id: 'sharaf-electronics', label: 'Sharaf DG headphones', category: 'electronics', siteKey: 'sharaf_dg', url: 'https://uae.sharafdg.com/headphones-and-earphones/', provider: 'html' },
-  { id: 'bfl-women', label: 'Brands For Less women', category: 'fashion', siteKey: 'brands_for_less', url: 'https://www.brandsforless.com/en-ae/women/', provider: 'html' }
+  { id: 'bfl-women', label: 'Brands For Less women', category: 'fashion', siteKey: 'brands_for_less', url: 'https://www.brandsforless.com/en-ae/women/', provider: 'html' },
+  { id: 'carrefour-headphones', label: 'Headphones & Earphones', category: 'electronics', siteKey: 'carrefour_uae', url: 'https://www.carrefouruae.com/mafuae/en/c/NF1210300', provider: 'html' }
 ];
 
 export function discoverySourceUrl(collection: DiscoveryCollection): string {
