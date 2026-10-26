@@ -1,6 +1,6 @@
 # Qeemat MVP Scope
 
-Status: maintained product scope, last reconciled with the implementation on 2026-08-01. For the detailed repo handoff and change history, read [current-state.md](current-state.md).
+Status: maintained product scope, last reconciled with the implementation on 2026-10-25. For the detailed repo handoff and current retailer behavior, read [current-state.md](current-state.md).
 
 ## MVP Goal
 
@@ -43,7 +43,7 @@ Do not promise exact background timing. The current implementation uses Android 
 
 ## Supported MVP Websites
 
-The MVP support list is intentionally small:
+The current MVP support list is:
 
 | Site | Status | Reason |
 | --- | --- | --- |
@@ -57,8 +57,13 @@ The MVP support list is intentionally small:
 | Adidas UAE | MVP supported | JSON-LD structured data and meta tags provide AED price and availability; monitor bot protection. |
 | PUMA UAE | MVP supported | Product pages expose JSON-LD product details and reliable source-defined size options in the initial HTML. |
 | Decathlon UAE | MVP supported | Shopify ProductJson exposes product details and reliable source-defined options in the initial HTML. |
+| Salomon GCC | MVP supported | Shopify product data, with Android WebView fallback for native-request rejections. |
 | Sephora UAE | MVP supported | Product pages expose JSON-LD product details; the WebView fallback handles Akamai-protected checks. |
 | Faces UAE | MVP supported | Salesforce Commerce Cloud product pages expose structured product details; the WebView fallback handles session redirects when needed. |
+| Centrepoint UAE | MVP supported | Structured product data and source-defined color/size tracking where the initial page provides reliable options. |
+| Namshi UAE | MVP supported | Structured product data and source-defined size tracking. |
+| The Deal UAE | MVP supported | Source-provided color/size options are verified against the exact variation endpoint before saving. |
+| Sharaf DG UAE | MVP supported | Source-linked product configurations can be tracked exactly when the initial response exposes complete controls. |
 
 ## Deferred Websites
 
@@ -93,6 +98,11 @@ The MVP support list is intentionally small:
 - Android Share to Qeemat for product URLs, with automatic product discovery.
 - Exact source-defined variant tracking where the initial page supplies reliable option IDs, stock state, and prices.
 - Logo-only watchlist store filtering when products from multiple stores are tracked.
+- Folder-based organisation, archive/restore, and bulk move, pause/resume, archive/restore, or delete actions.
+- Watchlist folder filtering and sorting by recency, price, drop, target proximity, or name.
+- Per-tracker minimum drop thresholds and back-in-stock alerts.
+- Local price insights and an interactive price-history chart.
+- Local-only opportunity feed for target hits, new lows, and substantial recent drops.
 - Responsive layouts for compact phone widths and large system-text settings.
 
 ## Out Of Scope

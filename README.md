@@ -16,8 +16,10 @@ Qeemat is an Android-first, local-first price tracker for UAE shopping sites and
 - Select and save an exact in-stock, source-defined variant when a product page reliably provides one. Stores without that evidence remain page-level.
 - Centrepoint size controls and current color-only products retain their source identifiers and exact product URL for later checks.
 - Namshi size selections, The Deal color and size combinations, and Sharaf DG linked configurations retain the source URL needed to recheck the exact saved option.
-- Organize products with local folders and tags; filter a multi-store watchlist by store, folder, or tag, and sort it by recency, price, drop, target proximity, or name.
-- Review local price insights including recorded low, high, average, and distance from the historical high.
+- Organize products with local folders, archive inactive items, and filter a multi-store watchlist by store or folder. Sort it by recency, price, drop, target proximity, or name.
+- Select products in bulk to move them to a folder, pause/resume tracking, archive/restore, or delete them.
+- Review local price insights including recorded low, high, average, and distance from the historical high; tap the chart to inspect individual snapshots.
+- Discover products in the opening `For you` feed, personalize by interests/brands/category budgets, filter without leaving the page, and track with verified product options. [Source URLs, coverage and limits](docs/discovery-sources.md).
 - Run best-effort Android background checks with local alerts, notification/battery-optimization guidance, and run diagnostics.
 - Reflow cards, previews, details, and settings controls on compact phone widths and when large system text reduces available space.
 
@@ -33,6 +35,7 @@ Supported stores:
 - Adidas UAE
 - PUMA UAE
 - Decathlon UAE
+- Salomon GCC
 - Sephora UAE
 - Faces UAE
 - Centrepoint UAE
@@ -46,7 +49,6 @@ Brands For Less is an experimental integration and remains hidden from the suppo
 
 - [Current state and AI/developer handoff](docs/current-state.md)
 - [MVP scope](docs/mvp-scope.md)
-- [Local-only MVP plan and decisions](docs/local-only-mvp-plan.md)
 - [Website mini icons](docs/site-icons.md)
 - [Exact variant tracking visual reference](docs/variant-tracking.md)
 - [Brands For Less integration](docs/bfl-integration.md)

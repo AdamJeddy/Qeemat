@@ -15,7 +15,8 @@ export const colors = {
   redSoft: '#FFEDD5',
   amber: '#B45309',
   amberSoft: '#FEF3C7',
-  blueSoft: '#DBEAFE'
+  blueSoft: '#DBEAFE',
+  scrim: '#0F172A80'
 };
 
 export const spacing = {

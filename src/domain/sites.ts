@@ -39,8 +39,8 @@ export const SUPPORTED_SITES: SupportedSite[] = [
   },
   {
     key: 'ay_accessories',
-    displayName: 'AYM Accessories',
-    shortName: 'AYM',
+    displayName: 'Al Yousuf Accessories',
+    shortName: 'Al Yousuf',
     hostnames: ['ay-accessories.com', 'www.ay-accessories.com'],
     status: 'supported',
     notes: 'WooCommerce product pages expose variation JSON, images, and AED pricing for supported product pages.',

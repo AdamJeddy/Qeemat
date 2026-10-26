@@ -1,6 +1,6 @@
 # Qeemat Current State
 
-**Last reconciled with the implementation:** 2026-10-23
+**Last reconciled with the implementation:** 2026-10-25
 **App version:** 0.5.5-alpha
 
 This is the repo handoff for the current app. Product-planning documents are useful for intent, but this file describes shipped behavior and active limitations.
@@ -25,6 +25,7 @@ The app uses a small manual route stack in `App.tsx`, not React Navigation. Ther
 | Adidas UAE | Supported | Monitor for bot-protection changes. |
 | PUMA UAE | Supported | JSON-LD product data and source-defined initial-page size options. |
 | Decathlon UAE | Supported | Shopify ProductJson data with source-defined initial-page options. |
+| Salomon GCC | Supported | Shopify product data; the Android WebView fallback handles native-request rejections. |
 | Sephora UAE | Supported | JSON-LD product data; Akamai-protected pages use the native WebView fallback. |
 | Faces UAE | Supported | Salesforce Commerce Cloud structured product data; session redirects use the native WebView fallback when needed. |
 | Centrepoint UAE | Supported | Centrepoint storefront JSON-LD plus source-defined color and size controls across group brands such as Splash. |
@@ -39,15 +40,19 @@ The site registry is `src/domain/sites.ts`. It controls hostnames, enabled statu
 
 ### Watchlist and activity
 
-- The watchlist supports pull-to-refresh, manual `Recheck all prices`, price-direction arrows, and a collapsible out-of-stock section below in-stock products. When products from multiple stores are tracked, a logo-only store rail filters both sections; text rails filter local folders and tags, and sort by recency, lowest price, largest drop, closest target, or name.
-- Product cards show a site icon, local folder/tags when present, price, status, and the most recent price-change direction. OOS cards are dimmed and show an amber out-of-stock badge.
+- The watchlist supports pull-to-refresh, manual `Recheck all prices`, price-direction arrows, an archived-items view, and a collapsible out-of-stock section below in-stock products. When products from multiple stores are tracked, a logo-only store rail filters both sections; a separate control filters local folders and sorts by recency, lowest price, largest drop, closest target, or name.
+- Long-press selection opens a compact floating action dock. Selected products can be moved to a folder, paused/resumed, archived/restored, or deleted in bulk.
+- Product cards show a site icon, local folder when present, price, status, and the most recent price-change direction. OOS cards are dimmed and show an amber out-of-stock badge.
 - The Activity tab is newest-first, groups events by date, shows old and new prices with direction/source badges, records both out-of-stock and back-in-stock transitions, and can open an existing product. Events remain visible but non-tappable after a product is deleted.
+- `For you` is the opening discovery tab. Its local quiz collects four interests, favourite brands and independent category budgets. Eligible picks obey interests/budgets and mix equally relevant categories/retailers. Category, brand, retailer and maximum-price filters update the same grid; Show more reveals batches of the cached catalogue. Price opportunities are no longer part of this tab.
+- Discovery has explicit listing sources for all 18 tracked retailers; 17 supplied products in the connected-Android validation, while BFL remained blocked. Per-collection caches preserve observed prices and age during failures, and the Sources control exposes exact endpoints/status. Discovery refreshes while browsing and does not enter tracked-product background checks. See [source URLs and limits](discovery-sources.md) and [UX review and device evidence](discovery-review.md).
+- Track price verifies the product page, saves existing defaults, and offers target settings afterward. Size/colour selection uses a sheet over the feed and preserves the exact source variant; existing trackers open their details. Secondary product actions live in the product-details modal.
 
 ### Add flow and product detail
 
-- The add flow detects supported stores, replaces the store list with a single detected-store status for valid links, and brings the parsed result into view before saving. It then collects check preference, alert mode, optional target price, optional minimum price-drop threshold, back-in-stock preference, and local folder/tags. When a page exposes reliable variant data, the user must select an in-stock source option such as size before saving; that exact option is shown on cards and details and is used for later checks. Centrepoint size choices use the current product URL and source button ID, while color-only pages retain the current color and product route without guessing neighboring colors. Namshi size choices use the current product/color URL, The Deal selections retain an exact Salesforce variation endpoint, and Sharaf DG linked configurations retain the source URL that preselects the exact item. Sephora and Faces shade labels remain page-level because their initial pages do not provide complete per-shade stock state. Android browsers can share a product URL directly to Qeemat, which opens this flow and automatically finds the product so the user can choose its variant and tracking settings.
+- The add flow detects supported stores, replaces the store list with a single detected-store status for valid links, and brings the parsed result into view before saving. It then collects check preference, alert mode, optional target price, optional minimum price-drop threshold, back-in-stock preference, and a local folder. When a page exposes reliable variant data, the user must select an in-stock source option such as size before saving; that exact option is shown on cards and details and is used for later checks. Centrepoint size choices use the current product URL and source button ID, while color-only pages retain the current color and product route without guessing neighboring colors. Namshi size choices use the current product/color URL. The Deal builds source-provided color/size candidates, then verifies the selected combination against its exact variation endpoint before saving; a response that does not return the requested attributes is rejected. Sharaf DG linked configurations retain the source URL that preselects the exact item. Sephora and Faces shade labels remain page-level because their initial pages do not provide complete per-shade stock state. Android browsers can share a product URL directly to Qeemat, which opens this flow and automatically finds the product so the user can choose its variant and tracking settings.
 - AYM excludes the daily option in the picker because its effective minimum interval is 72 hours. Existing daily AYM products are clamped in tracking settings.
-- Product detail shows current price, chart, local low/high/average/history-distance insights, snapshot history, `Check now`, `Open link`, and `Copy product link` actions.
+- Product detail shows current price, an interactive price chart with tappable snapshots and color-coded price changes, local low/high/average/history-distance insights, snapshot history, `Check now`, `Open link`, and `Copy product link` actions.
 - Snapshot sources are presented as `Check now`, `Recheck all`, or `Background`.
 
 ### Settings, onboarding, and navigation
@@ -69,14 +74,14 @@ The site registry is `src/domain/sites.ts`. It controls hostnames, enabled statu
 - Confirmed out-of-stock products can parse successfully without a price. Storage preserves the last known product price and the UI shows an OOS state.
 - Confirmed Amazon OOS pages deliberately leave price unset: recommendation carousels can contain prices belonging to other products.
 - Amazon prices use the broadly available Buy Box price: sale prices are tracked, while Prime-exclusive discounts and alternate-seller prices are ignored. If that base Buy Box price is not unambiguous, the check reports that no current price was found instead of guessing.
-- AYM, Ounass, Level Shoes, Nike UAE, Sun & Sand Sports, Adidas UAE, PUMA UAE, Decathlon UAE, Namshi, Centrepoint, and The Deal expose reliable initial-page variant data when the markup includes source IDs, labels, stock state, and price. Centrepoint color-only pages can track the current source product route; its alternate color buttons are not promoted without exact linked URLs. The Deal and Sharaf DG retain exact source variation URLs for later checks so a different configuration cannot be substituted. Noon, Amazon, Sephora, Faces, and Brands For Less retain page-level tracking unless a future initial response meets the same standard; Qeemat never makes extra requests to discover neighbours or guesses an unavailable option.
+- AYM, Ounass, Level Shoes, Nike UAE, Sun & Sand Sports, Adidas UAE, PUMA UAE, Decathlon UAE, Salomon, Namshi, Centrepoint, and The Deal expose reliable initial-page variant data when the markup includes source IDs, labels, stock state, and price. Centrepoint color-only pages can track the current source product route; its alternate color buttons are not promoted without exact linked URLs. The Deal forms only the color/size candidates exposed by the source page and verifies a chosen candidate through its exact variation endpoint before storing it; Sharaf DG retains exact source configuration URLs for later checks. Noon, Amazon, Sephora, Faces, and Brands For Less retain page-level tracking unless a future initial response meets the same standard; Qeemat does not discover unadvertised neighbours or guess unavailable options.
 - Challenge pages return `blocked`; pages without required product data return parser or price errors as appropriate.
 
 Parser code is in `src/domain/parser.ts`; types are in `src/domain/types.ts`; tests are in `src/domain/__tests__/`.
 
 ### Out-of-stock handling
 
-Out-of-stock is a successful parser result, not a generic missing-price error. Each supported parser has site-specific availability signals, and structured data with unknown availability falls through to those parsers. The database preserves `currentPriceMinor` when an OOS result has no price, and snapshots retain availability for history. OOS products continue to be checked so Qeemat can record and optionally notify a back-in-stock transition.
+Out-of-stock is a successful parser result, not a generic missing-price error. Each supported parser has site-specific availability signals, and structured data with unknown availability falls through to those parsers. The database preserves `currentPriceMinor` when an OOS result has no price, and snapshots retain availability for history. OOS products continue to be checked so Qeemat can record and optionally notify a back-in-stock transition. Repeated OOS results do not create price-change activity or notifications.
 
 No price-change activity event or notification is created for an OOS result without a price. The detail screen shows an amber banner explaining whether it is displaying the last known price or no recorded price.
 
@@ -126,22 +131,10 @@ OOS fixtures are documented in `src/domain/__tests__/fixtures/oos/README.md`. Mi
 
 For a terminal Android build, use JDK 17+ and make `adb` available from Android SDK platform-tools. Android Studio's bundled JBR is valid.
 
-## Recent Notable Changes
+## Recent Product Additions
 
-- **#12:** Amazon product links normalize to direct ASIN URLs before fetch and clipboard copy.
-- **#23:** compact-screen and large-text responsive reflow.
-- **#24:** copy-product-link action on product detail.
-- **#25:** retain the last known price when an OOS result has no current price.
-- **#26:** ignore Amazon recommendation-carousel prices on confirmed OOS pages.
-- **#14:** Amazon tracks only the base Buy Box price, excluding Prime-exclusive and alternate-seller prices.
-- **#22:** app version updated to 0.5.0.
-- **#29:** logo-only store filtering on the watchlist.
-- **#28:** exact, source-defined variant selection and later resolution; a missing saved option reports `variant_not_found` rather than substituting another option.
-- **#32:** Decathlon UAE support with source-defined Shopify variants.
-- **#33 and #34:** Sephora UAE and Faces UAE support, including the native WebView fallback for protected or redirected checks.
-- **#36 and #38:** Android Share to Qeemat, including automatic product discovery for newly received and warm-app shares.
-- **#39:** PUMA UAE support with source-defined size variants.
-- **#30:** Namshi UAE support with structured product parsing and source-defined size tracking.
-- **#31:** Sharaf DG UAE support with product metadata parsing and source-linked configuration tracking.
-- **#35:** Centrepoint UAE support with Splash-compatible structured product parsing and source-defined color/size tracking.
-- **#54:** The Deal UAE support with source color/size selections and exact variation URLs for AED price and availability checks.
+- Price-drop thresholds and back-in-stock alerts are set per tracker.
+- Folder-based organisation, watchlist filtering/sorting, archive, and compact bulk actions support larger watchlists.
+- Product detail includes local price insights and an interactive price-history chart.
+- The local-only `For you` experience discovers products across categories and retailers, applies saved shopping preferences, and lets users track without pasting a URL.
+- Salomon GCC and The Deal extend retailer support; The Deal saves only a response-verified color/size combination.
