@@ -1,6 +1,6 @@
 # Qeemat Current State
 
-**Last reconciled with the implementation:** 2026-10-25
+**Last reconciled with the implementation:** 2026-10-26
 **App version:** 0.5.5-alpha
 
 This is the repo handoff for the current app. Product-planning documents are useful for intent, but this file describes shipped behavior and active limitations.
@@ -16,6 +16,7 @@ The app uses a small manual route stack in `App.tsx`, not React Navigation. Ther
 | Store | Status | Notes |
 | --- | --- | --- |
 | Noon UAE | Supported | Product metadata and embedded page data. |
+| Carrefour UAE | Supported | Streamed storefront product data; the exact seller, offer and delivery selection is preserved for checks. A missing or changed offer is rejected rather than replaced with another seller. |
 | Nike UAE | Supported | Structured product data. |
 | Sun & Sand Sports UAE | Supported | Structured product data and product URLs. |
 | Level Shoes | Supported | Embedded product payloads and metadata. |
