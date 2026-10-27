@@ -78,7 +78,7 @@ export function ProductCard({ product, onPress, onRemove, onLongPress, selected 
         {checkFailed || isOos ? <AppText muted style={styles.caption}>Last known price</AppText> : null}
         <View style={styles.priceRow}>
           <AppText weight="bold" style={[styles.price, isOos && styles.priceMuted]}>
-            {formatPrice(product.currentPriceMinor, product.currency)}
+            {formatPrice(product.currentPriceMinor, product.currency, product.priceBasis)}
           </AppText>
           {isOos ? (
             <View style={styles.oosBadge}>

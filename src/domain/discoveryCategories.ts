@@ -3,7 +3,7 @@ export const DISCOVERY_CATEGORY_LABELS = {
   clothing: 'Clothing', footwear: 'Footwear', bags: 'Bags', accessories: 'Accessories', jewellery: 'Jewellery', watches: 'Watches',
   makeup: 'Makeup', skincare: 'Skincare', fragrance: 'Fragrance', haircare: 'Haircare', bath_body: 'Bath & body', beauty_tools: 'Beauty tools', grooming: 'Grooming',
   phones: 'Phones', tablets: 'Tablets', computers: 'Computers', televisions: 'TVs & projectors', audio: 'Audio', gaming: 'Gaming', cameras: 'Cameras', wearables: 'Wearables', tech_accessories: 'Tech accessories',
-  appliances: 'Appliances', kitchen: 'Kitchen', furniture: 'Furniture', home: 'Home décor', garden: 'Garden', cleaning: 'Cleaning', stationery: 'Stationery', books: 'Books',
+  appliances: 'Appliances', kitchen: 'Kitchen', furniture: 'Furniture', home: 'Home décor', garden: 'Garden', cleaning: 'Cleaning', stationery: 'Stationery', books: 'Books', tools: 'Tools', musical_instruments: 'Musical instruments', music: 'Music', films: 'Films',
   baby: 'Baby', toys: 'Toys', pets: 'Pets', health: 'Health',
   fresh_food: 'Fresh food', pantry: 'Pantry', beverages: 'Beverages', frozen_food: 'Frozen food',
   fitness: 'Fitness', sports: 'Sports equipment', outdoors: 'Outdoors', cycling: 'Cycling', swimming: 'Swimming', motorcycle: 'Motorcycle gear', marine: 'Marine', automotive: 'Car accessories'
@@ -15,7 +15,8 @@ export const DISCOVERY_CATEGORY_GROUPS = [
   { id: 'style', label: 'Style', categories: ['clothing', 'footwear', 'bags', 'accessories', 'jewellery', 'watches'] },
   { id: 'beauty', label: 'Beauty', categories: ['makeup', 'skincare', 'fragrance', 'haircare', 'bath_body', 'beauty_tools', 'grooming'] },
   { id: 'technology', label: 'Technology', categories: ['phones', 'tablets', 'computers', 'televisions', 'audio', 'gaming', 'cameras', 'wearables', 'tech_accessories'] },
-  { id: 'home', label: 'Home', categories: ['appliances', 'kitchen', 'furniture', 'home', 'garden', 'cleaning', 'stationery', 'books'] },
+  { id: 'home', label: 'Home', categories: ['appliances', 'kitchen', 'furniture', 'home', 'garden', 'cleaning', 'stationery', 'tools'] },
+  { id: 'media', label: 'Books & entertainment', categories: ['books', 'musical_instruments', 'music', 'films'] },
   { id: 'everyday', label: 'Everyday', categories: ['baby', 'toys', 'pets', 'health'] },
   { id: 'groceries', label: 'Groceries', categories: ['fresh_food', 'pantry', 'beverages', 'frozen_food'] },
   { id: 'active', label: 'Active', categories: ['fitness', 'sports', 'outdoors', 'cycling', 'swimming', 'motorcycle', 'marine', 'automotive'] }

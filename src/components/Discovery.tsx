@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -15,12 +15,13 @@ import { ChevronRight, EyeOff, Plus, Sparkles, X } from 'lucide-react-native';
 import { AppText } from './AppText';
 import { PrimaryButton } from './PrimaryButton';
 import { formatRelativeTime } from '../domain/dates';
-import { DISCOVERY_CATEGORY_LABELS, DISCOVERY_INTEREST_CATEGORIES, preferredDiscoveryBrands, uniqueDiscoveryBrands } from '../domain/discovery';
+import { DISCOVERY_CATEGORY_LABELS, preferredDiscoveryBrands, uniqueDiscoveryBrands } from '../domain/discovery';
 import { cleanUrl, getSiteByKey } from '../domain/sites';
 import { DiscoveryCategory, DiscoveryPreferences, DiscoveryProduct, TrackedProduct } from '../domain/types';
 import { parseTargetPriceInput } from '../domain/price';
 import { formatPrice } from '../domain/price';
 import { colors, radius } from '../theme/theme';
+import { DISCOVERY_CATEGORY_GROUPS } from '../domain/discoveryCategories';
 
 export function DiscoverySetupCard({ onPress, onDismiss }: { onPress: () => void; onDismiss: () => void }) {
   return (
@@ -98,7 +99,7 @@ export function DiscoveryProductGrid({
             <View style={styles.productBody}>
               <AppText muted numberOfLines={1} style={styles.productSource}>{product.brand} · {getSiteByKey(product.siteKey).shortName}</AppText>
               <AppText weight="semibold" numberOfLines={2} style={styles.productTitle}>{product.title}</AppText>
-              <AppText weight="bold" style={styles.productPrice}>{product.priceMinor === undefined ? 'Price unavailable' : `${product.hasPriceRange ? 'From ' : ''}${formatPrice(product.priceMinor, product.currency)}`}</AppText>
+              <AppText weight="bold" style={styles.productPrice}>{product.priceMinor === undefined ? 'Price unavailable' : `${product.hasPriceRange ? 'From ' : ''}${formatPrice(product.priceMinor, product.currency, product.priceBasis)}`}</AppText>
               <AppText muted style={styles.productObserved}>Observed {formatRelativeTime(product.observedAt)}</AppText>
               <Pressable accessibilityRole="button" onPress={() => onTrack(product)} style={({ pressed }) => [styles.trackButton, tracked && styles.trackedButton, pressed && styles.pressed]} disabled={tracking}>
                 {tracking ? <ActivityIndicator size="small" color={colors.surface} /> : <><Plus size={15} color={tracked ? colors.primary : colors.surface} /><AppText weight="semibold" style={[styles.trackButtonText, tracked && styles.trackedButtonText]}>{tracked ? 'Tracking' : 'Track price'}</AppText></>}
@@ -114,7 +115,7 @@ export function DiscoveryProductGrid({
             {preview.imageUrl ? <Image source={{ uri: preview.imageUrl }} resizeMode="contain" style={styles.previewImage} /> : null}
             <AppText muted>{preview.brand} · {getSiteByKey(preview.siteKey).shortName}</AppText>
             <AppText weight="bold" style={styles.emptyTitle}>{preview.title}</AppText>
-            <AppText weight="bold">{preview.hasPriceRange ? 'From ' : ''}{formatPrice(preview.priceMinor, preview.currency)}</AppText>
+            <AppText weight="bold">{preview.hasPriceRange ? 'From ' : ''}{formatPrice(preview.priceMinor, preview.currency, preview.priceBasis)}</AppText>
             <AppText muted>Price observed {formatRelativeTime(preview.observedAt)}. Current details are verified when you track.</AppText>
             <PrimaryButton label={trackedProducts.some((item) => cleanUrl(item.canonicalUrl || item.url) === cleanUrl(preview.url)) ? 'Open tracker' : 'Track price'} onPress={() => { setPreview(undefined); onTrack(preview); }} />
             <PrimaryButton label="View at retailer" variant="outline" onPress={() => onViewAtRetailer(preview)} />
@@ -140,7 +141,6 @@ export function DiscoveryPreferencesSheet({
   onClose: () => void;
   onSave: (update: Pick<DiscoveryPreferences, 'completed' | 'categories' | 'favoriteBrands' | 'budgetsByCategory'>) => Promise<void>;
 }) {
-  const availableCategories = useMemo(() => DISCOVERY_INTEREST_CATEGORIES, []);
   const [step, setStep] = useState(0);
   const [categories, setCategories] = useState<DiscoveryCategory[]>([]);
   const [brands, setBrands] = useState<string[]>([]);
@@ -186,7 +186,7 @@ export function DiscoveryPreferencesSheet({
           <AppText weight="bold" style={styles.sheetTitle}>{title}</AppText>
           <AppText muted style={styles.sheetCopy}>{copy}</AppText>
           {error ? <AppText>{error}</AppText> : null}
-          {step === 0 ? <View style={styles.choiceWrap}>{availableCategories.map((category) => <DiscoveryFilterChip key={category} label={DISCOVERY_CATEGORY_LABELS[category]} selected={categories.includes(category)} onPress={() => setCategories((current) => current.includes(category) ? current.filter((item) => item !== category) : [...current, category])} />)}</View> : null}
+          {step === 0 ? DISCOVERY_CATEGORY_GROUPS.map((group) => <View key={group.id} style={styles.budgetList}><AppText weight="semibold">{group.label}</AppText><View style={styles.choiceWrap}>{group.categories.map((category) => <DiscoveryFilterChip key={category} label={DISCOVERY_CATEGORY_LABELS[category]} selected={categories.includes(category)} onPress={() => setCategories((current) => current.includes(category) ? current.filter((item) => item !== category) : [...current, category])} />)}</View></View>) : null}
           {step === 1 ? <View style={styles.choiceWrap}><DiscoveryFilterChip label="No preference" selected={!brands.length} onPress={() => setBrands([])} />{brandChoices.length ? brandChoices.map((brand) => <DiscoveryFilterChip key={brand} label={brand} selected={brands.includes(brand)} onPress={() => setBrands((current) => current.includes(brand) ? current.filter((item) => item !== brand) : [...current, brand])} />) : <AppText muted>Select an interest first, or continue without brand preferences.</AppText>}</View> : null}
           {step === 2 ? <View style={styles.budgetList}>{categories.length ? categories.map((category) => <View key={category} style={styles.budgetRow}><AppText weight="semibold" style={styles.flex}>{DISCOVERY_CATEGORY_LABELS[category]}</AppText><View style={styles.budgetInput}><AppText muted>AED</AppText><TextInput value={budgets[category] ?? ''} onChangeText={(value) => setBudgets((current) => ({ ...current, [category]: value }))} keyboardType="decimal-pad" placeholder="Any" placeholderTextColor={colors.textSoft} style={styles.budgetTextInput} /></View></View>) : <AppText muted>Continue without a spending preference to see the live catalogue.</AppText>}</View> : null}
         </ScrollView>

@@ -6,7 +6,7 @@ import {
   ProductVariant,
   SiteKey
 } from './types';
-import { DISCOVERY_CATEGORY_LABELS as INTEREST_LABELS } from './discoveryCategories';
+import { DISCOVERY_CATEGORY_LABELS as INTEREST_LABELS, DISCOVERY_CATEGORY_GROUPS } from './discoveryCategories';
 
 export const DISCOVERY_CATEGORY_LABELS: Record<DiscoveryCategory, string> = {
   ...INTEREST_LABELS,
@@ -237,7 +237,11 @@ export function preferredDiscoveryBrands(categories: DiscoveryCategory[]): strin
     sport: ['Nike', 'Adidas', 'Puma', 'Salomon', 'Kiprun', 'Quechua', 'Domyos', 'Kalenji', 'Decathlon']
   };
 
-  return [...new Set(categories.flatMap((category) => choices[category] ?? []))];
+  return [...new Set(categories.flatMap((category) => {
+    const group = DISCOVERY_CATEGORY_GROUPS.find((item) => (item.categories as readonly string[]).includes(category))?.id;
+    const legacy = group === 'style' ? 'fashion' : group === 'technology' ? 'electronics' : group === 'active' ? 'sport' : group === 'beauty' ? 'beauty' : undefined;
+    return choices[category] ?? (legacy ? choices[legacy] ?? [] : []);
+  }))];
 }
 
 export function uniqueDiscoveryBrands(brands: string[]): string[] {

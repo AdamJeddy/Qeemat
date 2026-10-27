@@ -4,6 +4,14 @@ import { buildDiscoverySections, filterDiscoveryProducts } from '../discovery';
 import { DiscoveryProduct } from '../types';
 
 describe('retailer category browser', () => {
+  it('classifies the actual department rather than an unrelated word in its parent URL', () => {
+    const source = (site: string, label: string) => DISCOVERY_SOURCE_MAPS.find((item) => item.siteKey === site && item.label === label);
+    expect(source('noon', 'Bean bags')?.category).toBe('furniture');
+    expect(source('noon', 'Mats & carpets')?.category).toBe('home');
+    expect(source('faces_uae', 'Brushes and Sponges')?.category).toBe('beauty_tools');
+    expect(source('amazon_ae', 'History')?.category).toBe('books');
+    expect(source('noon', 'Guitars')?.category).toBe('musical_instruments');
+  });
   it('keeps every listing identity unique and covers each supported retailer', () => {
     expect(new Set(DISCOVERY_SOURCE_MAPS.map((source) => source.id)).size).toBe(DISCOVERY_SOURCE_MAPS.length);
     expect([...new Set(DISCOVERY_SOURCE_MAPS.map((source) => source.siteKey))].sort()).toEqual(SUPPORTED_SITES.map((site) => site.key).sort());

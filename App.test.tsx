@@ -31,6 +31,8 @@ jest.mock('./src/domain/discoveryCatalog', () => ({
 import { AddScreen, DetailScreen, getTrackedProductLink, OpportunityScreen } from './App';
 import { AppText } from './src/components/AppText';
 import { DiscoveryFilterChip, DiscoveryPreferencesSheet, DiscoveryProductGrid } from './src/components/Discovery';
+import { DiscoveryBrowseSheet } from './src/components/DiscoveryBrowseSheet';
+import { DISCOVERY_SOURCE_MAPS } from './src/domain/discoverySources';
 import { ProductCard } from './src/components/ProductCard';
 import { CheckStatus, TrackedProduct } from './src/domain/types';
 
@@ -331,10 +333,8 @@ describe('OpportunityScreen', () => {
     });
 
     const text = tree!.root.findAllByType(AppText).map((node) => [node.props.children].flat().join('')).join(' ');
-    expect(text).toContain('Fashion & footwear');
-    expect(text).toContain('Beauty & fragrance');
-    expect(text).toContain('Electronics');
-    expect(text).toContain('Sport & outdoors');
+    for (const label of ['Clothing', 'Footwear', 'Makeup', 'Skincare', 'Fragrance', 'Phones', 'Computers', 'Audio', 'Fresh food', 'Pantry', 'Pets']) { expect(text).toContain(label); }
+    expect(text).not.toContain('Fashion & footwear');
   });
 
   it('shows cached discovery products with a clear price-tracking action', async () => {
@@ -342,9 +342,9 @@ describe('OpportunityScreen', () => {
     mockListProductsWithSnapshots.mockResolvedValueOnce([]);
     mockGetDiscoveryPreferences.mockResolvedValueOnce({
       completed: true,
-      categories: ['sport'],
+      categories: ['fitness'],
       favoriteBrands: ['Domyos'],
-      budgetsByCategory: { sport: 10000 },
+      budgetsByCategory: { fitness: 10000 },
       dismissedProductIds: [],
       seenProductIds: []
     });
@@ -352,7 +352,7 @@ describe('OpportunityScreen', () => {
       products: [{
         id: 'decathlon_uae:mat',
         siteKey: 'decathlon_uae',
-        category: 'sport',
+        category: 'fitness',
         brand: 'Domyos',
         title: 'Domyos training mat',
         url: 'https://decathlon.ae/products/training-mat',
@@ -379,26 +379,26 @@ describe('OpportunityScreen', () => {
     expect(text).toContain('Track price');
     expect(text).toContain('1 product');
 
-    const categoryChip = tree!.root.findAllByType(DiscoveryFilterChip).find((node) => node.props.label === 'Sport & outdoors');
+    const categoryChip = tree!.root.findAllByType(DiscoveryFilterChip).find((node) => node.props.label === 'Fitness');
     act(() => {
       categoryChip!.findByProps({ accessibilityRole: 'button' }).props.onPress();
     });
 
     expect(navigate).not.toHaveBeenCalled();
-    expect(tree!.root.findAllByType(DiscoveryFilterChip).find((node) => node.props.label === 'Sport & outdoors')?.props.selected).toBe(true);
+    expect(tree!.root.findAllByType(DiscoveryFilterChip).find((node) => node.props.label === 'Fitness')?.props.selected).toBe(true);
   });
 
   it('applies saved quiz interests and budgets to the same feed immediately', async () => {
     const navigate = jest.fn();
     const initial = { completed: true, categories: [], favoriteBrands: [], budgetsByCategory: {}, dismissedProductIds: [], seenProductIds: [] };
     mockGetDiscoveryPreferences.mockResolvedValueOnce(initial);
-    const base = { siteKey: 'faces_uae', category: 'beauty', brand: 'Dior', currency: 'AED', availability: 'in_stock', observedAt: '2026-10-25T10:00:00Z' };
-    mockLoadDiscoveryCatalog.mockResolvedValueOnce({ products: [
+    const base = { siteKey: 'faces_uae', category: 'skincare', brand: 'Dior', currency: 'AED', availability: 'in_stock', observedAt: '2026-10-25T10:00:00Z' };
+    mockLoadDiscoveryCatalog.mockResolvedValue({ products: [
       { ...base, id: 'serum', title: 'Affordable serum', url: 'https://www.faces.ae/en/serum', priceMinor: 9000 },
       { ...base, id: 'premium-serum', title: 'Premium serum', url: 'https://www.faces.ae/en/premium-serum', priceMinor: 25000 },
-      { ...base, id: 'shoes', title: 'Running shoes', category: 'sport', url: 'https://decathlon.ae/products/shoes', siteKey: 'decathlon_uae', priceMinor: 8000 }
+      { ...base, id: 'shoes', title: 'Running shoes', category: 'footwear', url: 'https://decathlon.ae/products/shoes', siteKey: 'decathlon_uae', priceMinor: 8000 }
     ], stale: false });
-    const saved = { ...initial, categories: ['beauty'], budgetsByCategory: { beauty: 10000 } };
+    const saved = { ...initial, categories: ['skincare'], budgetsByCategory: { skincare: 10000 } };
     jest.requireMock('./src/data/discovery').saveDiscoveryPreferences.mockResolvedValueOnce(saved);
     let tree: renderer.ReactTestRenderer;
     await act(async () => {
@@ -411,8 +411,13 @@ describe('OpportunityScreen', () => {
     });
     expect(tree!.root.findByType(DiscoveryProductGrid).props.products.map((product: { id: string }) => product.id)).toEqual(['serum']);
     expect(navigate).not.toHaveBeenCalled();
-    act(() => tree!.root.findAllByType(DiscoveryFilterChip).find((node) => node.props.label === 'Sport & outdoors')!.props.onPress());
+    expect(mockLoadDiscoveryCatalog).toHaveBeenLastCalledWith(undefined, expect.objectContaining({ scope: expect.objectContaining({ categories: ['skincare'] }) }));
+    await act(async () => tree!.root.findByType(DiscoveryBrowseSheet).props.onCategory('footwear'));
     expect(tree!.root.findByType(DiscoveryProductGrid).props.products.map((product: { id: string }) => product.id)).toEqual(['shoes']);
+    expect(navigate).not.toHaveBeenCalled();
+    const source = DISCOVERY_SOURCE_MAPS.find((item) => item.siteKey === 'carrefour_uae' && item.category === 'fresh_food')!;
+    await act(async () => tree!.root.findByType(DiscoveryBrowseSheet).props.onCollection(source));
+    expect(mockLoadDiscoveryCatalog).toHaveBeenLastCalledWith(undefined, expect.objectContaining({ scope: expect.objectContaining({ collectionId: source.id, siteKey: 'carrefour_uae' }) }));
     expect(navigate).not.toHaveBeenCalled();
   });
 });

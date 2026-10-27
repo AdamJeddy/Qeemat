@@ -46,7 +46,9 @@ export function selectDiscoveryCollections(scope: DiscoveryScope = {}): Discover
   // First spread requests across retailers, then spread each retailer's pages
   // across interests. A large sitemap must not dominate the first batch.
   const stores = [...new Set(candidates.map((source) => source.siteKey))].map((site) => {
-    const sources = candidates.filter((source) => source.siteKey === site);
+    const sources = candidates.filter((source) => source.siteKey === site).sort((left, right) =>
+      Number(Boolean(left.url?.includes('?') && left.provider === 'html')) - Number(Boolean(right.url?.includes('?') && right.provider === 'html')) ||
+      (left.path?.length ?? 1) - (right.path?.length ?? 1));
     const groups = [...new Set(sources.map((source) => source.category))].map((category) => sources.filter((source) => source.category === category));
     return interleave(groups);
   });
