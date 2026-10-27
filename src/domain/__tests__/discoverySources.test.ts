@@ -26,7 +26,7 @@ describe('retailer category browser', () => {
     for (const source of DISCOVERY_SOURCE_MAPS) {
       expect(DISCOVERY_CATEGORY_LABELS[source.category]).toBeDefined();
       expect(source.url).toMatch(/^https:\/\//);
-      const hostname = new URL(source.url!).hostname.replace(/^www\./, '');
+      const hostname = source.url?.match(/^https:\/\/([^/]+)\//)?.[1].replace(/^www\./, '');
       expect(SUPPORTED_SITES.find((site) => site.key === source.siteKey)?.hostnames.map((host) => host.replace(/^www\./, ''))).toContain(hostname);
     }
     for (const category of DISCOVERY_CATEGORY_GROUPS.flatMap((group) => group.categories)) {
