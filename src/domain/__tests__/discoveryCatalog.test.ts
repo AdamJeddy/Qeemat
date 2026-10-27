@@ -2,12 +2,17 @@ jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock')
 );
 
-import { fetchDecathlonCollection, loadDiscoveryCatalog } from '../discoveryCatalog';
+import { fetchDecathlonCollection, loadDiscoveryCatalog as loadScopedCatalog } from '../discoveryCatalog';
 import { DISCOVERY_COLLECTIONS } from '../discovery';
 import { getDiscoveryCache, saveDiscoveryCache } from '../../data/discovery';
 import { SUPPORTED_SITES } from '../sites';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DISCOVERY_SOURCE_MAPS } from '../discoverySources';
+
+// Queue/cache regressions need several source memberships; production defaults
+// remain a bounded batch, verified independently below.
+const loadDiscoveryCatalog = (fetcher?: Parameters<typeof loadScopedCatalog>[0], options?: Parameters<typeof loadScopedCatalog>[1]) =>
+  loadScopedCatalog(fetcher, { scope: { limit: 500 }, ...options });
 
 jest.mock('../webViewFetcher', () => ({ fetchPageHtmlViaWebView: jest.fn().mockResolvedValue(null) }));
 
@@ -39,22 +44,29 @@ describe('fetchDecathlonCollection', () => {
     );
     expect(products).toEqual([expect.objectContaining({
       id: 'decathlon_uae:101',
-      category: 'sport',
+      category: 'fitness',
       priceMinor: 8900
     })]);
   });
 
   it('returns an error when a retailer listing is unavailable', async () => {
     await expect(fetchDecathlonCollection(
-      DISCOVERY_COLLECTIONS[0],
+      DISCOVERY_COLLECTIONS.find((collection) => collection.id === 'decathlon-fitness')!,
       jest.fn().mockResolvedValue({ ok: false, json: async () => ({}) }),
       '2026-10-25T10:00:00.000Z'
-    )).rejects.toThrow('Could not refresh Footwear');
+    )).rejects.toThrow('Could not refresh Fitness');
   });
 });
 
 describe('multi-retailer discovery refresh', () => {
   beforeEach(async () => { await AsyncStorage.clear(); });
+
+  it('bounds an ordinary feed load without requiring callers to supply a scope', async () => {
+    const fetcher = jest.fn().mockResolvedValue({ ok: false });
+    const result = await loadScopedCatalog(fetcher);
+    expect(fetcher).toHaveBeenCalledTimes(24);
+    expect(result.sources).toHaveLength(24);
+  });
 
   it('fetches just the selected mapped page and preserves its browsing membership', async () => {
     const source = DISCOVERY_SOURCE_MAPS.find((item) => item.id === 'decathlon-fitness')!;
@@ -122,7 +134,7 @@ describe('multi-retailer discovery refresh', () => {
     ['2026-10-25T11:00:00Z', '2026-10-25T11:00:00Z', 8900]
   ])('merges cached duplicates by observation time (%s, %s)', async (firstObservedAt, secondObservedAt, expectedPrice) => {
     const product = { id: 'decathlon_uae:101', siteKey: 'decathlon_uae' as const, category: 'sport' as const, title: 'Mat', brand: 'Domyos', url: 'https://decathlon.ae/products/mat', priceMinor: 8900, currency: 'AED', availability: 'in_stock' as const, observedAt: firstObservedAt };
-    await saveDiscoveryCache('decathlon-footwear', [product], firstObservedAt);
+    await saveDiscoveryCache('decathlon-hiking-shoes-1', [product], firstObservedAt);
     await saveDiscoveryCache('decathlon-fitness', [{ ...product, priceMinor: 7900, observedAt: secondObservedAt }], secondObservedAt);
 
     const result = await loadDiscoveryCatalog(jest.fn().mockResolvedValue({ ok: false }), { force: true });
@@ -133,7 +145,7 @@ describe('multi-retailer discovery refresh', () => {
   it('keeps a refreshed in-stock observation when an earlier collection fails', async () => {
     const observedAt = '2026-10-25T10:00:00Z';
     const product = { id: 'decathlon_uae:101', siteKey: 'decathlon_uae' as const, category: 'sport' as const, title: 'Mat', brand: 'Domyos', url: 'https://decathlon.ae/products/mat', priceMinor: 8900, currency: 'AED', availability: 'out_of_stock' as const, observedAt };
-    await saveDiscoveryCache('decathlon-footwear', [product], observedAt);
+    await saveDiscoveryCache('decathlon-hiking-shoes-1', [product], observedAt);
     const fetcher = jest.fn(async (url: string) => ({
       ok: url.includes('/collections/fitness/'),
       json: async () => ({ products: [{ id: 101, title: 'Mat', handle: 'mat', vendor: 'Domyos', variants: [{ price: '79.00', available: true }] }] })
@@ -144,7 +156,7 @@ describe('multi-retailer discovery refresh', () => {
       observations.push(catalog.products[0].availability);
     } });
 
-    expect(result.failedCollectionIds).toContain('decathlon-footwear');
+    expect(result.failedCollectionIds).toContain('decathlon-hiking-shoes-1');
     expect(result.failedCollectionIds).not.toContain('decathlon-fitness');
     expect(result.products).toEqual([expect.objectContaining({ id: product.id, priceMinor: 7900, availability: 'in_stock' })]);
     expect(Date.parse(result.products[0].observedAt)).toBeGreaterThan(Date.parse(observedAt));
@@ -156,17 +168,17 @@ describe('multi-retailer discovery refresh', () => {
     const product = { id: 'decathlon:1', siteKey: 'decathlon_uae' as const, category: 'sport' as const, title: 'Mat', brand: 'Domyos', url: 'https://decathlon.ae/products/mat', priceMinor: 8900, currency: 'AED', availability: 'in_stock' as const, observedAt: '2026-10-25T10:00:00Z' };
     await Promise.all([
       saveDiscoveryCache('decathlon-fitness', [product], product.observedAt),
-      saveDiscoveryCache('salomon-outdoors', [{ ...product, id: 'salomon:1', siteKey: 'salomon_gcc' as const }], product.observedAt)
+      saveDiscoveryCache('salomon-salomon-accessories', [{ ...product, id: 'salomon:1', siteKey: 'salomon_gcc' as const }], product.observedAt)
     ]);
     expect((await getDiscoveryCache('decathlon-fitness'))?.products).toHaveLength(1);
-    expect((await getDiscoveryCache('salomon-outdoors'))?.products).toHaveLength(1);
+    expect((await getDiscoveryCache('salomon-salomon-accessories'))?.products).toHaveLength(1);
     const fetcher = jest.fn().mockResolvedValue({ ok: false, json: async () => ({}) });
     const updates: number[] = [];
     const result = await loadDiscoveryCatalog(fetcher, { force: true, onUpdate: (catalog) => updates.push(catalog.products.length) });
     expect(updates[0]).toBe(2);
     expect(result.products).toHaveLength(2);
     expect(result.stale).toBe(true);
-    expect(result.failedCollectionIds).toContain('salomon-outdoors');
+    expect(result.failedCollectionIds).toContain('salomon-salomon-accessories');
     expect((await getDiscoveryCache('decathlon-fitness'))?.products[0].id).toBe(product.id);
   });
 });

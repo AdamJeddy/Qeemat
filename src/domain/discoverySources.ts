@@ -43,6 +43,9 @@ export function selectDiscoveryCollections(scope: DiscoveryScope = {}): Discover
   const candidates = DISCOVERY_SOURCE_MAPS.filter((source) =>
     !source.isDepartment && (!scope.siteKey || source.siteKey === scope.siteKey) &&
     (!scope.categories?.length || scope.categories.includes(source.category)));
+  if (!candidates.length && scope.siteKey && !scope.categories?.length) {
+    return DISCOVERY_SOURCE_MAPS.filter((source) => source.siteKey === scope.siteKey).slice(scope.offset ?? 0, (scope.offset ?? 0) + (scope.limit ?? 24));
+  }
   // First spread requests across retailers, then spread each retailer's pages
   // across interests. A large sitemap must not dominate the first batch.
   const stores = [...new Set(candidates.map((source) => source.siteKey))].map((site) => {

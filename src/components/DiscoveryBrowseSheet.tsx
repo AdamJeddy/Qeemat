@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, ExternalLink, X } from 'lucide-react-native';
 import { AppText } from './AppText';
 import { DiscoveryFilterChip } from './Discovery';
-import { DiscoveryCollection, DISCOVERY_CATEGORY_LABELS, discoveryCollectionPageUrl } from '../domain/discovery';
+import { DiscoveryCollection, DISCOVERY_CATEGORY_LABELS, discoveryCollectionPageUrl, discoverySourceUrl } from '../domain/discovery';
 import { DISCOVERY_CATEGORY_GROUPS } from '../domain/discoveryCategories';
 import { DISCOVERY_SOURCE_MAPS } from '../domain/discoverySources';
 import { DiscoverySourceStatus } from '../domain/discoveryCatalog';
@@ -32,7 +32,7 @@ export function DiscoveryBrowseSheet({ visible, sources, onClose, onCategory, on
   const states = useMemo(() => new Map(sources?.map((source) => [source.id, source])), [sources]);
   const search = query.trim().toLocaleLowerCase();
   const collections = useMemo(() => DISCOVERY_SOURCE_MAPS.filter((source) =>
-    (!site || source.siteKey === site) && (!search || [source.label, getSiteByKey(source.siteKey).displayName, ...(source.path ?? [])].join(' ').toLocaleLowerCase().includes(search))), [search, site]);
+    (!site || source.siteKey === site) && (!search || [source.label, source.url, getSiteByKey(source.siteKey).displayName, ...(source.path ?? [])].join(' ').toLocaleLowerCase().includes(search))), [search, site]);
 
   return <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
     <SafeAreaView style={styles.sheet}>
@@ -72,6 +72,7 @@ export function DiscoveryBrowseSheet({ visible, sources, onClose, onCategory, on
               <AppText style={styles.link}>Browse this listing</AppText>
             </Pressable>
             <Pressable accessibilityRole="link" accessibilityLabel={`Review source URL for ${item.label}`} onPress={() => Linking.openURL(pageUrl).catch(() => undefined)} style={styles.sourceLink}><ExternalLink size={15} color={colors.primary} /><AppText style={styles.url}>{pageUrl}</AppText></Pressable>
+            {discoverySourceUrl(item) !== pageUrl ? <AppText selectable muted>Fetch URL: {discoverySourceUrl(item)}</AppText> : null}
           </View>;
         }} />
       </>}

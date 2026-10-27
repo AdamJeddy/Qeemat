@@ -1,6 +1,6 @@
 import { DISCOVERY_PARSER_VERSION, getDiscoveryCache, saveDiscoveryCache } from '../data/discovery';
 import { DiscoveryProduct } from './types';
-import { DiscoveryCollection, DISCOVERY_COLLECTIONS, DISCOVERY_SOURCE_PRODUCT_LIMIT, discoverySourceUrl, parseDecathlonListing } from './discovery';
+import { DiscoveryCollection, DISCOVERY_SOURCE_PRODUCT_LIMIT, discoverySourceUrl, parseDecathlonListing } from './discovery';
 import { parseDiscoveryListing } from './discoveryListings';
 import { fetchPageHtmlViaWebView } from './webViewFetcher';
 import { DiscoveryScope, selectDiscoveryCollections } from './discoverySources';
@@ -43,7 +43,7 @@ export function loadDiscoveryCatalog(fetcher: DiscoveryFetcher = fetch, options:
 
 async function refreshDiscoveryCatalog(fetcher: DiscoveryFetcher, options: DiscoveryCatalogOptions): Promise<DiscoveryCatalogResult> {
   const observedAt = new Date().toISOString();
-  const sources = options.scope ? selectDiscoveryCollections(options.scope) : DISCOVERY_COLLECTIONS;
+  const sources = selectDiscoveryCollections(options.scope);
   const entries = await Promise.all(sources.map(async (source) => ({
     source, cached: await getDiscoveryCache(source.id), failed: false
   })));

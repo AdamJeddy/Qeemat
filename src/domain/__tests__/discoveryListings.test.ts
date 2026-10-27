@@ -2,7 +2,7 @@ import { DISCOVERY_COLLECTIONS, DiscoveryCollection } from '../discovery';
 import { parseDiscoveryListing } from '../discoveryListings';
 
 const observedAt = '2026-10-25T15:00:00Z';
-const source = (siteKey: DiscoveryCollection['siteKey']) => DISCOVERY_COLLECTIONS.find((item) => item.siteKey === siteKey)!;
+const source = (siteKey: DiscoveryCollection['siteKey']) => DISCOVERY_COLLECTIONS.find((item) => item.siteKey === siteKey && (siteKey !== 'ounass' || item.category === 'skincare'))!;
 
 describe('retailer listing extraction', () => {
   it('reads Amazon department product cards without requiring search-result image classes', () => {
@@ -30,7 +30,7 @@ describe('retailer listing extraction', () => {
       { item: { '@type': 'Product', name: 'External', url: 'https://example.com/p', offers: { price: 1 } } }
     ] })}</script>`;
     expect(parseDiscoveryListing(html, source('ounass'), observedAt)).toEqual([expect.objectContaining({
-      title: 'Serum', category: 'beauty', priceMinor: 12500, url: 'https://www.ounass.ae/serum.html', imageUrl: 'https://images.example/serum.jpg'
+      title: 'Serum', category: 'skincare', priceMinor: 12500, url: 'https://www.ounass.ae/serum.html', imageUrl: 'https://images.example/serum.jpg'
     })]);
   });
 
@@ -52,7 +52,7 @@ describe('retailer listing extraction', () => {
       { price: 250, images: [{ disBaseLink: 'https://images.example/perfume.jpg' }] }, { price: 375 }
     ] };
     const html = `<script>self.__next_f.push(${JSON.stringify([1, `1:${JSON.stringify(data)}\n`])})</script>`;
-    expect(parseDiscoveryListing(html, source('sephora_uae'), observedAt)[0]).toMatchObject({ priceMinor: 25000, hasPriceRange: true, brand: 'Dior', category: 'beauty' });
+    expect(parseDiscoveryListing(html, source('sephora_uae'), observedAt)[0]).toMatchObject({ priceMinor: 25000, hasPriceRange: true, brand: 'Dior', category: 'makeup' });
   });
 
   it('uses WooCommerce minor currency units and excludes malformed or free records', () => {

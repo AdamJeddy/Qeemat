@@ -1163,7 +1163,7 @@ export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { i
             {alertMode === 'target_price' ? (
               <View style={styles.inputWrap}>
                 <AppText weight="semibold" muted>
-                  {selectedCurrency}
+                  {selectedCurrency}{priceBasisSuffix(previewProduct?.priceBasis)}
                 </AppText>
                 <TextInput
                   value={targetPrice}
@@ -1459,7 +1459,7 @@ function SnapshotRow({
             </AppText>
           </View>
         </View>
-        {snapshot.errorCode ? <AppText muted>{snapshot.errorCode}</AppText> : null}
+        {snapshot.errorCode ? <AppText muted>{snapshot.rawPriceText?.slice(0, 400) ?? snapshot.errorCode}</AppText> : null}
       </View>
       <View style={styles.snapshotPriceBlock}>
         <AppText weight="bold" muted={subtle} style={snapshot.status === 'price_changed' && !subtle && styles.changedPrice}>
@@ -1556,7 +1556,7 @@ function TrackingSettingsScreen({ productId, navigate }: { productId: number; na
             <AppText weight="semibold">Minimum price drop alert</AppText>
             <AppText muted style={styles.fieldHint}>Only notify when the price drops by at least this amount.</AppText>
             <View style={styles.inputWrap}>
-              <AppText weight="semibold" muted>{product?.currency ?? 'AED'}</AppText>
+              <AppText weight="semibold" muted>{product?.currency ?? 'AED'}{priceBasisSuffix(product?.priceBasis)}</AppText>
               <TextInput value={minimumPriceDrop} onChangeText={setMinimumPriceDrop} keyboardType="decimal-pad" placeholder="Any drop" placeholderTextColor={colors.textSoft} maxFontSizeMultiplier={1.3} style={styles.input} />
             </View>
           </View>

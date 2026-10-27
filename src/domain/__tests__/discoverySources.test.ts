@@ -37,6 +37,7 @@ describe('retailer category browser', () => {
     expect(source).toBeDefined();
     expect(selectDiscoveryCollections({ collectionId: source.id })).toEqual([source]);
     expect(selectDiscoveryCollections({ siteKey: 'carrefour_uae', categories: ['fresh_food'] }).every((item) => item.siteKey === 'carrefour_uae' && item.category === 'fresh_food')).toBe(true);
+    expect(selectDiscoveryCollections({ siteKey: 'brands_for_less' }).map((item) => item.id)).toEqual(['bfl-women']);
   });
 
   it('keeps a product relevant in every collection it belongs to, with independent budgets', () => {

@@ -1,5 +1,7 @@
 # For You source register
 
+**Category expansion, 27 October 2026:** the active department browser now uses per-retailer maps under [`src/domain/discoverySources/`](../src/domain/discoverySources/), with 4,051 named listings across 18 retailers plus the existing BFL source. The [category audit](discovery-category-audit.md) records this expansion and its validation gaps. The selected-collection URLs and Android counts below are historical evidence from 25–26 October, not validation of every expanded listing. Open **Browse departments & retailers → All listings** in the app to search the current registry, browse a PLP in the same feed, and open its exact retailer URL.
+
 Verified against source and a connected Galaxy S24 Ultra on 25 October 2026. This is a validation snapshot: retailer counts, prices, rate limits, and bot challenges can change.
 
 The final signed standalone release was installed and launched on that device on 26 October, showing 672 available products across 17 retailers after refresh. The earlier 649-product figures below describe the 25 October audit snapshot.
@@ -64,7 +66,7 @@ Storefront challenges can change between requests. A successful listing fetch do
 ```powershell
 node --max-http-header-size=131072 scripts/probe-discovery.cjs
 # Connected Android debug build + Metro:
-node scripts/probe-discovery-android.cjs noon-audio
+node scripts/probe-discovery-android.cjs carrefour-nf1210300
 node scripts/probe-discovery-android.cjs bfl-women
 ```
 

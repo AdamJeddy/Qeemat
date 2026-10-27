@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const ts = require('typescript');
 const {request} = require('./audit-discovery-navigation.cjs');
 require.extensions['.ts'] = (module, filename) => module._compile(ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
-  compilerOptions: {module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}
+  compilerOptions: {module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}
 }).outputText,filename);
 const {parseDiscoveryListing} = require('../src/domain/discoveryListings.ts');
 
@@ -15,7 +15,7 @@ const {parseDiscoveryListing} = require('../src/domain/discoveryListings.ts');
   const entries = JSON.parse(fs.readFileSync(input,'utf8'));
   const root = '.tmp/discovery-validation';
   fs.mkdirSync(root,{recursive:true});
-  const output = `${root}/${entries[0]?.siteKey ?? 'empty'}.json`;
+  const output = `${root}/${process.argv[3] ?? entries[0]?.siteKey ?? 'empty'}.json`;
   const results = [];
   let index = 0;
   await Promise.all(Array.from({length:2}, async () => {

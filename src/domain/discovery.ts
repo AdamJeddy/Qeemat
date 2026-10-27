@@ -16,7 +16,7 @@ export const DISCOVERY_CATEGORY_LABELS: Record<DiscoveryCategory, string> = {
 
 export const DISCOVERY_SOURCE_PRODUCT_LIMIT = 100;
 
-/** Broad interests are collected before every retailer category is available. */
+/** Independent preferences; mixed source departments are only browsed explicitly. */
 export const DISCOVERY_INTEREST_CATEGORIES: DiscoveryCategory[] = [
   ...Object.keys(INTEREST_LABELS) as DiscoveryCategory[]
 ];
@@ -35,53 +35,7 @@ export type DiscoveryCollection = {
   isDepartment?: boolean;
 };
 
-/**
- * Retailer listing sources are explicit and independently cached. Sources that
- * fail extraction or are blocked retain their cache and report a failure.
- */
-export const DISCOVERY_COLLECTIONS: DiscoveryCollection[] = [
-  {
-    id: 'decathlon-footwear',
-    label: 'Footwear',
-    category: 'fashion',
-    siteKey: 'decathlon_uae',
-    collectionHandle: 'men-footwear'
-  },
-  {
-    id: 'decathlon-fitness',
-    label: 'Fitness',
-    category: 'sport',
-    siteKey: 'decathlon_uae',
-    collectionHandle: 'fitness'
-  },
-  {
-    id: 'decathlon-outdoors',
-    label: 'Outdoors',
-    category: 'sport',
-    siteKey: 'decathlon_uae',
-    collectionHandle: 'hike-camp'
-  },
-  { id: 'nike-shoes', label: 'Nike shoes', category: 'fashion', siteKey: 'nike_uae', url: 'https://www.nike.ae/en/mens/shoes', provider: 'html' },
-  { id: 'nike-women', label: 'Nike women', category: 'fashion', siteKey: 'nike_uae', url: 'https://www.nike.ae/en/womens/shoes', provider: 'html' },
-  { id: 'sss-shoes', label: 'Sun & Sand shoes', category: 'sport', siteKey: 'sun_sand_sports', url: 'https://en-ae.sssports.com/mens/shoes', provider: 'html' },
-  { id: 'level-sneakers', label: 'Level Shoes sneakers', category: 'fashion', siteKey: 'level_shoes', url: 'https://www.levelshoes.com/men/shoes/sneakers.html', provider: 'html' },
-  { id: 'ay-gear', label: 'Motorcycle gear', category: 'sport', siteKey: 'ay_accessories', url: `https://ay-accessories.com/wp-json/wc/store/v1/products?per_page=${DISCOVERY_SOURCE_PRODUCT_LIMIT}`, provider: 'woocommerce' },
-  { id: 'ounass-beauty', label: 'Ounass beauty', category: 'beauty', siteKey: 'ounass', url: 'https://www.ounass.ae/women/beauty', provider: 'html' },
-  { id: 'ounass-fashion', label: 'Ounass clothing', category: 'fashion', siteKey: 'ounass', url: 'https://www.ounass.ae/women/clothing', provider: 'html' },
-  { id: 'noon-audio', label: 'Noon headphones', category: 'electronics', siteKey: 'noon', url: 'https://www.noon.com/uae-en/electronics-and-mobiles/portable-audio-and-video/headphones-24056/', provider: 'html' },
-  { id: 'amazon-audio', label: 'Amazon UAE headphones', category: 'electronics', siteKey: 'amazon_ae', url: 'https://www.amazon.ae/s?k=headphones', provider: 'html' },
-  { id: 'adidas-shoes', label: 'Adidas shoes', category: 'fashion', siteKey: 'adidas', url: 'https://www.adidas.ae/en/men-all-shoes', provider: 'html' },
-  { id: 'puma-shoes', label: 'Puma shoes', category: 'sport', siteKey: 'puma_uae', url: 'https://ae.puma.com/ae/en/men/shoes', provider: 'html' },
-  { id: 'salomon-outdoors', label: 'Salomon outdoors', category: 'sport', siteKey: 'salomon_gcc', url: `https://salomongcc.com/collections/shop-all-products/products.json?limit=${DISCOVERY_SOURCE_PRODUCT_LIMIT}`, provider: 'shopify' },
-  { id: 'sephora-featured', label: 'Sephora featured beauty', category: 'beauty', siteKey: 'sephora_uae', url: 'https://www.sephora.me/ae-en', provider: 'html' },
-  { id: 'faces-skincare', label: 'Faces skincare', category: 'beauty', siteKey: 'faces_uae', url: 'https://www.faces.ae/en/skincare', provider: 'html' },
-  { id: 'centrepoint-women', label: 'Centrepoint women', category: 'fashion', siteKey: 'centrepoint_uae', url: 'https://www.centrepointstores.com/ae/en/c/women', provider: 'html' },
-  { id: 'namshi-shoes', label: 'Namshi shoes', category: 'fashion', siteKey: 'namshi', url: 'https://www.namshi.com/uae-en/men-shoes/all-collection/', provider: 'html' },
-  { id: 'deal-clothing', label: 'The Deal clothing', category: 'fashion', siteKey: 'the_deal', url: 'https://www.thedealoutlet.com/ae-en/flash_sale_26/women/clothing', provider: 'html' },
-  { id: 'sharaf-electronics', label: 'Sharaf DG headphones', category: 'electronics', siteKey: 'sharaf_dg', url: 'https://uae.sharafdg.com/headphones-and-earphones/', provider: 'html' },
-  { id: 'bfl-women', label: 'Brands For Less women', category: 'fashion', siteKey: 'brands_for_less', url: 'https://www.brandsforless.com/en-ae/women/', provider: 'html' },
-  { id: 'carrefour-headphones', label: 'Headphones & Earphones', category: 'electronics', siteKey: 'carrefour_uae', url: 'https://www.carrefouruae.com/mafuae/en/c/NF1210300', provider: 'html' }
-];
+export { DISCOVERY_SOURCE_MAPS as DISCOVERY_COLLECTIONS } from './discoverySources';
 
 export function discoverySourceUrl(collection: DiscoveryCollection): string {
   return collection.url ?? `https://decathlon.ae/collections/${collection.collectionHandle}/products.json?limit=${DISCOVERY_SOURCE_PRODUCT_LIMIT}`;
