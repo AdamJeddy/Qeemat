@@ -17,6 +17,10 @@ describe('retailer listing extraction', () => {
     const html = '<div id="hits"></div><script type="application/ld+json">{"@type":"Product","name":"Recommendation","url":"/product/other/","offers":{"price":1}}</script>';
     expect(parseDiscoveryListing(html, source('sharaf_dg'), observedAt)).toEqual([]);
   });
+  it('waits for a Sharaf DG category grid when HTTP only supplies recommendation metadata', () => {
+    const html = '<script type="application/ld+json">{"@type":"Product","name":"Recommendation","url":"/product/other/","offers":{"price":1}}</script>';
+    expect(parseDiscoveryListing(html, source('sharaf_dg'), observedAt)).toEqual([]);
+  });
   it('reads Amazon department product cards without requiring search-result image classes', () => {
     const html = '<div id="acsProductBlockV1-0" data-asin="B0DN6Q5MWG"><a href="/dp/B0DN6Q5MWG"><img alt="Diapers Size 4" src="https://images.example/diapers.jpg"></a><span class="a-price" data-a-size="l"><span class="a-offscreen">AED 21.93</span></span></div><div data-asin="B0DN6Q5MWH"><img alt="No price" src="https://images.example/other.jpg"></div>';
     expect(parseDiscoveryListing(html, source('amazon_ae'), observedAt)).toEqual([expect.objectContaining({ title: 'Diapers Size 4', priceMinor: 2193, imageUrl: 'https://images.example/diapers.jpg', url: 'https://www.amazon.ae/dp/B0DN6Q5MWG' })]);

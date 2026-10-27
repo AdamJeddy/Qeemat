@@ -67,6 +67,7 @@ export function parseDiscoveryListing(body: string, source: DiscoveryCollection,
 
   if (source.siteKey === 'sharaf_dg') {
     const grid = readDivContents(body, 'hits');
+    if (grid === undefined && /\/c\//.test(discoverySourceUrl(source))) { return []; }
     if (grid !== undefined) {
       for (const match of grid.matchAll(/<a\b((?:"[^"]*"|'[^']*'|[^'">])*)>([\s\S]*?)<\/a>/gi)) {
         const tag = `<a ${match[1]}>`;
