@@ -55,7 +55,7 @@ Each retailer has its own JSON map under `src/domain/discoverySources/`. The map
 
 ## Integrated expansion — 27 October 2026
 
-The app and diagnostics now share `src/domain/discoverySources.ts` for scoped discovery; the previous 23-source selection has been removed. Default loads request a bounded batch, and diagnostic scripts accept explicit source IDs. There are **50 independent interests**, **4,051 mapped listings across 18 retailers**, and one existing BFL source. These are listing URLs, not 4,051 different shopping interests or 4,051 independently validated feeds.
+The app and diagnostics now share `src/domain/discoverySources.ts` for scoped discovery; the previous 23-source selection has been removed. Default loads request a bounded batch, and diagnostic scripts accept explicit source IDs. There are **56 independent interests** and **4,517 mapped listings across all 19 retailers**. These are listing URLs, not 4,517 different shopping interests or 4,517 independently validated feeds.
 
 | Retailer | Mapped listings | Current evidence |
 |---|---:|---|
@@ -67,17 +67,17 @@ The app and diagnostics now share `src/domain/discoverySources.ts` for scoped di
 | Salomon GCC | 28 | Native HTTP accessories returned 43 products. Later desktop sample extracted apparel and bags, with shoes/accessories rate limited. |
 | Level Shoes | 67 | Embedded navigation mapped; cross-source sample 4/4 extracted. |
 | Ounass | 195 | Women, men and kids departmental navigation mapped; cross-source sample 4/4 extracted. |
-| Namshi | 167 | Cross-source clothing, footwear and bags extracted; the home landing supplied no usable products. |
+| Namshi | 341 | Clothing, footwear and bags extracted. Replaced the obsolete home alias with observed home-and-lifestyle navigation, adding household, toys, pets, books and technology mappings. |
 | The Deal | 154 | Permanent women/men/kids navigation mapped; cross-source sample 4/4 extracted. |
 | Faces | 216 | Perfume, skincare, makeup, hair and body navigation mapped; cross-source sample 4/4 extracted. Makeup brushes/sponges are classified as beauty tools. |
 | Sephora | 356 | UAE-English permanent category sitemap mapped. Cross-source desktop sample 403; expanded departments still require Android validation. |
 | Centrepoint | 579 | Native navigation mapped, including home, baby, school and travel. Native HTTP women's clothing returned 84 products; desktop sample 403. |
-| Sharaf DG | 56 | Own category navigation mapped. Desktop tablets extracted four products; phones, accessories and fryers require rendered-page extraction validation. |
+| Sharaf DG | 56 | Browser mobiles exposed 48 organic cards plus two ads. Parser now requires the actual category grid; the earlier four-card desktop result could have been recommendations. Android verification remains pending. |
 | Carrefour | 341 | All Categories plus named child links from department pages. A further 166-page navigation pass returned 70 HTTP 200 and 96 HTTP 429 responses; it is incomplete. Cross-source food sample 4/4 extracted. |
 | Amazon UAE | 226 | Own department browse nodes mapped, including book genres and computer subcategories. Search-result and department-card layouts differ; parser repairs recovered baby and book cards from saved sample responses. |
 | Noon | 824 | Own observed category and filtered-listing URLs, including instruments, music and films. Unlike the permanent-only maps, this includes named brand/filter/promotion PLPs, which can expire. Cross-source desktop responses were challenge shells; expanded Android validation is pending. |
 | Al Yousuf Accessories | 297 | Positive-count public WooCommerce categories retain their parent paths. Cross-source sample 4/4 extracted across marine/motorcycle/apparel/footwear. |
-| Brands For Less | 1 existing source | User confirmed normal phone-browser categories/products. Qeemat's hidden WebView timed out; desktop catalogue service was challenged. Its current storefront is a SPA, while the old parser expects Next data. Full category mapping and current product extraction remain unresolved. |
+| Brands For Less | 292 | User URLs enabled browser research: 286 unique rendered-navigation links plus six additional supplied routes. Shoes displayed 48 cards. Current rendered-card/PDP size parsers and native wait handling are implemented. Android fetching remains unverified. |
 
 ### Browsing and preferences
 
@@ -90,13 +90,17 @@ The app and diagnostics now share `src/domain/discoverySources.ts` for scoped di
 
 The user explicitly chose to enable all departments, including groceries. Carrefour's observed default-weight price is normalized to AED/kg using its supplied weight. Confirmed native observations included banana AED 4.95 for 500 g (AED 9.90/kg) and sale apples AED 5 for 500 g (AED 10/kg). Apple's analytics `unitPrice` was 13, the marked/original rate, so it must not be used as the selling price. These observations are test evidence, not current price promises.
 
-The kilogram basis persists on products, snapshots and activity. Product prices, selected options and target inputs show the basis. Source-declared title pack sizes/counts are normalized for comparison; a changed pack or basis records a failed check, retains history and suppresses alerts. Legacy default-weight trackers require review/re-adding rather than silently changing units and target thresholds. Titles that omit pack information cannot prove pack equivalence. Retailer default delivery context and final delivered weight can change the checkout total.
+The kilogram basis persists on products, snapshots and activity. Product prices, selected options and target inputs show the basis. Title pack sizes/counts are normalized only in grocery collections or with Carrefour food metadata. Phone 5G and Suit 42L are not treated as packs. Tracking verifies the current product page, and subsequent checks retain the known basis. An unverifiable pack or changed basis records a failed check, retains history and suppresses alerts. Charts, history and notifications also carry the basis. Legacy default-weight trackers require review/re-adding rather than silently changing units and target thresholds. Titles that omit pack information cannot prove pack equivalence. Retailer default delivery context and final delivered weight can change the checkout total.
 
 ### Validation status
 
-- Typecheck passes. Lint passes with the existing App.tsx inline-margin warning. Jest: 227 passing tests, one existing skip, 23 suites.
+- Typecheck passes. Lint passes with the existing App.tsx inline-margin warning. Jest: 243 passing tests, one existing skip, 24 suites. App tests emit React act warnings; passing tests do not replace visual/device verification.
 - New checks cover bounded source selection, category/budget migration, collection memberships, independent category budgets, source selection updating the current screen, weighted prices and changed-pack alert suppression.
 - A cross-source desktop extraction sample initially returned products from 47/72 pages. Re-parsing saved Amazon responses after layout fixes recovered one baby card and 19 book cards; this is not a fresh all-source Android pass.
-- Standalone release at runtime revision `12d1999` compiled successfully (52 seconds). APK v2 signature verifies using the repository's existing Android debug certificate. Package metadata: `com.qeemat`, `0.5.5-alpha`, versionCode 3, arm64-v8a, launch activity `com.qeemat.MainActivity`. APK SHA-256: `88DFECE34C8CB51031473A76D1455530F6FF7F772029445AE1ED984B6CB29343`. A copy is available locally at `.tmp/discovery-validation/qeemat-category-expansion-12d1999-arm64-release.apk`.
-- Installation of this revision is still pending. Windows currently sees the Samsung device, but ADB does not expose a debugging connection. No emulator is configured. Existing trackers must be preserved during installation; APK inspection is not installed-device verification.
-- Do not treat this as complete Android validation or complete enumeration of every retailer's internal taxonomy. BFL, blocked/rendered department paths and product-to-tracker checks remain open.
+- Latest standalone release at runtime revision `75f2b53` compiled successfully (62 seconds). APK v2 signature verifies using the repository's existing Android debug certificate. Package metadata: `com.qeemat`, `0.5.5-alpha`, versionCode 3, arm64-v8a, launch activity `com.qeemat.MainActivity`. APK SHA-256: `8A28AF9EDA2D32E845A21B20B1721F6E33DCA851F2922E80430940870C6D5C08`. Local copy: `.tmp/discovery-validation/qeemat-category-expansion-75f2b53-arm64-release.apk`. It runs without Metro; installation remains deferred.
+- The user explicitly deferred phone testing until the final implementation pass. No installation or installed-device verification is claimed for this expansion. Existing trackers must be preserved during later installation.
+- Do not treat this as complete Android validation or complete enumeration of every retailer's internal taxonomy. Blocked/rendered department paths, retailer pagination and end-to-end product-to-tracker checks remain open.
+
+### Current BFL storefront — 27 October
+
+Browser research on the user-supplied shoes URL confirmed 48 visible cards and the full rendered navigation. A Skechers shoe (product 2078248) showed an observed AED 159 and EU sizes 42, 42.5, 43, 44 and 45. Selecting 45 retained the product URL and price. Stable option identities use the product ID, source sizing system and literal size label, without invented SKUs or URLs. Unreadable required size selectors fail safely. Normal Turnstile widget URLs no longer count as blocking challenges; actual interstitial markers still do. BFL remains experimental until Android validation. Exact source URLs and breadcrumbs are recorded in the retailer JSON files under `src/domain/discoverySources/`.
