@@ -31,16 +31,15 @@ export async function checkProductNow(product: TrackedProduct, source: SnapshotS
     return;
   }
 
-  if (!pricesShareBasis(product, result.product)) {
-    await recordFailedCheck(product, 'unsupported_page', source, 'The retailer changed the pack size or pricing unit. Your previous price is preserved. Review the product and add a new tracker for the new basis.');
-    return;
-  }
-
   // The Deal's exact variation endpoint uses an internal catalogue name that
   // is less useful than the human product-page title saved by the user.
   const parsed = product.siteKey === 'the_deal' && product.variant
     ? { ...result.product, title: product.title }
     : result.product;
+  if (!pricesShareBasis(product, parsed)) {
+    await recordFailedCheck(product, 'unsupported_page', source, 'The retailer changed the pack size or pricing unit. Your previous price is preserved. Review the product and add a new tracker for the new basis.');
+    return;
+  }
   const saved = await recordSuccessfulCheck(product, parsed, source);
 
   // Detect availability transition (e.g. in_stock → out_of_stock)

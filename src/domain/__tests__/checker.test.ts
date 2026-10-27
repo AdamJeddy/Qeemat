@@ -50,6 +50,14 @@ describe('checkProductNow', () => {
     expect(recordActivityEvent).not.toHaveBeenCalled();
     expect(recordFailedCheck).toHaveBeenCalledWith(expect.anything(), 'unsupported_page', 'manual_single', expect.stringContaining('pack size or pricing unit'));
   });
+  it('keeps The Deal exact-variant checks working when the endpoint uses an internal catalogue title', async () => {
+    const product: TrackedProduct = { ...outOfStockProduct, siteKey: 'the_deal', title: 'Body lotion 100ml', variant: { id: 'v1', label: '100ml', attributes: [{ name: 'Size', value: '100ml' }] } };
+    (fetchAndParseProduct as jest.Mock).mockResolvedValue({ ok: true, product: { title: 'Internal catalogue title', priceMinor: 9000, currency: 'AED', availability: 'in_stock' } });
+    (recordSuccessfulCheck as jest.Mock).mockResolvedValue({ status: 'price_changed', previousPriceMinor: 10000, newPriceMinor: 9000 });
+    await checkProductNow(product, 'manual_single');
+    expect(recordFailedCheck).not.toHaveBeenCalled();
+    expect(recordSuccessfulCheck).toHaveBeenCalledWith(product, expect.objectContaining({ title: 'Body lotion 100ml' }), 'manual_single');
+  });
 
   it('rechecks a product already confirmed out of stock so it can detect a restock', async () => {
     (fetchAndParseProduct as jest.Mock).mockResolvedValue({
