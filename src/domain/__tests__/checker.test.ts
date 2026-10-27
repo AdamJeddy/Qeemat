@@ -1,7 +1,8 @@
 import { checkProductNow } from '../checker';
 import { fetchAndParseProduct } from '../parser';
 import { TrackedProduct } from '../types';
-import { recordActivityEvent, recordSuccessfulCheck } from '../../data/database';
+import { recordActivityEvent, recordFailedCheck, recordSuccessfulCheck } from '../../data/database';
+import { maybeNotifyForCheck } from '../notifications';
 
 jest.mock('../parser', () => ({
   fetchAndParseProduct: jest.fn()
@@ -38,6 +39,16 @@ const outOfStockProduct: TrackedProduct = {
 describe('checkProductNow', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  it('preserves history and suppresses alerts when the pack size changes', async () => {
+    (recordSuccessfulCheck as jest.Mock).mockResolvedValue({ status: 'price_changed', previousPriceMinor: 10000, newPriceMinor: 500 });
+    (fetchAndParseProduct as jest.Mock).mockResolvedValue({ ok: true, product: { title: 'Rice 500g', priceMinor: 500, currency: 'AED', availability: 'in_stock' } });
+    await checkProductNow({ ...outOfStockProduct, title: 'Rice 1kg' }, 'manual_single');
+    expect(recordSuccessfulCheck).not.toHaveBeenCalled();
+    expect(maybeNotifyForCheck).not.toHaveBeenCalled();
+    expect(recordActivityEvent).not.toHaveBeenCalled();
+    expect(recordFailedCheck).toHaveBeenCalledWith(expect.anything(), 'unsupported_page', 'manual_single', expect.stringContaining('pack size or pricing unit'));
   });
 
   it('rechecks a product already confirmed out of stock so it can detect a restock', async () => {

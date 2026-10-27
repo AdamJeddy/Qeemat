@@ -21,6 +21,11 @@ const flight = (value: unknown) => {
 };
 
 describe('Carrefour UAE tracking', () => {
+  it('normalizes weighted groceries using the observed weight, not the marked unit price', () => {
+    const apple = { ...product, productTitle: 'Pink Lady Apple', price: '5.00', isSoldByWeight: true, scalableWeights: '500.0', analytics: { oneGMSellingPrice: 0.01, unitPrice: 13 } };
+    expect(parseProductHtml('carrefour_uae', url, flight(apple))).toEqual(expect.objectContaining({ priceMinor: 1000, priceBasis: 'kg', variants: [expect.objectContaining({ priceMinor: 1000 })] }));
+    expect(parseProductHtml('carrefour_uae', url, flight({ ...apple, scalableWeights: undefined, analytics: {} }))?.priceMinor).toBeUndefined();
+  });
   it('registers Carrefour independently of the brands it sells', () => {
     expect(detectSupportedSite(url)?.key).toBe('carrefour_uae');
     expect(cleanUrl(`${url}&utm_source=test`)).toBe(url);
@@ -85,6 +90,12 @@ describe('Carrefour UAE discovery', () => {
       stock: { value: 1, stockLevelStatus: 'lowStock' }
     }, analytics: { brandName: 'nonfood_apple' }
   };
+
+  it('uses the same kilogram basis for weighted listing and product prices', () => {
+    const source = DISCOVERY_COLLECTIONS.find((entry) => entry.siteKey === 'carrefour_uae')!;
+    const banana = { ...tile, additionalAttributes: { ...tile.additionalAttributes, sellingPrice: 4.95, isSoldByWeight: true, quantityTypeKey: 'kilo', orderThreshold: { min: 0.5 } } };
+    expect(parseDiscoveryListing(flight(banana), source, '2026-10-27T10:00:00Z')[0]).toEqual(expect.objectContaining({ priceMinor: 990, priceBasis: 'kg' }));
+  });
 
   it('extracts listing tiles with their actual brand, price, seller and stock', () => {
     const source = DISCOVERY_COLLECTIONS.find((entry) => entry.siteKey === 'carrefour_uae')!;

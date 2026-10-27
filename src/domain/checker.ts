@@ -3,6 +3,7 @@ import { fetchAndParseProduct } from './parser';
 import { PriceDirection, SnapshotSource, TrackedProduct } from './types';
 import { recordFailedCheck, recordSuccessfulCheck, recordActivityEvent, listTrackedProducts, getTrackedProduct } from '../data/database';
 import { maybeNotifyForCheck } from './notifications';
+import { pricesShareBasis } from './priceBasis';
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -30,6 +31,11 @@ export async function checkProductNow(product: TrackedProduct, source: SnapshotS
     return;
   }
 
+  if (!pricesShareBasis(product, result.product)) {
+    await recordFailedCheck(product, 'unsupported_page', source, 'The retailer changed the pack size or pricing unit. Your previous price is preserved. Review the product and add a new tracker for the new basis.');
+    return;
+  }
+
   // The Deal's exact variation endpoint uses an internal catalogue name that
   // is less useful than the human product-page title saved by the user.
   const parsed = product.siteKey === 'the_deal' && product.variant
@@ -50,6 +56,7 @@ export async function checkProductNow(product: TrackedProduct, source: SnapshotS
       await recordActivityEvent({
         trackedProductId: product.id,
         productTitle: product.title,
+        priceBasis: parsed.priceBasis ?? product.priceBasis,
         productImageUrl: product.imageUrl,
         previousPriceMinor: saved.previousPriceMinor,
         newPriceMinor: saved.newPriceMinor ?? 0,
@@ -64,6 +71,7 @@ export async function checkProductNow(product: TrackedProduct, source: SnapshotS
     await recordActivityEvent({
       trackedProductId: product.id,
       productTitle: product.title,
+      priceBasis: parsed.priceBasis ?? product.priceBasis,
       productImageUrl: product.imageUrl,
       previousPriceMinor: saved.previousPriceMinor,
       newPriceMinor: saved.newPriceMinor ?? product.currentPriceMinor ?? 0,
@@ -80,6 +88,7 @@ export async function checkProductNow(product: TrackedProduct, source: SnapshotS
       await recordActivityEvent({
         trackedProductId: product.id,
         productTitle: product.title,
+        priceBasis: parsed.priceBasis ?? product.priceBasis,
         productImageUrl: product.imageUrl,
         previousPriceMinor: saved.previousPriceMinor,
         newPriceMinor: saved.newPriceMinor,

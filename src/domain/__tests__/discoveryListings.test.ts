@@ -5,6 +5,14 @@ const observedAt = '2026-10-25T15:00:00Z';
 const source = (siteKey: DiscoveryCollection['siteKey']) => DISCOVERY_COLLECTIONS.find((item) => item.siteKey === siteKey)!;
 
 describe('retailer listing extraction', () => {
+  it('reads Amazon department product cards without requiring search-result image classes', () => {
+    const html = '<div id="acsProductBlockV1-0" data-asin="B0DN6Q5MWG"><a href="/dp/B0DN6Q5MWG"><img alt="Diapers Size 4" src="https://images.example/diapers.jpg"></a><span class="a-price" data-a-size="l"><span class="a-offscreen">AED 21.93</span></span></div><div data-asin="B0DN6Q5MWH"><img alt="No price" src="https://images.example/other.jpg"></div>';
+    expect(parseDiscoveryListing(html, source('amazon_ae'), observedAt)).toEqual([expect.objectContaining({ title: 'Diapers Size 4', priceMinor: 2193, imageUrl: 'https://images.example/diapers.jpg', url: 'https://www.amazon.ae/dp/B0DN6Q5MWG' })]);
+  });
+  it('reads a department carousel selling price without substituting its old list price', () => {
+    const html = '<li class="a-carousel-card dcl-carousel-element"><div data-csa-c-item-type="asin"><a href="/book/dp/1915381061?ref=example"><img alt="" src="https://images.example/book.jpg"><span class="dcl-product-label"><span>Example book</span></span><span class="a-price dcl-product-price-new"><span class="a-offscreen">AED 112.03</span></span><span class="a-price a-text-price dcl-product-price-old"><span class="a-offscreen">AED 146.94</span></span></a></div></li>';
+    expect(parseDiscoveryListing(html, source('amazon_ae'), observedAt)).toEqual([expect.objectContaining({ title: 'Example book', priceMinor: 11203 })]);
+  });
   it('reads the selling price from a Salesforce tile without subtracting its discount twice', () => {
     const html = `<div class="product" data-pid="NB123"><div class="product-tile"
       data-gtm-enhanced-ecommerce-impression="{&quot;item_name&quot;:&quot;Men's 530 Shoes&quot;,&quot;item_brand&quot;:&quot;New Balance&quot;,&quot;price&quot;:379,&quot;discount&quot;:220}">

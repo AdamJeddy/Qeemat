@@ -1,6 +1,6 @@
 import { DiscoveryCollection, DISCOVERY_SOURCE_PRODUCT_LIMIT, discoverySourceUrl, parseDecathlonListing } from './discovery';
 import { DiscoveryProduct } from './types';
-import { carrefourAvailability, carrefourOfferUrl, readCarrefourRecords } from './carrefour';
+import { carrefourAvailability, carrefourOfferUrl, carrefourPrice, readCarrefourRecords } from './carrefour';
 
 type RecordValue = Record<string, unknown>;
 
@@ -16,10 +16,12 @@ export function parseDiscoveryListing(body: string, source: DiscoveryCollection,
       const price = Number(item.sellingPrice);
       if (!url || url.match(/\/p\/(\d+)/)?.[1] !== item.productId || !Number.isFinite(price) || price <= 0) { continue; }
       const stock = asRecord(item.stock);
+      const normalizedPrice = carrefourPrice(item, Math.round(price * 100));
+      if (normalizedPrice.priceMinor === undefined) { continue; }
       const rawBrand = asRecord(record.analytics).brandName;
       const brand = typeof rawBrand === 'string' && !rawBrand.startsWith('$') ? rawBrand.replace(/^(?:nonfood|food)_/i, '').replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()) : 'Other brands';
       products.push({ id: `carrefour_uae:${item.productId}:${item.shopId}:${item.offerId}:${item.intent}`, siteKey: 'carrefour_uae', category: source.category,
-        title: item.productName.trim(), brand, url, priceMinor: Math.round(price * 100), currency: 'AED',
+        title: item.productName.trim(), brand, url, ...normalizedPrice, currency: 'AED',
         imageUrl: typeof item.imageUrl === 'string' ? item.imageUrl : undefined,
         availability: carrefourAvailability(stock.stockLevelStatus, stock.value), observedAt });
     }
@@ -134,11 +136,20 @@ export function parseDiscoveryListing(body: string, source: DiscoveryCollection,
     for (const tile of body.split(/(?=<div\b[^>]*data-asin=["'][A-Z0-9]{10}["'])/)) {
       const asin = tile.slice(0, 400).match(/data-asin=["']([A-Z0-9]{10})["']/)?.[1];
       if (!asin) { continue; }
-      const image = tile.match(/<img\b[^>]*class=["'][^"']*s-image[^"']*["'][^>]*>/)?.[0] ?? '';
+      const image = tile.match(/<img\b[^>]*class=["'][^"']*s-image[^"']*["'][^>]*>/)?.[0] ?? tile.match(/<img\b[^>]*>/)?.[0] ?? '';
       const title = tile.match(/<h2\b[^>]*[\s\S]*?<\/h2>/)?.[0];
       const priceBlock = tile.match(/<span class="a-price"[\s\S]*?<span class="a-offscreen">([^<]+)/)?.[1];
       add({ id: asin, title: title ? textContent(title) : attribute(image, 'alt'), url: `${origin}/dp/${asin}`,
         image: attribute(image, 'src'), price: priceBlock?.replace(/[^\d.]/g, '') });
+    }
+    for (const match of body.matchAll(/<li\b[^>]*class="[^"]*a-carousel-card[^"]*"[^>]*>([\s\S]*?)<\/li>/g)) {
+      const tile = match[1];
+      if (!tile.includes('data-csa-c-item-type="asin"')) { continue; }
+      const asin = tile.match(/href="[^"]*\/dp\/([A-Z0-9]{10})(?:[/?"])/)?.[1];
+      const image = tile.match(/<img\b[^>]*>/)?.[0] ?? '';
+      const price = tile.match(/<span class="a-price dcl-product-price-new"[\s\S]*?<span class="a-offscreen">([^<]+)/)?.[1] ?? tile.match(/<span class="a-price"[\s\S]*?<span class="a-offscreen">([^<]+)/)?.[1];
+      const label = tile.match(/<span\b[^>]*class="[^"]*dcl-product-label[^"]*"[^>]*>([\s\S]*?)<\/span>\s*<\/span>/)?.[1];
+      if (asin) { add({ id: asin, title: attribute(image, 'alt') || (label ? textContent(label) : undefined), url: `${origin}/dp/${asin}`, image: attribute(image, 'src'), price: price?.replace(/[^\d.]/g, '') }); }
     }
   }
 

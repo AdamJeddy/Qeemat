@@ -108,8 +108,8 @@ function buildNotification(
   }
 
   const currency = parsed.currency ?? product.currency;
-  const currentPrice = formatPrice(newPriceMinor, currency);
-  const previousPrice = previousPriceMinor !== undefined ? formatPrice(previousPriceMinor, currency) : undefined;
+  const currentPrice = formatPrice(newPriceMinor, currency, parsed.priceBasis ?? product.priceBasis);
+  const previousPrice = previousPriceMinor !== undefined ? formatPrice(previousPriceMinor, currency, product.priceBasis) : undefined;
   const productLabel = formatProductLabel(product, parsed);
 
   if (product.alertMode === 'target_price') {

@@ -24,6 +24,7 @@ export type DiscoveryCategory = import('./discoveryCategories').ShoppingCategory
   'fashion' | 'beauty' | 'electronics' | 'sport' | 'home_department' | 'groceries' | 'general';
 
 export type DiscoveryProduct = {
+  priceBasis?: import('./priceBasis').PriceBasis;
   /** Stable identifier from the retailer catalogue. */
   id: string;
   siteKey: SiteKey;
@@ -81,6 +82,7 @@ export type VariantAttribute = {
 };
 
 export type ProductVariant = {
+  priceBasis?: import('./priceBasis').PriceBasis;
   /** Stable source identifier, normally a SKU or source variation ID. */
   id: string;
   /** Human-readable combination as the source describes it. */
@@ -98,6 +100,7 @@ export type ProductVariant = {
 export type VariantSelection = Pick<ProductVariant, 'id' | 'label' | 'attributes' | 'url'>;
 
 export type ParsedProduct = {
+  priceBasis?: import('./priceBasis').PriceBasis;
   siteKey: SiteKey;
   canonicalUrl: string;
   title: string;
@@ -114,6 +117,7 @@ export type ParsedProduct = {
 };
 
 export type TrackedProduct = {
+  priceBasis?: import('./priceBasis').PriceBasis;
   id: number;
   url: string;
   canonicalUrl: string;
@@ -149,6 +153,7 @@ export type TrackedProduct = {
 };
 
 export type PriceSnapshot = {
+  priceBasis?: import('./priceBasis').PriceBasis;
   id: number;
   trackedProductId: number;
   priceMinor?: number;
@@ -181,6 +186,7 @@ export type ProductDraft = {
 export type PriceDirection = 'up' | 'down' | 'first';
 
 export type ActivityEvent = {
+  priceBasis?: import('./priceBasis').PriceBasis;
   id: number;
   trackedProductId: number;
   productTitle: string;
