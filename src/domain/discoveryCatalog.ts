@@ -3,6 +3,7 @@ import { DiscoveryProduct } from './types';
 import { DiscoveryCollection, DISCOVERY_COLLECTIONS, DISCOVERY_SOURCE_PRODUCT_LIMIT, discoverySourceUrl, parseDecathlonListing } from './discovery';
 import { parseDiscoveryListing } from './discoveryListings';
 import { fetchPageHtmlViaWebView } from './webViewFetcher';
+import { DiscoveryScope, selectDiscoveryCollections } from './discoverySources';
 
 type FetchResponse = {
   ok: boolean;
@@ -28,6 +29,8 @@ const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 
 type DiscoveryCatalogOptions = {
   force?: boolean;
+  scope?: DiscoveryScope;
+  isCancelled?: () => boolean;
   onUpdate?: (catalog: DiscoveryCatalogResult) => void;
 };
 
@@ -40,11 +43,14 @@ export function loadDiscoveryCatalog(fetcher: DiscoveryFetcher = fetch, options:
 
 async function refreshDiscoveryCatalog(fetcher: DiscoveryFetcher, options: DiscoveryCatalogOptions): Promise<DiscoveryCatalogResult> {
   const observedAt = new Date().toISOString();
-  const entries = await Promise.all(DISCOVERY_COLLECTIONS.map(async (source) => ({
+  const sources = options.scope ? selectDiscoveryCollections(options.scope) : DISCOVERY_COLLECTIONS;
+  const entries = await Promise.all(sources.map(async (source) => ({
     source, cached: await getDiscoveryCache(source.id), failed: false
   })));
   const snapshot = (): DiscoveryCatalogResult => ({
-    products: uniqueProducts(entries.flatMap((entry) => entry.cached?.products ?? [])),
+    products: mergeDiscoveryProducts(entries.flatMap((entry) => (entry.cached?.products ?? []).map((product) => ({
+      ...product, category: entry.source.category, categories: [entry.source.category], collectionIds: [entry.source.id]
+    })))),
     refreshedAt: entries.map((entry) => entry.cached?.fetchedAt).filter((date): date is string => Boolean(date)).sort()[0],
     stale: entries.some((entry) => entry.failed || (entry.cached && Date.now() - Date.parse(entry.cached.fetchedAt) >= CACHE_TTL_MS)),
     failedCollectionIds: entries.filter((entry) => entry.failed).map((entry) => entry.source.id),
@@ -54,10 +60,11 @@ async function refreshDiscoveryCatalog(fetcher: DiscoveryFetcher, options: Disco
   let index = 0;
   const workers = await Promise.allSettled(Array.from({ length: 4 }, async () => {
     while (index < entries.length) {
+      if (options.isCancelled?.()) { break; }
       const entry = entries[index++];
       if (!options.force && entry.cached?.parserVersion === DISCOVERY_PARSER_VERSION && Date.now() - Date.parse(entry.cached.fetchedAt) < CACHE_TTL_MS) { continue; }
       try {
-        const products = await fetchDiscoveryCollection(entry.source, fetcher, observedAt);
+        const products = await fetchDiscoveryCollection(entry.source, fetcher, observedAt, options.isCancelled);
         if (!products.length) { throw new Error('No usable listing products'); }
         await saveDiscoveryCache(entry.source.id, products, observedAt);
         entry.cached = { products, fetchedAt: observedAt, parserVersion: DISCOVERY_PARSER_VERSION };
@@ -72,7 +79,7 @@ async function refreshDiscoveryCatalog(fetcher: DiscoveryFetcher, options: Disco
   return snapshot();
 }
 
-async function fetchDiscoveryCollection(source: DiscoveryCollection, fetcher: DiscoveryFetcher, observedAt: string): Promise<DiscoveryProduct[]> {
+async function fetchDiscoveryCollection(source: DiscoveryCollection, fetcher: DiscoveryFetcher, observedAt: string, isCancelled?: () => boolean): Promise<DiscoveryProduct[]> {
   if (!source.provider || source.provider === 'shopify') {
     return fetchDecathlonCollection(source, fetcher, observedAt);
   }
@@ -90,7 +97,7 @@ async function fetchDiscoveryCollection(source: DiscoveryCollection, fetcher: Di
   } catch { /* The native browser can recover protected or redirecting stores. */ }
   finally { clearTimeout(timeout); }
   if (source.provider !== 'html') { throw new Error(`Could not read ${source.label}`); }
-  const request = webViewQueue.then(() => fetchPageHtmlViaWebView(discoverySourceUrl(source)));
+  const request = webViewQueue.then(() => isCancelled?.() ? null : fetchPageHtmlViaWebView(discoverySourceUrl(source)));
   webViewQueue = request.catch(() => null);
   const html = await request;
   return html ? parseDiscoveryListing(html, source, observedAt) : [];
@@ -126,13 +133,15 @@ function isProductListing(value: unknown): value is { products: unknown[] } {
   return Boolean(value) && typeof value === 'object' && Array.isArray((value as { products?: unknown[] }).products);
 }
 
-function uniqueProducts(products: DiscoveryProduct[]): DiscoveryProduct[] {
+export function mergeDiscoveryProducts(products: DiscoveryProduct[]): DiscoveryProduct[] {
   const byId = new Map<string, DiscoveryProduct>();
   for (const product of products) {
     const existing = byId.get(product.id);
-    if (!existing || Date.parse(product.observedAt) > Date.parse(existing.observedAt)) {
-      byId.set(product.id, product);
-    }
+    const latest = !existing || Date.parse(product.observedAt) > Date.parse(existing.observedAt) ? product : existing;
+    byId.set(product.id, { ...latest,
+      categories: [...new Set([...(existing?.categories ?? (existing ? [existing.category] : [])), ...(product.categories ?? [product.category])])],
+      collectionIds: [...new Set([...(existing?.collectionIds ?? []), ...(product.collectionIds ?? [])])]
+    });
   }
   return [...byId.values()];
 }

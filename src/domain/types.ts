@@ -20,13 +20,17 @@ export type CheckStatus =
 export type SnapshotSource = 'unknown' | 'manual_single' | 'manual_batch' | 'background';
 
 /** Categories currently supported by the local discovery experience. */
-export type DiscoveryCategory = 'fashion' | 'beauty' | 'electronics' | 'sport';
+export type DiscoveryCategory = import('./discoveryCategories').ShoppingCategory |
+  'fashion' | 'beauty' | 'electronics' | 'sport' | 'home_department' | 'groceries' | 'general';
 
 export type DiscoveryProduct = {
   /** Stable identifier from the retailer catalogue. */
   id: string;
   siteKey: SiteKey;
   category: DiscoveryCategory;
+  /** A product can appear in several retailer categories without becoming duplicates. */
+  categories?: DiscoveryCategory[];
+  collectionIds?: string[];
   brand: string;
   title: string;
   url: string;
@@ -50,6 +54,7 @@ export type DiscoveryPreferences = {
 };
 
 export type DiscoveryFilter = {
+  collectionId?: string;
   category?: DiscoveryCategory;
   siteKey?: SiteKey;
   brand?: string;

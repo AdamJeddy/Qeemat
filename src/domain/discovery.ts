@@ -6,22 +6,19 @@ import {
   ProductVariant,
   SiteKey
 } from './types';
+import { DISCOVERY_CATEGORY_LABELS as INTEREST_LABELS } from './discoveryCategories';
 
 export const DISCOVERY_CATEGORY_LABELS: Record<DiscoveryCategory, string> = {
-  fashion: 'Fashion & footwear',
-  beauty: 'Beauty & fragrance',
-  electronics: 'Electronics',
-  sport: 'Sport & outdoors'
+  ...INTEREST_LABELS,
+  fashion: 'Style', beauty: 'Beauty', electronics: 'Technology', sport: 'Sport',
+  home_department: 'Home', groceries: 'Groceries', general: 'All departments'
 };
 
 export const DISCOVERY_SOURCE_PRODUCT_LIMIT = 100;
 
 /** Broad interests are collected before every retailer category is available. */
 export const DISCOVERY_INTEREST_CATEGORIES: DiscoveryCategory[] = [
-  'fashion',
-  'beauty',
-  'electronics',
-  'sport'
+  ...Object.keys(INTEREST_LABELS) as DiscoveryCategory[]
 ];
 
 export type DiscoveryCollection = {
@@ -32,6 +29,10 @@ export type DiscoveryCollection = {
   collectionHandle?: string;
   url?: string;
   provider?: 'shopify' | 'html' | 'woocommerce';
+  pageUrl?: string;
+  path?: string[];
+  audience?: string;
+  isDepartment?: boolean;
 };
 
 /**
@@ -87,6 +88,7 @@ export function discoverySourceUrl(collection: DiscoveryCollection): string {
 }
 
 export function discoveryCollectionPageUrl(collection: DiscoveryCollection): string {
+  if (collection.pageUrl) { return collection.pageUrl; }
   if (collection.provider === 'woocommerce') { return 'https://ay-accessories.com/shop/'; }
   return discoverySourceUrl(collection).replace(/\/products\.json\?.*$/, '');
 }
@@ -176,7 +178,8 @@ function readShopifyImageUrl(value: unknown): string | undefined {
 
 export function filterDiscoveryProducts(products: DiscoveryProduct[], filter: DiscoveryFilter): DiscoveryProduct[] {
   return products.filter((product) =>
-    (!filter.category || product.category === filter.category) &&
+    (!filter.category || (product.categories ?? [product.category]).includes(filter.category)) &&
+    (!filter.collectionId || product.collectionIds?.includes(filter.collectionId)) &&
     (!filter.siteKey || product.siteKey === filter.siteKey) &&
     (!filter.brand || product.brand.toLocaleLowerCase() === filter.brand.toLocaleLowerCase()) &&
     (filter.maximumPriceMinor === undefined || (product.priceMinor !== undefined && product.priceMinor <= filter.maximumPriceMinor))
@@ -192,9 +195,11 @@ export function buildDiscoverySections(products: DiscoveryProduct[], preferences
   const seen = new Set(preferences.seenProductIds);
   const visible = products.filter((product) => !dismissed.has(product.id) && product.availability !== 'out_of_stock');
   const relevant = visible.filter((product) => {
-    const budget = preferences.budgetsByCategory[product.category];
-    return (!preferences.categories.length || preferences.categories.includes(product.category)) &&
-      (budget === undefined || (product.priceMinor !== undefined && product.priceMinor <= budget));
+    const categories = (product.categories ?? [product.category]).filter((category) => !preferences.categories.length || preferences.categories.includes(category));
+    return categories.some((category) => {
+      const budget = preferences.budgetsByCategory[category];
+      return budget === undefined || (product.priceMinor !== undefined && product.priceMinor <= budget);
+    });
   });
   // Round-robin equally relevant retailers/categories so a large source cannot
   // occupy the entire first screen, even when all interests are selected.
@@ -205,7 +210,7 @@ export function buildDiscoverySections(products: DiscoveryProduct[], preferences
   }
   const picks: DiscoveryProduct[] = [];
   for (const [, tier] of [...tiers].sort(([left], [right]) => right - left)) {
-    const categoryQueues = DISCOVERY_INTEREST_CATEGORIES.map((category) => {
+    const categoryQueues = (Object.keys(DISCOVERY_CATEGORY_LABELS) as DiscoveryCategory[]).map((category) => {
       const stores = new Map<string, DiscoveryProduct[]>();
       for (const product of tier.filter((item) => item.category === category)) {
         stores.set(product.siteKey, [...(stores.get(product.siteKey) ?? []), product]);
@@ -254,7 +259,7 @@ export function discoveryVariantChoices(variants: ProductVariant[]): ProductVari
 
 function discoveryScore(product: DiscoveryProduct, preferences: DiscoveryPreferences): number {
   let score = 0;
-  if (preferences.categories.includes(product.category)) {
+  if ((product.categories ?? [product.category]).some((category) => preferences.categories.includes(category))) {
     score += 1000;
   }
   if (preferences.favoriteBrands.some((brand) => brand.localeCompare(product.brand, undefined, { sensitivity: 'accent' }) === 0)) {

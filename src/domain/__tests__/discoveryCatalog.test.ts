@@ -7,6 +7,7 @@ import { DISCOVERY_COLLECTIONS } from '../discovery';
 import { getDiscoveryCache, saveDiscoveryCache } from '../../data/discovery';
 import { SUPPORTED_SITES } from '../sites';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { DISCOVERY_SOURCE_MAPS } from '../discoverySources';
 
 jest.mock('../webViewFetcher', () => ({ fetchPageHtmlViaWebView: jest.fn().mockResolvedValue(null) }));
 
@@ -54,6 +55,15 @@ describe('fetchDecathlonCollection', () => {
 
 describe('multi-retailer discovery refresh', () => {
   beforeEach(async () => { await AsyncStorage.clear(); });
+
+  it('fetches just the selected mapped page and preserves its browsing membership', async () => {
+    const source = DISCOVERY_SOURCE_MAPS.find((item) => item.id === 'decathlon-fitness')!;
+    const fetcher = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ products: [{ id: 987, title: 'Training mat', handle: 'training-mat', variants: [{ price: '50', available: true }] }] }) });
+    const result = await loadDiscoveryCatalog(fetcher, { scope: { collectionId: source.id } });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(result.products).toEqual([expect.objectContaining({ category: 'fitness', categories: ['fitness'], collectionIds: [source.id], priceMinor: 5000 })]);
+    expect(result.sources).toHaveLength(1);
+  });
 
   it('declares listing sources for every tracked retailer', () => {
     expect([...new Set(DISCOVERY_COLLECTIONS.map((source) => source.siteKey))].sort()).toEqual(SUPPORTED_SITES.map((site) => site.key).sort());

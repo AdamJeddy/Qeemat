@@ -41,7 +41,7 @@ describe('discovery persistence', () => {
     });
   });
 
-  it('keeps feedback and seen history while preferences are updated', async () => {
+  it('migrates broad interests and budgets while retaining feedback and seen history', async () => {
     await saveDiscoveryPreferences({
       completed: true,
       categories: ['sport'],
@@ -53,9 +53,9 @@ describe('discovery persistence', () => {
 
     await expect(getDiscoveryPreferences()).resolves.toMatchObject({
       completed: true,
-      categories: ['sport'],
+      categories: ['footwear', 'clothing', 'fitness', 'sports', 'outdoors', 'cycling', 'swimming', 'motorcycle', 'marine'],
       favoriteBrands: ['Domyos'],
-      budgetsByCategory: { sport: 200000 },
+      budgetsByCategory: { footwear: 200000, fitness: 200000, swimming: 200000 },
       seenProductIds: [product.id],
       dismissedProductIds: [product.id]
     });

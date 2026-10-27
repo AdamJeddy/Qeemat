@@ -5,6 +5,7 @@ import {
   DiscoveryProduct
 } from '../domain/types';
 import { DEFAULT_DISCOVERY_PREFERENCES } from '../domain/discovery';
+import { migrateDiscoveryBudgets, normalizeDiscoveryCategories } from '../domain/discoveryCategories';
 
 const PREFERENCES_KEY = 'qeemat.discovery.preferences.v1';
 const CACHE_KEY = 'qeemat.discovery.cache.v1';
@@ -108,9 +109,9 @@ async function readCache(): Promise<Record<string, DiscoveryCacheEntry>> {
 function normalizePreferences(value: Partial<DiscoveryPreferences>): DiscoveryPreferences {
   return {
     completed: value.completed === true,
-    categories: [...new Set(value.categories ?? [])],
+    categories: normalizeDiscoveryCategories(value.categories),
     favoriteBrands: [...new Set((value.favoriteBrands ?? []).map((brand) => brand.trim()).filter(Boolean))],
-    budgetsByCategory: value.budgetsByCategory ?? {},
+    budgetsByCategory: migrateDiscoveryBudgets(value.budgetsByCategory),
     dismissedProductIds: capIds(value.dismissedProductIds ?? []),
     seenProductIds: capIds(value.seenProductIds ?? [])
   };
