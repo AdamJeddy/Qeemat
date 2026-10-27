@@ -114,6 +114,7 @@ export async function fetchAndParseProduct(rawUrl: string, selectedVariant?: Var
   }
 
   const shouldUseWebViewFallback = fetchResult.code === 'blocked' ||
+    (site.key === 'brands_for_less' && (fetchResult.code === 'network_error' || fetchResult.code === 'site_parser_failed' || fetchResult.code === 'price_not_found')) ||
     (site.key === 'carrefour_uae' && (fetchResult.code === 'network_error' || fetchResult.code === 'site_parser_failed')) ||
     ((site.key === 'sephora_uae' || site.key === 'faces_uae' || site.key === 'salomon_gcc' || site.key === 'the_deal') && fetchResult.code === 'network_error');
   if (!shouldUseWebViewFallback) {
@@ -263,6 +264,9 @@ async function fetchAndParseWithFetch(
     };
   }
 
+  if (siteKey === 'brands_for_less' && /\bid=["']root["']/.test(html) && !/\bid=["']product-detail["']/.test(html)) {
+    return { ok: false, code: 'site_parser_failed', message: 'The storefront has not loaded its product details yet.' };
+  }
   const parsed = parseProductHtml(siteKey, siteKey === 'carrefour_uae' ? normalizedUrl : response.url || normalizedUrl, html, selectedVariant);
 
   if (!parsed?.title) {
@@ -2560,7 +2564,8 @@ function isBlockedHtml(html: string): boolean {
     normalized.includes('akamai-privacy') ||
     (normalized.includes('powered and protected by') && normalized.includes('akamai')) ||
     (normalized.includes('just a moment') && normalized.includes('cloudflare')) ||
-    normalized.includes('challenges.cloudflare.com') ||
+    normalized.includes('cf_chl_opt') ||
+    normalized.includes('cf-browser-verify') ||
     normalized.includes('attention required') ||  // Imperva / Cloudflare variant
     normalized.includes('sorry, we just need to make sure you\'re not a robot') ||
     normalized.includes('enter the characters you see below') ||
