@@ -31,7 +31,7 @@ export function parseDiscoveryListing(body: string, source: DiscoveryCollection,
   const origin = discoverySourceUrl(source).match(/^https:\/\/[^/]+/)![0];
   function add(value: { id?: unknown; title?: unknown; url?: unknown; image?: unknown; price?: unknown; brand?: unknown; available?: unknown; currency?: unknown; range?: boolean }) {
     const observedUrl = absoluteUrl(value.url, origin);
-    const url = source.siteKey === 'noon' ? observedUrl?.split('?')[0] : observedUrl;
+    const url = source.siteKey === 'noon' || source.siteKey === 'brands_for_less' ? observedUrl?.split('?')[0] : observedUrl;
     const price = typeof value.price === 'number' ? value.price : Number(String(value.price ?? '').replace(/,/g, ''));
     if (!url || !url.startsWith(`${origin}/`) || typeof value.title !== 'string' || !value.title.trim() || !Number.isFinite(price) || price <= 0) {
       return;
@@ -63,6 +63,42 @@ export function parseDiscoveryListing(body: string, source: DiscoveryCollection,
         .filter((item: DiscoveryProduct | undefined): item is DiscoveryProduct => Boolean(item));
     }
     return unique(found);
+  }
+
+  if (source.siteKey === 'sharaf_dg') {
+    const grid = readDivContents(body, 'hits');
+    if (grid !== undefined) {
+      for (const match of grid.matchAll(/<a\b((?:"[^"]*"|'[^']*'|[^'">])*)>([\s\S]*?)<\/a>/gi)) {
+        const tag = `<a ${match[1]}>`;
+        if (!/\bproduct-link\b/.test(attribute(tag, 'class') ?? '') || !attribute(tag, 'data-objectid')) { continue; }
+        const tile = match[2];
+        const title = tile.match(/<h4\b[^>]*class="[^"]*\bname\b[^"]*"[^>]*>([\s\S]*?)<\/h4>/)?.[1];
+        const price = tile.match(/<div\b[^>]*class="price"[^>]*>([\s\S]*?)<\/div>/)?.[1];
+        const image = tile.match(/<img\b[^>]*>/)?.[0] ?? '';
+        add({ id: attribute(tag, 'data-sku-promo') ?? attribute(tag, 'data-objectid'), title: title ? textContent(title) : attribute(tag, 'title'), url: attribute(tag, 'href'),
+          brand: attribute(tag, 'data-brand'), price: price ? textContent(price).replace(/[^\d.]/g, '') : undefined,
+          image: attribute(image, 'src') ?? attribute(image, 'data-src') });
+      }
+      // An empty grid is still loading or unavailable. Recommendations outside
+      // it must not be substituted for the selected department's inventory.
+      return unique(found);
+    }
+  }
+
+  if (source.siteKey === 'brands_for_less') {
+    for (const match of body.matchAll(/<a\b((?:"[^"]*"|'[^']*'|[^'">])*)>([\s\S]*?)<\/a>/gi)) {
+      const tag = `<a ${match[1]}>`;
+      if (!/\bhover_view_content\b/.test(attribute(tag, 'class') ?? '')) { continue; }
+      const tile = match[2];
+      const url = attribute(tag, 'href');
+      const title = tile.match(/<h1\b[^>]*class="[^"]*\bproduct_title\b[^"]*"[^>]*>([\s\S]*?)<\/h1>/)?.[1];
+      const brand = tile.match(/<h5\b[^>]*class="[^"]*\bpdp_brand\b[^"]*"[^>]*>([\s\S]*?)<\/h5>/)?.[1];
+      const price = tile.match(/<span\b[^>]*class="price"[^>]*>([\s\S]*?)<\/span>/)?.[1];
+      const image = tile.match(/<img\b[^>]*>/)?.[0] ?? '';
+      add({ id: url?.match(/\/(\d+)\/p\//)?.[1], title: title ? textContent(title) : attribute(image, 'alt'), brand: brand ? textContent(brand) : undefined, url,
+        price: price ? textContent(price).replace(/[^\d.]/g, '') : undefined, image: attribute(image, 'src') });
+    }
+    if (found.length) { return unique(found); }
   }
 
   // JSON-LD is used by Ounass, Sharaf DG, and some Namshi listing tiles.
@@ -204,6 +240,20 @@ export function parseDiscoveryListing(body: string, source: DiscoveryCollection,
 }
 
 function asRecord(value: unknown): RecordValue { return value && typeof value === 'object' ? value as RecordValue : {}; }
+function readDivContents(html: string, id: string): string | undefined {
+  const opening = new RegExp(`<div\\b[^>]*\\bid=["']${id}["'][^>]*>`, 'i').exec(html);
+  if (!opening) { return undefined; }
+  const start = opening.index + opening[0].length;
+  const tags = /<\/?div\b(?:"[^"]*"|'[^']*'|[^'">])*>/gi;
+  tags.lastIndex = start;
+  let depth = 1;
+  let tag: RegExpExecArray | null;
+  while ((tag = tags.exec(html))) {
+    depth += tag[0].startsWith('</') ? -1 : 1;
+    if (!depth) { return html.slice(start, tag.index); }
+  }
+  return '';
+}
 function visit(value: unknown, callback: (item: RecordValue) => void) {
   if (!value || typeof value !== 'object') { return; }
   if (Array.isArray(value)) { value.forEach((item) => visit(item, callback)); return; }

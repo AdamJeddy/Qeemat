@@ -56,7 +56,7 @@ export function DiscoveryBrowseSheet({ visible, sources, onClose, onCategory, on
         })}
       </ScrollView> : mode === 'retailers' ? <FlatList data={SUPPORTED_SITES.filter((retailer) => !search || retailer.displayName.toLowerCase().includes(search))} keyExtractor={(item) => item.key} contentContainerStyle={styles.content} renderItem={({ item }) => <View style={styles.row}>
         <AppText weight="bold">{item.displayName}</AppText>
-        <AppText muted>{DISCOVERY_SOURCE_MAPS.filter((source) => source.siteKey === item.key).length} mapped listings{item.key === 'brands_for_less' ? ' · extraction under investigation' : ''}</AppText>
+        <AppText muted>{DISCOVERY_SOURCE_MAPS.filter((source) => source.siteKey === item.key).length} mapped listings</AppText>
         <View style={styles.chips}><DiscoveryFilterChip label="Browse products" selected={false} onPress={() => onRetailer(item.key)} /><DiscoveryFilterChip label="Choose a listing" selected={false} onPress={() => { setSite(item.key); setMode('collections'); setQuery(''); }} /></View>
       </View>} /> : <>
         {site ? <View style={styles.controls}><Pressable accessibilityRole="button" onPress={() => setSite(undefined)} style={styles.chips}><ArrowLeft size={18} color={colors.primary} /><AppText>{getSiteByKey(site).displayName} · Show all retailers</AppText></Pressable></View> : null}

@@ -1,6 +1,7 @@
 import { DISCOVERY_SOURCE_MAPS, selectDiscoveryCollections } from '../discoverySources';
 import { SUPPORTED_SITES } from '../sites';
-import { buildDiscoverySections, filterDiscoveryProducts } from '../discovery';
+import { buildDiscoverySections, filterDiscoveryProducts, DISCOVERY_CATEGORY_LABELS } from '../discovery';
+import { DISCOVERY_CATEGORY_GROUPS } from '../discoveryCategories';
 import { DiscoveryProduct } from '../types';
 
 describe('retailer category browser', () => {
@@ -11,10 +12,26 @@ describe('retailer category browser', () => {
     expect(source('faces_uae', 'Brushes and Sponges')?.category).toBe('beauty_tools');
     expect(source('amazon_ae', 'History')?.category).toBe('books');
     expect(source('noon', 'Guitars')?.category).toBe('musical_instruments');
+    expect(DISCOVERY_SOURCE_MAPS.find((item) => item.url?.endsWith('/women/beauty/tools-accessories'))?.category).toBe('beauty_tools');
+    expect(DISCOVERY_SOURCE_MAPS.find((item) => item.url?.endsWith('/c/household-kitchen-kitchentoolsandutensils'))?.category).toBe('kitchen');
+    expect(DISCOVERY_SOURCE_MAPS.find((item) => item.url?.endsWith('/c/baby-feeding-accessories-bottlebrushes'))?.category).toBe('baby');
+    expect(DISCOVERY_SOURCE_MAPS.find((item) => item.url?.endsWith('/home_and_lifestyle-office_and_school_supplies/'))?.category).toBe('stationery');
+    expect(DISCOVERY_SOURCE_MAPS.find((item) => item.url?.endsWith('/home_and_lifestyle-bedding/'))?.category).toBe('bedding');
   });
   it('keeps every listing identity unique and covers each supported retailer', () => {
     expect(new Set(DISCOVERY_SOURCE_MAPS.map((source) => source.id)).size).toBe(DISCOVERY_SOURCE_MAPS.length);
     expect([...new Set(DISCOVERY_SOURCE_MAPS.map((source) => source.siteKey))].sort()).toEqual(SUPPORTED_SITES.map((site) => site.key).sort());
+  });
+  it('only registers known interests and retailer-owned HTTPS URLs, with supply mapped for every quiz choice', () => {
+    for (const source of DISCOVERY_SOURCE_MAPS) {
+      expect(DISCOVERY_CATEGORY_LABELS[source.category]).toBeDefined();
+      expect(source.url).toMatch(/^https:\/\//);
+      const hostname = new URL(source.url!).hostname.replace(/^www\./, '');
+      expect(SUPPORTED_SITES.find((site) => site.key === source.siteKey)?.hostnames.map((host) => host.replace(/^www\./, ''))).toContain(hostname);
+    }
+    for (const category of DISCOVERY_CATEGORY_GROUPS.flatMap((group) => group.categories)) {
+      expect(DISCOVERY_SOURCE_MAPS.some((source) => source.category === category)).toBe(true);
+    }
   });
 
   it('loads a bounded, varied selection instead of fetching every mapped page', () => {
@@ -37,7 +54,8 @@ describe('retailer category browser', () => {
     expect(source).toBeDefined();
     expect(selectDiscoveryCollections({ collectionId: source.id })).toEqual([source]);
     expect(selectDiscoveryCollections({ siteKey: 'carrefour_uae', categories: ['fresh_food'] }).every((item) => item.siteKey === 'carrefour_uae' && item.category === 'fresh_food')).toBe(true);
-    expect(selectDiscoveryCollections({ siteKey: 'brands_for_less' }).map((item) => item.id)).toEqual(['bfl-women']);
+    expect(selectDiscoveryCollections({ siteKey: 'brands_for_less' }).every((item) => item.siteKey === 'brands_for_less' && !item.isDepartment)).toBe(true);
+    expect(selectDiscoveryCollections({ siteKey: 'brands_for_less', categories: ['footwear'] }).length).toBeGreaterThan(1);
   });
 
   it('keeps a product relevant in every collection it belongs to, with independent budgets', () => {

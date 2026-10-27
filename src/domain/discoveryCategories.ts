@@ -5,8 +5,9 @@ export const DISCOVERY_CATEGORY_LABELS = {
   phones: 'Phones', tablets: 'Tablets', computers: 'Computers', televisions: 'TVs & projectors', audio: 'Audio', gaming: 'Gaming', cameras: 'Cameras', wearables: 'Wearables', tech_accessories: 'Tech accessories',
   appliances: 'Appliances', kitchen: 'Kitchen', furniture: 'Furniture', home: 'Home décor', garden: 'Garden', cleaning: 'Cleaning', stationery: 'Stationery', books: 'Books', tools: 'Tools', musical_instruments: 'Musical instruments', music: 'Music', films: 'Films',
   baby: 'Baby', toys: 'Toys', pets: 'Pets', health: 'Health',
+  bedding: 'Bedding', bathroom: 'Bathroom', storage: 'Storage', lighting: 'Lighting', party: 'Party supplies', religious: 'Religious supplies',
   fresh_food: 'Fresh food', pantry: 'Pantry', beverages: 'Beverages', frozen_food: 'Frozen food',
-  fitness: 'Fitness', sports: 'Sports equipment', outdoors: 'Outdoors', cycling: 'Cycling', swimming: 'Swimming', motorcycle: 'Motorcycle gear', marine: 'Marine', automotive: 'Car accessories'
+  fitness: 'Fitness', sports: 'Sports', outdoors: 'Outdoors', cycling: 'Cycling', swimming: 'Swimming', motorcycle: 'Motorcycle gear', marine: 'Marine', automotive: 'Car accessories'
 } as const;
 
 export type ShoppingCategory = keyof typeof DISCOVERY_CATEGORY_LABELS;
@@ -15,9 +16,9 @@ export const DISCOVERY_CATEGORY_GROUPS = [
   { id: 'style', label: 'Style', categories: ['clothing', 'footwear', 'bags', 'accessories', 'jewellery', 'watches'] },
   { id: 'beauty', label: 'Beauty', categories: ['makeup', 'skincare', 'fragrance', 'haircare', 'bath_body', 'beauty_tools', 'grooming'] },
   { id: 'technology', label: 'Technology', categories: ['phones', 'tablets', 'computers', 'televisions', 'audio', 'gaming', 'cameras', 'wearables', 'tech_accessories'] },
-  { id: 'home', label: 'Home', categories: ['appliances', 'kitchen', 'furniture', 'home', 'garden', 'cleaning', 'stationery', 'tools'] },
+  { id: 'home', label: 'Home', categories: ['appliances', 'kitchen', 'furniture', 'home', 'bedding', 'bathroom', 'lighting', 'storage', 'garden', 'cleaning', 'stationery', 'party', 'tools'] },
   { id: 'media', label: 'Books & entertainment', categories: ['books', 'musical_instruments', 'music', 'films'] },
-  { id: 'everyday', label: 'Everyday', categories: ['baby', 'toys', 'pets', 'health'] },
+  { id: 'everyday', label: 'Everyday', categories: ['baby', 'toys', 'pets', 'health', 'religious'] },
   { id: 'groceries', label: 'Groceries', categories: ['fresh_food', 'pantry', 'beverages', 'frozen_food'] },
   { id: 'active', label: 'Active', categories: ['fitness', 'sports', 'outdoors', 'cycling', 'swimming', 'motorcycle', 'marine', 'automotive'] }
 ] as const satisfies ReadonlyArray<{ id: string; label: string; categories: readonly ShoppingCategory[] }>;

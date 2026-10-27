@@ -4,6 +4,7 @@ import { parsePriceToMinor } from './price';
 import { fetchPageHtmlViaWebView } from './webViewFetcher';
 import { findTrackedVariant } from './variants';
 import { parseCarrefourProduct } from './carrefour';
+import { withBflSizeVariants } from './bfl';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -339,6 +340,7 @@ export function parseProductHtml(
     siteKey !== 'salomon_gcc' &&
     siteKey !== 'centrepoint_uae' &&
     siteKey !== 'namshi' &&
+    siteKey !== 'brands_for_less' &&
     siteKey !== 'the_deal' &&
     siteKey !== 'sharaf_dg'
   ) {
@@ -398,7 +400,9 @@ export function parseProductHtml(
   }
 
   if (siteKey === 'brands_for_less') {
-    return resolveParsedVariant(parseBFLProduct(siteKey, inputUrl, html) ?? structured, selectedVariant);
+    const product = structured?.priceMinor !== undefined && structured.availability !== 'unknown'
+      ? structured : parseBFLProduct(siteKey, inputUrl, html) ?? structured;
+    return resolveParsedVariant(withBflSizeVariants(product, html), selectedVariant);
   }
 
   if (siteKey === 'namshi') {

@@ -18,16 +18,14 @@ import carrefour from './discoverySources/carrefour_uae.json';
 import centrepoint from './discoverySources/centrepoint_uae.json';
 import noon from './discoverySources/noon.json';
 import amazon from './discoverySources/amazon_ae.json';
+import bfl from './discoverySources/brands_for_less.json';
 
 const MIXED_DEPARTMENTS = new Set<DiscoveryCategory>(['fashion', 'beauty', 'electronics', 'sport', 'home_department', 'groceries', 'general']);
-const maps = [decathlon, nike, sss, level, ay, ounass, noon, amazon, adidas, puma, salomon, sephora, faces, centrepoint, namshi, deal, sharaf, carrefour].flat() as DiscoveryCollection[];
+const maps = [decathlon, nike, sss, level, ay, ounass, noon, amazon, adidas, puma, salomon, sephora, faces, centrepoint, namshi, deal, sharaf, carrefour, bfl].flat() as DiscoveryCollection[];
 
 /** Observed retailer navigation, not generated search terms. Extraction failures remain visible. */
 export const DISCOVERY_SOURCE_MAPS: DiscoveryCollection[] = [
-  ...maps.filter((source) => !source.url?.endsWith('/-/')).map((source) => ({ ...source, isDepartment: MIXED_DEPARTMENTS.has(source.category) })),
-  // BFL's current SPA is still under investigation. Keep its existing source and
-  // report failures rather than presenting unverified category URLs as working.
-  { id: 'bfl-women', label: 'Women', category: 'fashion', siteKey: 'brands_for_less', url: 'https://www.brandsforless.com/en-ae/women/', provider: 'html', path: ['Women'], isDepartment: true }
+  ...maps.filter((source) => !source.url?.endsWith('/-/')).map((source) => ({ ...source, isDepartment: MIXED_DEPARTMENTS.has(source.category) }))
 ];
 
 export type DiscoveryScope = {

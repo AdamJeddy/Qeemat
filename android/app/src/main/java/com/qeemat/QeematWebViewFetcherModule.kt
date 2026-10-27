@@ -30,6 +30,10 @@ class QeematWebViewFetcherModule(private val reactContext: ReactApplicationConte
     val handler = Handler(Looper.getMainLooper())
     var resolved = false
     var activeWebView: WebView? = null
+    val requestedUri = android.net.Uri.parse(url)
+    val waitForSharafListing = requestedUri.host == "uae.sharafdg.com" && requestedUri.path.orEmpty().startsWith("/c/")
+    val waitForBflListing = requestedUri.host.orEmpty().removePrefix("www.") == "brandsforless.com" && !requestedUri.path.orEmpty().contains("/p/")
+    val waitForBflProduct = requestedUri.host.orEmpty().removePrefix("www.") == "brandsforless.com" && requestedUri.path.orEmpty().contains("/p/")
 
     // Total timeout guard (includes Cloudflare challenge time)
     val timeoutRunnable = Runnable {
@@ -92,7 +96,7 @@ class QeematWebViewFetcherModule(private val reactContext: ReactApplicationConte
             if (resolved) return@postDelayed
 
             view.evaluateJavascript(
-              "(function() { return document.documentElement.outerHTML; })();"
+              "(function() { if (($waitForSharafListing && !document.querySelector('#hits a.product-link[data-objectid]')) || ($waitForBflListing && !document.querySelector('#product-listing a.hover_view_content')) || ($waitForBflProduct && !document.querySelector('#product-detail h1'))) return '__QEEMAT_LISTING_PENDING__'; return document.documentElement.outerHTML; })();"
             ) { html ->
               if (resolved) {
                 view.destroy()
@@ -116,9 +120,14 @@ class QeematWebViewFetcherModule(private val reactContext: ReactApplicationConte
               // Check whether the storefront returned a browser challenge or
               // explicit access-denied page instead of product HTML.
               val lower = unescaped.lowercase()
+              if (unescaped == "__QEEMAT_LISTING_PENDING__") {
+                // Category inventory arrives after the document load event.
+                // Keep polling within the existing 45-second total deadline.
+                onPageFinished(view, finishedUrl)
+                return@evaluateJavascript
+              }
               val isCloudflareChallenge =
                 (lower.contains("just a moment") && lower.contains("cloudflare")) ||
-                lower.contains("challenges.cloudflare.com") ||
                 lower.contains("cf-browser-verify") ||
                 lower.contains("cf_chl_opt") ||
                 (lower.contains("checking your browser") && lower.contains("cloudflare"))
