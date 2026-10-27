@@ -1,5 +1,4 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { inferPackBasis } from '../domain/priceBasis';
 
 import {
   ActivityEvent,
@@ -115,7 +114,7 @@ export async function createTrackedProduct(draft: ProductDraft): Promise<number>
     imageUrl: parsed.imageUrl,
     currency: parsed.currency ?? 'AED',
     currentPriceMinor: parsed.priceMinor,
-    priceBasis: parsed.priceBasis ?? inferPackBasis(parsed.title),
+    priceBasis: parsed.priceBasis,
     previousPriceMinor: undefined,
     targetPriceMinor: draft.targetPriceMinor,
     minimumPriceDropMinor: draft.minimumPriceDropMinor,
@@ -400,7 +399,7 @@ export async function recordSuccessfulCheck(
             imageUrl: parsed.imageUrl ?? item.imageUrl,
             currency: parsed.currency ?? item.currency,
             currentPriceMinor: newPriceMinor,
-            priceBasis: parsed.priceBasis ?? item.priceBasis ?? inferPackBasis(parsed.title),
+            priceBasis: parsed.priceBasis ?? item.priceBasis,
             lastAvailability: parsed.availability,
             previousPriceMinor,
             lastCheckedAt: checkedAt,
@@ -473,7 +472,7 @@ function createSnapshot(
     id,
     trackedProductId: productId,
     priceMinor: parsed.priceMinor,
-    priceBasis: parsed.priceBasis ?? inferPackBasis(parsed.title),
+    priceBasis: parsed.priceBasis,
     currency: parsed.currency ?? 'AED',
     availability: parsed.availability,
     status,

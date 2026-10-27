@@ -4,6 +4,7 @@ import { DiscoveryCollection, DISCOVERY_SOURCE_PRODUCT_LIMIT, discoverySourceUrl
 import { parseDiscoveryListing } from './discoveryListings';
 import { fetchPageHtmlViaWebView } from './webViewFetcher';
 import { DiscoveryScope, selectDiscoveryCollections } from './discoverySources';
+import { withDiscoveryPriceBasis } from './priceBasis';
 
 type FetchResponse = {
   ok: boolean;
@@ -48,8 +49,9 @@ async function refreshDiscoveryCatalog(fetcher: DiscoveryFetcher, options: Disco
     source, cached: await getDiscoveryCache(source.id), failed: false
   })));
   const snapshot = (): DiscoveryCatalogResult => ({
-    products: mergeDiscoveryProducts(entries.flatMap((entry) => (entry.cached?.products ?? []).map((product) => ({
-      ...product, category: entry.source.category, categories: [entry.source.category], collectionIds: [entry.source.id]
+    products: mergeDiscoveryProducts(entries.flatMap((entry) => (entry.cached?.products ?? []).map((product) => withDiscoveryPriceBasis({
+      ...product, priceBasis: entry.cached?.parserVersion !== DISCOVERY_PARSER_VERSION && product.priceBasis?.startsWith('pack:') ? undefined : product.priceBasis,
+      category: entry.source.category, categories: [entry.source.category], collectionIds: [entry.source.id]
     })))),
     refreshedAt: entries.map((entry) => entry.cached?.fetchedAt).filter((date): date is string => Boolean(date)).sort()[0],
     stale: entries.some((entry) => entry.failed || (entry.cached && Date.now() - Date.parse(entry.cached.fetchedAt) >= CACHE_TTL_MS)),
@@ -64,7 +66,7 @@ async function refreshDiscoveryCatalog(fetcher: DiscoveryFetcher, options: Disco
       const entry = entries[index++];
       if (!options.force && entry.cached?.parserVersion === DISCOVERY_PARSER_VERSION && Date.now() - Date.parse(entry.cached.fetchedAt) < CACHE_TTL_MS) { continue; }
       try {
-        const products = await fetchDiscoveryCollection(entry.source, fetcher, observedAt, options.isCancelled);
+        const products = (await fetchDiscoveryCollection(entry.source, fetcher, observedAt, options.isCancelled)).map(withDiscoveryPriceBasis);
         if (!products.length) { throw new Error('No usable listing products'); }
         await saveDiscoveryCache(entry.source.id, products, observedAt);
         entry.cached = { products, fetchedAt: observedAt, parserVersion: DISCOVERY_PARSER_VERSION };

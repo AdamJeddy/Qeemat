@@ -44,7 +44,7 @@ describe('checkProductNow', () => {
   it('preserves history and suppresses alerts when the pack size changes', async () => {
     (recordSuccessfulCheck as jest.Mock).mockResolvedValue({ status: 'price_changed', previousPriceMinor: 10000, newPriceMinor: 500 });
     (fetchAndParseProduct as jest.Mock).mockResolvedValue({ ok: true, product: { title: 'Rice 500g', priceMinor: 500, currency: 'AED', availability: 'in_stock' } });
-    await checkProductNow({ ...outOfStockProduct, title: 'Rice 1kg' }, 'manual_single');
+    await checkProductNow({ ...outOfStockProduct, title: 'Rice 1kg', priceBasis: 'pack:1x1000g' }, 'manual_single');
     expect(recordSuccessfulCheck).not.toHaveBeenCalled();
     expect(maybeNotifyForCheck).not.toHaveBeenCalled();
     expect(recordActivityEvent).not.toHaveBeenCalled();
@@ -57,6 +57,14 @@ describe('checkProductNow', () => {
     await checkProductNow(product, 'manual_single');
     expect(recordFailedCheck).not.toHaveBeenCalled();
     expect(recordSuccessfulCheck).toHaveBeenCalledWith(product, expect.objectContaining({ title: 'Body lotion 100ml' }), 'manual_single');
+  });
+  it('retains a verified grocery basis for subsequent snapshots and notifications', async () => {
+    const product = { ...outOfStockProduct, title: 'Milk 1L', priceBasis: 'pack:1x1000ml' as const };
+    (fetchAndParseProduct as jest.Mock).mockResolvedValue({ ok: true, product: { title: 'Milk 1000ml', priceMinor: 500, currency: 'AED', availability: 'in_stock' } });
+    (recordSuccessfulCheck as jest.Mock).mockResolvedValue({ previousPriceMinor: 600, newPriceMinor: 500 });
+    await checkProductNow(product, 'manual_single');
+    expect(recordSuccessfulCheck).toHaveBeenCalledWith(product, expect.objectContaining({ priceBasis: product.priceBasis }), 'manual_single');
+    expect(maybeNotifyForCheck).toHaveBeenCalledWith(product, expect.objectContaining({ priceBasis: product.priceBasis }), 600, 500, 'out_of_stock');
   });
 
   it('rechecks a product already confirmed out of stock so it can detect a restock', async () => {

@@ -99,7 +99,7 @@ import { ensureNotificationPermission, openNotificationSettings } from './src/do
 import { fetchAndParseProduct, fetchTheDealVariantForSaving } from './src/domain/parser';
 import { calculatePriceInsights } from './src/domain/priceInsights';
 import { formatPrice, parseTargetPriceInput } from './src/domain/price';
-import { priceBasisSuffix } from './src/domain/priceBasis';
+import { priceBasisSuffix, verifyDiscoveryTrackingBasis } from './src/domain/priceBasis';
 import { cleanUrl, detectSharedUrl, detectSupportedSite, getSiteByKey, normalizeUrl, SUPPORTED_SITES } from './src/domain/sites';
 import { ActivityEvent, AlertMode, CheckPreference, DiscoveryCategory, DiscoveryPreferences, DiscoveryProduct, ParsedProduct, PriceSnapshot, ProductWithSnapshots, SnapshotSource, TrackedProduct } from './src/domain/types';
 import { colors, radius, shadow } from './src/theme/theme';
@@ -1913,15 +1913,20 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
         return;
       }
 
-      if (result.product.variants?.length) {
+      const verified = verifyDiscoveryTrackingBasis(product, result.product);
+      if (!verified) {
+        setNotice({ message: 'Could not verify this product’s pack size or pricing unit. Please try again when the retailer shows these details.' });
+        return;
+      }
+      if (verified.variants?.length) {
         setVariantAttributes({});
         setVariantError(undefined);
-        setPendingProduct({ listing: product, parsed: result.product });
+        setPendingProduct({ listing: product, parsed: verified });
         return;
       }
 
       const id = await createTrackedProduct({
-        parsed: result.product,
+        parsed: verified,
         sourceUrl: product.url,
         checkPreference: availableCheckPreferences(result.product.siteKey)[0] ?? 'daily',
         alertMode: 'price_drop',

@@ -67,7 +67,7 @@ describe('discovery persistence', () => {
     await expect(getDiscoveryCache('decathlon-fitness')).resolves.toEqual({
       products: [product],
       fetchedAt: '2026-10-25T10:00:00.000Z',
-      parserVersion: 4
+      parserVersion: 5
     });
     await expect(getDiscoveryCache('decathlon-outdoors')).resolves.toBeUndefined();
   });

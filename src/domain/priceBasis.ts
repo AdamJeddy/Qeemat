@@ -1,4 +1,6 @@
 /** Stable comparison basis. Pack prices remain pack prices; weighted prices use kg. */
+import type { DiscoveryProduct, ParsedProduct } from './types';
+
 export type PriceBasis = 'kg' | `pack:${string}`;
 
 export function inferPackBasis(title: string): PriceBasis | undefined {
@@ -14,7 +16,21 @@ export function inferPackBasis(title: string): PriceBasis | undefined {
 
 type PriceIdentity = { title: string; priceBasis?: PriceBasis };
 export function pricesShareBasis(before: PriceIdentity, after: PriceIdentity): boolean {
-  return (before.priceBasis ?? inferPackBasis(before.title)) === (after.priceBasis ?? inferPackBasis(after.title));
+  const beforeBasis = before.priceBasis ?? (after.priceBasis?.startsWith('pack:') ? inferPackBasis(before.title) : undefined);
+  const afterBasis = after.priceBasis ?? (before.priceBasis?.startsWith('pack:') ? inferPackBasis(after.title) : undefined);
+  return beforeBasis === afterBasis;
+}
+
+const GROCERY_CATEGORIES = new Set(['fresh_food', 'pantry', 'beverages', 'frozen_food', 'groceries']);
+
+export function withDiscoveryPriceBasis(product: DiscoveryProduct): DiscoveryProduct {
+  return { ...product, priceBasis: product.priceBasis ?? (GROCERY_CATEGORIES.has(product.category) ? inferPackBasis(product.title) : undefined) };
+}
+
+export function verifyDiscoveryTrackingBasis(listing: DiscoveryProduct, parsed: ParsedProduct): ParsedProduct | undefined {
+  const priceBasis = parsed.priceBasis ?? (listing.priceBasis?.startsWith('pack:') ? inferPackBasis(parsed.title) : undefined);
+  if (listing.priceBasis && !priceBasis) { return undefined; }
+  return { ...parsed, priceBasis };
 }
 
 export function priceBasisSuffix(basis?: PriceBasis): string {

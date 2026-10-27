@@ -28,7 +28,12 @@ function scalar(value: unknown): string | undefined {
 }
 
 export function carrefourPrice(record: RecordValue, priceMinor: number | undefined): { priceMinor?: number; priceBasis?: PriceBasis } {
-  if (record.isSoldByWeight !== true) { return { priceMinor, priceBasis: inferPackBasis(String(record.productTitle ?? record.productName ?? '')) }; }
+  if (record.isSoldByWeight !== true) {
+    const attributes = record.additionalAttributes as RecordValue | undefined;
+    const categories = record.productCategory ?? attributes?.productCategory;
+    const food = record.productType === 'FOOD' || (Array.isArray(categories) && categories.some((category) => /^f\d/i.test(String(category))));
+    return { priceMinor, priceBasis: food ? inferPackBasis(String(record.productTitle ?? record.productName ?? '')) : undefined };
+  }
   const threshold = record.orderThreshold as RecordValue | undefined;
   const grams = Number(record.scalableWeights);
   const kilograms = Number.isFinite(grams) && grams > 0 ? grams / 1000 : record.quantityTypeKey === 'kilo' ? Number(threshold?.min) : NaN;
