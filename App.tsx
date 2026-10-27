@@ -1367,10 +1367,10 @@ export function DetailScreen({ productId, navigate }: { productId: number; navig
         ) : null}
         <SectionTitle title="Price insights" />
         <View style={styles.statsRow}>
-          <StatCard label="Lowest price" price={insights.lowestPriceMinor} currency={product.currency} tone="green" />
-          <StatCard label="Highest price" price={insights.highestPriceMinor} currency={product.currency} tone="red" />
+          <StatCard label="Lowest price" price={insights.lowestPriceMinor} currency={product.currency} priceBasis={product.priceBasis} tone="green" />
+          <StatCard label="Highest price" price={insights.highestPriceMinor} currency={product.currency} priceBasis={product.priceBasis} tone="red" />
         </View>
-        <StatCard label="Average price" price={insights.averagePriceMinor} currency={product.currency} tone="neutral" emphasized />
+        <StatCard label="Average price" price={insights.averagePriceMinor} currency={product.currency} priceBasis={product.priceBasis} tone="neutral" emphasized />
         <AppText muted style={styles.insightCaption}>{insights.observations} {insights.observations === 1 ? 'priced check' : 'priced checks'} recorded locally.</AppText>
         <SectionTitle title="Price History" />
         {product.priceBasis ? <AppText muted>Prices, chart and targets use{priceBasisSuffix(product.priceBasis)}. Weighted grocery totals depend on the final delivered weight.</AppText> : null}
@@ -1656,7 +1656,7 @@ function ActivityScreen({ navigate }: { navigate: (route: Route) => void }) {
                           </AppText>
                           {event.previousPriceMinor !== undefined ? (
                             <AppText muted style={styles.activityOldPrice}>
-                              {formatPrice(event.previousPriceMinor, event.currency)}
+                              {formatPrice(event.previousPriceMinor, event.currency, event.priceBasis)}
                             </AppText>
                           ) : null}
                         </>
@@ -1664,13 +1664,13 @@ function ActivityScreen({ navigate }: { navigate: (route: Route) => void }) {
                         <>
                           <Check size={18} color={colors.green} />
                           <AppText weight="semibold" style={styles.restockActivityLabel}>Back in stock</AppText>
-                          <AppText weight="bold" style={styles.activityNewPrice}>{formatPrice(event.newPriceMinor, event.currency)}</AppText>
+                          <AppText weight="bold" style={styles.activityNewPrice}>{formatPrice(event.newPriceMinor, event.currency, event.priceBasis)}</AppText>
                         </>
                       ) : (
                         <>
                           {event.previousPriceMinor !== undefined ? (
                             <AppText muted style={styles.activityOldPrice}>
-                              {formatPrice(event.previousPriceMinor, event.currency)}
+                              {formatPrice(event.previousPriceMinor, event.currency, event.priceBasis)}
                             </AppText>
                           ) : null}
                           <View style={styles.activityDirectionIcon}>
@@ -1684,7 +1684,7 @@ function ActivityScreen({ navigate }: { navigate: (route: Route) => void }) {
                           </View>
                           {event.priceDirection === 'first' ? (
                             <AppText weight="bold" style={styles.activityFirstPrice}>
-                              {formatPrice(event.newPriceMinor, event.currency)}
+                              {formatPrice(event.newPriceMinor, event.currency, event.priceBasis)}
                             </AppText>
                           ) : (
                             <AppText weight="bold" style={[
@@ -1692,7 +1692,7 @@ function ActivityScreen({ navigate }: { navigate: (route: Route) => void }) {
                               event.priceDirection === 'down' && styles.activityPriceDown,
                               event.priceDirection === 'up' && styles.activityPriceUp
                             ]}>
-                              {formatPrice(event.newPriceMinor, event.currency)}
+                              {formatPrice(event.newPriceMinor, event.currency, event.priceBasis)}
                             </AppText>
                           )}
                         </>
@@ -2350,12 +2350,12 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function StatCard({ label, price, currency, tone, emphasized = false }: { label: string; price?: number; currency: string; tone: 'green' | 'red' | 'neutral'; emphasized?: boolean }) {
+function StatCard({ label, price, currency, priceBasis, tone, emphasized = false }: { label: string; price?: number; currency: string; priceBasis?: import('./src/domain/priceBasis').PriceBasis; tone: 'green' | 'red' | 'neutral'; emphasized?: boolean }) {
   return (
     <View style={[styles.statCard, emphasized && styles.statCardEmphasized]}>
       <AppText muted>{label}</AppText>
       <AppText weight="bold" style={[styles.statPrice, emphasized && styles.statPriceEmphasized, tone === 'green' ? styles.greenText : tone === 'red' ? styles.redText : undefined]}>
-        {formatPrice(price, currency)}
+        {formatPrice(price, currency, priceBasis)}
       </AppText>
     </View>
   );

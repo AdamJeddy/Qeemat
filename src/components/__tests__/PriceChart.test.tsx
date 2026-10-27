@@ -56,6 +56,12 @@ function renderedText(tree: renderer.ReactTestRenderer): string {
 }
 
 describe('PriceChart', () => {
+  it('keeps the kilogram basis visible for historical prices and changes', () => {
+    let tree: renderer.ReactTestRenderer;
+    act(() => { tree = renderer.create(<PriceChart snapshots={snapshots.map((snapshot) => ({ ...snapshot, priceBasis: 'kg' }))} currency="AED" />); });
+    expect(renderedText(tree!)).toContain('AED 105 /kg');
+    expect(renderedText(tree!)).toContain('↑ AED 15 /kg increase');
+  });
   it('shows the latest price first and reveals a tapped historical price with its change', () => {
     let tree: renderer.ReactTestRenderer;
 
