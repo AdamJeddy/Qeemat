@@ -316,6 +316,7 @@ describe('OpportunityScreen', () => {
     await act(async () => { input!.props.onSubmitEditing(); await new Promise<void>((resolve) => setImmediate(resolve)); });
     expect(mockLoadProductSearch).toHaveBeenCalledWith('iphone 16', expect.anything());
     expect(tree!.root.findByType(DiscoveryProductGrid).props.products).toEqual([phone]);
+    expect(tree!.root.findAllByType(AppText).map((node) => [node.props.children].flat().join('')).join(' ')).toContain('1 title and brand match · 1 retailer');
     await act(async () => { tree!.root.findByProps({ accessibilityLabel: 'Clear product search' }).props.onPress(); await new Promise<void>((resolve) => setImmediate(resolve)); });
     expect(tree!.root.findAllByType(AppText).map((node) => [node.props.children].flat().join('')).join(' ')).not.toContain('Results for “iphone 16”');
     await act(async () => tree!.unmount());

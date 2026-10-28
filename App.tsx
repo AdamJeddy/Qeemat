@@ -1896,6 +1896,7 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
   const selectedCollection = DISCOVERY_SOURCE_MAPS.find((source) => source.id === collectionId);
   const hasMoreListings = !searchQuery && !collectionId && selectDiscoveryCollections({ categories: category ? [category] : browseAll || retailer ? [] : preferences?.categories, siteKey: retailer, offset: batchLimit, limit: 1 }).length > 0;
   const visibleProducts = filteredProducts.slice(0, visibleCount);
+  const resultRetailerCount = new Set(filteredProducts.map((product) => product.siteKey)).size;
   const variantChoices = discoveryVariantChoices(pendingProduct?.parsed.variants ?? []);
   const selectedChoice = resolveSelectedVariant(variantChoices, variantAttributes);
   const selectedVariant = pendingProduct?.parsed.variants?.find((variant) => variant.id === selectedChoice?.id);
@@ -2066,7 +2067,7 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
 
       {searchQuery ? <View style={styles.discoverySection}>
         <AppText weight="bold" style={styles.discoverySectionTitle}>Results for “{searchQuery}”</AppText>
-        <AppText muted>{filteredProducts.length} title and brand matches · {new Set(filteredProducts.map((product) => product.siteKey)).size} retailers</AppText>
+        <AppText muted>{filteredProducts.length} title and brand {filteredProducts.length === 1 ? 'match' : 'matches'} · {resultRetailerCount} {resultRetailerCount === 1 ? 'retailer' : 'retailers'}</AppText>
         {!filteredProducts.length ? <AppText muted>{searchBusy ? 'Searching stores. Matches appear as each store responds.' : 'No matching product names in the returned results. Try a brand, model, or fewer words; check Coverage for unavailable stores.'}</AppText> : null}
         <DiscoveryProductGrid products={visibleProducts} trackedProducts={trackedProducts} trackingProductId={trackingProductId} onTrack={handleTrack} onDismiss={handleDismiss} onMoreLikeThis={openBrandListing} onViewAtRetailer={handleViewAtRetailer} />
         {filteredProducts.length > visibleCount ? <PrimaryButton label={`Show more (${filteredProducts.length - visibleCount} remaining)`} variant="outline" onPress={() => setVisibleCount((count) => count + 24)} /> : null}
@@ -2083,7 +2084,7 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
               {availableCategories.map((item) => <DiscoveryFilterChip key={item} label={DISCOVERY_CATEGORY_LABELS[item]} selected={category === item} onPress={() => { setCollectionId(undefined); setCategory(category === item ? undefined : item); setBrand(undefined); }} />)}
             </ScrollView>
             <View style={styles.discoveryToolbar}>
-              <AppText muted style={styles.discoveryResultCount}>{filteredProducts.length} {filteredProducts.length === 1 ? 'product' : 'products'} · {new Set(filteredProducts.map((product) => product.siteKey)).size} retailers</AppText>
+              <AppText muted style={styles.discoveryResultCount}>{filteredProducts.length} {filteredProducts.length === 1 ? 'product' : 'products'} · {resultRetailerCount} {resultRetailerCount === 1 ? 'retailer' : 'retailers'}</AppText>
               <Pressable accessibilityRole="button" onPress={() => setShowFilters((value) => !value)} style={styles.discoveryToolbarAction}><SlidersHorizontal size={16} color={colors.primary} /><AppText style={styles.discoveryLink}>Filters{activeFilter ? ' •' : ''}</AppText></Pressable>
             </View>
             {showFilters ? <View style={styles.listingFilters}>
