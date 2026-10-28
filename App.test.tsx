@@ -262,7 +262,6 @@ describe('DetailScreen', () => {
 
 describe('OpportunityScreen', () => {
   it('ignores an older search response after a new query is submitted', async () => {
-    mockLoadProductSearch.mockReset();
     let finishOlder!: (value: unknown) => void;
     mockLoadProductSearch.mockImplementationOnce(() => new Promise((resolve) => { finishOlder = resolve; }));
     mockLoadProductSearch.mockResolvedValueOnce({ query: 'new phone', products: [], sources: [] });
@@ -307,6 +306,7 @@ describe('OpportunityScreen', () => {
       seenProductIds: []
     });
     mockMarkDiscoveryProductsSeen.mockResolvedValue(undefined);
+    mockLoadProductSearch.mockReset();
     mockLoadDiscoveryCatalog.mockResolvedValue({ products: [], stale: false });
   });
 
