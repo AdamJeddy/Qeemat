@@ -261,6 +261,31 @@ describe('DetailScreen', () => {
 });
 
 describe('OpportunityScreen', () => {
+  it('browses a department in place and applies its saved budget', async () => {
+    const navigate = jest.fn();
+    mockGetDiscoveryPreferences.mockResolvedValue({ completed: true, categories: ['footwear'], favoriteBrands: [], budgetsByCategory: { footwear: 10000 }, dismissedProductIds: [], seenProductIds: [] });
+    const base = { siteKey: 'noon', category: 'footwear', brand: 'Brand', currency: 'AED', availability: 'in_stock', observedAt: '2026-10-28T09:00:00Z' };
+    mockLoadDiscoveryCatalog.mockResolvedValue({ products: [
+      { ...base, id: 'shoe', title: 'Everyday shoe', url: 'https://www.noon.com/shoe', priceMinor: 9000 },
+      { ...base, id: 'expensive-shoe', title: 'Expensive shoe', url: 'https://www.noon.com/expensive-shoe', priceMinor: 20000 }
+    ], stale: false });
+    let tree: renderer.ReactTestRenderer;
+    await act(async () => { tree = renderer.create(<OpportunityScreen navigate={navigate} />); await new Promise<void>((resolve) => setImmediate(resolve)); });
+    await act(async () => { tree!.root.findByProps({ accessibilityLabel: 'Browse Footwear' }).props.onPress(); await new Promise<void>((resolve) => setImmediate(resolve)); });
+    expect(mockLoadDiscoveryCatalog).toHaveBeenLastCalledWith(undefined, expect.objectContaining({ scope: expect.objectContaining({ categories: ['footwear'] }) }));
+    expect(tree!.root.findByType(DiscoveryProductGrid).props.products.map((product: { id: string }) => product.id)).toEqual(['shoe']);
+    expect(tree!.root.findByProps({ accessibilityLabel: 'Browse Footwear' }).props.accessibilityState.selected).toBe(true);
+    expect(navigate).not.toHaveBeenCalled();
+    await act(async () => tree!.unmount());
+  });
+
+  it('keeps department choices available when no products have loaded', async () => {
+    let tree: renderer.ReactTestRenderer;
+    await act(async () => { tree = renderer.create(<OpportunityScreen navigate={jest.fn()} />); await new Promise<void>((resolve) => setImmediate(resolve)); });
+    expect(tree!.root.findByProps({ accessibilityLabel: 'Browse Phones' })).toBeDefined();
+    expect(tree!.root.findByProps({ accessibilityLabel: 'Browse all departments and retailers' })).toBeDefined();
+    await act(async () => tree!.unmount());
+  });
   it('only offers search retailers with visible matches and removes an empty active filter', async () => {
     const phone = { id: 'phone', title: 'iPhone 16', siteKey: 'noon', category: 'general', priceMinor: 300000, currency: 'AED', url: 'https://www.noon.com/phone/p/', observedAt: '2026-10-28T09:00:00Z', availability: 'unknown' };
     mockLoadProductSearch.mockResolvedValue({ query: 'iphone', products: [phone], sources: [] });
@@ -442,13 +467,11 @@ describe('OpportunityScreen', () => {
     expect(text).toContain('Track price');
     expect(text).toContain('1 product');
 
-    const categoryChip = tree!.root.findAllByType(DiscoveryFilterChip).find((node) => node.props.label === 'Fitness');
-    act(() => {
-      categoryChip!.findByProps({ accessibilityRole: 'button' }).props.onPress();
-    });
+    await act(async () => { tree!.root.findByType(DiscoveryBrowseSheet).props.onCategory('fitness'); await new Promise<void>((resolve) => setImmediate(resolve)); });
 
     expect(navigate).not.toHaveBeenCalled();
-    expect(tree!.root.findAllByType(DiscoveryFilterChip).find((node) => node.props.label === 'Fitness')?.props.selected).toBe(true);
+    expect(tree!.root.findByProps({ accessibilityLabel: 'Browse Fitness' }).props.accessibilityState.selected).toBe(true);
+    await act(async () => tree!.unmount());
   });
 
   it('applies saved quiz interests and budgets to the same feed immediately', async () => {
