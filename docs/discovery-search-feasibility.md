@@ -1,6 +1,6 @@
 # Product-name search across retailers
 
-Updated: 28 October 2026. Scope: the 19 UAE/GCC retailers in Qeemat's discovery registry. Search is implemented for 18 sources on `codex/search-across-retailers`; Sharaf DG is excluded. Android compilation is checked separately from installed-device verification, which remains pending.
+Updated: 28 October 2026. Scope: the 19 UAE/GCC retailers in Qeemat's discovery registry. Search is implemented for 18 sources on `codex/search-across-retailers`; Sharaf DG is excluded. A physical-device search smoke test passed on Samsung SM-S928B; the full per-source/query matrix remains incomplete.
 
 ## Finding
 
@@ -57,8 +57,17 @@ Pagination is partial: observed continuation links or WooCommerce page parameter
 
 Before claiming a source works, test at least a real model name, a broad query, a nonsense/no-match query, Unicode/special characters, a second result page, a blocked/offline response, cancellation, and tracking a selected option. Check grocery packs and configuration-specific results. This investigation used different relevant sample queries for each retailer; it did not establish identical-query coverage or latency across all 19 at once.
 
-Raw samples and probe outputs stay under ignored `.tmp/discovery-search/`. `scripts/probe-discovery-search.cjs` checks providers live, with optional source keys; `--browser-samples` re-parses captured DOM without claiming a new HTTP/device test. Browser DOM samples and unit fixtures cover the six browser-dependent additions. Typecheck passes; lint has one existing inline-style warning. Jest: 261 passing, one existing skip, 27 suites. No device build has yet been installed for this search implementation.
+Raw samples and probe outputs stay under ignored `.tmp/discovery-search/`. `scripts/probe-discovery-search.cjs` checks providers live, with optional source keys; `--browser-samples` re-parses captured DOM without claiming a new HTTP/device test. Browser DOM samples and unit fixtures cover the six browser-dependent additions. Typecheck passes; lint has one existing inline-style warning. Jest: 262 passing, one existing skip, 27 suites.
+
+## Physical-device smoke test — 28 October 2026
+
+- Installed the standalone APK over the existing app on Samsung SM-S928B without clearing storage. The original installation date remained 19 June; the watchlist still displayed 24 items and existing preferences remained available. No tracker was added, edited or deleted during testing.
+- A fresh `iphone 16` search completed checks for all 18 included stores and displayed 196 title/brand matches across nine retailers. This is observed sample coverage, not a promise that all sources return products for every query.
+- Device testing exposed retailer round-robin ordering placing cases before phones, plus the accessory heuristic exempting a case because its title included “with”. Revision `e665848` removes search round-robin ordering and distinguishes a case with magnets from a phone bundled with a case. Regression tests reproduce both failures.
+- Rebuilt and installed the correction. The cached query then displayed actual iPhone 16 phones first. Verified retailer filtering to Nike produced zero matches, All search stores restored 196, clearing search restored discovery (1,069 products across 17 retailers at that observation), and the coverage sheet scrolled to the excluded Sharaf DG entry. Query cache survived the update.
+- No fatal Android runtime or React Native JS errors appeared in the checked log samples. Screenshots and UI hierarchies are saved under `.tmp/discovery-search/phone-*`; `phone-final-search.png` shows the corrected order.
+- This did not test every retailer with its own positive product query, offline operation, all continuation paths, tracking/variant saves or alert delivery. The per-source pending notes above refer to that broader matrix, not to installation or the basic search journey.
 
 ## Standalone build
 
-Runtime revision `17d88f4` compiled successfully for arm64-v8a in 56 seconds. The APK is `com.qeemat`, version `0.5.5-alpha` / code 3, with launch activity `com.qeemat.MainActivity`. Its v2 signature verifies using the repository's existing Android debug certificate. Local artifact: `.tmp/discovery-search/qeemat-product-search-17d88f4-arm64-release.apk`. SHA-256: `BA1AA56EF65964FBBF23F221428310E40FAF5539C7AA82967928C75D3D9FAED6`. This build includes its JS bundle and does not require Metro. ADB did not show a connected phone during the final check; installed-device verification remains pending.
+Installed runtime revision `e665848` compiled successfully for arm64-v8a in 58 seconds. The APK is `com.qeemat`, version `0.5.5-alpha` / code 3, with launch activity `com.qeemat.MainActivity`. Its v2 signature verifies using the repository's existing Android debug certificate. Local artifact: `.tmp/discovery-search/qeemat-product-search-e665848-arm64-release.apk`. SHA-256: `7737ACD23CABC230AC110556E75DB1E17679C6E2D40A48EB363AE3286809BEB5`. It includes its JS bundle and does not require Metro. Device package metadata recorded `lastUpdateTime=2026-10-28 13:30:50`; installation and search UI were verified after that update.
