@@ -1,5 +1,6 @@
 import type { DiscoveryProduct, SiteKey } from './types';
 import { parseDiscoveryListing } from './discoveryListings';
+import { DISCOVERY_SOURCE_PRODUCT_LIMIT } from './discovery';
 
 const ORIGINS: Partial<Record<SiteKey, string>> = { centrepoint_uae: 'https://www.centrepointstores.com', sephora_uae: 'https://www.sephora.me', decathlon_uae: 'https://decathlon.ae', salomon_gcc: 'https://salomongcc.com', amazon_ae: 'https://www.amazon.ae' };
 const decode = (value: string) => value.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&nbsp;/g, ' ');
@@ -14,6 +15,7 @@ export function parseRenderedSearch(body: string, siteKey: SiteKey, observedAt: 
   if (siteKey === 'amazon_ae') {
     let cards = 0;
     for (const opening of body.matchAll(/<div\b[^>]*data-component-type="s-search-result"[^>]*>/g)) {
+      if (products.length >= DISCOVERY_SOURCE_PRODUCT_LIMIT) { break; }
       cards++;
       if (/\bAdHolder\b/.test(opening[0])) { continue; }
       const tags = /<\/?div\b[^>]*>/g;
@@ -30,6 +32,7 @@ export function parseRenderedSearch(body: string, siteKey: SiteKey, observedAt: 
     return cards ? products : undefined;
   }
   function add(id: string, title: string, path: string, price: number, brand = 'Other brands', image?: string, range = false, available = true, searchCategory?: string) {
+    if (products.length >= DISCOVERY_SOURCE_PRODUCT_LIMIT) { return; }
     const url = decode(path).split('?')[0];
     const absolute = url.startsWith('/') && !url.startsWith('//') ? `${origin}${url}` : url;
     if (!title || !absolute.startsWith(`${origin}/`) || !Number.isFinite(price) || price <= 0) { return; }

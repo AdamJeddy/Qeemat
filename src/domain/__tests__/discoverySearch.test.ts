@@ -36,6 +36,7 @@ describe('retailer product search', () => {
     expect(parseSearchPage('<html><body>Loading...</body></html>', request, 'Nike', observedAt)).toBeUndefined();
     expect(parseSearchPage('<h1>No results found for Nike</h1>', request, 'Nike', observedAt)?.products).toEqual([]);
     expect(parseSearchPage('<h1>No results for &ldquo;Nike&rdquo;</h1>', request, 'Nike', observedAt)?.products).toEqual([]);
+    expect(parseSearchPage('<p>Sorry, we couldn&#x27;t find what you are looking for.</p>', request, 'Nike', observedAt)?.products).toEqual([]);
     expect(parseSearchPage('<header>Your bag: 0 items</header><main>Loading</main>', request, 'Nike', observedAt)).toBeUndefined();
   });
   it('removes unrelated Faces fallback cards and retains an observed next-page URL', () => {

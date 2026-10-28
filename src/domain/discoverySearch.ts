@@ -88,7 +88,7 @@ export function parseSearchPage(body: string, request: SearchRequest, query: str
     products = rendered ?? (['amazon_ae', 'centrepoint_uae', 'sephora_uae', 'decathlon_uae', 'salomon_gcc'].includes(request.siteKey) ? [] : parseDiscoveryListing(listingBody, request, observedAt));
   }
   catch { return undefined; }
-  const text = body.replace(/<script\b[\s\S]*?<\/script>|<style\b[\s\S]*?<\/style>/gi, '').replace(/<[^>]*>/g, ' ');
+  const text = body.replace(/<script\b[\s\S]*?<\/script>|<style\b[\s\S]*?<\/style>/gi, '').replace(/<[^>]*>/g, ' ').replace(/&#(?:x27|39);|&apos;/gi, "'");
   const headings = [...body.matchAll(/<h[1-3]\b[^>]*>([\s\S]*?)<\/h[1-3]>/gi)].map((match) => match[1].replace(/<[^>]*>/g, ' ')).join(' ');
   const explicitEmpty = /no (?:matching )?(?:products|results|matches)(?: were)? (?:found|available|for|could be found)|could(?:n.t| not) find|did not match any/i.test(text) || /\b0\s+(?:products|results|items)/i.test(headings);
   const emptyJson = request.provider === 'woocommerce' && body.trim() === '[]';
