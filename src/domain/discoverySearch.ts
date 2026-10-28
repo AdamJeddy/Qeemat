@@ -70,7 +70,9 @@ export function rankSearchMatches(products: DiscoveryProduct[], query: string): 
   const score = (product: DiscoveryProduct) => {
     const title = searchTokens(product.title).join(' ');
     const phraseScore = title === phrase ? 300 : title.startsWith(`${phrase} `) ? 200 : title.includes(phrase) ? 100 : 0;
-    const accessoryPenalty = !accessory.test(query) && accessory.test(product.title) && !/\bwith\b/i.test(product.title) ? 500 : 0;
+    // A case *with* magnets is still an accessory. A phone *with* a case is a bundle.
+    const primaryName = product.title.split(/\bwith\b/i)[0];
+    const accessoryPenalty = !accessory.test(query) && accessory.test(primaryName) ? 500 : 0;
     return phraseScore - accessoryPenalty - searchTokens(product.title).length;
   };
   return products.filter((product) => matchesProductSearch(product, query)).map((product, index) => ({ product, index, score: score(product) }))

@@ -1,7 +1,7 @@
 import { getProductSearchCache, saveProductSearchCache } from '../data/discoverySearch';
 import { buildSearchRequests, normalizeSearchQuery, parseSearchPage, rankSearchMatches, SearchPage, SearchRequest } from './discoverySearch';
 import { DiscoveryFetcher, fetchDiscoveryHtmlViaWebView, mergeDiscoveryProducts } from './discoveryCatalog';
-import type { DiscoveryProduct, SiteKey } from './types';
+import type { DiscoveryProduct } from './types';
 
 export type SearchSourceResult = {
   request: SearchRequest;
@@ -32,7 +32,7 @@ export async function loadProductSearch(input: string, options: SearchOptions = 
   });
   // A continuation retains the exact request set and per-source cursor.
   if (options.loadMore && previous) { entries.splice(0, entries.length, ...previous.sources.map((entry) => ({ ...entry, status: entry.nextUrl ? 'loading' as const : entry.status }))); }
-  const snapshot = (): ProductSearchResult => ({ query, sources: entries.map((entry) => ({ ...entry })), products: mixSearchRetailers(rankSearchMatches(mergeDiscoveryProducts(entries.flatMap((entry) => entry.products)), query)) });
+  const snapshot = (): ProductSearchResult => ({ query, sources: entries.map((entry) => ({ ...entry })), products: rankSearchMatches(mergeDiscoveryProducts(entries.flatMap((entry) => entry.products)), query) });
   const publish = () => { if (!options.isCancelled?.()) { options.onUpdate?.(snapshot()); } };
   const browserFallbacks: { entry: SearchSourceResult; request: SearchRequest; observedAt: string }[] = [];
   function finish(entry: SearchSourceResult, page: SearchPage | undefined, observedAt: string) {
@@ -89,12 +89,3 @@ async function fetchSearchPage(request: SearchRequest, query: string, observedAt
   return undefined;
 }
 
-function mixSearchRetailers(products: DiscoveryProduct[]): DiscoveryProduct[] {
-  const groups = new Map<SiteKey, DiscoveryProduct[]>();
-  for (const product of products) { groups.set(product.siteKey, [...(groups.get(product.siteKey) ?? []), product]); }
-  const result: DiscoveryProduct[] = [];
-  for (let index = 0; result.length < products.length; index++) {
-    for (const group of groups.values()) { if (group[index]) { result.push(group[index]); } }
-  }
-  return result;
-}

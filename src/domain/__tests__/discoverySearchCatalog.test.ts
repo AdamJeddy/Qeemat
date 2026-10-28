@@ -10,6 +10,13 @@ const response = (name: string) => ({ ok: true, json: async () => ({}), text: as
 
 describe('progressive retailer search', () => {
   beforeEach(async () => { await AsyncStorage.clear(); });
+  it('keeps primary products ahead of accessories across different retailers', async () => {
+    const requests = buildSearchRequests('iphone 16').filter((request) => ['namshi', 'noon'].includes(request.siteKey));
+    const fetcher = jest.fn(async (url: string) => ({ ...response(''), text: async () => `<script type="application/ld+json">${JSON.stringify({ '@type': 'ItemList', itemListElement: [0, 1].map((index) => ({ '@type': 'Product', name: url.includes('noon.com') ? `iPhone 16 ${index ? '256GB White' : '128GB Black'} International Version` : `iPhone 16 clear case with magnetic compatibility ${index}`, url: `/product-${index}`, offers: { price: 100 } })) })}</script>` }));
+    const result = await loadProductSearch('iphone 16', { requests, fetcher });
+    expect(result.products).toHaveLength(4);
+    expect(result.products.slice(0, 2).map((item) => item.siteKey)).toEqual(['noon', 'noon']);
+  });
   it('does not make fast HTTP stores wait behind browser-only stores', async () => {
     let release!: () => void;
     (fetchPageHtmlViaWebView as jest.Mock).mockImplementationOnce(() => new Promise<null>((resolve) => { release = () => resolve(null); }));

@@ -24,8 +24,8 @@ describe('retailer product search', () => {
     expect(matchesProductSearch(product('Unrelated dress'), 'zzqeematnomatch827491')).toBe(false);
   });
   it('puts the named product before compatible accessories while retaining accessory searches', () => {
-    const phone = product('iPhone 16 128GB Black');
-    const cover = product('iPhone 16 protective case');
+    const phone = product('iPhone 16 128GB Black 5G With FaceTime International Version');
+    const cover = product('iPhone 16 clear case with magnetic compatibility');
     expect(rankSearchMatches([cover, phone, product('iPhone 17')], 'iphone 16')).toEqual([phone, cover]);
     expect(rankSearchMatches([phone, cover], 'iphone 16 case')).toEqual([cover]);
   });
