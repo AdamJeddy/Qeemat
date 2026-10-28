@@ -34,6 +34,19 @@ class QeematWebViewFetcherModule(private val reactContext: ReactApplicationConte
     val waitForSharafListing = requestedUri.host == "uae.sharafdg.com" && requestedUri.path.orEmpty().startsWith("/c/")
     val waitForBflListing = requestedUri.host.orEmpty().removePrefix("www.") == "brandsforless.com" && !requestedUri.path.orEmpty().contains("/p/")
     val waitForBflProduct = requestedUri.host.orEmpty().removePrefix("www.") == "brandsforless.com" && requestedUri.path.orEmpty().contains("/p/")
+    val searchSelector = if (requestedUri.path.orEmpty().contains("/search") || requestedUri.host.orEmpty().removePrefix("www.") == "amazon.ae" && requestedUri.path == "/s") {
+      when (requestedUri.host.orEmpty().removePrefix("www.")) {
+        "centrepointstores.com" -> "#prodItemImgLink0"
+        "sephora.me" -> "[data-cnstrc-item-id]"
+        "decathlon.ae" -> "product-item"
+        "salomongcc.com" -> "#main-collection-product-grid li.product"
+        "amazon.ae" -> "[data-component-type=s-search-result]"
+        else -> null
+      }
+    } else null
+    val searchReadiness = searchSelector?.let {
+      "if (!document.querySelector('$it') && !empty) return '__QEEMAT_LISTING_PENDING__';"
+    } ?: ""
 
     // Total timeout guard (includes Cloudflare challenge time)
     val timeoutRunnable = Runnable {
@@ -96,7 +109,13 @@ class QeematWebViewFetcherModule(private val reactContext: ReactApplicationConte
             if (resolved) return@postDelayed
 
             view.evaluateJavascript(
-              "(function() { if (($waitForSharafListing && !document.querySelector('#hits a.product-link[data-objectid]')) || ($waitForBflListing && !document.querySelector('#product-listing a.hover_view_content')) || ($waitForBflProduct && !document.querySelector('#product-detail h1'))) return '__QEEMAT_LISTING_PENDING__'; return document.documentElement.outerHTML; })();"
+              """(function() {
+                var headings = Array.from(document.querySelectorAll('h1,h2,h3')).map(function(el) { return el.innerText; }).join(' ');
+                var empty = /no (?:matching )?(?:products|results|matches)(?: were)? (?:found|available|for|could be found)|did not match any/i.test(document.body ? document.body.innerText : '') || /\b0\s+(?:products|results|items)/i.test(headings);
+                if (($waitForSharafListing && !document.querySelector('#hits a.product-link[data-objectid]') && !empty) || ($waitForBflListing && !document.querySelector('#product-listing a.hover_view_content') && !empty) || ($waitForBflProduct && !document.querySelector('#product-detail h1'))) return '__QEEMAT_LISTING_PENDING__';
+                $searchReadiness
+                return document.documentElement.outerHTML;
+              })();"""
             ) { html ->
               if (resolved) {
                 view.destroy()

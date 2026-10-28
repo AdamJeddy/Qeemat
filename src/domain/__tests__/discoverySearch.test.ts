@@ -9,8 +9,11 @@ describe('retailer product search', () => {
     const requests = buildSearchRequests('  Nike & shoes  ');
     expect(requests.find((entry) => entry.siteKey === 'nike_uae')?.url).toContain('q=Nike%20%26%20shoes');
     expect(requests.filter((entry) => entry.siteKey === 'ounass').map((entry) => entry.url)).toEqual(['women', 'men', 'kids'].map((audience) => `https://www.ounass.ae/${audience}?fh_location=%2F%24s%3DNike%20%26%20shoes`));
-    expect(requests.some((entry) => entry.siteKey === 'sharaf_dg' || entry.siteKey === 'amazon_ae')).toBe(false);
+    expect(requests.filter((entry) => entry.siteKey === 'level_shoes').map((entry) => entry.url)).toEqual(['women', 'men', 'kids'].map((audience) => `https://www.levelshoes.com/search?term=Nike%20%26%20shoes&gender=${audience}`));
+    expect(requests.some((entry) => entry.siteKey === 'sharaf_dg')).toBe(false);
+    expect(requests.find((entry) => entry.siteKey === 'amazon_ae')?.url).toBe('https://www.amazon.ae/s?k=Nike%20%26%20shoes');
     expect(buildSearchRequests(' ')).toEqual([]);
+    expect(() => buildSearchRequests('a'.repeat(119) + '😀')).not.toThrow();
   });
   it('keeps exact model tokens and rejects unrelated retailer alternatives', () => {
     expect(matchesProductSearch(product('iPhone 16 128GB'), 'iphone16')).toBe(true);
@@ -33,6 +36,7 @@ describe('retailer product search', () => {
     expect(parseSearchPage('<html><body>Loading...</body></html>', request, 'Nike', observedAt)).toBeUndefined();
     expect(parseSearchPage('<h1>No results found for Nike</h1>', request, 'Nike', observedAt)?.products).toEqual([]);
     expect(parseSearchPage('<h1>No results for &ldquo;Nike&rdquo;</h1>', request, 'Nike', observedAt)?.products).toEqual([]);
+    expect(parseSearchPage('<header>Your bag: 0 items</header><main>Loading</main>', request, 'Nike', observedAt)).toBeUndefined();
   });
   it('removes unrelated Faces fallback cards and retains an observed next-page URL', () => {
     const request = buildSearchRequests('Nike').find((entry) => entry.siteKey === 'faces_uae')!;

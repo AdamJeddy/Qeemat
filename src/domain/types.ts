@@ -35,6 +35,8 @@ export type DiscoveryProduct = {
   brand: string;
   title: string;
   url: string;
+  /** Retailer-supplied product type used only to match product searches. */
+  searchCategory?: string;
   imageUrl?: string;
   /** Lowest currently-observed purchasable price, in currency minor units. */
   priceMinor?: number;

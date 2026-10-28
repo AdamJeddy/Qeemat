@@ -1,6 +1,7 @@
 import type { DiscoveryProduct, SiteKey } from './types';
 import type { DiscoveryCollection } from './discovery';
 import { parseDiscoveryListing } from './discoveryListings';
+import { parseRenderedSearch } from './searchRenderedListings';
 
 export type SearchRequest = DiscoveryCollection & { url: string };
 export type SearchPage = { products: DiscoveryProduct[]; nextUrl?: string };
@@ -10,17 +11,25 @@ const SEARCH_URLS: Partial<Record<SiteKey, string>> = {
   sun_sand_sports: 'https://en-ae.sssports.com/search?q=',
   adidas: 'https://www.adidas.ae/en/search?q=',
   puma_uae: 'https://ae.puma.com/ae/en/search?q=',
-  level_shoes: 'https://www.levelshoes.com/search?term=',
   namshi: 'https://www.namshi.com/uae-en/search/?q=',
   the_deal: 'https://www.thedealoutlet.com/ae-en/search?q=',
   faces_uae: 'https://www.faces.ae/en/search?q=',
   noon: 'https://www.noon.com/uae-en/search/?q=',
+  amazon_ae: 'https://www.amazon.ae/s?k=',
   carrefour_uae: 'https://www.carrefouruae.com/mafuae/en/search?keyword=',
+  brands_for_less: 'https://www.brandsforless.com/en-ae/search/?q=',
+  centrepoint_uae: 'https://www.centrepointstores.com/ae/en/search?q=',
+  sephora_uae: 'https://www.sephora.me/ae-en/search?q=',
+  decathlon_uae: 'https://decathlon.ae/search?type=product&q=',
+  salomon_gcc: 'https://salomongcc.com/search?type=product&q=',
   ay_accessories: 'https://ay-accessories.com/wp-json/wc/store/v1/products?per_page=20&search='
 };
 
 export function normalizeSearchQuery(query: string): string {
-  return query.trim().replace(/\s+/g, ' ').slice(0, 120);
+  return [...query.trim().replace(/\s+/g, ' ')].filter((char) => {
+    const code = char.codePointAt(0)!;
+    return code < 0xD800 || code > 0xDFFF;
+  }).slice(0, 120).join('');
 }
 
 export function buildSearchRequests(input: string): SearchRequest[] {
@@ -33,6 +42,9 @@ export function buildSearchRequests(input: string): SearchRequest[] {
   return [...requests, ...['women', 'men', 'kids'].map((audience): SearchRequest => ({
     id: `search-ounass-${audience}`, siteKey: 'ounass', label: `${audience} product search`, category: 'general', provider: 'html',
     url: `https://www.ounass.ae/${audience}?fh_location=%2F%24s%3D${encodeURIComponent(query)}`
+  })), ...['women', 'men', 'kids'].map((audience): SearchRequest => ({
+    id: `search-level_shoes-${audience}`, siteKey: 'level_shoes', label: `${audience} product search`, category: 'general', provider: 'html',
+    url: `https://www.levelshoes.com/search?term=${encodeURIComponent(query)}&gender=${audience}`
   }))];
 }
 
@@ -48,13 +60,13 @@ function searchTokens(value: string): string[] {
 /** Conservative matching: alternatives and model-number mismatches are not exact results. */
 export function matchesProductSearch(product: DiscoveryProduct, query: string): boolean {
   const wanted = searchTokens(query);
-  const actual = new Set(searchTokens(`${product.brand === 'Other brands' ? '' : product.brand} ${product.title}`));
+  const actual = new Set(searchTokens(`${product.brand === 'Other brands' ? '' : product.brand} ${product.title} ${product.searchCategory ?? ''}`));
   return wanted.length > 0 && wanted.every((word) => actual.has(word));
 }
 
 /** Undefined means unverified/unreadable, never a claim that the store has no matches. */
 export function parseSearchPage(body: string, request: SearchRequest, query: string, observedAt: string): SearchPage | undefined {
-  if (/cf_chl_opt|cf-browser-verify|<title>\s*just a moment|reference&#|<title>\s*access denied/i.test(body)) { return undefined; }
+  if (/cf_chl_opt|cf-browser-verify|<title>\s*just a moment|reference&#|<title>\s*access denied|<title>\s*robot check|id="captchacharacters"|\/errors\/validateCaptcha/i.test(body)) { return undefined; }
   let listingBody = body;
   let verifiedEmpty = false;
   if (request.siteKey === 'level_shoes') {
@@ -70,10 +82,15 @@ export function parseSearchPage(body: string, request: SearchRequest, query: str
     } catch { return undefined; }
   }
   let products: DiscoveryProduct[];
-  try { products = parseDiscoveryListing(listingBody, request, observedAt); }
+  try {
+    const rendered = parseRenderedSearch(listingBody, request.siteKey, observedAt);
+    if (rendered) { verifiedEmpty = rendered.length === 0; }
+    products = rendered ?? (['amazon_ae', 'centrepoint_uae', 'sephora_uae', 'decathlon_uae', 'salomon_gcc'].includes(request.siteKey) ? [] : parseDiscoveryListing(listingBody, request, observedAt));
+  }
   catch { return undefined; }
   const text = body.replace(/<script\b[\s\S]*?<\/script>|<style\b[\s\S]*?<\/style>/gi, '').replace(/<[^>]*>/g, ' ');
-  const explicitEmpty = /no (?:matching )?(?:products|results|matches)(?: were)? (?:found|available|for)|could(?:n.t| not) find|0 (?:products|results)|did not match any/i.test(text);
+  const headings = [...body.matchAll(/<h[1-3]\b[^>]*>([\s\S]*?)<\/h[1-3]>/gi)].map((match) => match[1].replace(/<[^>]*>/g, ' ')).join(' ');
+  const explicitEmpty = /no (?:matching )?(?:products|results|matches)(?: were)? (?:found|available|for|could be found)|could(?:n.t| not) find|did not match any/i.test(text) || /\b0\s+(?:products|results|items)/i.test(headings);
   const emptyJson = request.provider === 'woocommerce' && body.trim() === '[]';
   if (!products.length && !verifiedEmpty && !explicitEmpty && !emptyJson) { return undefined; }
   return { products: products.filter((product) => matchesProductSearch(product, query)), ...nextSearchPage(body, request, query, products.length) };
@@ -87,6 +104,11 @@ function nextSearchPage(body: string, request: SearchRequest, query: string, cou
     return { nextUrl: `${request.url.replace(/&page=\d+/, '')}&page=${page + 1}` };
   }
   const start = Number(request.url.match(/[?&]start=(\d+)/)?.[1] ?? 0);
+  if (request.siteKey === 'amazon_ae') {
+    const next = body.match(/<a\b[^>]*class="[^"]*\bs-pagination-next\b[^>]*>/)?.[0];
+    const path = next?.match(/href="([^"]+)"/)?.[1]?.replace(/&amp;/g, '&');
+    if (path?.startsWith('/s?') && (path.includes(`k=${encodeURIComponent(query)}`) || path.includes(`k=${encodeURIComponent(query).replace(/%20/g, '+')}`))) { return { nextUrl: `${origin}${path}` }; }
+  }
   for (const match of body.matchAll(/(?:href|data-url|data-load-more-url)=["']([^"']+)["']/gi)) {
     const path = match[1].replace(/&amp;/g, '&');
     const url = path.startsWith('/') ? `${origin}${path}` : path;
@@ -98,6 +120,11 @@ function nextSearchPage(body: string, request: SearchRequest, query: string, cou
     const page = Number(request.url.match(/[?&]page=(\d+)/)?.[1] ?? 1);
     if (request.siteKey === 'namshi' && url.includes('/search/?') && url.includes(`q=${encodeURIComponent(query)}`) && Number(url.match(/[?&]page=(\d+)/)?.[1]) === page + 1) { return { nextUrl: url }; }
     if (request.siteKey === 'puma_uae' && path === `/ae/en/search?page=${page + 1}`) { return { nextUrl: `${url}&q=${encodeURIComponent(query)}` }; }
+    if (['decathlon_uae', 'salomon_gcc', 'centrepoint_uae'].includes(request.siteKey) && url.includes('/search?') && Number(url.match(/[?&]page=(\d+)/)?.[1]) === page + 1 && (url.includes(`q=${encodeURIComponent(query)}`) || url.includes(`q=${encodeURIComponent(query).replace(/%20/g, '+')}`))) { return { nextUrl: url }; }
+  }
+  if (request.siteKey === 'brands_for_less') {
+    const page = Number(request.url.match(/[?&]page=(\d+)/)?.[1] ?? 1);
+    if (body.includes(`aria-label="Page ${page + 1}"`)) { return { nextUrl: `${origin}/en-ae/search/?page=${page + 1}&q=${encodeURIComponent(query)}` }; }
   }
   return {};
 }
