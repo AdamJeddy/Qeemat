@@ -28,6 +28,12 @@ let webViewQueue: Promise<unknown> = Promise.resolve();
 let catalogQueue: Promise<unknown> = Promise.resolve();
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 
+export function fetchDiscoveryHtmlViaWebView(url: string, isCancelled?: () => boolean): Promise<string | null> {
+  const request = webViewQueue.then(() => isCancelled?.() ? null : fetchPageHtmlViaWebView(url));
+  webViewQueue = request.catch(() => null);
+  return request;
+}
+
 type DiscoveryCatalogOptions = {
   force?: boolean;
   scope?: DiscoveryScope;
@@ -99,9 +105,7 @@ async function fetchDiscoveryCollection(source: DiscoveryCollection, fetcher: Di
   } catch { /* The native browser can recover protected or redirecting stores. */ }
   finally { clearTimeout(timeout); }
   if (source.provider !== 'html') { throw new Error(`Could not read ${source.label}`); }
-  const request = webViewQueue.then(() => isCancelled?.() ? null : fetchPageHtmlViaWebView(discoverySourceUrl(source)));
-  webViewQueue = request.catch(() => null);
-  const html = await request;
+  const html = await fetchDiscoveryHtmlViaWebView(discoverySourceUrl(source), isCancelled);
   return html ? parseDiscoveryListing(html, source, observedAt) : [];
 }
 

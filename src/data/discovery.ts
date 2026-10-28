@@ -83,7 +83,7 @@ export async function saveDiscoveryCache(collectionId: string, products: Discove
 
 export async function clearDiscoveryData(): Promise<void> {
   const keys = await AsyncStorage.getAllKeys();
-  await AsyncStorage.multiRemove([PREFERENCES_KEY, CACHE_KEY, ...keys.filter((key) => key.startsWith(SOURCE_CACHE_PREFIX))]);
+  await AsyncStorage.multiRemove([PREFERENCES_KEY, CACHE_KEY, 'qeemat.discovery.search.v1', ...keys.filter((key) => key.startsWith(SOURCE_CACHE_PREFIX))]);
 }
 
 async function writePreferences(preferences: DiscoveryPreferences): Promise<void> {
