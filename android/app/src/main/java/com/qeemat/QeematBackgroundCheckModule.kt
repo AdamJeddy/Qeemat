@@ -23,6 +23,8 @@ class QeematBackgroundCheckModule(private val reactContext: ReactApplicationCont
 
   override fun getName(): String = "QeematBackgroundCheck"
 
+  override fun getConstants(): Map<String, Any> = mapOf("appVersion" to BuildConfig.VERSION_NAME)
+
   @ReactMethod
   fun schedule(preferredHour: Double, promise: Promise) {
     try {
