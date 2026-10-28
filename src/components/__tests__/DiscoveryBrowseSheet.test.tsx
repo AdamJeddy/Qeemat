@@ -3,6 +3,7 @@ import { TextInput } from 'react-native';
 import renderer, { act } from 'react-test-renderer';
 
 import { DiscoveryBrowseSheet } from '../DiscoveryBrowseSheet';
+import { AppText } from '../AppText';
 import { DISCOVERY_SOURCE_MAPS } from '../../domain/discoverySources';
 
 describe('DiscoveryBrowseSheet', () => {
@@ -54,10 +55,13 @@ describe('DiscoveryBrowseSheet', () => {
     expect(onRetailer).toHaveBeenCalledWith('noon');
     act(() => tree.root.findByProps({ accessibilityLabel: 'Choose categories at Noon UAE' }).props.onPress());
     const source = DISCOVERY_SOURCE_MAPS.find((item) => item.siteKey === 'noon')!;
+    const text = () => tree.root.findAllByType(AppText).map((node) => [node.props.children].flat().join('')).join(' ');
+    expect(text()).not.toContain('Accessories 16176');
     act(() => tree.root.findByProps({ accessibilityLabel: `Browse ${source.label} at Noon` }).props.onPress());
     expect(onCollection).toHaveBeenCalledWith(source);
     act(() => tree.root.findByProps({ accessibilityLabel: `Source details for ${source.label} at Noon` }).props.onPress());
     expect(tree.root.findByProps({ accessibilityLabel: `Review source URL for ${source.label}` })).toBeDefined();
+    expect(text()).toContain('Accessories 16176');
     act(() => tree.unmount());
   });
 });

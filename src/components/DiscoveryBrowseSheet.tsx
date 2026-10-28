@@ -96,9 +96,11 @@ export function DiscoveryBrowseSheet({ visible, sources, onClose, onCategory, on
         const state = states.get(item.id);
         const pageUrl = discoveryCollectionPageUrl(item);
         const isOpen = details === item.id;
+        const categoryLabel = DISCOVERY_CATEGORY_LABELS[item.category];
+        const path = (item.path ?? []).slice(-2).map((part) => part.replace(/\s+\d+$/, '').trim()).filter((part) => part && part.toLowerCase() !== item.label.toLowerCase() && part.toLowerCase() !== categoryLabel.toLowerCase());
         return <View style={styles.listingRow}>
           <Pressable accessibilityRole="button" accessibilityLabel={`Browse ${item.label} at ${getSiteByKey(item.siteKey).shortName}`} onPress={() => onCollection(item)} style={styles.listingMain}>
-            <View style={styles.flex}><AppText weight="semibold">{item.label}</AppText><AppText muted numberOfLines={2} style={styles.caption}>{[site ? undefined : getSiteByKey(item.siteKey).shortName, DISCOVERY_CATEGORY_LABELS[item.category], ...(item.path ?? []).slice(-2)].filter(Boolean).join(' · ')}</AppText></View><ChevronRight size={19} color={colors.textMuted} />
+            <View style={styles.flex}><AppText weight="semibold">{item.label}</AppText><AppText muted numberOfLines={2} style={styles.caption}>{[site ? undefined : getSiteByKey(item.siteKey).shortName, categoryLabel, ...path].filter(Boolean).join(' · ')}</AppText></View><ChevronRight size={19} color={colors.textMuted} />
           </Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel={`Source details for ${item.label} at ${getSiteByKey(item.siteKey).shortName}`} accessibilityState={{ expanded: isOpen }} onPress={() => setDetails(isOpen ? undefined : item.id)} style={styles.detailsToggle}><AppText style={styles.link}>Source details</AppText><ChevronDown size={16} color={colors.primary} /></Pressable>
           {isOpen ? <View style={styles.details}>
