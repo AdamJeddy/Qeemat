@@ -27,6 +27,7 @@ jest.mock('./src/data/discovery', () => ({
 jest.mock('./src/domain/discoveryCatalog', () => ({
   loadDiscoveryCatalog: jest.fn()
 }));
+jest.mock('./src/domain/discoverySearchCatalog', () => ({ loadProductSearch: jest.fn() }));
 
 import { AddScreen, DetailScreen, getTrackedProductLink, OpportunityScreen } from './App';
 import { AppText } from './src/components/AppText';
@@ -34,6 +35,7 @@ import { DiscoveryFilterChip, DiscoveryPreferencesSheet, DiscoveryProductGrid } 
 import { DiscoveryBrowseSheet } from './src/components/DiscoveryBrowseSheet';
 import { DISCOVERY_SOURCE_MAPS } from './src/domain/discoverySources';
 import { ProductCard } from './src/components/ProductCard';
+import { PrimaryButton } from './src/components/PrimaryButton';
 import { CheckStatus, TrackedProduct } from './src/domain/types';
 
 const mockFetchAndParseProduct = jest.requireMock('./src/domain/parser').fetchAndParseProduct as jest.Mock;
@@ -43,6 +45,7 @@ const mockClipboardSetString = jest.requireMock('@react-native-clipboard/clipboa
 const mockGetDiscoveryPreferences = jest.requireMock('./src/data/discovery').getDiscoveryPreferences as jest.Mock;
 const mockMarkDiscoveryProductsSeen = jest.requireMock('./src/data/discovery').markDiscoveryProductsSeen as jest.Mock;
 const mockLoadDiscoveryCatalog = jest.requireMock('./src/domain/discoveryCatalog').loadDiscoveryCatalog as jest.Mock;
+const mockLoadProductSearch = jest.requireMock('./src/domain/discoverySearchCatalog').loadProductSearch as jest.Mock;
 
 describe('AddScreen', () => {
   beforeEach(() => {
@@ -259,6 +262,122 @@ describe('DetailScreen', () => {
 });
 
 describe('OpportunityScreen', () => {
+  it('retains expanded discovery results after searching and filtering results', async () => {
+    const base = { siteKey: 'noon', category: 'general', brand: 'Apple', currency: 'AED', availability: 'in_stock', observedAt: '2026-10-28T09:00:00Z', priceMinor: 1000 };
+    const products = Array.from({ length: 50 }, (_, index) => ({ ...base, id: `item-${index}`, title: `Product ${index}`, url: `https://www.noon.com/item-${index}` }));
+    mockLoadDiscoveryCatalog.mockResolvedValue({ products, stale: false, failedCollectionIds: [] });
+    mockLoadProductSearch.mockResolvedValue({ query: 'iphone', products, sources: [] });
+    let tree: renderer.ReactTestRenderer;
+    await act(async () => { tree = renderer.create(<OpportunityScreen navigate={jest.fn()} />); await new Promise<void>((resolve) => setImmediate(resolve)); });
+    act(() => tree!.root.findAllByType(PrimaryButton).find((button) => button.props.label === 'Show more (26 remaining)')!.props.onPress());
+    expect(tree!.root.findByType(DiscoveryProductGrid).props.products).toHaveLength(48);
+    const input = tree!.root.findByProps({ accessibilityLabel: 'Search products across stores' });
+    act(() => input.props.onChangeText('iphone'));
+    await act(async () => { input.props.onSubmitEditing(); await new Promise<void>((resolve) => setImmediate(resolve)); });
+    expect(tree!.root.findByType(DiscoveryProductGrid).props.products).toHaveLength(24);
+    act(() => tree!.root.findAllByType(DiscoveryFilterChip).find((chip) => chip.props.label === 'Noon (50)')!.props.onPress());
+    await act(async () => { tree!.root.findByProps({ accessibilityLabel: 'Clear product search' }).props.onPress(); await new Promise<void>((resolve) => setImmediate(resolve)); });
+    expect(tree!.root.findByType(DiscoveryProductGrid).props.products).toHaveLength(48);
+    await act(async () => tree!.unmount());
+  });
+  it('hides a search result when the matching catalogue product was dismissed', async () => {
+    const listing = { id: 'decathlon_uae:123', siteKey: 'decathlon_uae', category: 'footwear', brand: 'Kiprun', title: 'Running shoes', url: 'https://decathlon.ae/products/shoe', priceMinor: 9000, currency: 'AED', availability: 'in_stock', observedAt: '2026-10-28T09:00:00Z' };
+    mockGetDiscoveryPreferences.mockResolvedValue({ completed: true, categories: [], favoriteBrands: [], budgetsByCategory: {}, dismissedProductIds: [listing.id], seenProductIds: [] });
+    mockLoadDiscoveryCatalog.mockResolvedValue({ products: [listing], stale: false, failedCollectionIds: [] });
+    mockLoadProductSearch.mockResolvedValue({ query: 'running shoes', products: [{ ...listing, id: 'decathlon_uae:/products/shoe' }], sources: [] });
+    let tree: renderer.ReactTestRenderer;
+    await act(async () => { tree = renderer.create(<OpportunityScreen navigate={jest.fn()} />); await new Promise<void>((resolve) => setImmediate(resolve)); });
+    const input = tree!.root.findByProps({ accessibilityLabel: 'Search products across stores' });
+    act(() => input.props.onChangeText('running shoes'));
+    await act(async () => { input.props.onSubmitEditing(); await new Promise<void>((resolve) => setImmediate(resolve)); });
+    expect(tree!.root.findByType(DiscoveryProductGrid).props.products).toHaveLength(0);
+    await act(async () => tree!.unmount());
+  });
+  it('browses a department in place and applies its saved budget', async () => {
+    const navigate = jest.fn();
+    mockGetDiscoveryPreferences.mockResolvedValue({ completed: true, categories: ['footwear'], favoriteBrands: [], budgetsByCategory: { footwear: 10000 }, dismissedProductIds: [], seenProductIds: [] });
+    const base = { siteKey: 'noon', category: 'footwear', brand: 'Brand', currency: 'AED', availability: 'in_stock', observedAt: '2026-10-28T09:00:00Z' };
+    mockLoadDiscoveryCatalog.mockResolvedValue({ products: [
+      { ...base, id: 'shoe', title: 'Everyday shoe', url: 'https://www.noon.com/shoe', priceMinor: 9000 },
+      { ...base, id: 'expensive-shoe', title: 'Expensive shoe', url: 'https://www.noon.com/expensive-shoe', priceMinor: 20000 }
+    ], stale: false });
+    let tree: renderer.ReactTestRenderer;
+    await act(async () => { tree = renderer.create(<OpportunityScreen navigate={navigate} />); await new Promise<void>((resolve) => setImmediate(resolve)); });
+    await act(async () => { tree!.root.findByProps({ accessibilityLabel: 'Browse Footwear' }).props.onPress(); await new Promise<void>((resolve) => setImmediate(resolve)); });
+    expect(mockLoadDiscoveryCatalog).toHaveBeenLastCalledWith(undefined, expect.objectContaining({ scope: expect.objectContaining({ categories: ['footwear'] }) }));
+    expect(tree!.root.findByType(DiscoveryProductGrid).props.products.map((product: { id: string }) => product.id)).toEqual(['shoe']);
+    expect(tree!.root.findByProps({ accessibilityLabel: 'Browse Footwear' }).props.accessibilityState.selected).toBe(true);
+    expect(navigate).not.toHaveBeenCalled();
+    await act(async () => tree!.unmount());
+  });
+
+  it('keeps department choices available when no products have loaded', async () => {
+    let tree: renderer.ReactTestRenderer;
+    await act(async () => { tree = renderer.create(<OpportunityScreen navigate={jest.fn()} />); await new Promise<void>((resolve) => setImmediate(resolve)); });
+    expect(tree!.root.findByProps({ accessibilityLabel: 'Browse Phones' })).toBeDefined();
+    expect(tree!.root.findByProps({ accessibilityLabel: 'Browse all departments and retailers' })).toBeDefined();
+    await act(async () => tree!.unmount());
+  });
+  it('only offers search retailers with visible matches and removes an empty active filter', async () => {
+    const phone = { id: 'phone', title: 'iPhone 16', siteKey: 'noon', category: 'general', priceMinor: 300000, currency: 'AED', url: 'https://www.noon.com/phone/p/', observedAt: '2026-10-28T09:00:00Z', availability: 'unknown' };
+    mockLoadProductSearch.mockResolvedValue({ query: 'iphone', products: [phone], sources: [] });
+    let tree: renderer.ReactTestRenderer;
+    await act(async () => { tree = renderer.create(<OpportunityScreen navigate={jest.fn()} />); await new Promise<void>((resolve) => setImmediate(resolve)); });
+    const input = tree!.root.findByProps({ accessibilityLabel: 'Search products across stores' });
+    act(() => input.props.onChangeText('iphone'));
+    await act(async () => { input.props.onSubmitEditing(); await new Promise<void>((resolve) => setImmediate(resolve)); });
+    const chips = () => tree!.root.findAllByType(DiscoveryFilterChip);
+    expect(chips().map((chip) => chip.props.label)).toEqual(['All results (1)', 'Noon (1)']);
+    act(() => chips()[1].props.onPress());
+    mockLoadProductSearch.mockResolvedValue({ query: 'iphone', products: [], sources: [] });
+    await act(async () => { input.props.onSubmitEditing(); await new Promise<void>((resolve) => setImmediate(resolve)); });
+    expect(chips().map((chip) => chip.props.label)).toEqual(['All results (0)']);
+    expect(chips()[0].props.selected).toBe(true);
+    await act(async () => tree!.unmount());
+  });
+  it('offers a manual refresh that bypasses the daily discovery cache', async () => {
+    let tree: renderer.ReactTestRenderer;
+    await act(async () => { tree = renderer.create(<OpportunityScreen navigate={jest.fn()} />); await new Promise<void>((resolve) => setImmediate(resolve)); });
+    await act(async () => { tree!.root.findByProps({ accessibilityLabel: 'Refresh discovery products' }).props.onPress(); await new Promise<void>((resolve) => setImmediate(resolve)); });
+    expect(mockLoadDiscoveryCatalog).toHaveBeenLastCalledWith(undefined, expect.objectContaining({ force: true }));
+    await act(async () => tree!.unmount());
+  });
+  it('ignores an older search response after a new query is submitted', async () => {
+    let finishOlder!: (value: unknown) => void;
+    mockLoadProductSearch.mockImplementationOnce(() => new Promise((resolve) => { finishOlder = resolve; }));
+    mockLoadProductSearch.mockResolvedValueOnce({ query: 'new phone', products: [], sources: [] });
+    let tree: renderer.ReactTestRenderer;
+    await act(async () => { tree = renderer.create(<OpportunityScreen navigate={jest.fn()} />); await new Promise<void>((resolve) => setImmediate(resolve)); });
+    const input = tree!.root.findAllByType(TextInput).find((node) => node.props.accessibilityLabel === 'Search products across stores')!;
+    act(() => input.props.onChangeText('old phone'));
+    await act(async () => { input.props.onSubmitEditing(); await new Promise<void>((resolve) => setImmediate(resolve)); });
+    act(() => input.props.onChangeText('new phone'));
+    await act(async () => { input.props.onSubmitEditing(); await new Promise<void>((resolve) => setImmediate(resolve)); });
+    await act(async () => { finishOlder({ query: 'old phone', products: [], sources: [] }); await new Promise<void>((resolve) => setImmediate(resolve)); });
+    const content = tree!.root.findAllByType(AppText).map((node) => [node.props.children].flat().join('')).join(' ');
+    expect(content).toContain('new phone');
+    expect(content).not.toContain('old phone');
+    await act(async () => tree!.unmount());
+  });
+  it('searches only on submission, ignores quiz budgets, and clears back to discovery', async () => {
+    mockGetDiscoveryPreferences.mockResolvedValue({ completed: true, categories: ['fitness'], favoriteBrands: [], budgetsByCategory: { fitness: 1 }, dismissedProductIds: [], seenProductIds: [] });
+    mockLoadDiscoveryCatalog.mockResolvedValue({ products: [], stale: false, failedCollectionIds: [] });
+    const phone = { id: 'phone', title: 'iPhone 16', siteKey: 'noon', brand: 'Apple', category: 'general', priceMinor: 300000, currency: 'AED', url: 'https://www.noon.com/phone/p/', observedAt: '2026-10-28T09:00:00Z', availability: 'unknown' };
+    mockLoadProductSearch.mockResolvedValue({ query: 'iphone 16', products: [phone], sources: [] });
+    let tree: renderer.ReactTestRenderer;
+    await act(async () => { tree = renderer.create(<OpportunityScreen navigate={jest.fn()} />); await new Promise<void>((resolve) => setImmediate(resolve)); });
+    const input = tree!.root.findAllByType(TextInput).find((node) => node.props.accessibilityLabel === 'Search products across stores');
+    expect(input).toBeDefined();
+    act(() => input!.props.onChangeText('iphone 16'));
+    expect(mockLoadProductSearch).not.toHaveBeenCalled();
+    await act(async () => { input!.props.onSubmitEditing(); await new Promise<void>((resolve) => setImmediate(resolve)); });
+    expect(mockLoadProductSearch).toHaveBeenCalledWith('iphone 16', expect.anything());
+    expect(tree!.root.findByType(DiscoveryProductGrid).props.products).toEqual([phone]);
+    expect(tree!.root.findAllByType(AppText).map((node) => [node.props.children].flat().join('')).join(' ')).toContain('1 title and brand match · 1 retailer');
+    await act(async () => { tree!.root.findByProps({ accessibilityLabel: 'Clear product search' }).props.onPress(); await new Promise<void>((resolve) => setImmediate(resolve)); });
+    expect(tree!.root.findAllByType(AppText).map((node) => [node.props.children].flat().join('')).join(' ')).not.toContain('Results for “iphone 16”');
+    await act(async () => tree!.unmount());
+  });
   beforeEach(() => {
     mockGetDiscoveryPreferences.mockResolvedValue({
       completed: true,
@@ -269,6 +388,7 @@ describe('OpportunityScreen', () => {
       seenProductIds: []
     });
     mockMarkDiscoveryProductsSeen.mockResolvedValue(undefined);
+    mockLoadProductSearch.mockReset();
     mockLoadDiscoveryCatalog.mockResolvedValue({ products: [], stale: false });
   });
 
@@ -379,13 +499,11 @@ describe('OpportunityScreen', () => {
     expect(text).toContain('Track price');
     expect(text).toContain('1 product');
 
-    const categoryChip = tree!.root.findAllByType(DiscoveryFilterChip).find((node) => node.props.label === 'Fitness');
-    act(() => {
-      categoryChip!.findByProps({ accessibilityRole: 'button' }).props.onPress();
-    });
+    await act(async () => { tree!.root.findByType(DiscoveryBrowseSheet).props.onCategory('fitness'); await new Promise<void>((resolve) => setImmediate(resolve)); });
 
     expect(navigate).not.toHaveBeenCalled();
-    expect(tree!.root.findAllByType(DiscoveryFilterChip).find((node) => node.props.label === 'Fitness')?.props.selected).toBe(true);
+    expect(tree!.root.findByProps({ accessibilityLabel: 'Browse Fitness' }).props.accessibilityState.selected).toBe(true);
+    await act(async () => tree!.unmount());
   });
 
   it('applies saved quiz interests and budgets to the same feed immediately', async () => {

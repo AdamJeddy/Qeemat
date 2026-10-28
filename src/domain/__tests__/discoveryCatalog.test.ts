@@ -4,7 +4,7 @@ jest.mock('@react-native-async-storage/async-storage', () =>
 
 import { fetchDecathlonCollection, loadDiscoveryCatalog as loadScopedCatalog } from '../discoveryCatalog';
 import { DISCOVERY_COLLECTIONS } from '../discovery';
-import { getDiscoveryCache, saveDiscoveryCache } from '../../data/discovery';
+import { getDiscoveryAttempt, getDiscoveryCache, saveDiscoveryCache } from '../../data/discovery';
 import { SUPPORTED_SITES } from '../sites';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DISCOVERY_SOURCE_MAPS } from '../discoverySources';
@@ -60,6 +60,84 @@ describe('fetchDecathlonCollection', () => {
 
 describe('multi-retailer discovery refresh', () => {
   beforeEach(async () => { await AsyncStorage.clear(); });
+
+  it.each([true, false])('does not cache a cancelled request as a failure or success (response succeeds: %s)', async (success) => {
+    let cancel = false;
+    let release!: () => void;
+    let started!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const ready = new Promise<void>((resolve) => { started = resolve; });
+    const fetcher = jest.fn(async () => {
+      started(); await gate;
+      return { ok: success, json: async () => ({ products: [{ id: 42, title: 'Mat', handle: 'mat', variants: [{ price: '10' }] }] }) };
+    });
+    const scope = { collectionId: 'decathlon-fitness' };
+    const pending = loadScopedCatalog(fetcher, { scope, isCancelled: () => cancel });
+    await ready; cancel = true; release(); await pending;
+    expect(await getDiscoveryAttempt(scope.collectionId)).toBeUndefined();
+    expect(await getDiscoveryCache(scope.collectionId)).toBeUndefined();
+    const retry = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ products: [{ id: 42, title: 'Mat', handle: 'mat', variants: [{ price: '10' }] }] }) });
+    expect((await loadScopedCatalog(retry, { scope })).products).toHaveLength(1);
+    expect(retry).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not cache a failed attempt when cancellation skips a browser fallback', async () => {
+    const source = DISCOVERY_SOURCE_MAPS.find((item) => item.siteKey === 'nike_uae' && item.provider === 'html')!;
+    let cancel = false;
+    let release!: () => void;
+    let started!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const ready = new Promise<void>((resolve) => { started = resolve; });
+    const nativeFetch = jest.requireMock('../webViewFetcher').fetchPageHtmlViaWebView as jest.Mock;
+    nativeFetch.mockClear();
+    const fetcher = jest.fn(async () => { started(); await gate; return { ok: false, json: async () => ({}) }; });
+    const pending = loadScopedCatalog(fetcher, { scope: { collectionId: source.id }, isCancelled: () => cancel });
+    await ready; cancel = true; release(); await pending;
+    expect(nativeFetch).not.toHaveBeenCalled();
+    expect(await getDiscoveryAttempt(source.id)).toBeUndefined();
+  });
+
+  it('reuses listings for 24 hours, but supports an explicit refresh', async () => {
+    const now = jest.spyOn(Date, 'now');
+    const start = Date.parse('2026-10-28T00:00:00Z');
+    now.mockReturnValue(start);
+    const scope = { collectionId: 'decathlon-fitness' };
+    const product = { id: 'mat', siteKey: 'decathlon_uae' as const, category: 'fitness' as const, brand: 'Domyos', title: 'Mat', url: 'https://decathlon.ae/products/mat', priceMinor: 5000, currency: 'AED', availability: 'in_stock' as const, observedAt: new Date(start).toISOString() };
+    await saveDiscoveryCache(scope.collectionId, [product], product.observedAt);
+    const fetcher = jest.fn().mockResolvedValue({ ok: false });
+    try {
+      now.mockReturnValue(start + 23 * 60 * 60 * 1000);
+      const cached = await loadScopedCatalog(fetcher, { scope });
+      expect(fetcher).not.toHaveBeenCalled();
+      expect(cached.stale).toBe(false);
+      expect(cached.refreshing).toBe(false);
+      now.mockReturnValue(start + 24 * 60 * 60 * 1000);
+      await loadScopedCatalog(fetcher, { scope });
+      expect(fetcher).toHaveBeenCalledTimes(1);
+      await loadScopedCatalog(fetcher, { scope, force: true });
+      expect(fetcher).toHaveBeenCalledTimes(2);
+    } finally { now.mockRestore(); }
+  });
+
+  it('does not retry failed stores on every visit, but retries after a day or manually', async () => {
+    const now = jest.spyOn(Date, 'now');
+    const start = Date.parse('2026-10-28T00:00:00Z');
+    now.mockReturnValue(start);
+    const fetcher = jest.fn().mockResolvedValue({ ok: false });
+    const scope = { collectionId: 'decathlon-fitness' };
+    try {
+      await loadScopedCatalog(fetcher, { scope });
+      await loadScopedCatalog(fetcher, { scope });
+      expect(fetcher).toHaveBeenCalledTimes(1);
+      const cached = await loadScopedCatalog(fetcher, { scope });
+      expect(cached.failedCollectionIds).toEqual(['decathlon-fitness']);
+      now.mockReturnValue(start + 24 * 60 * 60 * 1000);
+      await loadScopedCatalog(fetcher, { scope });
+      expect(fetcher).toHaveBeenCalledTimes(2);
+      await loadScopedCatalog(fetcher, { scope, force: true });
+      expect(fetcher).toHaveBeenCalledTimes(3);
+    } finally { now.mockRestore(); }
+  });
 
   it('bounds an ordinary feed load without requiring callers to supply a scope', async () => {
     const fetcher = jest.fn().mockResolvedValue({ ok: false });

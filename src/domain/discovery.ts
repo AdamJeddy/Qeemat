@@ -140,6 +140,19 @@ export function filterDiscoveryProducts(products: DiscoveryProduct[], filter: Di
   );
 }
 
+/** Shopify collection feeds use numeric IDs, while rendered search uses product paths. */
+export function discoveryFeedbackId(product: DiscoveryProduct): string {
+  if (product.siteKey === 'decathlon_uae' || product.siteKey === 'salomon_gcc') {
+    const handle = product.url.match(/\/products\/([^/?#]+)/)?.[1];
+    if (handle) { return `${product.siteKey}:/products/${handle}`; }
+  }
+  return product.id;
+}
+
+export function isDiscoveryProductDismissed(product: DiscoveryProduct, dismissed: ReadonlySet<string>): boolean {
+  return dismissed.has(product.id) || dismissed.has(discoveryFeedbackId(product));
+}
+
 export function buildDiscoverySections(products: DiscoveryProduct[], preferences: DiscoveryPreferences): {
   picks: DiscoveryProduct[];
   newlyDiscovered: DiscoveryProduct[];
@@ -147,7 +160,7 @@ export function buildDiscoverySections(products: DiscoveryProduct[], preferences
 } {
   const dismissed = new Set(preferences.dismissedProductIds);
   const seen = new Set(preferences.seenProductIds);
-  const visible = products.filter((product) => !dismissed.has(product.id) && product.availability !== 'out_of_stock');
+  const visible = products.filter((product) => !isDiscoveryProductDismissed(product, dismissed) && product.availability !== 'out_of_stock');
   const relevant = visible.filter((product) => {
     const categories = (product.categories ?? [product.category]).filter((category) => !preferences.categories.length || preferences.categories.includes(category));
     return categories.some((category) => {
