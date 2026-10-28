@@ -4,7 +4,7 @@ jest.mock('@react-native-async-storage/async-storage', () =>
 
 import { fetchDecathlonCollection, loadDiscoveryCatalog as loadScopedCatalog } from '../discoveryCatalog';
 import { DISCOVERY_COLLECTIONS } from '../discovery';
-import { getDiscoveryCache, saveDiscoveryCache } from '../../data/discovery';
+import { getDiscoveryAttempt, getDiscoveryCache, saveDiscoveryCache } from '../../data/discovery';
 import { SUPPORTED_SITES } from '../sites';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DISCOVERY_SOURCE_MAPS } from '../discoverySources';
@@ -60,6 +60,42 @@ describe('fetchDecathlonCollection', () => {
 
 describe('multi-retailer discovery refresh', () => {
   beforeEach(async () => { await AsyncStorage.clear(); });
+
+  it.each([true, false])('does not cache a cancelled request as a failure or success (response succeeds: %s)', async (success) => {
+    let cancel = false;
+    let release!: () => void;
+    let started!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const ready = new Promise<void>((resolve) => { started = resolve; });
+    const fetcher = jest.fn(async () => {
+      started(); await gate;
+      return { ok: success, json: async () => ({ products: [{ id: 42, title: 'Mat', handle: 'mat', variants: [{ price: '10' }] }] }) };
+    });
+    const scope = { collectionId: 'decathlon-fitness' };
+    const pending = loadScopedCatalog(fetcher, { scope, isCancelled: () => cancel });
+    await ready; cancel = true; release(); await pending;
+    expect(await getDiscoveryAttempt(scope.collectionId)).toBeUndefined();
+    expect(await getDiscoveryCache(scope.collectionId)).toBeUndefined();
+    const retry = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ products: [{ id: 42, title: 'Mat', handle: 'mat', variants: [{ price: '10' }] }] }) });
+    expect((await loadScopedCatalog(retry, { scope })).products).toHaveLength(1);
+    expect(retry).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not cache a failed attempt when cancellation skips a browser fallback', async () => {
+    const source = DISCOVERY_SOURCE_MAPS.find((item) => item.siteKey === 'nike_uae' && item.provider === 'html')!;
+    let cancel = false;
+    let release!: () => void;
+    let started!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const ready = new Promise<void>((resolve) => { started = resolve; });
+    const nativeFetch = jest.requireMock('../webViewFetcher').fetchPageHtmlViaWebView as jest.Mock;
+    nativeFetch.mockClear();
+    const fetcher = jest.fn(async () => { started(); await gate; return { ok: false, json: async () => ({}) }; });
+    const pending = loadScopedCatalog(fetcher, { scope: { collectionId: source.id }, isCancelled: () => cancel });
+    await ready; cancel = true; release(); await pending;
+    expect(nativeFetch).not.toHaveBeenCalled();
+    expect(await getDiscoveryAttempt(source.id)).toBeUndefined();
+  });
 
   it('reuses listings for 24 hours, but supports an explicit refresh', async () => {
     const now = jest.spyOn(Date, 'now');

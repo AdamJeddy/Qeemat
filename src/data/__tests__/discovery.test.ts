@@ -15,6 +15,7 @@ import {
   saveDiscoveryPreferences
 } from '../discovery';
 import { DiscoveryProduct } from '../../domain/types';
+import { buildDiscoverySections } from '../../domain/discovery';
 
 const product: DiscoveryProduct = {
   id: 'decathlon_uae:123',
@@ -31,6 +32,7 @@ const product: DiscoveryProduct = {
 
 describe('discovery persistence', () => {
   beforeEach(async () => {
+    await clearDiscoveryData();
     await AsyncStorage.clear();
   });
 
@@ -41,6 +43,35 @@ describe('discovery persistence', () => {
       favoriteBrands: [],
       budgetsByCategory: {}
     });
+  });
+
+  it.each(['decathlon_uae', 'salomon_gcc'] as const)('shares dismissal between listing and search for %s, in either direction', async (siteKey) => {
+    const host = siteKey === 'decathlon_uae' ? 'decathlon.ae' : 'salomongcc.com';
+    const listing = { ...product, id: `${siteKey}:123`, siteKey, url: `https://${host}/products/shoe` };
+    const search = { ...listing, id: `${siteKey}:/products/shoe` };
+    await dismissDiscoveryProduct(listing.id, listing);
+    expect(buildDiscoverySections([search], await getDiscoveryPreferences()).picks).toHaveLength(0);
+    await clearDiscoveryData();
+    await dismissDiscoveryProduct(search.id, search);
+    expect(buildDiscoverySections([listing], await getDiscoveryPreferences()).picks).toHaveLength(0);
+  });
+
+  it.each(['decathlon_uae', 'salomon_gcc'] as const)('reconciles previously dismissed %s catalogue IDs through cached products', async (siteKey) => {
+    const host = siteKey === 'decathlon_uae' ? 'decathlon.ae' : 'salomongcc.com';
+    const listing = { ...product, id: `${siteKey}:123`, siteKey, url: `https://${host}/products/shoe` };
+    const search = { ...listing, id: `${siteKey}:/products/shoe` };
+    await saveDiscoveryCache(`${siteKey === 'decathlon_uae' ? 'decathlon' : 'salomon'}-test`, [listing], listing.observedAt);
+    await dismissDiscoveryProduct(listing.id);
+    expect(buildDiscoverySections([search], await getDiscoveryPreferences()).picks).toHaveLength(0);
+  });
+
+  it('can resolve older feedback after its product is cached later', async () => {
+    const listing = { ...product, id: 'decathlon_uae:123', url: 'https://decathlon.ae/products/shoe' };
+    const search = { ...listing, id: 'decathlon_uae:/products/shoe' };
+    await dismissDiscoveryProduct(listing.id);
+    expect((await getDiscoveryPreferences()).dismissedProductIds).toContain(listing.id);
+    await saveDiscoveryCache('decathlon-test', [listing], listing.observedAt);
+    expect(buildDiscoverySections([search], await getDiscoveryPreferences()).picks).toHaveLength(0);
   });
 
   it('migrates broad interests and budgets while retaining feedback and seen history', async () => {

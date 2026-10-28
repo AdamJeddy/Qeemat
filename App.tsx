@@ -117,8 +117,10 @@ import {
   buildDiscoverySections,
   DISCOVERY_CATEGORY_LABELS,
   discoveryVariantChoices,
+  discoveryFeedbackId,
   uniqueDiscoveryBrands,
-  filterDiscoveryProducts
+  filterDiscoveryProducts,
+  isDiscoveryProductDismissed
 } from './src/domain/discovery';
 import { DiscoveryCatalogResult, loadDiscoveryCatalog } from './src/domain/discoveryCatalog';
 import { DiscoveryBrowseSheet } from './src/components/DiscoveryBrowseSheet';
@@ -1799,7 +1801,8 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
   const [catalogBusy, setCatalogBusy] = useState(false);
   const loadGeneration = useRef(0);
   const [catalog, setCatalog] = useState<DiscoveryCatalogResult>();
-  const [visibleCount, setVisibleCount] = useState(24);
+  const [discoveryVisibleCount, setDiscoveryVisibleCount] = useState(24);
+  const [searchVisibleCount, setSearchVisibleCount] = useState(24);
   const [notice, setNotice] = useState<{ message: string; trackedId?: number }>();
   const [pendingProduct, setPendingProduct] = useState<{ listing: DiscoveryProduct; parsed: ParsedProduct }>();
   const [variantAttributes, setVariantAttributes] = useState<VariantAttributes>({});
@@ -1844,7 +1847,7 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
     if (!searchQuery) { savedDiscoveryScroll.current = discoveryScroll.current; }
     if (query !== searchQuery) { setSearchResult(undefined); setSearchRetailer(undefined); }
     setSearchQuery(query); setSearchBusy(true); setNotice(undefined);
-    if (!previous) { setVisibleCount(24); scrollRef.current?.scrollTo({ y: 0, animated: false }); }
+    if (!previous) { setSearchVisibleCount(24); scrollRef.current?.scrollTo({ y: 0, animated: false }); }
     const update = (result: ProductSearchResult) => { if (!isCancelled()) { setSearchResult(result); } };
     try {
       const tracked = await listTrackedProducts();
@@ -1875,13 +1878,24 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
     finally { setRefreshing(false); }
   }
 
+  const effectivePreferences = useMemo(() => {
+    if (!preferences) { return undefined; }
+    const dismissed = new Set(preferences.dismissedProductIds);
+    for (const product of discoveryProducts) {
+      if (dismissed.has(product.id)) { dismissed.add(discoveryFeedbackId(product)); }
+    }
+    return { ...preferences, dismissedProductIds: [...dismissed] };
+  }, [preferences, discoveryProducts]);
   const sections = useMemo(
-    () => preferences ? buildDiscoverySections(discoveryProducts, browseAll || category || retailer || collectionId ? {
-      ...preferences, categories: category ? [category] : [], budgetsByCategory: browseAll ? {} : preferences.budgetsByCategory
-    } : preferences) : { picks: [], newlyDiscovered: [], exploreDifferent: [] },
-    [discoveryProducts, preferences, browseAll, category, retailer, collectionId]
+    () => effectivePreferences ? buildDiscoverySections(discoveryProducts, browseAll || category || retailer || collectionId ? {
+      ...effectivePreferences, categories: category ? [category] : [], budgetsByCategory: browseAll ? {} : effectivePreferences.budgetsByCategory
+    } : effectivePreferences) : { picks: [], newlyDiscovered: [], exploreDifferent: [] },
+    [discoveryProducts, effectivePreferences, browseAll, category, retailer, collectionId]
   );
-  const searchProducts = useMemo(() => (searchResult?.products ?? []).filter((product) => !preferences?.dismissedProductIds.includes(product.id)), [searchResult, preferences?.dismissedProductIds]);
+  const searchProducts = useMemo(() => {
+    const dismissed = new Set(effectivePreferences?.dismissedProductIds ?? []);
+    return (searchResult?.products ?? []).filter((product) => !isDiscoveryProductDismissed(product, dismissed));
+  }, [searchResult, effectivePreferences?.dismissedProductIds]);
   useEffect(() => {
     if (searchRetailer && !searchProducts.some((product) => product.siteKey === searchRetailer)) { setSearchRetailer(undefined); }
   }, [searchProducts, searchRetailer]);
@@ -1892,6 +1906,7 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
   const retailers = useMemo(() => [...new Set(DISCOVERY_SOURCE_MAPS.map((source) => source.siteKey))], []);
   const selectedCollection = DISCOVERY_SOURCE_MAPS.find((source) => source.id === collectionId);
   const hasMoreListings = !searchQuery && !collectionId && selectDiscoveryCollections({ categories: category ? [category] : browseAll || retailer ? [] : preferences?.categories, siteKey: retailer, offset: batchLimit, limit: 1 }).length > 0;
+  const visibleCount = searchQuery ? searchVisibleCount : discoveryVisibleCount;
   const visibleProducts = filteredProducts.slice(0, visibleCount);
   const resultRetailerCount = new Set(filteredProducts.map((product) => product.siteKey)).size;
   const variantChoices = discoveryVariantChoices(pendingProduct?.parsed.variants ?? []);
@@ -1899,7 +1914,8 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
   const selectedVariant = pendingProduct?.parsed.variants?.find((variant) => variant.id === selectedChoice?.id);
   const activeFilter = Boolean(category || brand || retailer || collectionId || maximumPrice);
 
-  useEffect(() => { setVisibleCount(24); }, [category, brand, retailer, maximumPrice, browseAll, searchRetailer]);
+  useEffect(() => { setDiscoveryVisibleCount(24); }, [category, brand, retailer, maximumPrice, browseAll]);
+  useEffect(() => { setSearchVisibleCount(24); }, [searchRetailer]);
   const preferenceKey = preferences?.categories.join(',');
   useEffect(() => { setBatchLimit(24); }, [category, retailer, collectionId, browseAll, preferenceKey]);
 
@@ -1914,7 +1930,7 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
     const saved = await saveDiscoveryPreferences(update);
     setPreferences(saved);
     setShowPreferences(false);
-    setVisibleCount(24);
+    setDiscoveryVisibleCount(24);
     resetBrowse();
     setBrowseAll(false);
     setNotice({ message: 'Picks updated.' });
@@ -1934,7 +1950,8 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
   }
 
   async function handleDismiss(productId: string) {
-    await dismissDiscoveryProduct(productId);
+    const product = (searchResult?.products ?? []).find((item) => item.id === productId) ?? discoveryProducts.find((item) => item.id === productId);
+    await dismissDiscoveryProduct(productId, product);
     setPreferences(await getDiscoveryPreferences());
   }
 
@@ -2068,7 +2085,7 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
         <AppText muted>{filteredProducts.length} title and brand {filteredProducts.length === 1 ? 'match' : 'matches'} · {resultRetailerCount} {resultRetailerCount === 1 ? 'retailer' : 'retailers'}</AppText>
         {!filteredProducts.length ? <AppText muted>{searchBusy ? 'Searching stores. Matches appear as each store responds.' : 'No matching product names in the returned results. Try a brand, model, or fewer words; check Coverage for unavailable stores.'}</AppText> : null}
         <DiscoveryProductGrid products={visibleProducts} trackedProducts={trackedProducts} trackingProductId={trackingProductId} onTrack={handleTrack} onDismiss={handleDismiss} onMoreLikeThis={openBrandListing} onViewAtRetailer={handleViewAtRetailer} />
-        {filteredProducts.length > visibleCount ? <PrimaryButton label={`Show more (${filteredProducts.length - visibleCount} remaining)`} variant="outline" onPress={() => setVisibleCount((count) => count + 24)} /> : null}
+        {filteredProducts.length > visibleCount ? <PrimaryButton label={`Show more (${filteredProducts.length - visibleCount} remaining)`} variant="outline" onPress={() => setSearchVisibleCount((count) => count + 24)} /> : null}
         {searchResult?.sources.some((source) => source.nextUrl) ? <PrimaryButton label="Load more search results" variant="outline" loading={searchBusy} onPress={() => runProductSearch(searchQuery, false, searchResult)} /> : null}
         {searchResult?.sources.some((source) => source.status === 'unavailable') ? <AppText muted>Some stores could not be searched. Saved matches may be older; see Coverage for details. Pull down to retry.</AppText> : null}
       </View> : discoveryProducts.length > 0 || category || retailer || collectionId ? (
@@ -2097,7 +2114,7 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
             {brand || retailer || collectionId || maximumPrice ? <View style={styles.titleRow}><AppText muted>{[brand, retailer && getSiteByKey(retailer).shortName, maximumPrice && `Under AED ${maximumPrice}`].filter(Boolean).join(' · ')}</AppText><Pressable accessibilityRole="button" onPress={resetBrowse}><AppText style={styles.discoveryLink}>Clear filters</AppText></Pressable></View> : null}
             {!filteredProducts.length ? <View style={styles.discoverySection}><AppText muted>{catalogBusy ? 'Loading products for this selection…' : 'No products match your interests, budgets, and filters right now.'}</AppText>{!catalogBusy ? <PrimaryButton label="Explore all products" variant="outline" onPress={() => { resetBrowse(); setBrowseAll(true); }} /> : null}</View> : null}
             {filteredProducts.length ? <DiscoveryProductGrid products={visibleProducts} trackedProducts={trackedProducts} trackingProductId={trackingProductId} onTrack={handleTrack} onDismiss={handleDismiss} onMoreLikeThis={openBrandListing} onViewAtRetailer={handleViewAtRetailer} /> : null}
-            {filteredProducts.length > visibleCount ? <PrimaryButton label={`Show more (${filteredProducts.length - visibleCount} remaining)`} variant="outline" onPress={() => setVisibleCount((count) => count + 24)} /> : null}
+            {filteredProducts.length > visibleCount ? <PrimaryButton label={`Show more (${filteredProducts.length - visibleCount} remaining)`} variant="outline" onPress={() => setDiscoveryVisibleCount((count) => count + 24)} /> : null}
           </View>
         </>
       ) : <View style={styles.discoverySection}><Pressable accessibilityRole="button" accessibilityLabel="Refresh discovery products" accessibilityState={{ disabled: catalogBusy || refreshing }} disabled={catalogBusy || refreshing} onPress={refresh} style={styles.discoveryToolbarAction}><RefreshCcw size={16} color={colors.primary} /><AppText style={styles.discoveryLink}>{catalogBusy || refreshing ? 'Refreshing…' : 'Refresh'}</AppText></Pressable>{catalogBusy ? <><ActivityIndicator color={colors.primary} /><AppText muted>Loading matching listings. Products appear as each retailer responds.</AppText></> : <EmptyDiscovery onPreferences={() => setShowPreferences(true)} />}</View>}

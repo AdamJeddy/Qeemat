@@ -35,6 +35,7 @@ import { DiscoveryFilterChip, DiscoveryPreferencesSheet, DiscoveryProductGrid } 
 import { DiscoveryBrowseSheet } from './src/components/DiscoveryBrowseSheet';
 import { DISCOVERY_SOURCE_MAPS } from './src/domain/discoverySources';
 import { ProductCard } from './src/components/ProductCard';
+import { PrimaryButton } from './src/components/PrimaryButton';
 import { CheckStatus, TrackedProduct } from './src/domain/types';
 
 const mockFetchAndParseProduct = jest.requireMock('./src/domain/parser').fetchAndParseProduct as jest.Mock;
@@ -261,6 +262,37 @@ describe('DetailScreen', () => {
 });
 
 describe('OpportunityScreen', () => {
+  it('retains expanded discovery results after searching and filtering results', async () => {
+    const base = { siteKey: 'noon', category: 'general', brand: 'Apple', currency: 'AED', availability: 'in_stock', observedAt: '2026-10-28T09:00:00Z', priceMinor: 1000 };
+    const products = Array.from({ length: 50 }, (_, index) => ({ ...base, id: `item-${index}`, title: `Product ${index}`, url: `https://www.noon.com/item-${index}` }));
+    mockLoadDiscoveryCatalog.mockResolvedValue({ products, stale: false, failedCollectionIds: [] });
+    mockLoadProductSearch.mockResolvedValue({ query: 'iphone', products, sources: [] });
+    let tree: renderer.ReactTestRenderer;
+    await act(async () => { tree = renderer.create(<OpportunityScreen navigate={jest.fn()} />); await new Promise<void>((resolve) => setImmediate(resolve)); });
+    act(() => tree!.root.findAllByType(PrimaryButton).find((button) => button.props.label === 'Show more (26 remaining)')!.props.onPress());
+    expect(tree!.root.findByType(DiscoveryProductGrid).props.products).toHaveLength(48);
+    const input = tree!.root.findByProps({ accessibilityLabel: 'Search products across stores' });
+    act(() => input.props.onChangeText('iphone'));
+    await act(async () => { input.props.onSubmitEditing(); await new Promise<void>((resolve) => setImmediate(resolve)); });
+    expect(tree!.root.findByType(DiscoveryProductGrid).props.products).toHaveLength(24);
+    act(() => tree!.root.findAllByType(DiscoveryFilterChip).find((chip) => chip.props.label === 'Noon (50)')!.props.onPress());
+    await act(async () => { tree!.root.findByProps({ accessibilityLabel: 'Clear product search' }).props.onPress(); await new Promise<void>((resolve) => setImmediate(resolve)); });
+    expect(tree!.root.findByType(DiscoveryProductGrid).props.products).toHaveLength(48);
+    await act(async () => tree!.unmount());
+  });
+  it('hides a search result when the matching catalogue product was dismissed', async () => {
+    const listing = { id: 'decathlon_uae:123', siteKey: 'decathlon_uae', category: 'footwear', brand: 'Kiprun', title: 'Running shoes', url: 'https://decathlon.ae/products/shoe', priceMinor: 9000, currency: 'AED', availability: 'in_stock', observedAt: '2026-10-28T09:00:00Z' };
+    mockGetDiscoveryPreferences.mockResolvedValue({ completed: true, categories: [], favoriteBrands: [], budgetsByCategory: {}, dismissedProductIds: [listing.id], seenProductIds: [] });
+    mockLoadDiscoveryCatalog.mockResolvedValue({ products: [listing], stale: false, failedCollectionIds: [] });
+    mockLoadProductSearch.mockResolvedValue({ query: 'running shoes', products: [{ ...listing, id: 'decathlon_uae:/products/shoe' }], sources: [] });
+    let tree: renderer.ReactTestRenderer;
+    await act(async () => { tree = renderer.create(<OpportunityScreen navigate={jest.fn()} />); await new Promise<void>((resolve) => setImmediate(resolve)); });
+    const input = tree!.root.findByProps({ accessibilityLabel: 'Search products across stores' });
+    act(() => input.props.onChangeText('running shoes'));
+    await act(async () => { input.props.onSubmitEditing(); await new Promise<void>((resolve) => setImmediate(resolve)); });
+    expect(tree!.root.findByType(DiscoveryProductGrid).props.products).toHaveLength(0);
+    await act(async () => tree!.unmount());
+  });
   it('browses a department in place and applies its saved budget', async () => {
     const navigate = jest.fn();
     mockGetDiscoveryPreferences.mockResolvedValue({ completed: true, categories: ['footwear'], favoriteBrands: [], budgetsByCategory: { footwear: 10000 }, dismissedProductIds: [], seenProductIds: [] });

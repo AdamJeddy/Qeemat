@@ -80,10 +80,12 @@ async function refreshDiscoveryCatalog(fetcher: DiscoveryFetcher, options: Disco
       entry.failed = false;
       try {
         const products = (await fetchDiscoveryCollection(entry.source, fetcher, observedAt, options.isCancelled)).map(withDiscoveryPriceBasis);
+        if (options.isCancelled?.()) { break; }
         if (!products.length) { throw new Error('No usable listing products'); }
         await saveDiscoveryCache(entry.source.id, products, observedAt);
         entry.cached = { products, fetchedAt: observedAt, parserVersion: DISCOVERY_PARSER_VERSION };
       } catch { entry.failed = true; }
+      if (options.isCancelled?.()) { break; }
       await saveDiscoveryAttempt(entry.source.id, entry.failed);
       entry.needsRefresh = false;
       if (__DEV__) { console.info(`[Discovery] ${entry.source.id}: ${entry.cached?.products.length ?? 0} products${entry.failed ? ' (refresh failed)' : ''}`); }
