@@ -6,3 +6,9 @@ Captured on the installed standalone Android release on a Samsung SM-S928B, runt
 - [Footwear selected in the same feed](footwear.png)
 - [Cross-retailer product search](search.png)
 - [Selected design concept](selected-concept.png) — generated mockup, with illustrative products and prices.
+
+The revised Explore browser was captured on the same device at runtime commit `5c62309`:
+
+- [Department groups](explore-departments.png)
+- [Store selection](explore-stores.png)
+- [Store categories](explore-store-categories.png)
