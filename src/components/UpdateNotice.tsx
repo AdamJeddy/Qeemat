@@ -5,7 +5,7 @@ import { AppText } from './AppText';
 import { AvailableUpdate, checkForUpdate } from '../domain/updates';
 import { colors, radius } from '../theme/theme';
 
-export function UpdateNotice() {
+export function UpdateNotice({ visible = true }: { visible?: boolean }) {
   const [update, setUpdate] = useState<AvailableUpdate>();
 
   useEffect(() => {
@@ -17,7 +17,7 @@ export function UpdateNotice() {
     return () => { active = false; };
   }, []);
 
-  if (!update) { return null; }
+  if (!visible || !update) { return null; }
   return (
     <View style={styles.notice} accessibilityLiveRegion="polite">
       <View style={styles.copy}>

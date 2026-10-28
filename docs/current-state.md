@@ -88,7 +88,7 @@ No price-change activity event or notification is created for an OOS result with
 
 ### App updates
 
-- On Android, the app checks published GitHub releases once when it opens and shows a dismissible notice for a newer version with an APK. Alpha/prerelease builds can see prereleases; stable builds are offered stable releases. The notice opens the GitHub release page for manual download and installation. Offline or failed checks leave the app usable and retry on the next launch. Release tags must use a version such as `v0.5.5-alpha`, and the Android `versionName` must be updated for each release.
+- On Android, the app checks published GitHub releases once when it opens and shows a dismissible notice for a newer version with an APK on For You, Watchlist and Settings. A separate WorkManager job checks approximately every 48 hours and posts one notification per newer release on the App updates notification channel. Android notification permission and system background restrictions apply. Alpha/prerelease builds can see prereleases; stable builds are offered stable releases. The notice opens the GitHub release page for manual download and installation. Offline or failed checks leave the app usable and retry on the next launch. Release tags must use a version such as `v0.5.5-alpha`, and the Android `versionName` must be updated for each release.
 
 ## Storage and Background Work
 

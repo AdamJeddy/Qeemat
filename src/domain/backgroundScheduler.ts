@@ -2,6 +2,7 @@ import { NativeModules, Platform } from 'react-native';
 
 type BackgroundCheckModule = {
   schedule?: (preferredHour: number) => Promise<boolean>;
+  scheduleUpdates?: () => Promise<boolean>;
   runOnce?: () => Promise<boolean>;
   runTestOnce?: (delayMinutes: number) => Promise<boolean>;
   cancel?: () => Promise<boolean>;
@@ -18,6 +19,11 @@ export async function scheduleBackgroundChecks(preferredHour = 9): Promise<boole
   }
 
   return backgroundCheck.schedule(preferredHour);
+}
+
+export async function scheduleUpdateChecks(): Promise<boolean> {
+  if (Platform.OS !== 'android' || !backgroundCheck?.scheduleUpdates) { return false; }
+  return backgroundCheck.scheduleUpdates();
 }
 
 export async function runBackgroundCheckOnce(): Promise<boolean> {

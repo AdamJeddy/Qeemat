@@ -28,6 +28,15 @@ describe('UpdateNotice', () => {
     expect(tree!.root.findAllByType(Pressable)).toHaveLength(0);
     open.mockRestore();
   });
+  it('hides on other screens without losing the notice or fetching again', async () => {
+    check.mockResolvedValue({ version: '0.6-alpha', url: 'https://github.com/AdamJeddy/Qeemat/releases/tag/v0.6-alpha' });
+    let tree: renderer.ReactTestRenderer;
+    await act(async () => { tree = renderer.create(<UpdateNotice visible={false} />); });
+    expect(tree!.toJSON()).toBeNull();
+    act(() => { tree!.update(<UpdateNotice visible />); });
+    expect(tree!.root.findAllByProps({ accessibilityLabel: 'Dismiss update notice' }).length).toBeGreaterThan(0);
+    expect(check).toHaveBeenCalledTimes(1);
+  });
   it('shows nothing if there is no newer release', async () => {
     check.mockResolvedValue(undefined);
     let tree: renderer.ReactTestRenderer;

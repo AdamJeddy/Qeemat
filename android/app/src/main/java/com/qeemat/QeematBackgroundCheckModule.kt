@@ -2,6 +2,8 @@ package com.qeemat
 
 import android.os.PowerManager
 import android.provider.Settings
+import androidx.work.Constraints
+import androidx.work.NetworkType
 import androidx.work.Data
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
@@ -63,6 +65,22 @@ class QeematBackgroundCheckModule(private val reactContext: ReactApplicationCont
     }
 
     return nextRun.timeInMillis - now.timeInMillis
+  }
+
+  @ReactMethod
+  fun scheduleUpdates(promise: Promise) {
+    try {
+      val request = PeriodicWorkRequestBuilder<QeematBackgroundWorker>(48, TimeUnit.HOURS)
+          .setInitialDelay(48, TimeUnit.HOURS)
+          .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+          .setInputData(Data.Builder().putString("task", "update").build())
+          .build()
+      WorkManager.getInstance(reactContext).enqueueUniquePeriodicWork(
+          "qeemat-update-check-periodic", ExistingPeriodicWorkPolicy.KEEP, request)
+      promise.resolve(true)
+    } catch (error: Exception) {
+      promise.reject("QBG_UPDATE_SCHEDULE_FAILED", error)
+    }
   }
 
   @ReactMethod

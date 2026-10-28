@@ -59,6 +59,7 @@ import { ProductCard } from './src/components/ProductCard';
 import { StatusPill } from './src/components/StatusPill';
 import { VariantSelector } from './src/components/VariantSelector';
 import { UpdateNotice } from './src/components/UpdateNotice';
+import { clearUpdateNotificationHistory } from './src/domain/updateBackground';
 import {
   DiscoveryFilterChip,
   DiscoveryPreferencesSheet,
@@ -92,7 +93,7 @@ import {
   markDiscoveryProductsSeen,
   saveDiscoveryPreferences
 } from './src/data/discovery';
-import { runBackgroundCheckOnce, scheduleBackgroundChecks, checkBatteryOptimizationExempt, requestBatteryOptimizationExemption, openAppSystemSettings } from './src/domain/backgroundScheduler';
+import { runBackgroundCheckOnce, scheduleBackgroundChecks, scheduleUpdateChecks, checkBatteryOptimizationExempt, requestBatteryOptimizationExemption, openAppSystemSettings } from './src/domain/backgroundScheduler';
 import { checkAllActiveProducts, checkProductById } from './src/domain/checker';
 import { availableCheckPreferences, formatRelativeTime, formatSnapshotTime } from './src/domain/dates';
 import { getOnboardingState, markOnboardingCompleted } from './src/domain/onboarding';
@@ -181,6 +182,7 @@ export default function App() {
         }
       }
 
+      await scheduleUpdateChecks().catch(() => false);
       const scheduled = await scheduleBackgroundChecks(backgroundStatus.preferredHour).catch(() => false);
       if (scheduled) {
         await markBackgroundSchedule(backgroundStatus.preferredHour);
@@ -243,7 +245,7 @@ export default function App() {
     <SafeAreaProvider>
       <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
       <SafeAreaView style={styles.app}>
-        <UpdateNotice />
+        <UpdateNotice visible={route.name === 'tabs' && route.tab !== 'activity'} />
         {route.name === 'tabs' ? <TabsScreen tab={route.tab} navigate={setRoute} /> : null}
         {route.name === 'add' ? <AddScreen initialUrl={route.initialUrl} shareEventId={route.shareEventId} returnTab={route.returnTab} navigate={setRoute} /> : null}
         {route.name === 'detail' ? <DetailScreen productId={route.id} navigate={setRoute} /> : null}
@@ -2213,7 +2215,7 @@ function SettingsScreen() {
             </View>
           </View>
           <AppText muted style={styles.settingsBodyText}>
-            Local price alerts need Android notification access. If Android still blocks them after the prompt, open the app notification settings directly.
+            Price alerts and app update notices need Android notification access. If Android still blocks them after the prompt, open the app notification settings directly.
           </AppText>
           <PrimaryButton
             label={notificationEnabled ? 'Open notification settings' : 'Enable notifications'}
@@ -2302,7 +2304,7 @@ function SettingsScreen() {
         onPress={() =>
           Alert.alert('Delete local data?', 'This removes all tracked products and price history from this device.', [
             { text: 'Cancel', style: 'cancel' },
-            { text: 'Delete', style: 'destructive', onPress: () => Promise.all([deleteAllLocalData(), clearDiscoveryData()]) }
+            { text: 'Delete', style: 'destructive', onPress: () => Promise.all([deleteAllLocalData(), clearDiscoveryData(), clearUpdateNotificationHistory()]) }
           ])
         }
       />
