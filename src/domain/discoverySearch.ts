@@ -64,6 +64,19 @@ export function matchesProductSearch(product: DiscoveryProduct, query: string): 
   return wanted.length > 0 && wanted.every((word) => actual.has(word));
 }
 
+export function rankSearchMatches(products: DiscoveryProduct[], query: string): DiscoveryProduct[] {
+  const phrase = searchTokens(query).join(' ');
+  const accessory = /\b(?:case|cover|protector|charger|cable|strap)\b/i;
+  const score = (product: DiscoveryProduct) => {
+    const title = searchTokens(product.title).join(' ');
+    const phraseScore = title === phrase ? 300 : title.startsWith(`${phrase} `) ? 200 : title.includes(phrase) ? 100 : 0;
+    const accessoryPenalty = !accessory.test(query) && accessory.test(product.title) && !/\bwith\b/i.test(product.title) ? 500 : 0;
+    return phraseScore - accessoryPenalty - searchTokens(product.title).length;
+  };
+  return products.filter((product) => matchesProductSearch(product, query)).map((product, index) => ({ product, index, score: score(product) }))
+    .sort((left, right) => right.score - left.score || left.index - right.index).map((entry) => entry.product);
+}
+
 /** Undefined means unverified/unreadable, never a claim that the store has no matches. */
 export function parseSearchPage(body: string, request: SearchRequest, query: string, observedAt: string): SearchPage | undefined {
   if (/cf_chl_opt|cf-browser-verify|<title>\s*just a moment|reference&#|<title>\s*access denied|<title>\s*robot check|id="captchacharacters"|\/errors\/validateCaptcha/i.test(body)) { return undefined; }
@@ -93,7 +106,7 @@ export function parseSearchPage(body: string, request: SearchRequest, query: str
   const explicitEmpty = /no (?:matching )?(?:products|results|matches)(?: were)? (?:found|available|for|could be found)|could(?:n.t| not) find|did not match any/i.test(text) || /\b0\s+(?:products|results|items)/i.test(headings);
   const emptyJson = request.provider === 'woocommerce' && body.trim() === '[]';
   if (!products.length && !verifiedEmpty && !explicitEmpty && !emptyJson) { return undefined; }
-  return { products: products.filter((product) => matchesProductSearch(product, query)), ...nextSearchPage(body, request, query, products.length) };
+  return { products: rankSearchMatches(products, query), ...nextSearchPage(body, request, query, products.length) };
 }
 
 function nextSearchPage(body: string, request: SearchRequest, query: string, count: number): { nextUrl?: string } {

@@ -1,5 +1,5 @@
 import { getProductSearchCache, saveProductSearchCache } from '../data/discoverySearch';
-import { buildSearchRequests, normalizeSearchQuery, parseSearchPage, SearchPage, SearchRequest } from './discoverySearch';
+import { buildSearchRequests, normalizeSearchQuery, parseSearchPage, rankSearchMatches, SearchPage, SearchRequest } from './discoverySearch';
 import { DiscoveryFetcher, fetchDiscoveryHtmlViaWebView, mergeDiscoveryProducts } from './discoveryCatalog';
 import type { DiscoveryProduct, SiteKey } from './types';
 
@@ -32,7 +32,7 @@ export async function loadProductSearch(input: string, options: SearchOptions = 
   });
   // A continuation retains the exact request set and per-source cursor.
   if (options.loadMore && previous) { entries.splice(0, entries.length, ...previous.sources.map((entry) => ({ ...entry, status: entry.nextUrl ? 'loading' as const : entry.status }))); }
-  const snapshot = (): ProductSearchResult => ({ query, sources: entries.map((entry) => ({ ...entry })), products: mixSearchRetailers(mergeDiscoveryProducts(entries.flatMap((entry) => entry.products))) });
+  const snapshot = (): ProductSearchResult => ({ query, sources: entries.map((entry) => ({ ...entry })), products: mixSearchRetailers(rankSearchMatches(mergeDiscoveryProducts(entries.flatMap((entry) => entry.products)), query)) });
   const publish = () => { if (!options.isCancelled?.()) { options.onUpdate?.(snapshot()); } };
   const browserFallbacks: { entry: SearchSourceResult; request: SearchRequest; observedAt: string }[] = [];
   function finish(entry: SearchSourceResult, page: SearchPage | undefined, observedAt: string) {

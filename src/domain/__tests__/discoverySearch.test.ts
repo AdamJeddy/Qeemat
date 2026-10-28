@@ -1,4 +1,4 @@
-import { buildSearchRequests, matchesProductSearch, parseSearchPage } from '../discoverySearch';
+import { buildSearchRequests, matchesProductSearch, parseSearchPage, rankSearchMatches } from '../discoverySearch';
 import { DiscoveryProduct } from '../types';
 
 const observedAt = '2026-10-28T09:00:00Z';
@@ -22,6 +22,12 @@ describe('retailer product search', () => {
     expect(matchesProductSearch(product('Running shoes', 'Nike'), 'nike sneakers')).toBe(true);
     expect(matchesProductSearch(product('Crème hydratante', 'Brand'), 'creme')).toBe(true);
     expect(matchesProductSearch(product('Unrelated dress'), 'zzqeematnomatch827491')).toBe(false);
+  });
+  it('puts the named product before compatible accessories while retaining accessory searches', () => {
+    const phone = product('iPhone 16 128GB Black');
+    const cover = product('iPhone 16 protective case');
+    expect(rankSearchMatches([cover, phone, product('iPhone 17')], 'iphone 16')).toEqual([phone, cover]);
+    expect(rankSearchMatches([phone, cover], 'iphone 16 case')).toEqual([cover]);
   });
   it('reads only the Level Shoes search list, excluding recommendation state', () => {
     const request = buildSearchRequests('sneakers').find((entry) => entry.siteKey === 'level_shoes')!;
