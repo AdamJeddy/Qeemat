@@ -261,6 +261,30 @@ describe('DetailScreen', () => {
 });
 
 describe('OpportunityScreen', () => {
+  it('only offers search retailers with visible matches and removes an empty active filter', async () => {
+    const phone = { id: 'phone', title: 'iPhone 16', siteKey: 'noon', category: 'general', priceMinor: 300000, currency: 'AED', url: 'https://www.noon.com/phone/p/', observedAt: '2026-10-28T09:00:00Z', availability: 'unknown' };
+    mockLoadProductSearch.mockResolvedValue({ query: 'iphone', products: [phone], sources: [] });
+    let tree: renderer.ReactTestRenderer;
+    await act(async () => { tree = renderer.create(<OpportunityScreen navigate={jest.fn()} />); await new Promise<void>((resolve) => setImmediate(resolve)); });
+    const input = tree!.root.findByProps({ accessibilityLabel: 'Search products across stores' });
+    act(() => input.props.onChangeText('iphone'));
+    await act(async () => { input.props.onSubmitEditing(); await new Promise<void>((resolve) => setImmediate(resolve)); });
+    const chips = () => tree!.root.findAllByType(DiscoveryFilterChip);
+    expect(chips().map((chip) => chip.props.label)).toEqual(['All results (1)', 'Noon (1)']);
+    act(() => chips()[1].props.onPress());
+    mockLoadProductSearch.mockResolvedValue({ query: 'iphone', products: [], sources: [] });
+    await act(async () => { input.props.onSubmitEditing(); await new Promise<void>((resolve) => setImmediate(resolve)); });
+    expect(chips().map((chip) => chip.props.label)).toEqual(['All results (0)']);
+    expect(chips()[0].props.selected).toBe(true);
+    await act(async () => tree!.unmount());
+  });
+  it('offers a manual refresh that bypasses the daily discovery cache', async () => {
+    let tree: renderer.ReactTestRenderer;
+    await act(async () => { tree = renderer.create(<OpportunityScreen navigate={jest.fn()} />); await new Promise<void>((resolve) => setImmediate(resolve)); });
+    await act(async () => { tree!.root.findByProps({ accessibilityLabel: 'Refresh discovery products' }).props.onPress(); await new Promise<void>((resolve) => setImmediate(resolve)); });
+    expect(mockLoadDiscoveryCatalog).toHaveBeenLastCalledWith(undefined, expect.objectContaining({ force: true }));
+    await act(async () => tree!.unmount());
+  });
   it('ignores an older search response after a new query is submitted', async () => {
     let finishOlder!: (value: unknown) => void;
     mockLoadProductSearch.mockImplementationOnce(() => new Promise((resolve) => { finishOlder = resolve; }));

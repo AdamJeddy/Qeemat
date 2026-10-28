@@ -1,4 +1,4 @@
-import { DISCOVERY_PARSER_VERSION, getDiscoveryCache, saveDiscoveryCache } from '../data/discovery';
+import { DISCOVERY_PARSER_VERSION, getDiscoveryAttempt, getDiscoveryCache, saveDiscoveryAttempt, saveDiscoveryCache } from '../data/discovery';
 import { DiscoveryProduct } from './types';
 import { DiscoveryCollection, DISCOVERY_SOURCE_PRODUCT_LIMIT, discoverySourceUrl, parseDecathlonListing } from './discovery';
 import { parseDiscoveryListing } from './discoveryListings';
@@ -20,13 +20,14 @@ export type DiscoveryCatalogResult = {
   products: DiscoveryProduct[];
   refreshedAt?: string;
   stale: boolean;
+  refreshing?: boolean;
   failedCollectionIds: string[];
   sources?: DiscoverySourceStatus[];
 };
 
 let webViewQueue: Promise<unknown> = Promise.resolve();
 let catalogQueue: Promise<unknown> = Promise.resolve();
-const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 export function fetchDiscoveryHtmlViaWebView(url: string, isCancelled?: () => boolean): Promise<string | null> {
   const request = webViewQueue.then(() => isCancelled?.() ? null : fetchPageHtmlViaWebView(url));
@@ -51,9 +52,13 @@ export function loadDiscoveryCatalog(fetcher: DiscoveryFetcher = fetch, options:
 async function refreshDiscoveryCatalog(fetcher: DiscoveryFetcher, options: DiscoveryCatalogOptions): Promise<DiscoveryCatalogResult> {
   const observedAt = new Date().toISOString();
   const sources = selectDiscoveryCollections(options.scope);
-  const entries = await Promise.all(sources.map(async (source) => ({
-    source, cached: await getDiscoveryCache(source.id), failed: false
-  })));
+  const entries = await Promise.all(sources.map(async (source) => {
+    const [cached, attempt] = await Promise.all([getDiscoveryCache(source.id), getDiscoveryAttempt(source.id)]);
+    const recent = (timestamp: number) => Number.isFinite(timestamp) && Date.now() >= timestamp && Date.now() - timestamp < CACHE_TTL_MS;
+    const fresh = cached?.parserVersion === DISCOVERY_PARSER_VERSION && recent(Date.parse(cached.fetchedAt));
+    return { source, cached, failed: attempt?.failed ?? false,
+      needsRefresh: Boolean(options.force || (!fresh && !(attempt && recent(attempt.attemptedAt)))) };
+  }));
   const snapshot = (): DiscoveryCatalogResult => ({
     products: mergeDiscoveryProducts(entries.flatMap((entry) => (entry.cached?.products ?? []).map((product) => withDiscoveryPriceBasis({
       ...product, priceBasis: entry.cached?.parserVersion !== DISCOVERY_PARSER_VERSION && product.priceBasis?.startsWith('pack:') ? undefined : product.priceBasis,
@@ -61,6 +66,7 @@ async function refreshDiscoveryCatalog(fetcher: DiscoveryFetcher, options: Disco
     })))),
     refreshedAt: entries.map((entry) => entry.cached?.fetchedAt).filter((date): date is string => Boolean(date)).sort()[0],
     stale: entries.some((entry) => entry.failed || (entry.cached && Date.now() - Date.parse(entry.cached.fetchedAt) >= CACHE_TTL_MS)),
+    refreshing: entries.some((entry) => entry.needsRefresh),
     failedCollectionIds: entries.filter((entry) => entry.failed).map((entry) => entry.source.id),
     sources: entries.map((entry) => ({ id: entry.source.id, count: entry.cached?.products.length ?? 0, fetchedAt: entry.cached?.fetchedAt, failed: entry.failed }))
   });
@@ -70,13 +76,16 @@ async function refreshDiscoveryCatalog(fetcher: DiscoveryFetcher, options: Disco
     while (index < entries.length) {
       if (options.isCancelled?.()) { break; }
       const entry = entries[index++];
-      if (!options.force && entry.cached?.parserVersion === DISCOVERY_PARSER_VERSION && Date.now() - Date.parse(entry.cached.fetchedAt) < CACHE_TTL_MS) { continue; }
+      if (!entry.needsRefresh) { continue; }
+      entry.failed = false;
       try {
         const products = (await fetchDiscoveryCollection(entry.source, fetcher, observedAt, options.isCancelled)).map(withDiscoveryPriceBasis);
         if (!products.length) { throw new Error('No usable listing products'); }
         await saveDiscoveryCache(entry.source.id, products, observedAt);
         entry.cached = { products, fetchedAt: observedAt, parserVersion: DISCOVERY_PARSER_VERSION };
       } catch { entry.failed = true; }
+      await saveDiscoveryAttempt(entry.source.id, entry.failed);
+      entry.needsRefresh = false;
       if (__DEV__) { console.info(`[Discovery] ${entry.source.id}: ${entry.cached?.products.length ?? 0} products${entry.failed ? ' (refresh failed)' : ''}`); }
       options.onUpdate?.(snapshot());
     }

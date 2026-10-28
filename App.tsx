@@ -1813,13 +1813,13 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
     if (!preferences || searchQuery) { return; }
     const generation = ++loadGeneration.current;
     const isCancelled = () => generation !== loadGeneration.current;
-    setCatalogBusy(true);
     const tracked = await listTrackedProducts();
     if (isCancelled()) { return; }
     setTrackedProducts(tracked);
     const update = (next: DiscoveryCatalogResult) => {
       if (isCancelled()) { return; }
       setCatalog(next);
+      setCatalogBusy(Boolean(next.refreshing));
       setDiscoveryProducts(next.products);
       setCatalogState({ refreshedAt: next.refreshedAt, stale: next.stale });
       setLoading(false);
@@ -1881,12 +1881,16 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
     [discoveryProducts, preferences, browseAll, category, retailer, collectionId]
   );
   const availableCategories = useMemo(
-    () => [...new Set([...(category ? [category] : []), ...(preferences?.categories ?? [])])].slice(0, 5),
+    () => [...new Set([...(category ? [category] : []), ...(preferences?.categories ?? [])])],
     [category, preferences?.categories]
   );
-  const filteredProducts = useMemo(() => searchQuery ? filterDiscoveryProducts((searchResult?.products ?? []).filter((product) => !preferences?.dismissedProductIds.includes(product.id)), { siteKey: searchRetailer }) : filterDiscoveryProducts(sections.picks, {
+  const searchProducts = useMemo(() => (searchResult?.products ?? []).filter((product) => !preferences?.dismissedProductIds.includes(product.id)), [searchResult, preferences?.dismissedProductIds]);
+  useEffect(() => {
+    if (searchRetailer && !searchProducts.some((product) => product.siteKey === searchRetailer)) { setSearchRetailer(undefined); }
+  }, [searchProducts, searchRetailer]);
+  const filteredProducts = useMemo(() => searchQuery ? filterDiscoveryProducts(searchProducts, { siteKey: searchRetailer }) : filterDiscoveryProducts(sections.picks, {
     category, brand, siteKey: retailer, collectionId, maximumPriceMinor: parseTargetPriceInput(maximumPrice)
-  }), [sections.picks, category, brand, retailer, collectionId, maximumPrice, searchQuery, searchResult, searchRetailer, preferences?.dismissedProductIds]);
+  }), [sections.picks, category, brand, retailer, collectionId, maximumPrice, searchQuery, searchProducts, searchRetailer]);
   const brands = useMemo(() => uniqueDiscoveryBrands(filterDiscoveryProducts(discoveryProducts, { category }).map((product) => product.brand)), [category, discoveryProducts]);
   const retailers = useMemo(() => [...new Set(DISCOVERY_SOURCE_MAPS.map((source) => source.siteKey))], []);
   const selectedCollection = DISCOVERY_SOURCE_MAPS.find((source) => source.id === collectionId);
@@ -2041,20 +2045,22 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
         </View>
         <View style={styles.flex}>
           <AppText weight="bold" style={styles.heading}>For you</AppText>
-          <AppText muted>Find things you want. Let Qeemat watch the price.</AppText>
+          <AppText muted>Discover it. Track the price.</AppText>
         </View>
         <Pressable accessibilityRole="button" accessibilityLabel="Edit discovery preferences" onPress={() => setShowPreferences(true)} style={styles.discoveryPreferencesButton}>
           <SlidersHorizontal size={19} color={colors.primary} />
         </Pressable>
       </View>
 
-      <DiscoverySearch query={searchQuery} result={searchResult} busy={searchBusy} retailer={searchRetailer} onRetailer={setSearchRetailer} onSearch={(query) => { runProductSearch(query); }} onClear={clearProductSearch} />
+      <DiscoverySearch query={searchQuery} result={searchResult} products={searchProducts} busy={searchBusy} retailer={searchRetailer} onRetailer={setSearchRetailer} onSearch={(query) => { runProductSearch(query); }} onClear={clearProductSearch} />
       {!searchQuery && !preferences?.completed ? <DiscoverySetupCard onPress={() => setShowPreferences(true)} onDismiss={handleDismissInvitation} /> : null}
 
       {!searchQuery ? <View style={styles.discoveryToolbar}>
-        <Pressable accessibilityRole="button" onPress={() => setShowSources(true)} style={styles.discoveryToolbarAction}><AppText style={styles.discoveryLink}>Browse departments & retailers</AppText></Pressable>
-        {catalogBusy ? <ActivityIndicator size="small" color={colors.primary} /> : null}
+        <Pressable accessibilityRole="button" onPress={() => setShowSources(true)} style={styles.discoveryToolbarAction}><Store size={16} color={colors.primary} /><AppText style={styles.discoveryLink}>Departments & retailers</AppText></Pressable>
+        <View style={styles.flex} />
+        <Pressable accessibilityRole="button" accessibilityLabel="Refresh discovery products" accessibilityState={{ disabled: catalogBusy || refreshing }} disabled={catalogBusy || refreshing} onPress={refresh} style={styles.discoveryToolbarAction}><RefreshCcw size={16} color={colors.primary} /><AppText style={styles.discoveryLink}>{catalogBusy || refreshing ? 'Refreshing…' : 'Refresh'}</AppText></Pressable>
       </View> : null}
+      {!searchQuery ? <AppText muted style={styles.discoverySectionCopy}>{catalogBusy ? 'Updating listings. You can keep browsing.' : `Listings refresh daily${catalogState.refreshedAt ? ` · Updated ${formatRelativeTime(catalogState.refreshedAt)}` : ' as you browse'}.`}</AppText> : null}
       {!searchQuery && selectedCollection ? <AppText weight="semibold">{getSiteByKey(selectedCollection.siteKey).shortName} · {selectedCollection.label}</AppText> : null}
       {notice ? <View accessibilityLiveRegion="polite" style={styles.discoveryNotice}><AppText style={styles.flex}>{notice.message}</AppText>{notice.trackedId ? <Pressable accessibilityRole="button" onPress={() => navigate({ name: 'trackingSettings', id: notice.trackedId! })}><AppText style={styles.discoveryLink}>Set target price</AppText></Pressable> : null}<Pressable accessibilityRole="button" accessibilityLabel="Dismiss message" onPress={() => setNotice(undefined)}><X size={18} color={colors.textMuted} /></Pressable></View> : null}
 
@@ -2071,16 +2077,14 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
           <View style={styles.discoverySection}>
             <AppText weight="bold" style={styles.discoverySectionTitle}>{category ? DISCOVERY_CATEGORY_LABELS[category] : browseAll ? 'Explore all products' : 'Picks for you'}</AppText>
             <AppText muted style={styles.discoverySectionCopy}>{browseAll ? 'Explore every available retailer.' : preferences?.categories.length ? `Based on your ${preferences.categories.length} ${preferences.categories.length === 1 ? 'interest' : 'interests'}${Object.keys(preferences.budgetsByCategory).length ? ' and category budgets' : ''}.` : 'Discover products across your favourite stores.'}</AppText>
-            <View style={styles.discoveryCategoryChoices}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.discoveryFilterRail}>
               <DiscoveryFilterChip label="For you" selected={!browseAll && !category} onPress={() => { resetBrowse(); setBrowseAll(false); }} />
               <DiscoveryFilterChip label="All" selected={browseAll && !category && !retailer && !collectionId} onPress={() => { resetBrowse(); setBrowseAll(true); }} />
-              <DiscoveryFilterChip label="Browse interests" selected={false} onPress={() => setShowSources(true)} />
               {availableCategories.map((item) => <DiscoveryFilterChip key={item} label={DISCOVERY_CATEGORY_LABELS[item]} selected={category === item} onPress={() => { setCollectionId(undefined); setCategory(category === item ? undefined : item); setBrand(undefined); }} />)}
-            </View>
+            </ScrollView>
             <View style={styles.discoveryToolbar}>
               <AppText muted style={styles.discoveryResultCount}>{filteredProducts.length} {filteredProducts.length === 1 ? 'product' : 'products'} · {new Set(filteredProducts.map((product) => product.siteKey)).size} retailers</AppText>
               <Pressable accessibilityRole="button" onPress={() => setShowFilters((value) => !value)} style={styles.discoveryToolbarAction}><SlidersHorizontal size={16} color={colors.primary} /><AppText style={styles.discoveryLink}>Filters{activeFilter ? ' •' : ''}</AppText></Pressable>
-              <Pressable accessibilityRole="button" onPress={() => setShowSources(true)} style={styles.discoveryToolbarAction}><AppText style={styles.discoveryLink}>Sources</AppText></Pressable>
             </View>
             {showFilters ? <View style={styles.listingFilters}>
               <AppText weight="semibold">Retailer</AppText>
@@ -3274,7 +3278,6 @@ const styles = StyleSheet.create({
   discoveryOptionSheet: { height: '75%', backgroundColor: colors.background, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, overflow: 'hidden' },
   discoveryToolbar: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   discoveryResultCount: { flex: 1, fontSize: 12 },
-  discoveryCategoryChoices: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   discoveryLink: { color: colors.primary, fontSize: 13 },
   discoveryNotice: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: radius.md, backgroundColor: colors.blueSoft },
   discoveryHeaderIcon: {

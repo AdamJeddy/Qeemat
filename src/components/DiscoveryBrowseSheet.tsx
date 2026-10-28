@@ -68,7 +68,7 @@ export function DiscoveryBrowseSheet({ visible, sources, onClose, onCategory, on
               <AppText muted>{getSiteByKey(item.siteKey).shortName} · {DISCOVERY_CATEGORY_LABELS[item.category]}</AppText>
               <AppText weight="bold">{item.label}</AppText>
               <AppText muted>{(item.path ?? []).join(' › ')}</AppText>
-              <AppText muted>{state?.failed ? state.count ? `Refresh failed · ${state.count} saved products` : 'Could not load products · tap to retry' : state?.count ? `${state.count} products · ${formatRelativeTime(state.fetchedAt)}` : 'Not loaded on this visit'}</AppText>
+              <AppText muted>{state?.failed ? state.count ? `Refresh failed · ${state.count} saved products` : 'Could not load products · use Refresh in the feed to retry' : state?.count ? `${state.count} products · ${formatRelativeTime(state.fetchedAt)}` : 'Load products by opening this listing'}</AppText>
               <AppText style={styles.link}>Browse this listing</AppText>
             </Pressable>
             <Pressable accessibilityRole="link" accessibilityLabel={`Review source URL for ${item.label}`} onPress={() => Linking.openURL(pageUrl).catch(() => undefined)} style={styles.sourceLink}><ExternalLink size={15} color={colors.primary} /><AppText style={styles.url}>{pageUrl}</AppText></Pressable>

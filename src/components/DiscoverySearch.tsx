@@ -6,7 +6,7 @@ import { AppText } from './AppText';
 import { DiscoveryFilterChip } from './Discovery';
 import { buildSearchRequests, normalizeSearchQuery } from '../domain/discoverySearch';
 import type { ProductSearchResult } from '../domain/discoverySearchCatalog';
-import type { SiteKey } from '../domain/types';
+import type { DiscoveryProduct, SiteKey } from '../domain/types';
 import { getSiteByKey } from '../domain/sites';
 import { formatRelativeTime } from '../domain/dates';
 import { colors, radius } from '../theme/theme';
@@ -16,14 +16,17 @@ const EXCLUDED: { siteKey: SiteKey; reason: string }[] = [
   { siteKey: 'sharaf_dg', reason: 'Search products could not be verified.' }
 ];
 
-export function DiscoverySearch({ query, result, busy, retailer, onRetailer, onSearch, onClear }: {
+export function DiscoverySearch({ query, result, products, busy, retailer, onRetailer, onSearch, onClear }: {
   query: string; result?: ProductSearchResult; busy: boolean; retailer?: SiteKey;
+  products: DiscoveryProduct[];
   onRetailer: (site?: SiteKey) => void; onSearch: (query: string) => void; onClear: () => void;
 }) {
   const [input, setInput] = useState('');
   const [error, setError] = useState('');
   const [showCoverage, setShowCoverage] = useState(false);
   useEffect(() => { setInput(query); }, [query]);
+  const counts = new Map<SiteKey, number>();
+  products.forEach((product) => counts.set(product.siteKey, (counts.get(product.siteKey) ?? 0) + 1));
   const completed = STORES.filter((site) => {
     const sources = result?.sources.filter((source) => source.request.siteKey === site) ?? [];
     return sources.length && sources.every((source) => source.status !== 'loading');
@@ -41,12 +44,12 @@ export function DiscoverySearch({ query, result, busy, retailer, onRetailer, onS
     </View>
     {error ? <AppText accessibilityLiveRegion="polite">{error}</AppText> : null}
     <View style={styles.statusRow}>
-      <AppText muted accessibilityLiveRegion="polite" style={styles.flex}>{query ? `${completed} of ${STORES.length} stores checked${busy ? ' · Searching…' : ''}` : `Search by product name or model across ${STORES.length} stores.`}</AppText>
+      <AppText muted accessibilityLiveRegion="polite" style={styles.flex}>{query ? `${completed} of ${STORES.length} stores checked${busy ? ' · Searching…' : ''}` : `Search ${STORES.length} stores by name or model`}</AppText>
       <Pressable accessibilityRole="button" onPress={() => setShowCoverage(true)} style={styles.action}><AppText style={styles.link}>Coverage</AppText></Pressable>
     </View>
     {query ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail}>
-      <DiscoveryFilterChip label="All search stores" selected={!retailer} onPress={() => onRetailer(undefined)} />
-      {STORES.map((site) => <DiscoveryFilterChip key={site} label={getSiteByKey(site).shortName} selected={retailer === site} onPress={() => onRetailer(site === retailer ? undefined : site)} />)}
+      <DiscoveryFilterChip label={`All results (${products.length})`} selected={!retailer} onPress={() => onRetailer(undefined)} />
+      {STORES.filter((site) => counts.has(site)).map((site) => <DiscoveryFilterChip key={site} label={`${getSiteByKey(site).shortName} (${counts.get(site)})`} selected={retailer === site} onPress={() => onRetailer(site === retailer ? undefined : site)} />)}
     </ScrollView> : null}
     <Modal visible={showCoverage} transparent animationType="slide" onRequestClose={() => setShowCoverage(false)}>
       <View style={styles.backdrop}><SafeAreaView edges={['bottom']} style={styles.sheet}>

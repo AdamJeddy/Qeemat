@@ -7,9 +7,11 @@ import {
   clearDiscoveryData,
   dismissDiscoveryProduct,
   getDiscoveryCache,
+  getDiscoveryAttempt,
   getDiscoveryPreferences,
   markDiscoveryProductsSeen,
   saveDiscoveryCache,
+  saveDiscoveryAttempt,
   saveDiscoveryPreferences
 } from '../discovery';
 import { DiscoveryProduct } from '../../domain/types';
@@ -81,9 +83,11 @@ describe('discovery persistence', () => {
     });
     await saveDiscoveryCache('decathlon-fitness', [product], '2026-10-25T10:00:00.000Z');
 
+    await saveDiscoveryAttempt('decathlon-fitness', true);
     await clearDiscoveryData();
 
     await expect(getDiscoveryPreferences()).resolves.toMatchObject({ completed: false, categories: [] });
     await expect(getDiscoveryCache('decathlon-fitness')).resolves.toBeUndefined();
+    await expect(getDiscoveryAttempt('decathlon-fitness')).resolves.toBeUndefined();
   });
 });
