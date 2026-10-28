@@ -55,4 +55,11 @@ describe('retailer product search', () => {
     expect(parseSearchPage(page, sss, 'shoes', observedAt)?.nextUrl).toBe(next);
     expect(parseSearchPage(page.replace('https://en-ae.sssports.com/on/', 'https://example.com/on/'), sss, 'shoes', observedAt)?.nextUrl).toBeUndefined();
   });
+  it('continues WooCommerce pages when one record has no usable price', () => {
+    const request = buildSearchRequests('helmet').find((entry) => entry.siteKey === 'ay_accessories')!;
+    const records = Array.from({ length: 20 }, (_, index) => ({ id: index, name: `Helmet ${index}`, permalink: `https://ay-accessories.com/product/helmet-${index}/`, prices: { price: index === 19 ? '0' : '1000', currency_minor_unit: 2, currency_code: 'AED' } }));
+    const page = parseSearchPage(JSON.stringify(records), request, 'helmet', observedAt);
+    expect(page?.products).toHaveLength(19);
+    expect(page?.nextUrl).toContain('&page=2');
+  });
 });

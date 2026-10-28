@@ -106,13 +106,14 @@ export function parseSearchPage(body: string, request: SearchRequest, query: str
   const explicitEmpty = /no (?:matching )?(?:products|results|matches)(?: were)? (?:found|available|for|could be found)|could(?:n.t| not) find|did not match any/i.test(text) || /\b0\s+(?:products|results|items)/i.test(headings);
   const emptyJson = request.provider === 'woocommerce' && body.trim() === '[]';
   if (!products.length && !verifiedEmpty && !explicitEmpty && !emptyJson) { return undefined; }
-  return { products: rankSearchMatches(products, query), ...nextSearchPage(body, request, query, products.length) };
+  return { products: rankSearchMatches(products, query), ...nextSearchPage(body, request, query) };
 }
 
-function nextSearchPage(body: string, request: SearchRequest, query: string, count: number): { nextUrl?: string } {
+function nextSearchPage(body: string, request: SearchRequest, query: string): { nextUrl?: string } {
   const origin = request.url.match(/^https:\/\/[^/]+/)![0];
   if (request.provider === 'woocommerce') {
-    if (count < 20) { return {}; }
+    const records = JSON.parse(body);
+    if (!Array.isArray(records) || records.length < 20) { return {}; }
     const page = Number(request.url.match(/[?&]page=(\d+)/)?.[1] ?? 1);
     return { nextUrl: `${request.url.replace(/&page=\d+/, '')}&page=${page + 1}` };
   }
