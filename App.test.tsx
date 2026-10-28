@@ -27,6 +27,7 @@ jest.mock('./src/data/discovery', () => ({
 jest.mock('./src/domain/discoveryCatalog', () => ({
   loadDiscoveryCatalog: jest.fn()
 }));
+jest.mock('./src/domain/discoverySearchCatalog', () => ({ loadProductSearch: jest.fn() }));
 
 import { AddScreen, DetailScreen, getTrackedProductLink, OpportunityScreen } from './App';
 import { AppText } from './src/components/AppText';
@@ -43,6 +44,7 @@ const mockClipboardSetString = jest.requireMock('@react-native-clipboard/clipboa
 const mockGetDiscoveryPreferences = jest.requireMock('./src/data/discovery').getDiscoveryPreferences as jest.Mock;
 const mockMarkDiscoveryProductsSeen = jest.requireMock('./src/data/discovery').markDiscoveryProductsSeen as jest.Mock;
 const mockLoadDiscoveryCatalog = jest.requireMock('./src/domain/discoveryCatalog').loadDiscoveryCatalog as jest.Mock;
+const mockLoadProductSearch = jest.requireMock('./src/domain/discoverySearchCatalog').loadProductSearch as jest.Mock;
 
 describe('AddScreen', () => {
   beforeEach(() => {
@@ -259,6 +261,42 @@ describe('DetailScreen', () => {
 });
 
 describe('OpportunityScreen', () => {
+  it('ignores an older search response after a new query is submitted', async () => {
+    mockLoadProductSearch.mockReset();
+    let finishOlder!: (value: unknown) => void;
+    mockLoadProductSearch.mockImplementationOnce(() => new Promise((resolve) => { finishOlder = resolve; }));
+    mockLoadProductSearch.mockResolvedValueOnce({ query: 'new phone', products: [], sources: [] });
+    let tree: renderer.ReactTestRenderer;
+    await act(async () => { tree = renderer.create(<OpportunityScreen navigate={jest.fn()} />); await new Promise<void>((resolve) => setImmediate(resolve)); });
+    const input = tree!.root.findAllByType(TextInput).find((node) => node.props.accessibilityLabel === 'Search products across stores')!;
+    act(() => input.props.onChangeText('old phone'));
+    await act(async () => { input.props.onSubmitEditing(); await new Promise<void>((resolve) => setImmediate(resolve)); });
+    act(() => input.props.onChangeText('new phone'));
+    await act(async () => { input.props.onSubmitEditing(); await new Promise<void>((resolve) => setImmediate(resolve)); });
+    await act(async () => { finishOlder({ query: 'old phone', products: [], sources: [] }); await new Promise<void>((resolve) => setImmediate(resolve)); });
+    const content = tree!.root.findAllByType(AppText).map((node) => [node.props.children].flat().join('')).join(' ');
+    expect(content).toContain('new phone');
+    expect(content).not.toContain('old phone');
+    await act(async () => tree!.unmount());
+  });
+  it('searches only on submission, ignores quiz budgets, and clears back to discovery', async () => {
+    mockGetDiscoveryPreferences.mockResolvedValue({ completed: true, categories: ['fitness'], favoriteBrands: [], budgetsByCategory: { fitness: 1 }, dismissedProductIds: [], seenProductIds: [] });
+    mockLoadDiscoveryCatalog.mockResolvedValue({ products: [], stale: false, failedCollectionIds: [] });
+    const phone = { id: 'phone', title: 'iPhone 16', siteKey: 'noon', brand: 'Apple', category: 'general', priceMinor: 300000, currency: 'AED', url: 'https://www.noon.com/phone/p/', observedAt: '2026-10-28T09:00:00Z', availability: 'unknown' };
+    mockLoadProductSearch.mockResolvedValue({ query: 'iphone 16', products: [phone], sources: [] });
+    let tree: renderer.ReactTestRenderer;
+    await act(async () => { tree = renderer.create(<OpportunityScreen navigate={jest.fn()} />); await new Promise<void>((resolve) => setImmediate(resolve)); });
+    const input = tree!.root.findAllByType(TextInput).find((node) => node.props.accessibilityLabel === 'Search products across stores');
+    expect(input).toBeDefined();
+    act(() => input!.props.onChangeText('iphone 16'));
+    expect(mockLoadProductSearch).not.toHaveBeenCalled();
+    await act(async () => { input!.props.onSubmitEditing(); await new Promise<void>((resolve) => setImmediate(resolve)); });
+    expect(mockLoadProductSearch).toHaveBeenCalledWith('iphone 16', expect.anything());
+    expect(tree!.root.findByType(DiscoveryProductGrid).props.products).toEqual([phone]);
+    await act(async () => { tree!.root.findByProps({ accessibilityLabel: 'Clear product search' }).props.onPress(); await new Promise<void>((resolve) => setImmediate(resolve)); });
+    expect(tree!.root.findAllByType(AppText).map((node) => [node.props.children].flat().join('')).join(' ')).not.toContain('Results for “iphone 16”');
+    await act(async () => tree!.unmount());
+  });
   beforeEach(() => {
     mockGetDiscoveryPreferences.mockResolvedValue({
       completed: true,
