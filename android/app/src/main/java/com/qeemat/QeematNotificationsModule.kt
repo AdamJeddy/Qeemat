@@ -18,6 +18,8 @@ import com.facebook.react.bridge.ReactMethod
 
 private const val PRICE_ALERT_CHANNEL_ID = "qeemat-price-alerts"
 private const val PRICE_ALERT_CHANNEL_NAME = "Price alerts"
+private const val UPDATE_CHANNEL_ID = "qeemat-app-updates"
+private const val UPDATE_NOTIFICATION_ID = -1001
 
 class QeematNotificationsModule(private val reactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactContext) {
@@ -80,6 +82,49 @@ class QeematNotificationsModule(private val reactContext: ReactApplicationContex
       promise.resolve(true)
     } catch (error: Exception) {
       promise.reject("QNOTIFY_SEND_FAILED", error)
+    }
+  }
+
+  @ReactMethod
+  fun notifyAppUpdate(version: String, promise: Promise) {
+    try {
+      if (!areNotificationsAllowed()) {
+        promise.resolve(false)
+        return
+      }
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        val manager = reactContext.getSystemService(NotificationManager::class.java)
+        if (manager == null) {
+          promise.resolve(false)
+          return
+        }
+        manager.createNotificationChannel(NotificationChannel(
+            UPDATE_CHANNEL_ID, "App updates", NotificationManager.IMPORTANCE_DEFAULT
+        ).apply { description = "Notifications when a new Qeemat version is available." })
+        if (manager.getNotificationChannel(UPDATE_CHANNEL_ID)?.importance == NotificationManager.IMPORTANCE_NONE) {
+          promise.resolve(false)
+          return
+        }
+      }
+      val launchIntent = reactContext.packageManager.getLaunchIntentForPackage(reactContext.packageName)?.apply {
+        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+      }
+      val pendingIntent = launchIntent?.let {
+        PendingIntent.getActivity(reactContext, UPDATE_NOTIFICATION_ID, it,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+      }
+      val notification = NotificationCompat.Builder(reactContext, UPDATE_CHANNEL_ID)
+          .setSmallIcon(R.mipmap.ic_launcher)
+          .setContentTitle("Qeemat update available")
+          .setContentText("Version $version is ready. Open Qeemat to view the release.")
+          .setAutoCancel(true)
+          .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+          .setContentIntent(pendingIntent)
+          .build()
+      NotificationManagerCompat.from(reactContext).notify(UPDATE_NOTIFICATION_ID, notification)
+      promise.resolve(true)
+    } catch (error: Exception) {
+      promise.reject("QNOTIFY_UPDATE_FAILED", error)
     }
   }
 

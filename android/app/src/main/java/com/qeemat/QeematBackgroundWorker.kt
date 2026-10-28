@@ -19,6 +19,7 @@ class QeematBackgroundWorker(
   override fun doWork(): Result {
     return try {
       val intent = Intent(appContext, QeematBackgroundTaskService::class.java).apply {
+        putExtra("task", inputData.getString("task") ?: "price")
         putExtra("force", inputData.getBoolean("force", false))
         putExtra("source", "work-manager")
         putExtra("scheduledAt", System.currentTimeMillis().toDouble())
