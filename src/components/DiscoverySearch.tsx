@@ -38,15 +38,15 @@ export function DiscoverySearch({ query, result, products, busy, retailer, onRet
   }
   return <View style={styles.container}>
     <View style={styles.inputRow}>
-      <TextInput accessibilityLabel="Search products across stores" value={input} onChangeText={setInput} onSubmitEditing={submit} returnKeyType="search" maxLength={120} placeholder="Search products across stores" placeholderTextColor={colors.textSoft} style={styles.input} />
+      <TextInput accessibilityLabel="Search products across stores" value={input} onChangeText={setInput} onSubmitEditing={submit} returnKeyType="search" maxLength={120} placeholder={`Search ${STORES.length} stores`} placeholderTextColor={colors.textSoft} style={styles.input} />
       <Pressable accessibilityRole="button" accessibilityLabel="Search products" onPress={submit} style={styles.action}><Search size={21} color={colors.primary} /></Pressable>
       {query ? <Pressable accessibilityRole="button" accessibilityLabel="Clear product search" onPress={() => { setInput(''); setError(''); onClear(); }} style={styles.action}><X size={21} color={colors.textMuted} /></Pressable> : null}
     </View>
     {error ? <AppText accessibilityLiveRegion="polite">{error}</AppText> : null}
-    <View style={styles.statusRow}>
-      <AppText muted accessibilityLiveRegion="polite" style={styles.flex}>{query ? `${completed} of ${STORES.length} stores checked${busy ? ' · Searching…' : ''}` : `Search ${STORES.length} stores by name or model`}</AppText>
+    {query ? <View style={styles.statusRow}>
+      <AppText muted accessibilityLiveRegion="polite" style={styles.flex}>{`${completed} of ${STORES.length} stores checked${busy ? ' · Searching…' : ''}`}</AppText>
       <Pressable accessibilityRole="button" onPress={() => setShowCoverage(true)} style={styles.action}><AppText style={styles.link}>Coverage</AppText></Pressable>
-    </View>
+    </View> : null}
     {query ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail}>
       <DiscoveryFilterChip label={`All results (${products.length})`} selected={!retailer} onPress={() => onRetailer(undefined)} />
       {STORES.filter((site) => counts.has(site)).map((site) => <DiscoveryFilterChip key={site} label={`${getSiteByKey(site).shortName} (${counts.get(site)})`} selected={retailer === site} onPress={() => onRetailer(site === retailer ? undefined : site)} />)}
