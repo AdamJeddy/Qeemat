@@ -1,4 +1,4 @@
-export type SiteKey = 'noon' | 'nike_uae' | 'sun_sand_sports' | 'level_shoes' | 'ay_accessories' | 'ounass' | 'amazon_ae' | 'adidas' | 'puma_uae' | 'decathlon_uae' | 'salomon_gcc' | 'sephora_uae' | 'faces_uae' | 'centrepoint_uae' | 'namshi' | 'the_deal' | 'sharaf_dg' | 'brands_for_less';
+export type SiteKey = 'noon' | 'nike_uae' | 'sun_sand_sports' | 'level_shoes' | 'ay_accessories' | 'ounass' | 'amazon_ae' | 'adidas' | 'puma_uae' | 'decathlon_uae' | 'salomon_gcc' | 'sephora_uae' | 'faces_uae' | 'centrepoint_uae' | 'namshi' | 'the_deal' | 'sharaf_dg' | 'brands_for_less' | 'carrefour_uae';
 
 export type Availability = 'in_stock' | 'out_of_stock' | 'unknown';
 
@@ -20,16 +20,23 @@ export type CheckStatus =
 export type SnapshotSource = 'unknown' | 'manual_single' | 'manual_batch' | 'background';
 
 /** Categories currently supported by the local discovery experience. */
-export type DiscoveryCategory = 'fashion' | 'beauty' | 'electronics' | 'sport';
+export type DiscoveryCategory = import('./discoveryCategories').ShoppingCategory |
+  'fashion' | 'beauty' | 'electronics' | 'sport' | 'home_department' | 'groceries' | 'general';
 
 export type DiscoveryProduct = {
+  priceBasis?: import('./priceBasis').PriceBasis;
   /** Stable identifier from the retailer catalogue. */
   id: string;
   siteKey: SiteKey;
   category: DiscoveryCategory;
+  /** A product can appear in several retailer categories without becoming duplicates. */
+  categories?: DiscoveryCategory[];
+  collectionIds?: string[];
   brand: string;
   title: string;
   url: string;
+  /** Retailer-supplied product type used only to match product searches. */
+  searchCategory?: string;
   imageUrl?: string;
   /** Lowest currently-observed purchasable price, in currency minor units. */
   priceMinor?: number;
@@ -50,6 +57,7 @@ export type DiscoveryPreferences = {
 };
 
 export type DiscoveryFilter = {
+  collectionId?: string;
   category?: DiscoveryCategory;
   siteKey?: SiteKey;
   brand?: string;
@@ -76,6 +84,7 @@ export type VariantAttribute = {
 };
 
 export type ProductVariant = {
+  priceBasis?: import('./priceBasis').PriceBasis;
   /** Stable source identifier, normally a SKU or source variation ID. */
   id: string;
   /** Human-readable combination as the source describes it. */
@@ -93,6 +102,7 @@ export type ProductVariant = {
 export type VariantSelection = Pick<ProductVariant, 'id' | 'label' | 'attributes' | 'url'>;
 
 export type ParsedProduct = {
+  priceBasis?: import('./priceBasis').PriceBasis;
   siteKey: SiteKey;
   canonicalUrl: string;
   title: string;
@@ -109,6 +119,7 @@ export type ParsedProduct = {
 };
 
 export type TrackedProduct = {
+  priceBasis?: import('./priceBasis').PriceBasis;
   id: number;
   url: string;
   canonicalUrl: string;
@@ -144,6 +155,7 @@ export type TrackedProduct = {
 };
 
 export type PriceSnapshot = {
+  priceBasis?: import('./priceBasis').PriceBasis;
   id: number;
   trackedProductId: number;
   priceMinor?: number;
@@ -176,6 +188,7 @@ export type ProductDraft = {
 export type PriceDirection = 'up' | 'down' | 'first';
 
 export type ActivityEvent = {
+  priceBasis?: import('./priceBasis').PriceBasis;
   id: number;
   trackedProductId: number;
   productTitle: string;

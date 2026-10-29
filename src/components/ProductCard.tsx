@@ -78,7 +78,7 @@ export function ProductCard({ product, onPress, onRemove, onLongPress, selected 
         {checkFailed || isOos ? <AppText muted style={styles.caption}>Last known price</AppText> : null}
         <View style={styles.priceRow}>
           <AppText weight="bold" style={[styles.price, isOos && styles.priceMuted]}>
-            {formatPrice(product.currentPriceMinor, product.currency)}
+            {formatPrice(product.currentPriceMinor, product.currency, product.priceBasis)}
           </AppText>
           {isOos ? (
             <View style={styles.oosBadge}>
@@ -91,14 +91,14 @@ export function ProductCard({ product, onPress, onRemove, onLongPress, selected 
             <View style={styles.priceDropBadge}>
               <TrendingDown size={13} color={colors.green} />
               <AppText weight="semibold" style={styles.priceDropText}>
-                ↓ {formatPrice(Math.abs(delta), product.currency)}
+                ↓ {formatPrice(Math.abs(delta), product.currency, product.priceBasis)}
               </AppText>
             </View>
           ) : showPriceUp ? (
             <View style={styles.priceUpBadge}>
               <TrendingUp size={13} color={colors.red} />
               <AppText weight="semibold" style={styles.priceUpText}>
-                ↑ {formatPrice(delta, product.currency)}
+                ↑ {formatPrice(delta, product.currency, product.priceBasis)}
               </AppText>
             </View>
           ) : (

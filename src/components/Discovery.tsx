@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -15,12 +15,13 @@ import { ChevronRight, EyeOff, Plus, Sparkles, X } from 'lucide-react-native';
 import { AppText } from './AppText';
 import { PrimaryButton } from './PrimaryButton';
 import { formatRelativeTime } from '../domain/dates';
-import { DISCOVERY_CATEGORY_LABELS, DISCOVERY_INTEREST_CATEGORIES, preferredDiscoveryBrands, uniqueDiscoveryBrands } from '../domain/discovery';
+import { DISCOVERY_CATEGORY_LABELS, preferredDiscoveryBrands, uniqueDiscoveryBrands } from '../domain/discovery';
 import { cleanUrl, getSiteByKey } from '../domain/sites';
 import { DiscoveryCategory, DiscoveryPreferences, DiscoveryProduct, TrackedProduct } from '../domain/types';
 import { parseTargetPriceInput } from '../domain/price';
 import { formatPrice } from '../domain/price';
 import { colors, radius } from '../theme/theme';
+import { DISCOVERY_CATEGORY_GROUPS } from '../domain/discoveryCategories';
 
 export function DiscoverySetupCard({ onPress, onDismiss }: { onPress: () => void; onDismiss: () => void }) {
   return (
@@ -98,7 +99,7 @@ export function DiscoveryProductGrid({
             <View style={styles.productBody}>
               <AppText muted numberOfLines={1} style={styles.productSource}>{product.brand} · {getSiteByKey(product.siteKey).shortName}</AppText>
               <AppText weight="semibold" numberOfLines={2} style={styles.productTitle}>{product.title}</AppText>
-              <AppText weight="bold" style={styles.productPrice}>{product.priceMinor === undefined ? 'Price unavailable' : `${product.hasPriceRange ? 'From ' : ''}${formatPrice(product.priceMinor, product.currency)}`}</AppText>
+              <AppText weight="bold" style={styles.productPrice}>{product.priceMinor === undefined ? 'Price unavailable' : `${product.hasPriceRange ? 'From ' : ''}${formatPrice(product.priceMinor, product.currency, product.priceBasis)}`}</AppText>
               <AppText muted style={styles.productObserved}>Observed {formatRelativeTime(product.observedAt)}</AppText>
               <Pressable accessibilityRole="button" onPress={() => onTrack(product)} style={({ pressed }) => [styles.trackButton, tracked && styles.trackedButton, pressed && styles.pressed]} disabled={tracking}>
                 {tracking ? <ActivityIndicator size="small" color={colors.surface} /> : <><Plus size={15} color={tracked ? colors.primary : colors.surface} /><AppText weight="semibold" style={[styles.trackButtonText, tracked && styles.trackedButtonText]}>{tracked ? 'Tracking' : 'Track price'}</AppText></>}
@@ -114,8 +115,9 @@ export function DiscoveryProductGrid({
             {preview.imageUrl ? <Image source={{ uri: preview.imageUrl }} resizeMode="contain" style={styles.previewImage} /> : null}
             <AppText muted>{preview.brand} · {getSiteByKey(preview.siteKey).shortName}</AppText>
             <AppText weight="bold" style={styles.emptyTitle}>{preview.title}</AppText>
-            <AppText weight="bold">{preview.hasPriceRange ? 'From ' : ''}{formatPrice(preview.priceMinor, preview.currency)}</AppText>
+            <AppText weight="bold">{preview.hasPriceRange ? 'From ' : ''}{formatPrice(preview.priceMinor, preview.currency, preview.priceBasis)}</AppText>
             <AppText muted>Price observed {formatRelativeTime(preview.observedAt)}. Current details are verified when you track.</AppText>
+            {preview.priceBasis === 'kg' ? <AppText muted>Price per kilogram. Delivery location and final delivered weight can change the checkout total.</AppText> : null}
             <PrimaryButton label={trackedProducts.some((item) => cleanUrl(item.canonicalUrl || item.url) === cleanUrl(preview.url)) ? 'Open tracker' : 'Track price'} onPress={() => { setPreview(undefined); onTrack(preview); }} />
             <PrimaryButton label="View at retailer" variant="outline" onPress={() => onViewAtRetailer(preview)} />
             <PrimaryButton label="More like this" variant="outline" onPress={() => { setPreview(undefined); onMoreLikeThis(preview.brand); }} />
@@ -140,10 +142,10 @@ export function DiscoveryPreferencesSheet({
   onClose: () => void;
   onSave: (update: Pick<DiscoveryPreferences, 'completed' | 'categories' | 'favoriteBrands' | 'budgetsByCategory'>) => Promise<void>;
 }) {
-  const availableCategories = useMemo(() => DISCOVERY_INTEREST_CATEGORIES, []);
   const [step, setStep] = useState(0);
   const [categories, setCategories] = useState<DiscoveryCategory[]>([]);
   const [brands, setBrands] = useState<string[]>([]);
+  const [brandQuery, setBrandQuery] = useState('');
   const [budgets, setBudgets] = useState<Partial<Record<DiscoveryCategory, string>>>({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string>();
@@ -153,6 +155,7 @@ export function DiscoveryPreferencesSheet({
       return;
     }
     setStep(0);
+    setBrandQuery('');
     setError(undefined);
     setCategories(initialPreferences?.categories ?? []);
     setBrands(initialPreferences?.favoriteBrands ?? []);
@@ -161,7 +164,7 @@ export function DiscoveryPreferencesSheet({
 
   const brandChoices = uniqueDiscoveryBrands([...preferredDiscoveryBrands(categories), ...products.filter((product) => categories.includes(product.category)).map((product) => product.brand), ...brands]);
   const title = step === 0 ? 'What are you interested in?' : step === 1 ? 'Any favourite brands?' : 'What do you usually spend?';
-  const copy = step === 0 ? 'Choose anything you would like to explore. You can change this later.' : step === 1 ? 'This helps us bring familiar brands to the top of your feed.' : 'Set an optional maximum per category. Leave blank for no budget.';
+  const copy = step === 0 ? 'Choose anything you would like to explore. You can change this later.' : step === 1 ? 'This helps us bring familiar brands to the top of your feed.' : 'Set an optional maximum per interest. Leave blank for no budget. Weighted groceries use the price per kilogram.';
 
   async function save() {
     const budgetsByCategory = Object.fromEntries(categories.flatMap((category) => {
@@ -186,8 +189,8 @@ export function DiscoveryPreferencesSheet({
           <AppText weight="bold" style={styles.sheetTitle}>{title}</AppText>
           <AppText muted style={styles.sheetCopy}>{copy}</AppText>
           {error ? <AppText>{error}</AppText> : null}
-          {step === 0 ? <View style={styles.choiceWrap}>{availableCategories.map((category) => <DiscoveryFilterChip key={category} label={DISCOVERY_CATEGORY_LABELS[category]} selected={categories.includes(category)} onPress={() => setCategories((current) => current.includes(category) ? current.filter((item) => item !== category) : [...current, category])} />)}</View> : null}
-          {step === 1 ? <View style={styles.choiceWrap}><DiscoveryFilterChip label="No preference" selected={!brands.length} onPress={() => setBrands([])} />{brandChoices.length ? brandChoices.map((brand) => <DiscoveryFilterChip key={brand} label={brand} selected={brands.includes(brand)} onPress={() => setBrands((current) => current.includes(brand) ? current.filter((item) => item !== brand) : [...current, brand])} />) : <AppText muted>Select an interest first, or continue without brand preferences.</AppText>}</View> : null}
+          {step === 0 ? DISCOVERY_CATEGORY_GROUPS.map((group) => <View key={group.id} style={styles.budgetList}><AppText weight="semibold">{group.label}</AppText><View style={styles.choiceWrap}>{group.categories.map((category) => <DiscoveryFilterChip key={category} label={DISCOVERY_CATEGORY_LABELS[category]} selected={categories.includes(category)} onPress={() => setCategories((current) => current.includes(category) ? current.filter((item) => item !== category) : [...current, category])} />)}</View></View>) : null}
+          {step === 1 ? <><TextInput accessibilityLabel="Search preferred brands" value={brandQuery} onChangeText={setBrandQuery} placeholder="Search brands…" placeholderTextColor={colors.textSoft} style={styles.brandSearch} /><View style={styles.choiceWrap}><DiscoveryFilterChip label="No preference" selected={!brands.length} onPress={() => setBrands([])} />{brandChoices.length ? brandChoices.filter((brand) => brand.toLowerCase().includes(brandQuery.toLowerCase())).slice(0, 60).map((brand) => <DiscoveryFilterChip key={brand} label={brand} selected={brands.includes(brand)} onPress={() => setBrands((current) => current.includes(brand) ? current.filter((item) => item !== brand) : [...current, brand])} />) : <AppText muted>Select an interest first, or continue without brand preferences.</AppText>}</View>{brandChoices.length > 60 ? <AppText muted>Search to find more brands.</AppText> : null}</> : null}
           {step === 2 ? <View style={styles.budgetList}>{categories.length ? categories.map((category) => <View key={category} style={styles.budgetRow}><AppText weight="semibold" style={styles.flex}>{DISCOVERY_CATEGORY_LABELS[category]}</AppText><View style={styles.budgetInput}><AppText muted>AED</AppText><TextInput value={budgets[category] ?? ''} onChangeText={(value) => setBudgets((current) => ({ ...current, [category]: value }))} keyboardType="decimal-pad" placeholder="Any" placeholderTextColor={colors.textSoft} style={styles.budgetTextInput} /></View></View>) : <AppText muted>Continue without a spending preference to see the live catalogue.</AppText>}</View> : null}
         </ScrollView>
         <View style={styles.sheetActions}>
@@ -214,7 +217,8 @@ const styles = StyleSheet.create({
   emptyTitle: { fontSize: 20 },
   emptyCopy: { textAlign: 'center', marginTop: 8 },
   emptyButton: { marginTop: 18 },
-  filterChip: { borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, paddingHorizontal: 12, paddingVertical: 8 },
+  filterChip: { minHeight: 44, justifyContent: 'center', borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, paddingHorizontal: 12, paddingVertical: 8 },
+  brandSearch: { minHeight: 48, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, paddingHorizontal: 12, color: colors.text, backgroundColor: colors.surface },
   filterChipSelected: { borderColor: colors.primary, backgroundColor: colors.blueSoft },
   filterChipText: { fontSize: 13 },
   filterChipTextSelected: { color: colors.primary },

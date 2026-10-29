@@ -80,7 +80,7 @@ export function PriceChart({ snapshots, currency }: PriceChartProps) {
     <View style={styles.chart}>
       <View style={styles.selectionRow}>
         <View>
-          <AppText weight="bold" style={styles.selectedPrice}>{formatPrice(selected.priceMinor, currency)}</AppText>
+          <AppText weight="bold" style={styles.selectedPrice}>{formatPrice(selected.priceMinor, currency, selected.priceBasis)}</AppText>
           <AppText muted style={styles.selectedDate}>{formatChartDate(selected.checkedAt)}</AppText>
         </View>
         <View style={[styles.changeBadge, changeBadgeStyle(selected, previous)]}>
@@ -180,11 +180,11 @@ function formatChangeLabel(point: PricedSnapshot, previous: PricedSnapshot | und
 
   const delta = point.priceMinor - previous.priceMinor;
   if (delta < 0) {
-    return `↓ ${formatPrice(Math.abs(delta), currency)} drop`;
+    return `↓ ${formatPrice(Math.abs(delta), currency, point.priceBasis)} drop`;
   }
 
   if (delta > 0) {
-    return `↑ ${formatPrice(delta, currency)} increase`;
+    return `↑ ${formatPrice(delta, currency, point.priceBasis)} increase`;
   }
 
   return 'No change';

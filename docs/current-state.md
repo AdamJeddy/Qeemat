@@ -1,7 +1,7 @@
 # Qeemat Current State
 
-**Last reconciled with the implementation:** 2026-10-25
-**App version:** 0.5.5-alpha
+**Last reconciled with the implementation:** 2026-10-26
+**App version:** 0.6.0-alpha (development; not yet published)
 
 This is the repo handoff for the current app. Product-planning documents are useful for intent, but this file describes shipped behavior and active limitations.
 
@@ -16,6 +16,7 @@ The app uses a small manual route stack in `App.tsx`, not React Navigation. Ther
 | Store | Status | Notes |
 | --- | --- | --- |
 | Noon UAE | Supported | Product metadata and embedded page data. |
+| Carrefour UAE | Supported | Streamed storefront product data; the exact seller, offer and delivery selection is preserved for checks. A missing or changed offer is rejected rather than replaced with another seller. |
 | Nike UAE | Supported | Structured product data. |
 | Sun & Sand Sports UAE | Supported | Structured product data and product URLs. |
 | Level Shoes | Supported | Embedded product payloads and metadata. |
@@ -32,7 +33,7 @@ The app uses a small manual route stack in `App.tsx`, not React Navigation. Ther
 | Namshi UAE | Supported | Structured product data plus source size controls are tracked by size when the initial response provides stock state; parent/color choices use their own product URLs. |
 | The Deal UAE | Supported | Salesforce Commerce Cloud product data plus source color and size controls; exact variation endpoints preserve the chosen option for later AED price and stock checks. |
 | Sharaf DG UAE | Supported | AED product metadata plus source-linked configuration URLs are tracked exactly when the initial response exposes complete option controls. |
-| Brands For Less UAE | Experimental | Parser and WebView fallback exist, but Cloudflare blocks reliable fetching; hidden from the supported-store UI. |
+| Brands For Less UAE | Experimental | Current rendered listing/PDP and size parsing implemented; browser markup verified. Android fetching verification is deferred. Hidden from supported-store UI until validated. |
 
 The site registry is `src/domain/sites.ts`. It controls hostnames, enabled status, icons, and minimum check intervals.
 
@@ -44,9 +45,14 @@ The site registry is `src/domain/sites.ts`. It controls hostnames, enabled statu
 - Long-press selection opens a compact floating action dock. Selected products can be moved to a folder, paused/resumed, archived/restored, or deleted in bulk.
 - Product cards show a site icon, local folder when present, price, status, and the most recent price-change direction. OOS cards are dimmed and show an amber out-of-stock badge.
 - The Activity tab is newest-first, groups events by date, shows old and new prices with direction/source badges, records both out-of-stock and back-in-stock transitions, and can open an existing product. Events remain visible but non-tappable after a product is deleted.
-- `For you` is the opening discovery tab. Its local quiz collects four interests, favourite brands and independent category budgets. Eligible picks obey interests/budgets and mix equally relevant categories/retailers. Category, brand, retailer and maximum-price filters update the same grid; Show more reveals batches of the cached catalogue. Price opportunities are no longer part of this tab.
-- Discovery has explicit listing sources for all 18 tracked retailers; 17 supplied products in the connected-Android validation, while BFL remained blocked. Per-collection caches preserve observed prices and age during failures, and the Sources control exposes exact endpoints/status. Discovery refreshes while browsing and does not enter tracked-product background checks. See [source URLs and limits](discovery-sources.md) and [UX review and device evidence](discovery-review.md).
+- `For you` is the opening discovery tab. Its local quiz collects 56 independent shopping interests, favourite brands and budgets per interest. Legacy combined preferences migrate into separate interests and budgets. Eligible picks obey these choices and mix equally relevant categories/retailers. Price opportunities are no longer part of this tab.
+- The department browser exposes 4,517 mapped listings across all 19 retailers. It offers searchable Departments and Stores views, compact department groups and store-specific categories; source URLs, breadcrumbs and fetch status are available under Source details. Selecting an interest, retailer or listing updates the same feed and fetches matching pages. An initial batch requests at most 24 listings; Load more listings adds another batch. Show more reveals already-fetched product cards. Each fetched page still has a 100-product extraction ceiling and retailer pagination is not automatic.
+- Source mapping is broader than validated extraction. The expansion's desktop sample initially extracted 47/72 pages; subsequent parser repairs recovered Amazon book and baby cards. BFL rendered products and size choices now parse from browser markup; full physical-Android verification is deferred by the user until the final pass. See the [category audit](discovery-category-audit.md) for per-retailer evidence and limits. Earlier Android results in [source URLs and limits](discovery-sources.md) refer to the previous selected collections.
+- Per-collection caches preserve observed prices and age during failures. Discovery reuses listings for 24 hours while browsing; failed attempts are also persisted for 24 hours so returning to For You does not repeatedly retry blocked stores. New uncached departments load when opened. The visible Refresh action and pull-to-refresh bypass this interval for the current feed scope; they do not crawl every mapped listing. Discovery does not enter tracked-product background checks. Carrefour weighted groceries normalize their default-weight price to AED/kg; listings, tracker prices and targets show this basis. A changed pack size or price basis preserves history and records a failed check rather than sending a misleading price alert. Retailer default delivery context and final weight can affect checkout totals.
+- Search retailer filters appear only for stores with visible matches and show their counts. A filter resets to all results if its store loses its last match during refresh or dismissal. For You offers visual department tiles that update the same feed; All departments opens the full interest, retailer and listing browser. An explicitly selected interest still applies its own saved budget. Fresh food remains separate from pantry, beverages and frozen food. The refresh action remains available above products.
+- Cancelled discovery loads do not create cached failures. Search and discovery keep separate display limits so clearing search returns to the expanded feed. Dismissal feedback for Decathlon and Salomon uses a shared product-path identity across search and collection listings; older numeric feedback is reconciled when its corresponding cached product is available.
 - Track price verifies the product page, saves existing defaults, and offers target settings afterward. Size/colour selection uses a sheet over the feed and preserves the exact source variant; existing trackers open their details. Secondary product actions live in the product-details modal.
+- Product-name search runs in the same For You feed across 18 sources; Sharaf DG is excluded until its search grid can be verified. Searches submit explicitly, bypass quiz interests/budgets, stream matching results, expose per-store status and retain cached matches on failures. Ounass and Level Shoes search women, men and kids separately. Query/model matching removes unrelated fallbacks and ranks named products ahead of compatible accessories across retailers; Amazon search excludes advertising cards. Clearing search restores discovery. Up to eight queries are cached locally with a 15-minute reuse window. Pagination follows verified source cursors where available; several providers currently supply only their first response. Runtime `e665848` installed and passed a search/filter/clear smoke test on Samsung SM-S928B on 28 October: one query checked 18 stores and showed 196 matches across nine retailers; the existing 24-item watchlist remained available. This is not exhaustive per-source, offline or tracking/variant QA. See [search evidence and limits](discovery-search-feasibility.md).
 
 ### Add flow and product detail
 
@@ -74,7 +80,7 @@ The site registry is `src/domain/sites.ts`. It controls hostnames, enabled statu
 - Confirmed out-of-stock products can parse successfully without a price. Storage preserves the last known product price and the UI shows an OOS state.
 - Confirmed Amazon OOS pages deliberately leave price unset: recommendation carousels can contain prices belonging to other products.
 - Amazon prices use the broadly available Buy Box price: sale prices are tracked, while Prime-exclusive discounts and alternate-seller prices are ignored. If that base Buy Box price is not unambiguous, the check reports that no current price was found instead of guessing.
-- AYM, Ounass, Level Shoes, Nike UAE, Sun & Sand Sports, Adidas UAE, PUMA UAE, Decathlon UAE, Salomon, Namshi, Centrepoint, and The Deal expose reliable initial-page variant data when the markup includes source IDs, labels, stock state, and price. Centrepoint color-only pages can track the current source product route; its alternate color buttons are not promoted without exact linked URLs. The Deal forms only the color/size candidates exposed by the source page and verifies a chosen candidate through its exact variation endpoint before storing it; Sharaf DG retains exact source configuration URLs for later checks. Noon, Amazon, Sephora, Faces, and Brands For Less retain page-level tracking unless a future initial response meets the same standard; Qeemat does not discover unadvertised neighbours or guess unavailable options.
+- AYM, Ounass, Level Shoes, Nike UAE, Sun & Sand Sports, Adidas UAE, PUMA UAE, Decathlon UAE, Salomon, Namshi, Centrepoint, and The Deal expose reliable initial-page variant data when the markup includes source IDs, labels, stock state, and price. Centrepoint color-only pages can track the current source product route; its alternate color buttons are not promoted without exact linked URLs. The Deal forms only the color/size candidates exposed by the source page and verifies a chosen candidate through its exact variation endpoint before storing it; Sharaf DG retains exact source configuration URLs for later checks. BFL exposes current source size choices using stable product/system/label identities without invented SKUs; missing saved sizes fail safely. Noon, Amazon, Sephora and Faces retain page-level tracking unless a future initial response meets the same standard; Qeemat does not discover unadvertised neighbours or guess unavailable options.
 - Challenge pages return `blocked`; pages without required product data return parser or price errors as appropriate.
 
 Parser code is in `src/domain/parser.ts`; types are in `src/domain/types.ts`; tests are in `src/domain/__tests__/`.
@@ -84,6 +90,10 @@ Parser code is in `src/domain/parser.ts`; types are in `src/domain/types.ts`; te
 Out-of-stock is a successful parser result, not a generic missing-price error. Each supported parser has site-specific availability signals, and structured data with unknown availability falls through to those parsers. The database preserves `currentPriceMinor` when an OOS result has no price, and snapshots retain availability for history. OOS products continue to be checked so Qeemat can record and optionally notify a back-in-stock transition. Repeated OOS results do not create price-change activity or notifications.
 
 No price-change activity event or notification is created for an OOS result without a price. The detail screen shows an amber banner explaining whether it is displaying the last known price or no recorded price.
+
+### App updates
+
+- On Android, the app checks published GitHub releases once when it opens and shows a dismissible notice for a newer version with an APK on For You, Watchlist and Settings. A separate WorkManager job checks approximately every 48 hours and posts one notification per newer release on the App updates notification channel. Android notification permission and system background restrictions apply. Alpha/prerelease builds can see prereleases; stable builds are offered stable releases. The notice opens the GitHub release page for manual download and installation. Offline or failed checks leave the app usable and retry on the next launch. Release tags must use a version such as `v0.5.5-alpha`, and the Android `versionName` must be updated for each release.
 
 ## Storage and Background Work
 
@@ -114,7 +124,7 @@ WorkManager is best effort. Battery saver, device-vendor restrictions, connectiv
 - `src/components/` - reusable UI, including `AppText`, `ProductCard`, and `SiteIcon`.
 - `src/theme/layout.ts` - compact layout helper.
 - `android/app/src/main/java/com/qeemat/` - Android WorkManager, notifications, and WebView modules.
-- `docs/bfl-integration.md` - BFL's experimental Cloudflare limitation.
+- `docs/bfl-integration.md` - BFL's current rendered parser and historical fetch limitations.
 
 ## Development and Validation
 

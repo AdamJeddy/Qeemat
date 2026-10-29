@@ -1,3 +1,5 @@
+import { priceBasisSuffix } from './priceBasis';
+
 export function parsePriceToMinor(value: string | number | undefined): number | undefined {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return Math.round(value * 100);
@@ -20,7 +22,7 @@ export function parsePriceToMinor(value: string | number | undefined): number | 
   return Math.round(amount * 100);
 }
 
-export function formatPrice(priceMinor?: number, currency = 'AED'): string {
+export function formatPrice(priceMinor?: number, currency = 'AED', priceBasis?: import('./priceBasis').PriceBasis): string {
   if (priceMinor === undefined || priceMinor === null) {
     return 'Price unavailable';
   }
@@ -29,7 +31,7 @@ export function formatPrice(priceMinor?: number, currency = 'AED'): string {
   return `${currency} ${amount.toLocaleString('en-AE', {
     minimumFractionDigits: amount % 1 === 0 ? 0 : 2,
     maximumFractionDigits: 2
-  })}`;
+  })}${priceBasisSuffix(priceBasis)}`;
 }
 
 export function formatPriceDelta(deltaMinor?: number, currency = 'AED'): string {
