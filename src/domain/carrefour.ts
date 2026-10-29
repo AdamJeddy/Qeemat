@@ -1,5 +1,6 @@
 import { Availability, ParsedProduct, ProductVariant } from './types';
 import { parsePriceToMinor } from './price';
+import { inferPackBasis, PriceBasis } from './priceBasis';
 
 type RecordValue = Record<string, unknown>;
 
@@ -24,6 +25,21 @@ export function readCarrefourRecords(html: string): RecordValue[] {
 
 function scalar(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() && !value.startsWith('$') ? value : undefined;
+}
+
+export function carrefourPrice(record: RecordValue, priceMinor: number | undefined): { priceMinor?: number; priceBasis?: PriceBasis } {
+  if (record.isSoldByWeight !== true) {
+    const attributes = record.additionalAttributes as RecordValue | undefined;
+    const categories = record.productCategory ?? attributes?.productCategory;
+    const food = record.productType === 'FOOD' || (Array.isArray(categories) && categories.some((category) => /^f\d/i.test(String(category))));
+    return { priceMinor, priceBasis: food ? inferPackBasis(String(record.productTitle ?? record.productName ?? '')) : undefined };
+  }
+  const threshold = record.orderThreshold as RecordValue | undefined;
+  const grams = Number(record.scalableWeights);
+  const kilograms = Number.isFinite(grams) && grams > 0 ? grams / 1000 : record.quantityTypeKey === 'kilo' ? Number(threshold?.min) : NaN;
+  // The price is for the source's default weight. Missing weight is not a
+  // license to use analytics.unitPrice, which can be the marked/original price.
+  return { priceBasis: 'kg', priceMinor: priceMinor !== undefined && Number.isFinite(kilograms) && kilograms > 0 ? Math.round(priceMinor / kilograms) : undefined };
 }
 
 /** Preserve source offer identity; the SEO canonical URL drops this information. */
@@ -59,13 +75,13 @@ export function parseCarrefourProduct(inputUrl: string, html: string): ParsedPro
     if (requested !== undefined && requested !== encodeURIComponent(String(record[field]))) { return undefined; }
   }
   const availability = carrefourAvailability(record.stockStatus, record.availableQuantity);
-  const priceMinor = availability === 'out_of_stock' ? undefined : parsePriceToMinor(scalar(record.price));
+  const { priceMinor, priceBasis } = carrefourPrice(record, availability === 'out_of_stock' ? undefined : parsePriceToMinor(scalar(record.price)));
   const imageUrl = scalar(record.image);
   const variant: ProductVariant = {
     id: `${productId}:${record.shopId}:${record.offerId}:${record.intent}`,
     label: `Sold by ${seller}`, attributes: [{ name: 'Seller', value: seller }], url: canonicalUrl,
-    priceMinor, currency: 'AED', availability, sku: productId, imageUrl
+    priceMinor, priceBasis, currency: 'AED', availability, sku: productId, imageUrl
   };
-  return { siteKey: 'carrefour_uae', canonicalUrl, title, imageUrl, priceMinor, currency: 'AED', availability,
-    rawPriceText: priceMinor === undefined ? undefined : scalar(record.price), sku: productId, variants: [variant] };
+  return { siteKey: 'carrefour_uae', canonicalUrl, title, imageUrl, priceMinor, priceBasis, currency: 'AED', availability,
+    rawPriceText: priceMinor === undefined ? undefined : `${priceMinor / 100}${priceBasis === 'kg' ? ' /kg' : ''}`, sku: productId, variants: [variant] };
 }

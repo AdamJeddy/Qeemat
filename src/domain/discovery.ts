@@ -6,22 +6,19 @@ import {
   ProductVariant,
   SiteKey
 } from './types';
+import { DISCOVERY_CATEGORY_LABELS as INTEREST_LABELS, DISCOVERY_CATEGORY_GROUPS } from './discoveryCategories';
 
 export const DISCOVERY_CATEGORY_LABELS: Record<DiscoveryCategory, string> = {
-  fashion: 'Fashion & footwear',
-  beauty: 'Beauty & fragrance',
-  electronics: 'Electronics',
-  sport: 'Sport & outdoors'
+  ...INTEREST_LABELS,
+  fashion: 'Style', beauty: 'Beauty', electronics: 'Technology', sport: 'Sport',
+  home_department: 'Home', groceries: 'Groceries', general: 'All departments'
 };
 
 export const DISCOVERY_SOURCE_PRODUCT_LIMIT = 100;
 
-/** Broad interests are collected before every retailer category is available. */
+/** Independent preferences; mixed source departments are only browsed explicitly. */
 export const DISCOVERY_INTEREST_CATEGORIES: DiscoveryCategory[] = [
-  'fashion',
-  'beauty',
-  'electronics',
-  'sport'
+  ...Object.keys(INTEREST_LABELS) as DiscoveryCategory[]
 ];
 
 export type DiscoveryCollection = {
@@ -32,61 +29,20 @@ export type DiscoveryCollection = {
   collectionHandle?: string;
   url?: string;
   provider?: 'shopify' | 'html' | 'woocommerce';
+  pageUrl?: string;
+  path?: string[];
+  audience?: string;
+  isDepartment?: boolean;
 };
 
-/**
- * Retailer listing sources are explicit and independently cached. Sources that
- * fail extraction or are blocked retain their cache and report a failure.
- */
-export const DISCOVERY_COLLECTIONS: DiscoveryCollection[] = [
-  {
-    id: 'decathlon-footwear',
-    label: 'Footwear',
-    category: 'fashion',
-    siteKey: 'decathlon_uae',
-    collectionHandle: 'men-footwear'
-  },
-  {
-    id: 'decathlon-fitness',
-    label: 'Fitness',
-    category: 'sport',
-    siteKey: 'decathlon_uae',
-    collectionHandle: 'fitness'
-  },
-  {
-    id: 'decathlon-outdoors',
-    label: 'Outdoors',
-    category: 'sport',
-    siteKey: 'decathlon_uae',
-    collectionHandle: 'hike-camp'
-  },
-  { id: 'nike-shoes', label: 'Nike shoes', category: 'fashion', siteKey: 'nike_uae', url: 'https://www.nike.ae/en/mens/shoes', provider: 'html' },
-  { id: 'nike-women', label: 'Nike women', category: 'fashion', siteKey: 'nike_uae', url: 'https://www.nike.ae/en/womens/shoes', provider: 'html' },
-  { id: 'sss-shoes', label: 'Sun & Sand shoes', category: 'sport', siteKey: 'sun_sand_sports', url: 'https://en-ae.sssports.com/mens/shoes', provider: 'html' },
-  { id: 'level-sneakers', label: 'Level Shoes sneakers', category: 'fashion', siteKey: 'level_shoes', url: 'https://www.levelshoes.com/men/shoes/sneakers.html', provider: 'html' },
-  { id: 'ay-gear', label: 'Motorcycle gear', category: 'sport', siteKey: 'ay_accessories', url: `https://ay-accessories.com/wp-json/wc/store/v1/products?per_page=${DISCOVERY_SOURCE_PRODUCT_LIMIT}`, provider: 'woocommerce' },
-  { id: 'ounass-beauty', label: 'Ounass beauty', category: 'beauty', siteKey: 'ounass', url: 'https://www.ounass.ae/women/beauty', provider: 'html' },
-  { id: 'ounass-fashion', label: 'Ounass clothing', category: 'fashion', siteKey: 'ounass', url: 'https://www.ounass.ae/women/clothing', provider: 'html' },
-  { id: 'noon-audio', label: 'Noon headphones', category: 'electronics', siteKey: 'noon', url: 'https://www.noon.com/uae-en/electronics-and-mobiles/portable-audio-and-video/headphones-24056/', provider: 'html' },
-  { id: 'amazon-audio', label: 'Amazon UAE headphones', category: 'electronics', siteKey: 'amazon_ae', url: 'https://www.amazon.ae/s?k=headphones', provider: 'html' },
-  { id: 'adidas-shoes', label: 'Adidas shoes', category: 'fashion', siteKey: 'adidas', url: 'https://www.adidas.ae/en/men-all-shoes', provider: 'html' },
-  { id: 'puma-shoes', label: 'Puma shoes', category: 'sport', siteKey: 'puma_uae', url: 'https://ae.puma.com/ae/en/men/shoes', provider: 'html' },
-  { id: 'salomon-outdoors', label: 'Salomon outdoors', category: 'sport', siteKey: 'salomon_gcc', url: `https://salomongcc.com/collections/shop-all-products/products.json?limit=${DISCOVERY_SOURCE_PRODUCT_LIMIT}`, provider: 'shopify' },
-  { id: 'sephora-featured', label: 'Sephora featured beauty', category: 'beauty', siteKey: 'sephora_uae', url: 'https://www.sephora.me/ae-en', provider: 'html' },
-  { id: 'faces-skincare', label: 'Faces skincare', category: 'beauty', siteKey: 'faces_uae', url: 'https://www.faces.ae/en/skincare', provider: 'html' },
-  { id: 'centrepoint-women', label: 'Centrepoint women', category: 'fashion', siteKey: 'centrepoint_uae', url: 'https://www.centrepointstores.com/ae/en/c/women', provider: 'html' },
-  { id: 'namshi-shoes', label: 'Namshi shoes', category: 'fashion', siteKey: 'namshi', url: 'https://www.namshi.com/uae-en/men-shoes/all-collection/', provider: 'html' },
-  { id: 'deal-clothing', label: 'The Deal clothing', category: 'fashion', siteKey: 'the_deal', url: 'https://www.thedealoutlet.com/ae-en/flash_sale_26/women/clothing', provider: 'html' },
-  { id: 'sharaf-electronics', label: 'Sharaf DG headphones', category: 'electronics', siteKey: 'sharaf_dg', url: 'https://uae.sharafdg.com/headphones-and-earphones/', provider: 'html' },
-  { id: 'bfl-women', label: 'Brands For Less women', category: 'fashion', siteKey: 'brands_for_less', url: 'https://www.brandsforless.com/en-ae/women/', provider: 'html' },
-  { id: 'carrefour-headphones', label: 'Headphones & Earphones', category: 'electronics', siteKey: 'carrefour_uae', url: 'https://www.carrefouruae.com/mafuae/en/c/NF1210300', provider: 'html' }
-];
+export { DISCOVERY_SOURCE_MAPS as DISCOVERY_COLLECTIONS } from './discoverySources';
 
 export function discoverySourceUrl(collection: DiscoveryCollection): string {
   return collection.url ?? `https://decathlon.ae/collections/${collection.collectionHandle}/products.json?limit=${DISCOVERY_SOURCE_PRODUCT_LIMIT}`;
 }
 
 export function discoveryCollectionPageUrl(collection: DiscoveryCollection): string {
+  if (collection.pageUrl) { return collection.pageUrl; }
   if (collection.provider === 'woocommerce') { return 'https://ay-accessories.com/shop/'; }
   return discoverySourceUrl(collection).replace(/\/products\.json\?.*$/, '');
 }
@@ -176,11 +132,25 @@ function readShopifyImageUrl(value: unknown): string | undefined {
 
 export function filterDiscoveryProducts(products: DiscoveryProduct[], filter: DiscoveryFilter): DiscoveryProduct[] {
   return products.filter((product) =>
-    (!filter.category || product.category === filter.category) &&
+    (!filter.category || (product.categories ?? [product.category]).includes(filter.category)) &&
+    (!filter.collectionId || product.collectionIds?.includes(filter.collectionId)) &&
     (!filter.siteKey || product.siteKey === filter.siteKey) &&
     (!filter.brand || product.brand.toLocaleLowerCase() === filter.brand.toLocaleLowerCase()) &&
     (filter.maximumPriceMinor === undefined || (product.priceMinor !== undefined && product.priceMinor <= filter.maximumPriceMinor))
   );
+}
+
+/** Shopify collection feeds use numeric IDs, while rendered search uses product paths. */
+export function discoveryFeedbackId(product: DiscoveryProduct): string {
+  if (product.siteKey === 'decathlon_uae' || product.siteKey === 'salomon_gcc') {
+    const handle = product.url.match(/\/products\/([^/?#]+)/)?.[1];
+    if (handle) { return `${product.siteKey}:/products/${handle}`; }
+  }
+  return product.id;
+}
+
+export function isDiscoveryProductDismissed(product: DiscoveryProduct, dismissed: ReadonlySet<string>): boolean {
+  return dismissed.has(product.id) || dismissed.has(discoveryFeedbackId(product));
 }
 
 export function buildDiscoverySections(products: DiscoveryProduct[], preferences: DiscoveryPreferences): {
@@ -190,11 +160,13 @@ export function buildDiscoverySections(products: DiscoveryProduct[], preferences
 } {
   const dismissed = new Set(preferences.dismissedProductIds);
   const seen = new Set(preferences.seenProductIds);
-  const visible = products.filter((product) => !dismissed.has(product.id) && product.availability !== 'out_of_stock');
+  const visible = products.filter((product) => !isDiscoveryProductDismissed(product, dismissed) && product.availability !== 'out_of_stock');
   const relevant = visible.filter((product) => {
-    const budget = preferences.budgetsByCategory[product.category];
-    return (!preferences.categories.length || preferences.categories.includes(product.category)) &&
-      (budget === undefined || (product.priceMinor !== undefined && product.priceMinor <= budget));
+    const categories = (product.categories ?? [product.category]).filter((category) => !preferences.categories.length || preferences.categories.includes(category));
+    return categories.some((category) => {
+      const budget = preferences.budgetsByCategory[category];
+      return budget === undefined || (product.priceMinor !== undefined && product.priceMinor <= budget);
+    });
   });
   // Round-robin equally relevant retailers/categories so a large source cannot
   // occupy the entire first screen, even when all interests are selected.
@@ -205,7 +177,7 @@ export function buildDiscoverySections(products: DiscoveryProduct[], preferences
   }
   const picks: DiscoveryProduct[] = [];
   for (const [, tier] of [...tiers].sort(([left], [right]) => right - left)) {
-    const categoryQueues = DISCOVERY_INTEREST_CATEGORIES.map((category) => {
+    const categoryQueues = (Object.keys(DISCOVERY_CATEGORY_LABELS) as DiscoveryCategory[]).map((category) => {
       const stores = new Map<string, DiscoveryProduct[]>();
       for (const product of tier.filter((item) => item.category === category)) {
         stores.set(product.siteKey, [...(stores.get(product.siteKey) ?? []), product]);
@@ -232,7 +204,11 @@ export function preferredDiscoveryBrands(categories: DiscoveryCategory[]): strin
     sport: ['Nike', 'Adidas', 'Puma', 'Salomon', 'Kiprun', 'Quechua', 'Domyos', 'Kalenji', 'Decathlon']
   };
 
-  return [...new Set(categories.flatMap((category) => choices[category] ?? []))];
+  return [...new Set(categories.flatMap((category) => {
+    const group = DISCOVERY_CATEGORY_GROUPS.find((item) => (item.categories as readonly string[]).includes(category))?.id;
+    const legacy = group === 'style' ? 'fashion' : group === 'technology' ? 'electronics' : group === 'active' ? 'sport' : group === 'beauty' ? 'beauty' : undefined;
+    return choices[category] ?? (legacy ? choices[legacy] ?? [] : []);
+  }))];
 }
 
 export function uniqueDiscoveryBrands(brands: string[]): string[] {
@@ -254,7 +230,7 @@ export function discoveryVariantChoices(variants: ProductVariant[]): ProductVari
 
 function discoveryScore(product: DiscoveryProduct, preferences: DiscoveryPreferences): number {
   let score = 0;
-  if (preferences.categories.includes(product.category)) {
+  if ((product.categories ?? [product.category]).some((category) => preferences.categories.includes(category))) {
     score += 1000;
   }
   if (preferences.favoriteBrands.some((brand) => brand.localeCompare(product.brand, undefined, { sensitivity: 'accent' }) === 0)) {

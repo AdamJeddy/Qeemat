@@ -1,10 +1,18 @@
 # Brands For Less (BFL) Integration
 
 **Issue:** #9  
-**Status:** Parked — parser complete, fetch path blocked by Cloudflare  
-**Last reconciled with the repo:** 2026-08-01
+**Status:** Experimental — current rendered parser implemented; Android verification deferred
+**Last reconciled with the repo:** 2026-10-27
 
-## What's implemented (and working)
+## Current storefront update — 27 October 2026
+
+The user supplied working category URLs. Browser research mapped 292 listings and confirmed 48 shoes cards. `src/domain/bfl.ts` parses current size labels, sizing systems and availability; IDs derive from the source product and choice, with no invented SKU or selection URL. `discoveryListings.ts` reads rendered product cards. HTTP application shells fall back to the native browser, which waits for actual listing/PDP content. Ordinary Turnstile widgets are no longer mistaken for blocking interstitials.
+
+Browser selection on product 2078248 confirmed sizes and unchanged page URL/price. This is browser evidence, not Android validation; the user deferred phone testing until the final pass. See [the category audit](discovery-category-audit.md) for current evidence and limits.
+
+The sections below retain the historical August investigation; its parked-state conclusions do not describe the new implementation.
+
+## Historical implementation and investigation
 
 All six store-integration steps from `AGENTS.md` are complete:
 

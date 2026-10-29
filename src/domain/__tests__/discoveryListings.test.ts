@@ -2,9 +2,33 @@ import { DISCOVERY_COLLECTIONS, DiscoveryCollection } from '../discovery';
 import { parseDiscoveryListing } from '../discoveryListings';
 
 const observedAt = '2026-10-25T15:00:00Z';
-const source = (siteKey: DiscoveryCollection['siteKey']) => DISCOVERY_COLLECTIONS.find((item) => item.siteKey === siteKey)!;
+const source = (siteKey: DiscoveryCollection['siteKey']) => DISCOVERY_COLLECTIONS.find((item) => item.siteKey === siteKey && (siteKey !== 'ounass' || item.category === 'skincare'))!;
 
 describe('retailer listing extraction', () => {
+  it('reads current BFL rendered product cards and ignores sizes and RRP in the selling price', () => {
+    const html = '<a class="hover_view_content" href="/en-ae/running-shoes/2078248/p/?origin=PLP&amp;queryId=test"><div class="content_image"><img src="https://f.bflcdn.com/shoe.jpg" alt="Running shoes"></div><ul class="products_size_list"><li>42</li><li>43</li></ul><div class="item_description_wrapper"><h5 class="pdp_brand">Skechers</h5><h1 class="product_title">Running shoes</h1><div class="price_slab"><p class="item_price"><span class="price">AED 159</span></p><span class="rrp">RRP:AED 415</span></div></div></a>';
+    expect(parseDiscoveryListing(html, source('brands_for_less'), observedAt)).toEqual([expect.objectContaining({ id: 'brands_for_less:2078248', title: 'Running shoes', brand: 'Skechers', priceMinor: 15900, url: 'https://www.brandsforless.com/en-ae/running-shoes/2078248/p/' })]);
+  });
+  it('reads Sharaf DG rendered category cards using the selling price and pinned offer', () => {
+    const html = '<script type="application/ld+json">{"@type":"Product","name":"Unrelated recommendation","url":"/product/other/","offers":{"price":1}}</script><div id="hits"><div class="algolia-item"><a href="//uae.sharafdg.com/product/phone/?promo=123" class="ratio-box product-link" data-objectid="456" data-sku="SKU1" data-sku-promo="SKU1--123" data-brand="Apple" data-originalprice="5099"><img src="//images.example/phone.jpg"><h4 class="name">Apple phone 256GB</h4><div class="product-price"><div class="price"><span class="currency_symbol">D</span>&nbsp;4,498.00</div><div class="old-price">5,099.00</div></div></a></div></div>';
+    expect(parseDiscoveryListing(html, source('sharaf_dg'), observedAt)).toEqual([expect.objectContaining({ title: 'Apple phone 256GB', brand: 'Apple', priceMinor: 449800, url: 'https://uae.sharafdg.com/product/phone/?promo=123' })]);
+  });
+  it('does not turn an empty Sharaf DG grid into unrelated recommendation results', () => {
+    const html = '<div id="hits"></div><script type="application/ld+json">{"@type":"Product","name":"Recommendation","url":"/product/other/","offers":{"price":1}}</script>';
+    expect(parseDiscoveryListing(html, source('sharaf_dg'), observedAt)).toEqual([]);
+  });
+  it('waits for a Sharaf DG category grid when HTTP only supplies recommendation metadata', () => {
+    const html = '<script type="application/ld+json">{"@type":"Product","name":"Recommendation","url":"/product/other/","offers":{"price":1}}</script>';
+    expect(parseDiscoveryListing(html, source('sharaf_dg'), observedAt)).toEqual([]);
+  });
+  it('reads Amazon department product cards without requiring search-result image classes', () => {
+    const html = '<div id="acsProductBlockV1-0" data-asin="B0DN6Q5MWG"><a href="/dp/B0DN6Q5MWG"><img alt="Diapers Size 4" src="https://images.example/diapers.jpg"></a><span class="a-price" data-a-size="l"><span class="a-offscreen">AED 21.93</span></span></div><div data-asin="B0DN6Q5MWH"><img alt="No price" src="https://images.example/other.jpg"></div>';
+    expect(parseDiscoveryListing(html, source('amazon_ae'), observedAt)).toEqual([expect.objectContaining({ title: 'Diapers Size 4', priceMinor: 2193, imageUrl: 'https://images.example/diapers.jpg', url: 'https://www.amazon.ae/dp/B0DN6Q5MWG' })]);
+  });
+  it('reads a department carousel selling price without substituting its old list price', () => {
+    const html = '<li class="a-carousel-card dcl-carousel-element"><div data-csa-c-item-type="asin"><a href="/book/dp/1915381061?ref=example"><img alt="" src="https://images.example/book.jpg"><span class="dcl-product-label"><span>Example book</span></span><span class="a-price dcl-product-price-new"><span class="a-offscreen">AED 112.03</span></span><span class="a-price a-text-price dcl-product-price-old"><span class="a-offscreen">AED 146.94</span></span></a></div></li>';
+    expect(parseDiscoveryListing(html, source('amazon_ae'), observedAt)).toEqual([expect.objectContaining({ title: 'Example book', priceMinor: 11203 })]);
+  });
   it('reads the selling price from a Salesforce tile without subtracting its discount twice', () => {
     const html = `<div class="product" data-pid="NB123"><div class="product-tile"
       data-gtm-enhanced-ecommerce-impression="{&quot;item_name&quot;:&quot;Men's 530 Shoes&quot;,&quot;item_brand&quot;:&quot;New Balance&quot;,&quot;price&quot;:379,&quot;discount&quot;:220}">
@@ -22,7 +46,7 @@ describe('retailer listing extraction', () => {
       { item: { '@type': 'Product', name: 'External', url: 'https://example.com/p', offers: { price: 1 } } }
     ] })}</script>`;
     expect(parseDiscoveryListing(html, source('ounass'), observedAt)).toEqual([expect.objectContaining({
-      title: 'Serum', category: 'beauty', priceMinor: 12500, url: 'https://www.ounass.ae/serum.html', imageUrl: 'https://images.example/serum.jpg'
+      title: 'Serum', category: 'skincare', priceMinor: 12500, url: 'https://www.ounass.ae/serum.html', imageUrl: 'https://images.example/serum.jpg'
     })]);
   });
 
@@ -44,7 +68,7 @@ describe('retailer listing extraction', () => {
       { price: 250, images: [{ disBaseLink: 'https://images.example/perfume.jpg' }] }, { price: 375 }
     ] };
     const html = `<script>self.__next_f.push(${JSON.stringify([1, `1:${JSON.stringify(data)}\n`])})</script>`;
-    expect(parseDiscoveryListing(html, source('sephora_uae'), observedAt)[0]).toMatchObject({ priceMinor: 25000, hasPriceRange: true, brand: 'Dior', category: 'beauty' });
+    expect(parseDiscoveryListing(html, source('sephora_uae'), observedAt)[0]).toMatchObject({ priceMinor: 25000, hasPriceRange: true, brand: 'Dior', category: 'makeup' });
   });
 
   it('uses WooCommerce minor currency units and excludes malformed or free records', () => {

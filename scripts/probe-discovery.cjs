@@ -6,11 +6,14 @@ const fs = require('node:fs');
 const ts = require('typescript');
 require.extensions['.ts'] = (module, filename) => {
   module._compile(ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true }
   }).outputText, filename);
 };
 const { DISCOVERY_COLLECTIONS, discoverySourceUrl } = require('../src/domain/discovery.ts');
 const { parseDiscoveryListing } = require('../src/domain/discoveryListings.ts');
+const { selectDiscoveryCollections } = require('../src/domain/discoverySources.ts');
+const ids = process.argv.slice(2);
+const sources = ids.length ? DISCOVERY_COLLECTIONS.filter(source => ids.includes(source.id)) : selectDiscoveryCollections();
 
 async function request(url) {
   const cookies = {};
@@ -39,8 +42,8 @@ async function request(url) {
   const results = [];
   let index = 0;
   await Promise.all(Array.from({ length: 4 }, async () => {
-    while (index < DISCOVERY_COLLECTIONS.length) {
-      const source = DISCOVERY_COLLECTIONS[index++];
+    while (index < sources.length) {
+      const source = sources[index++];
       const url = discoverySourceUrl(source);
       let record;
       try {

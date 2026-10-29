@@ -1,5 +1,7 @@
 # For You source register
 
+**Category expansion, 27 October 2026:** the active department browser now uses per-retailer maps under [`src/domain/discoverySources/`](../src/domain/discoverySources/), with 4,517 named listings across all 19 retailers. The [category audit](discovery-category-audit.md) records this expansion and its validation gaps. The selected-collection URLs and Android counts below are historical evidence from 25–26 October, not validation of every expanded listing. Open **Browse departments & retailers → All listings** in the app to search the current registry, browse a PLP in the same feed, and open its exact retailer URL.
+
 Verified against source and a connected Galaxy S24 Ultra on 25 October 2026. This is a validation snapshot: retailer counts, prices, rate limits, and bot challenges can change.
 
 The final signed standalone release was installed and launched on that device on 26 October, showing 672 available products across 17 retailers after refresh. The earlier 649-product figures below describe the 25 October audit snapshot.
@@ -55,7 +57,7 @@ The original 25 October audit covered all 18 retailers then registered. **17 ret
 
 This is a set of selected collections, not every department or every SKU at every retailer. On 26 October, the parameter-based Decathlon, Salomon and Al Yousuf feeds were increased from 24 to 100 products per request, and the local HTML/WooCommerce extraction cap was increased from 48 to 100. Live checks returned 51 Footwear, 100 Fitness, 100 Hiking/Camping, 97 usable Al Yousuf, and 100 Salomon products. Retailer responses can contain fewer usable products than requested.
 
-HTML listings still supply their retailer-defined first page; a higher local extraction cap does not fetch additional retailer pages. **Show more** continues to reveal the fetched catalogue in display batches of 24. Older caches automatically refresh after this limit change. BFL remains unavailable. Additional source pages and pagination should be added with the same extraction and Android validation checks.
+HTML listings still supply their retailer-defined first page; a higher local extraction cap does not fetch additional retailer pages. **Show more** continues to reveal the fetched catalogue in display batches of 24. Older caches automatically refresh after this limit change. BFL was unavailable in that historical pass; current browser-derived support and deferred Android verification are documented in the category audit. Additional source pages and pagination should be added with the same extraction and Android validation checks.
 
 Storefront challenges can change between requests. A successful listing fetch does not guarantee that every product page will load; tracking reports a verification failure rather than saving an unverified item. Retailers that omit a brand are shown as `Other brands` instead of guessing from a product title.
 
@@ -64,7 +66,7 @@ Storefront challenges can change between requests. A successful listing fetch do
 ```powershell
 node --max-http-header-size=131072 scripts/probe-discovery.cjs
 # Connected Android debug build + Metro:
-node scripts/probe-discovery-android.cjs noon-audio
+node scripts/probe-discovery-android.cjs carrefour-nf1210300
 node scripts/probe-discovery-android.cjs bfl-women
 ```
 
