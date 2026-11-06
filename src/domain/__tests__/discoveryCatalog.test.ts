@@ -156,7 +156,7 @@ describe('multi-retailer discovery refresh', () => {
   });
 
   it('declares listing sources for every tracked retailer', () => {
-    expect([...new Set(DISCOVERY_COLLECTIONS.map((source) => source.siteKey))].sort()).toEqual(SUPPORTED_SITES.map((site) => site.key).sort());
+    expect([...new Set(DISCOVERY_COLLECTIONS.map((source) => source.siteKey))].sort()).toEqual(SUPPORTED_SITES.filter((site) => site.discoveryAvailable !== false).map((site) => site.key).sort());
   });
 
   it('serializes overlapping loads so an older response cannot replace a newer refresh', async () => {

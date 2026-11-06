@@ -65,6 +65,19 @@ export function parseDiscoveryListing(body: string, source: DiscoveryCollection,
     return unique(found);
   }
 
+  if (source.siteKey === 'zara_uae') {
+    for (const section of body.split(/<div class=["']product-grid-product-info__product-header["']>/i).slice(1)) {
+      const header = section.split('product-grid-product-info__product-header')[0];
+      const link = header.match(/<a\b[^>]*class=["'][^"']*product-grid-product-info__name[^"']*["'][^>]*>/i)?.[0];
+      const title = header.match(/<h3[^>]*>([\s\S]*?)<\/h3>/i)?.[1];
+      const amount = header.match(/class=["'][^"']*\bprice-current\b[^"']*["'][\s\S]*?<data\b[^>]*data-currency=["']AED["'][^>]*value=["']([^"']+)["']/i)?.[1];
+      if (link && title && amount) {
+        add({ title: textContent(title), url: attribute(link, 'href'), price: amount, brand: 'Zara', currency: 'AED' });
+      }
+    }
+    return unique(found);
+  }
+
   if (source.siteKey === 'sharaf_dg') {
     const grid = readDivContents(body, 'hits');
     if (grid === undefined && /\/c\//.test(discoverySourceUrl(source))) { return []; }
