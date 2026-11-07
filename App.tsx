@@ -166,7 +166,7 @@ const BACKGROUND_TIME_PRESETS = [
 ];
 
 export default function App() {
-  const [route, setRoute] = useState<Route>({ name: 'tabs', tab: 'opportunities' });
+  const [route, setRoute] = useState<Route>({ name: 'tabs', tab: 'watchlist' });
   const [ready, setReady] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const shareEventId = useRef(0);
