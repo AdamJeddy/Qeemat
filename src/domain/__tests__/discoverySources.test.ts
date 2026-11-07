@@ -20,7 +20,7 @@ describe('retailer category browser', () => {
   });
   it('keeps every listing identity unique and covers each supported retailer', () => {
     expect(new Set(DISCOVERY_SOURCE_MAPS.map((source) => source.id)).size).toBe(DISCOVERY_SOURCE_MAPS.length);
-    expect([...new Set(DISCOVERY_SOURCE_MAPS.map((source) => source.siteKey))].sort()).toEqual(SUPPORTED_SITES.map((site) => site.key).sort());
+    expect([...new Set(DISCOVERY_SOURCE_MAPS.map((source) => source.siteKey))].sort()).toEqual(SUPPORTED_SITES.filter((site) => site.discoveryAvailable !== false).map((site) => site.key).sort());
   });
   it('only registers known interests and retailer-owned HTTPS URLs, with supply mapped for every quiz choice', () => {
     for (const source of DISCOVERY_SOURCE_MAPS) {

@@ -5,6 +5,7 @@ import { fetchPageHtmlViaWebView } from './webViewFetcher';
 import { findTrackedVariant } from './variants';
 import { parseCarrefourProduct } from './carrefour';
 import { withBflSizeVariants } from './bfl';
+import { parseHmCatalogue } from './hm';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -114,6 +115,8 @@ export async function fetchAndParseProduct(rawUrl: string, selectedVariant?: Var
   }
 
   const shouldUseWebViewFallback = fetchResult.code === 'blocked' ||
+    (site.key === 'hm_uae' && (fetchResult.code === 'network_error' || fetchResult.code === 'site_parser_failed' || fetchResult.code === 'price_not_found')) ||
+    (site.key === 'zara_uae' && (fetchResult.code === 'network_error' || fetchResult.code === 'site_parser_failed' || fetchResult.code === 'price_not_found')) ||
     (site.key === 'brands_for_less' && (fetchResult.code === 'network_error' || fetchResult.code === 'site_parser_failed' || fetchResult.code === 'price_not_found')) ||
     (site.key === 'carrefour_uae' && (fetchResult.code === 'network_error' || fetchResult.code === 'site_parser_failed')) ||
     ((site.key === 'sephora_uae' || site.key === 'faces_uae' || site.key === 'salomon_gcc' || site.key === 'the_deal') && fetchResult.code === 'network_error');
@@ -312,6 +315,17 @@ export function parseProductHtml(
   html: string,
   selectedVariant?: VariantSelection
 ): ParsedProduct | undefined {
+  if (siteKey === 'hm_uae') {
+    const json = html.match(/<script[^>]*id=["']qeemat-hm-catalogue["'][^>]*>([\s\S]*?)<\/script>/i)?.[1];
+    let payload: unknown;
+    try { payload = json ? JSON.parse(json) : undefined; } catch { payload = undefined; }
+    const product = parseHmCatalogue(inputUrl, payload);
+    const structured = parseStructuredProduct(siteKey, inputUrl, html);
+    return resolveParsedVariant(product ? { ...product, imageUrl: structured?.imageUrl } : undefined, selectedVariant);
+  }
+  if (siteKey === 'zara_uae') {
+    return resolveParsedVariant(parseZaraProduct(inputUrl, html), selectedVariant);
+  }
   if (siteKey === 'carrefour_uae') {
     return resolveParsedVariant(parseCarrefourProduct(inputUrl, html), selectedVariant);
   }
@@ -422,6 +436,40 @@ export function parseProductHtml(
   }
 
   return resolveParsedVariant(structured, selectedVariant);
+}
+
+function parseZaraProduct(inputUrl: string, html: string): ParsedProduct | undefined {
+  const scripts = html.match(/<script[^>]+type=["']application\/ld\+json["'][^>]*>[\s\S]*?<\/script>/gi) ?? [];
+  for (const script of scripts) {
+    const json = script.replace(/^<script[^>]*>/i, '').replace(/<\/script>$/i, '').trim();
+    for (const value of parseJsonCandidates(json)) {
+      if (!isJsonRecord(value) || value['@type'] !== 'ProductGroup' || !Array.isArray(value.hasVariant)) continue;
+      const variants: ProductVariant[] = [];
+      for (const item of value.hasVariant) {
+        if (!isJsonRecord(item)) continue;
+        const offer = firstOffer(item.offers);
+        const id = asString(item.sku);
+        const color = asString(item.color);
+        const size = asString(item.size);
+        const currency = asString(offer?.priceCurrency);
+        const priceMinor = parsePriceToMinor(asPriceValue(offer?.price));
+        const availability = parseAvailability(asString(offer?.availability));
+        if (!id || (!color && !size) || !currency || (priceMinor === undefined && availability !== 'out_of_stock')) continue;
+        const attributes: VariantAttribute[] = [];
+        if (color) attributes.push({ name: 'Color', value: color });
+        if (size) attributes.push({ name: 'Size', value: size });
+        variants.push({ id, sku: id, label: attributes.map((attribute) => `${attribute.name}: ${attribute.value}`).join(' · '), attributes,
+          url: asString(offer?.url) ?? inputUrl, priceMinor, currency, availability, imageUrl: firstString(item.image) });
+      }
+      const first = variants.find((variant) => variant.availability !== 'out_of_stock' && variant.priceMinor !== undefined) ?? variants[0];
+      const title = asString(value.name);
+      if (!first || !title) return undefined;
+      return { siteKey: 'zara_uae', canonicalUrl: inputUrl, title: cleanText(title), imageUrl: first.imageUrl ?? firstString(value.image),
+        priceMinor: first.priceMinor, currency: first.currency, availability: first.availability,
+        rawPriceText: first.priceMinor === undefined ? undefined : String(first.priceMinor / 100), variants };
+    }
+  }
+  return undefined;
 }
 
 function resolveParsedVariant(product: ParsedProduct | undefined, selectedVariant?: VariantSelection): ParsedProduct | undefined {

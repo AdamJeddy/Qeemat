@@ -213,7 +213,26 @@ export const SUPPORTED_SITES: SupportedSite[] = [
     status: 'experimental',
     notes: 'Next.js product pages with __NEXT_DATA__ SSR payloads and meta tags. Cloudflare protection blocks non-browser HTTP clients (TLS fingerprint mismatch). Parser implemented but fetch path blocked — see docs/bfl-integration.md.',
     iconAsset: require('../../assets/site-icons/brands_for_less.png')
-  }
+  },
+  {
+    key: 'hm_uae',
+    displayName: 'H&M UAE',
+    shortName: 'H&M',
+    hostnames: ['ae.hm.com'],
+    status: 'supported',
+    notes: 'Individual sizes use retailer catalogue SKUs, prices and stock. Android WebView access is required.',
+    iconAsset: require('../../assets/site-icons/hm_uae.png')
+  },
+  {
+    key: 'zara_uae',
+    displayName: 'Zara UAE',
+    shortName: 'Zara',
+    hostnames: ['zara.com', 'www.zara.com'],
+    status: 'supported',
+    notes: 'Product pages expose colour and size offers; access may require the Android WebView.',
+    iconAsset: require('../../assets/site-icons/zara_uae.png')
+  },
+
 ];
 
 export function getSiteByKey(siteKey: SiteKey): SupportedSite {

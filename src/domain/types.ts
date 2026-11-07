@@ -1,4 +1,4 @@
-export type SiteKey = 'noon' | 'nike_uae' | 'sun_sand_sports' | 'level_shoes' | 'ay_accessories' | 'ounass' | 'amazon_ae' | 'adidas' | 'puma_uae' | 'decathlon_uae' | 'salomon_gcc' | 'sephora_uae' | 'faces_uae' | 'centrepoint_uae' | 'namshi' | 'the_deal' | 'sharaf_dg' | 'brands_for_less' | 'carrefour_uae';
+export type SiteKey = 'hm_uae' | 'zara_uae' | 'noon' | 'nike_uae' | 'sun_sand_sports' | 'level_shoes' | 'ay_accessories' | 'ounass' | 'amazon_ae' | 'adidas' | 'puma_uae' | 'decathlon_uae' | 'salomon_gcc' | 'sephora_uae' | 'faces_uae' | 'centrepoint_uae' | 'namshi' | 'the_deal' | 'sharaf_dg' | 'brands_for_less' | 'carrefour_uae';
 
 export type Availability = 'in_stock' | 'out_of_stock' | 'unknown';
 
@@ -70,6 +70,8 @@ export type SupportedSite = {
   shortName: string;
   hostnames: string[];
   status: 'supported' | 'experimental';
+  /** False when tracking is available but no verified discovery source exists yet. */
+  discoveryAvailable?: boolean;
   notes: string;
   /** Minimum hours that must elapse between checks for this site.
    *  When set, overrides shorter user check preferences. */

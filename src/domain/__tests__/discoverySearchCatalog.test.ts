@@ -21,7 +21,7 @@ describe('progressive retailer search', () => {
     let release!: () => void;
     (fetchPageHtmlViaWebView as jest.Mock).mockImplementationOnce(() => new Promise<null>((resolve) => { release = () => resolve(null); }));
     let fastProductShown = false;
-    const pending = loadProductSearch('shoes', { requests: buildSearchRequests('shoes').slice(0, 4), fetcher: jest.fn(async (url: string) => url.includes('puma.com') ? response('Running shoes') : { ...response(''), ok: false, text: async () => 'Blocked' }), onUpdate: (value) => { if (value.products.some((item) => item.siteKey === 'puma_uae')) { fastProductShown = true; } } });
+    const pending = loadProductSearch('shoes', { requests: buildSearchRequests('shoes').filter((request) => ['nike_uae', 'sun_sand_sports', 'adidas', 'puma_uae'].includes(request.siteKey)), fetcher: jest.fn(async (url: string) => url.includes('puma.com') ? response('Running shoes') : { ...response(''), ok: false, text: async () => 'Blocked' }), onUpdate: (value) => { if (value.products.some((item) => item.siteKey === 'puma_uae')) { fastProductShown = true; } } });
     await new Promise<void>((resolve) => setImmediate(resolve));
     const shownBeforeBrowserFinishes = fastProductShown;
     release(); await pending;

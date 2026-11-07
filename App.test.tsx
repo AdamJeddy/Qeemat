@@ -55,6 +55,13 @@ describe('AddScreen', () => {
     mockClipboardSetString.mockReset();
   });
 
+  it('shows H&M and Zara among supported stores before a URL is entered', () => {
+    let tree: renderer.ReactTestRenderer;
+    act(() => { tree = renderer.create(<AddScreen navigate={jest.fn()} />); });
+    const labels = tree!.root.findAllByType(AppText).map((item) => item.props.children);
+    expect(labels).toEqual(expect.arrayContaining(['H&M', 'Zara']));
+  });
+
   it('automatically finds a product when its URL is shared to the app', async () => {
     const navigate = jest.fn();
     mockFetchAndParseProduct.mockResolvedValueOnce({
@@ -262,6 +269,14 @@ describe('DetailScreen', () => {
 });
 
 describe('OpportunityScreen', () => {
+  it('shows the store without an unknown brand and preserves known brands', () => {
+    const base = { siteKey: 'hm_uae' as const, category: 'clothing' as const, currency: 'AED', availability: 'unknown' as const, observedAt: '2026-11-07T00:00:00Z', url: 'https://ae.hm.com/en/buy-shirt', priceMinor: 10000 };
+    let tree: renderer.ReactTestRenderer;
+    act(() => { tree = renderer.create(<DiscoveryProductGrid products={[{ ...base, id: '1', title: 'Shirt', brand: 'Other brands' }, { ...base, id: '2', title: 'Shoes', brand: 'Puma' }]} trackedProducts={[]} onTrack={jest.fn()} onDismiss={jest.fn()} onMoreLikeThis={jest.fn()} onViewAtRetailer={jest.fn()} />); });
+    const labels = tree!.root.findAllByType(AppText).map((item) => item.props.children);
+    expect(labels).toEqual(expect.arrayContaining(['H&M', 'Puma · H&M']));
+    expect(labels).not.toContain('Other brands · H&M');
+  });
   it('retains expanded discovery results after searching and filtering results', async () => {
     const base = { siteKey: 'noon', category: 'general', brand: 'Apple', currency: 'AED', availability: 'in_stock', observedAt: '2026-10-28T09:00:00Z', priceMinor: 1000 };
     const products = Array.from({ length: 50 }, (_, index) => ({ ...base, id: `item-${index}`, title: `Product ${index}`, url: `https://www.noon.com/item-${index}` }));

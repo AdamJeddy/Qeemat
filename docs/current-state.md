@@ -33,6 +33,8 @@ The app uses a small manual route stack in `App.tsx`, not React Navigation. Ther
 | Namshi UAE | Supported | Structured product data plus source size controls are tracked by size when the initial response provides stock state; parent/color choices use their own product URLs. |
 | The Deal UAE | Supported | Salesforce Commerce Cloud product data plus source color and size controls; exact variation endpoints preserve the chosen option for later AED price and stock checks. |
 | Sharaf DG UAE | Supported | AED product metadata plus source-linked configuration URLs are tracked exactly when the initial response exposes complete option controls. |
+| H&M UAE | Experimental | Android WebView reads the UAE catalogue; source size SKUs carry their own prices and stock. Track a colour using its product URL. No discovery listing yet. |
+| Zara UAE | Experimental | Product-group data exposes source colour and size SKUs with their prices and stock. Discovery includes the UAE women’s dresses listing. |
 | Brands For Less UAE | Experimental | Current rendered listing/PDP and size parsing implemented; browser markup verified. Android fetching verification is deferred. Hidden from supported-store UI until validated. |
 
 The site registry is `src/domain/sites.ts`. It controls hostnames, enabled status, icons, and minimum check intervals.
@@ -81,6 +83,7 @@ The site registry is `src/domain/sites.ts`. It controls hostnames, enabled statu
 - Confirmed Amazon OOS pages deliberately leave price unset: recommendation carousels can contain prices belonging to other products.
 - Amazon prices use the broadly available Buy Box price: sale prices are tracked, while Prime-exclusive discounts and alternate-seller prices are ignored. If that base Buy Box price is not unambiguous, the check reports that no current price was found instead of guessing.
 - AYM, Ounass, Level Shoes, Nike UAE, Sun & Sand Sports, Adidas UAE, PUMA UAE, Decathlon UAE, Salomon, Namshi, Centrepoint, and The Deal expose reliable initial-page variant data when the markup includes source IDs, labels, stock state, and price. Centrepoint color-only pages can track the current source product route; its alternate color buttons are not promoted without exact linked URLs. The Deal forms only the color/size candidates exposed by the source page and verifies a chosen candidate through its exact variation endpoint before storing it; Sharaf DG retains exact source configuration URLs for later checks. BFL exposes current source size choices using stable product/system/label identities without invented SKUs; missing saved sizes fail safely. Noon, Amazon, Sephora and Faces retain page-level tracking unless a future initial response meets the same standard; Qeemat does not discover unadvertised neighbours or guess unavailable options.
+- H&M and Zara retain the selected size SKU for later checks; H&M colour choices use separate product URLs. An out-of-stock option cannot currently be selected when first creating a tracker.
 - Challenge pages return `blocked`; pages without required product data return parser or price errors as appropriate.
 
 Parser code is in `src/domain/parser.ts`; types are in `src/domain/types.ts`; tests are in `src/domain/__tests__/`.

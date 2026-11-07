@@ -30,7 +30,7 @@ export function DiscoverySetupCard({ onPress, onDismiss }: { onPress: () => void
         <Sparkles size={22} color={colors.primary} />
       </View>
       <View style={styles.flex}>
-        <AppText weight="bold" style={styles.setupTitle}>Make For You yours</AppText>
+        <AppText weight="bold" style={styles.setupTitle}>Make Search yours</AppText>
         <AppText muted style={styles.setupCopy}>Choose a few interests, brands, and budgets. You can change them anytime.</AppText>
       </View>
       <Pressable accessibilityRole="button" accessibilityLabel="Personalize discovery" onPress={onPress} style={styles.setupAction}>
@@ -97,7 +97,7 @@ export function DiscoveryProductGrid({
               {product.imageUrl ? <Image source={{ uri: product.imageUrl }} style={styles.productImage} resizeMode="contain" /> : <Sparkles size={24} color={colors.textMuted} />}
             </Pressable>
             <View style={styles.productBody}>
-              <AppText muted numberOfLines={1} style={styles.productSource}>{product.brand} · {getSiteByKey(product.siteKey).shortName}</AppText>
+              <AppText muted numberOfLines={1} style={styles.productSource}>{product.brand === 'Other brands' || product.brand === getSiteByKey(product.siteKey).shortName ? getSiteByKey(product.siteKey).shortName : `${product.brand} · ${getSiteByKey(product.siteKey).shortName}`}</AppText>
               <AppText weight="semibold" numberOfLines={2} style={styles.productTitle}>{product.title}</AppText>
               <AppText weight="bold" style={styles.productPrice}>{product.priceMinor === undefined ? 'Price unavailable' : `${product.hasPriceRange ? 'From ' : ''}${formatPrice(product.priceMinor, product.currency, product.priceBasis)}`}</AppText>
               <AppText muted style={styles.productObserved}>Observed {formatRelativeTime(product.observedAt)}</AppText>
@@ -113,7 +113,7 @@ export function DiscoveryProductGrid({
           <View style={styles.sheetHeader}><Pressable accessibilityRole="button" accessibilityLabel="Close product" onPress={() => setPreview(undefined)} style={styles.iconButton}><X size={22} color={colors.text} /></Pressable><AppText weight="bold">Product details</AppText></View>
           {preview ? <ScrollView contentContainerStyle={styles.sheetContent}>
             {preview.imageUrl ? <Image source={{ uri: preview.imageUrl }} resizeMode="contain" style={styles.previewImage} /> : null}
-            <AppText muted>{preview.brand} · {getSiteByKey(preview.siteKey).shortName}</AppText>
+            <AppText muted>{preview.brand === 'Other brands' || preview.brand === getSiteByKey(preview.siteKey).shortName ? getSiteByKey(preview.siteKey).shortName : `${preview.brand} · ${getSiteByKey(preview.siteKey).shortName}`}</AppText>
             <AppText weight="bold" style={styles.emptyTitle}>{preview.title}</AppText>
             <AppText weight="bold">{preview.hasPriceRange ? 'From ' : ''}{formatPrice(preview.priceMinor, preview.currency, preview.priceBasis)}</AppText>
             <AppText muted>Price observed {formatRelativeTime(preview.observedAt)}. Current details are verified when you track.</AppText>
@@ -182,7 +182,7 @@ export function DiscoveryPreferencesSheet({
       <SafeAreaView style={styles.sheet}>
         <View style={styles.sheetHeader}>
           <Pressable accessibilityRole="button" accessibilityLabel="Close preferences" onPress={onClose} style={styles.iconButton}><X size={20} color={colors.text} /></Pressable>
-          <AppText weight="bold" style={styles.sheetHeaderTitle}>Personalise For You</AppText>
+          <AppText weight="bold" style={styles.sheetHeaderTitle}>Personalise Search</AppText>
           <AppText muted style={styles.sheetStep}>{step + 1} of 3</AppText>
         </View>
         <ScrollView contentContainerStyle={styles.sheetContent} keyboardShouldPersistTaps="handled">
