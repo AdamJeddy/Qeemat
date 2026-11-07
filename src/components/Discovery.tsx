@@ -22,6 +22,14 @@ import { parseTargetPriceInput } from '../domain/price';
 import { formatPrice } from '../domain/price';
 import { colors, radius } from '../theme/theme';
 import { DISCOVERY_CATEGORY_GROUPS } from '../domain/discoveryCategories';
+import { DiscoveryObservation, getDiscoveryHistory } from '../data/discoveryHistory';
+
+function listingPriceChange(product: DiscoveryProduct): string | undefined {
+  if (product.previousPriceMinor === undefined || product.priceMinor === undefined) { return undefined; }
+  const difference = product.priceMinor - product.previousPriceMinor;
+  const prefix = product.hasPriceRange ? 'Starting price ' : 'Price ';
+  return difference === 0 ? `${prefix}unchanged from previous price` : `${prefix}${difference < 0 ? 'down' : 'up'} ${formatPrice(Math.abs(difference), product.currency, product.priceBasis)} · was ${formatPrice(product.previousPriceMinor, product.currency, product.priceBasis)}`;
+}
 
 export function DiscoverySetupCard({ onPress, onDismiss }: { onPress: () => void; onDismiss: () => void }) {
   return (
@@ -51,7 +59,7 @@ export function EmptyDiscovery({ onPreferences }: { onPreferences: () => void })
       </View>
       <AppText weight="bold" style={styles.emptyTitle}>Fresh finds are on the way</AppText>
       <AppText muted style={styles.emptyCopy}>Pull to refresh. If a retailer is temporarily unavailable, Qeemat keeps the last products saved on this device.</AppText>
-      <PrimaryButton label="Choose interests" variant="outline" onPress={onPreferences} style={styles.emptyButton} />
+      <PrimaryButton label="Browse categories" variant="outline" onPress={onPreferences} style={styles.emptyButton} />
     </View>
   );
 }
@@ -82,6 +90,13 @@ export function DiscoveryProductGrid({
   onViewAtRetailer: (product: DiscoveryProduct) => Promise<void>;
 }) {
   const [preview, setPreview] = useState<DiscoveryProduct>();
+  const [history, setHistory] = useState<DiscoveryObservation[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    setHistory([]);
+    if (preview) { getDiscoveryHistory(preview).then((items) => { if (!cancelled) { setHistory(items); } }).catch(() => {}); }
+    return () => { cancelled = true; };
+  }, [preview]);
   if (!products.length) {
     return <AppText muted style={styles.emptyFilter}>No products match these filters yet.</AppText>;
   }
@@ -100,6 +115,7 @@ export function DiscoveryProductGrid({
               <AppText muted numberOfLines={1} style={styles.productSource}>{product.brand === 'Other brands' || product.brand === getSiteByKey(product.siteKey).shortName ? getSiteByKey(product.siteKey).shortName : `${product.brand} · ${getSiteByKey(product.siteKey).shortName}`}</AppText>
               <AppText weight="semibold" numberOfLines={2} style={styles.productTitle}>{product.title}</AppText>
               <AppText weight="bold" style={styles.productPrice}>{product.priceMinor === undefined ? 'Price unavailable' : `${product.hasPriceRange ? 'From ' : ''}${formatPrice(product.priceMinor, product.currency, product.priceBasis)}`}</AppText>
+              {listingPriceChange(product) ? <AppText muted style={styles.productObserved}>{listingPriceChange(product)}</AppText> : null}
               <AppText muted style={styles.productObserved}>Observed {formatRelativeTime(product.observedAt)}</AppText>
               <Pressable accessibilityRole="button" onPress={() => onTrack(product)} style={({ pressed }) => [styles.trackButton, tracked && styles.trackedButton, pressed && styles.pressed]} disabled={tracking}>
                 {tracking ? <ActivityIndicator size="small" color={colors.surface} /> : <><Plus size={15} color={tracked ? colors.primary : colors.surface} /><AppText weight="semibold" style={[styles.trackButtonText, tracked && styles.trackedButtonText]}>{tracked ? 'Tracking' : 'Track price'}</AppText></>}
@@ -116,7 +132,9 @@ export function DiscoveryProductGrid({
             <AppText muted>{preview.brand === 'Other brands' || preview.brand === getSiteByKey(preview.siteKey).shortName ? getSiteByKey(preview.siteKey).shortName : `${preview.brand} · ${getSiteByKey(preview.siteKey).shortName}`}</AppText>
             <AppText weight="bold" style={styles.emptyTitle}>{preview.title}</AppText>
             <AppText weight="bold">{preview.hasPriceRange ? 'From ' : ''}{formatPrice(preview.priceMinor, preview.currency, preview.priceBasis)}</AppText>
+            {listingPriceChange(preview) ? <AppText muted>{listingPriceChange(preview)}</AppText> : null}
             <AppText muted>Price observed {formatRelativeTime(preview.observedAt)}. Current details are verified when you track.</AppText>
+            {history.length > 1 ? <View><AppText weight="semibold">Listing price history</AppText>{history.slice(-5).reverse().map((observation) => <AppText key={observation.observedAt} muted>{formatRelativeTime(observation.observedAt)} · {observation.priceMinor === undefined ? 'Price unavailable' : `${observation.hasPriceRange ? 'From ' : ''}${formatPrice(observation.priceMinor, observation.currency, observation.priceBasis)}`}</AppText>)}</View> : null}
             {preview.priceBasis === 'kg' ? <AppText muted>Price per kilogram. Delivery location and final delivered weight can change the checkout total.</AppText> : null}
             <PrimaryButton label={trackedProducts.some((item) => cleanUrl(item.canonicalUrl || item.url) === cleanUrl(preview.url)) ? 'Open tracker' : 'Track price'} onPress={() => { setPreview(undefined); onTrack(preview); }} />
             <PrimaryButton label="View at retailer" variant="outline" onPress={() => onViewAtRetailer(preview)} />

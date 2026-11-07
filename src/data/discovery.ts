@@ -6,6 +6,7 @@ import {
 } from '../domain/types';
 import { DEFAULT_DISCOVERY_PREFERENCES, discoveryFeedbackId } from '../domain/discovery';
 import { migrateDiscoveryBudgets, normalizeDiscoveryCategories } from '../domain/discoveryCategories';
+import { clearDiscoveryHistory } from './discoveryHistory';
 
 const PREFERENCES_KEY = 'qeemat.discovery.preferences.v1';
 const CACHE_KEY = 'qeemat.discovery.cache.v1';
@@ -108,6 +109,7 @@ export async function clearDiscoveryData(): Promise<void> {
   legacyFeedbackAliases = undefined;
   const keys = await AsyncStorage.getAllKeys();
   await AsyncStorage.multiRemove([PREFERENCES_KEY, CACHE_KEY, 'qeemat.discovery.search.v1', ...keys.filter((key) => key.startsWith(SOURCE_CACHE_PREFIX) || key.startsWith(SOURCE_ATTEMPT_PREFIX))]);
+  await clearDiscoveryHistory();
 }
 
 async function getLegacyFeedbackAliases(): Promise<Map<string, string>> {

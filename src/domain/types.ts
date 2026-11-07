@@ -24,6 +24,8 @@ export type DiscoveryCategory = import('./discoveryCategories').ShoppingCategory
   'fashion' | 'beauty' | 'electronics' | 'sport' | 'home_department' | 'groceries' | 'general';
 
 export type DiscoveryProduct = {
+  previousPriceMinor?: number;
+  previousObservedAt?: string;
   priceBasis?: import('./priceBasis').PriceBasis;
   /** Stable identifier from the retailer catalogue. */
   id: string;
@@ -121,6 +123,10 @@ export type ParsedProduct = {
 };
 
 export type TrackedProduct = {
+  /** Brand supplied by the listing when the tracker was created. */
+  brand?: string;
+  /** Shopper-selected or source-provided category for discovery. */
+  category?: import('./discoveryCategories').ShoppingCategory;
   priceBasis?: import('./priceBasis').PriceBasis;
   id: number;
   url: string;
@@ -176,6 +182,8 @@ export type ProductWithSnapshots = {
 };
 
 export type ProductDraft = {
+  brand?: string;
+  category?: import('./discoveryCategories').ShoppingCategory;
   parsed: ParsedProduct;
   sourceUrl: string;
   checkPreference: CheckPreference;

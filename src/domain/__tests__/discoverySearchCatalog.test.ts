@@ -5,11 +5,18 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { loadProductSearch } from '../discoverySearchCatalog';
 import { buildSearchRequests } from '../discoverySearch';
 import { fetchPageHtmlViaWebView } from '../webViewFetcher';
+import { DISCOVERY_HISTORY_PREFIX } from '../../data/discoveryHistory';
 
 const response = (name: string) => ({ ok: true, json: async () => ({}), text: async () => `<script type="application/ld+json">${JSON.stringify({ '@type': 'Product', name, url: '/shoe.html', offers: { price: 100 } })}</script>` });
 
 describe('progressive retailer search', () => {
   beforeEach(async () => { await AsyncStorage.clear(); });
+  it('records observed listings even when they do not match the search', async () => {
+    const requests = buildSearchRequests('shoes').filter((request) => request.siteKey === 'nike_uae');
+    const result = await loadProductSearch('shoes', { requests, fetcher: jest.fn(async () => response('Cotton shirt')) });
+    expect(result.products).toEqual([]);
+    expect((await AsyncStorage.getAllKeys()).some(key => key.startsWith(DISCOVERY_HISTORY_PREFIX))).toBe(true);
+  });
   it('keeps primary products ahead of accessories across different retailers', async () => {
     const requests = buildSearchRequests('iphone 16').filter((request) => ['namshi', 'noon'].includes(request.siteKey));
     const fetcher = jest.fn(async (url: string) => ({ ...response(''), text: async () => `<script type="application/ld+json">${JSON.stringify({ '@type': 'ItemList', itemListElement: [0, 1].map((index) => ({ '@type': 'Product', name: url.includes('noon.com') ? `iPhone 16 ${index ? '256GB White' : '128GB Black'} International Version` : `iPhone 16 clear case with magnetic compatibility ${index}`, url: `/product-${index}`, offers: { price: 100 } })) })}</script>` }));

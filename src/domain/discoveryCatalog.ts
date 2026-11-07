@@ -5,6 +5,7 @@ import { parseDiscoveryListing } from './discoveryListings';
 import { fetchPageHtmlViaWebView } from './webViewFetcher';
 import { DiscoveryScope, selectDiscoveryCollections } from './discoverySources';
 import { withDiscoveryPriceBasis } from './priceBasis';
+import { recordDiscoveryObservations } from '../data/discoveryHistory';
 
 type FetchResponse = {
   ok: boolean;
@@ -23,6 +24,7 @@ export type DiscoveryCatalogResult = {
   refreshing?: boolean;
   failedCollectionIds: string[];
   sources?: DiscoverySourceStatus[];
+  historyUnavailable?: boolean;
 };
 
 let webViewQueue: Promise<unknown> = Promise.resolve();
@@ -51,6 +53,7 @@ export function loadDiscoveryCatalog(fetcher: DiscoveryFetcher = fetch, options:
 
 async function refreshDiscoveryCatalog(fetcher: DiscoveryFetcher, options: DiscoveryCatalogOptions): Promise<DiscoveryCatalogResult> {
   const observedAt = new Date().toISOString();
+  let historyUnavailable = false;
   const sources = selectDiscoveryCollections(options.scope);
   const entries = await Promise.all(sources.map(async (source) => {
     const [cached, attempt] = await Promise.all([getDiscoveryCache(source.id), getDiscoveryAttempt(source.id)]);
@@ -67,6 +70,7 @@ async function refreshDiscoveryCatalog(fetcher: DiscoveryFetcher, options: Disco
     refreshedAt: entries.map((entry) => entry.cached?.fetchedAt).filter((date): date is string => Boolean(date)).sort()[0],
     stale: entries.some((entry) => entry.failed || (entry.cached && Date.now() - Date.parse(entry.cached.fetchedAt) >= CACHE_TTL_MS)),
     refreshing: entries.some((entry) => entry.needsRefresh),
+    ...(historyUnavailable ? { historyUnavailable: true } : {}),
     failedCollectionIds: entries.filter((entry) => entry.failed).map((entry) => entry.source.id),
     sources: entries.map((entry) => ({ id: entry.source.id, count: entry.cached?.products.length ?? 0, fetchedAt: entry.cached?.fetchedAt, failed: entry.failed }))
   });
@@ -79,7 +83,12 @@ async function refreshDiscoveryCatalog(fetcher: DiscoveryFetcher, options: Disco
       if (!entry.needsRefresh) { continue; }
       entry.failed = false;
       try {
-        const products = (await fetchDiscoveryCollection(entry.source, fetcher, observedAt, options.isCancelled)).map(withDiscoveryPriceBasis);
+        // Seed history from a previously cached listing when upgrading existing installs.
+        if (entry.cached?.products.length) { await recordDiscoveryObservations(entry.cached.products.map(withDiscoveryPriceBasis)).catch(() => { historyUnavailable = true; }); }
+        if (options.isCancelled?.()) { break; }
+        const fetched = (await fetchDiscoveryCollection(entry.source, fetcher, observedAt, options.isCancelled)).map(withDiscoveryPriceBasis);
+        if (options.isCancelled?.()) { break; }
+        const products = await recordDiscoveryObservations(fetched).catch(() => { historyUnavailable = true; return fetched; });
         if (options.isCancelled?.()) { break; }
         if (!products.length) { throw new Error('No usable listing products'); }
         await saveDiscoveryCache(entry.source.id, products, observedAt);

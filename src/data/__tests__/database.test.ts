@@ -14,6 +14,18 @@ describe('createTrackedProduct', () => {
     await deleteAllLocalData();
   });
 
+  it('saves a product category and lets the user change or clear it', async () => {
+    const id = await createTrackedProduct({ sourceUrl: 'https://www.noon.com/example', checkPreference: 'daily', alertMode: 'price_drop', category: 'footwear', brand: 'Example', parsed: {
+      siteKey: 'noon', canonicalUrl: 'https://www.noon.com/example', title: 'Shoes', priceMinor: 10000, currency: 'AED', availability: 'in_stock'
+    } });
+    expect((await getTrackedProduct(id))?.category).toBe('footwear');
+    expect((await getTrackedProduct(id))?.brand).toBe('Example');
+    await updateTrackingSettings(id, { alertMode: 'price_drop', checkPreference: 'daily', isActive: true, category: 'clothing' });
+    expect((await getTrackedProduct(id))?.category).toBe('clothing');
+    await updateTrackingSettings(id, { alertMode: 'price_drop', checkPreference: 'daily', isActive: true, category: null });
+    expect((await getTrackedProduct(id))?.category).toBeUndefined();
+  });
+
   it('persists the selected variant with a new tracker', async () => {
     const id = await createTrackedProduct({
       sourceUrl: 'https://www.levelshoes.com/example.html',

@@ -57,15 +57,16 @@ import { SiteIcon } from './src/components/SiteIcon';
 import { PriceChart } from './src/components/PriceChart';
 import { PrimaryButton } from './src/components/PrimaryButton';
 import { ProductCard } from './src/components/ProductCard';
+import { ProductCategoryPicker } from './src/components/ProductCategoryPicker';
+import { DISCOVERY_CATEGORY_LABELS as SHOPPING_CATEGORY_LABELS, ShoppingCategory } from './src/domain/discoveryCategories';
+import { watchlistCategories } from './src/domain/watchlistDiscovery';
 import { StatusPill } from './src/components/StatusPill';
 import { VariantSelector } from './src/components/VariantSelector';
 import { UpdateNotice } from './src/components/UpdateNotice';
 import { clearUpdateNotificationHistory } from './src/domain/updateBackground';
 import {
   DiscoveryFilterChip,
-  DiscoveryPreferencesSheet,
   DiscoveryProductGrid,
-  DiscoverySetupCard,
   EmptyDiscovery
 } from './src/components/Discovery';
 import {
@@ -91,8 +92,7 @@ import {
   clearDiscoveryData,
   dismissDiscoveryProduct,
   getDiscoveryPreferences,
-  markDiscoveryProductsSeen,
-  saveDiscoveryPreferences
+  markDiscoveryProductsSeen
 } from './src/data/discovery';
 import { runBackgroundCheckOnce, scheduleBackgroundChecks, scheduleUpdateChecks, checkBatteryOptimizationExempt, requestBatteryOptimizationExemption, openAppSystemSettings } from './src/domain/backgroundScheduler';
 import { checkAllActiveProducts, checkProductById } from './src/domain/checker';
@@ -927,6 +927,7 @@ export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { i
   const [minimumPriceDrop, setMinimumPriceDrop] = useState('');
   const [restockAlertEnabled, setRestockAlertEnabled] = useState(true);
   const [folder, setFolder] = useState('');
+  const [productCategory, setProductCategory] = useState<ShoppingCategory>();
   const organizationOptions = useOrganizationOptions();
   const [selectedVariantAttributes, setSelectedVariantAttributes] = useState<VariantAttributes>({});
   const scrollRef = useRef<ScrollView>(null);
@@ -937,6 +938,7 @@ export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { i
     Keyboard.dismiss();
     setError(undefined);
     setParsedProduct(undefined);
+    setProductCategory(undefined);
     setSelectedVariantAttributes({});
     shouldFocusParsedResult.current = true;
     setLoading(true);
@@ -1046,6 +1048,7 @@ export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { i
       minimumPriceDropMinor: alertMode === 'price_drop' ? parseTargetPriceInput(minimumPriceDrop) : undefined,
       restockAlertEnabled,
       folder,
+      category: productCategory,
       variant: productToSave.selectedVariant
     });
     setSaving(false);
@@ -1212,6 +1215,7 @@ export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { i
               <Switch value={restockAlertEnabled} onValueChange={setRestockAlertEnabled} trackColor={{ true: colors.primary }} />
             </View>
             <FolderPicker value={folder} folders={organizationOptions.folders} onChange={setFolder} />
+            <ProductCategoryPicker value={productCategory} onChange={setProductCategory} />
             <PrimaryButton
               label="Confirm Tracking"
               onPress={saveProduct}
@@ -1493,6 +1497,7 @@ function TrackingSettingsScreen({ productId, navigate }: { productId: number; na
   const [minimumPriceDrop, setMinimumPriceDrop] = useState('');
   const [restockAlertEnabled, setRestockAlertEnabled] = useState(true);
   const [folder, setFolder] = useState('');
+  const [productCategory, setProductCategory] = useState<ShoppingCategory>();
   const organizationOptions = useOrganizationOptions();
 
   useEffect(() => {
@@ -1512,6 +1517,7 @@ function TrackingSettingsScreen({ productId, navigate }: { productId: number; na
       setMinimumPriceDrop(row.minimumPriceDropMinor ? String(row.minimumPriceDropMinor / 100) : '');
       setRestockAlertEnabled(row.restockAlertEnabled ?? true);
       setFolder(row.folder ?? '');
+      setProductCategory(row.category);
     });
   }, [productId]);
 
@@ -1523,6 +1529,7 @@ function TrackingSettingsScreen({ productId, navigate }: { productId: number; na
       minimumPriceDropMinor: alertMode === 'price_drop' ? parseTargetPriceInput(minimumPriceDrop) : undefined,
       restockAlertEnabled,
       folder,
+      category: productCategory ?? null,
       isActive: product?.isActive ?? true
     });
     navigate({ name: 'detail', id: productId });
@@ -1579,6 +1586,7 @@ function TrackingSettingsScreen({ productId, navigate }: { productId: number; na
           <Switch value={restockAlertEnabled} onValueChange={setRestockAlertEnabled} trackColor={{ true: colors.primary }} />
         </View>
         <FolderPicker value={folder} folders={organizationOptions.folders} onChange={setFolder} />
+        <ProductCategoryPicker value={productCategory} onChange={setProductCategory} />
         <PrimaryButton label="Save settings" onPress={save} />
         <PrimaryButton label="Delete product" variant="danger" onPress={confirmDelete} icon={<Trash2 size={18} color={colors.red} />} />
       </ScrollView>
@@ -1791,9 +1799,10 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
   const [discoveryProducts, setDiscoveryProducts] = useState<DiscoveryProduct[]>([]);
   const [preferences, setPreferences] = useState<DiscoveryPreferences>();
   const [trackedProducts, setTrackedProducts] = useState<TrackedProduct[]>([]);
+  const watchedCategories = useMemo(() => watchlistCategories(trackedProducts), [trackedProducts]);
+  const watchedCategoryKey = watchedCategories.join(',');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [showPreferences, setShowPreferences] = useState(false);
   const [trackingProductId, setTrackingProductId] = useState<string>();
   const [category, setCategory] = useState<DiscoveryCategory>();
   const [brand, setBrand] = useState<string>();
@@ -1835,11 +1844,11 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
     };
     try {
       update(await loadDiscoveryCatalog(undefined, { force, onUpdate: update, isCancelled, scope: {
-        categories: category ? [category] : browseAll || retailer || collectionId ? [] : preferences.categories,
+        categories: category ? [category] : browseAll || retailer || collectionId ? [] : watchedCategoryKey ? watchedCategoryKey.split(',') as ShoppingCategory[] : watchlistCategories(tracked),
         siteKey: retailer, collectionId, limit: batchLimit
       } }));
     } finally { if (!isCancelled()) { setCatalogBusy(false); } }
-  }, [preferences, category, retailer, collectionId, browseAll, batchLimit, searchQuery]);
+  }, [preferences, category, retailer, collectionId, browseAll, batchLimit, searchQuery, watchedCategoryKey]);
 
   useEffect(() => { getDiscoveryPreferences().then(setPreferences).catch(() => setLoading(false)); }, []);
   const cancelLoad = useCallback(() => { loadGeneration.current++; }, []);
@@ -1889,8 +1898,8 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
     for (const product of discoveryProducts) {
       if (dismissed.has(product.id)) { dismissed.add(discoveryFeedbackId(product)); }
     }
-    return { ...preferences, dismissedProductIds: [...dismissed] };
-  }, [preferences, discoveryProducts]);
+    return { ...preferences, categories: watchedCategories, favoriteBrands: [], budgetsByCategory: {}, dismissedProductIds: [...dismissed] };
+  }, [preferences, discoveryProducts, watchedCategories]);
   const sections = useMemo(
     () => effectivePreferences ? buildDiscoverySections(discoveryProducts, browseAll || category || retailer || collectionId ? {
       ...effectivePreferences, categories: category ? [category] : [], budgetsByCategory: browseAll ? {} : effectivePreferences.budgetsByCategory
@@ -1910,7 +1919,7 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
   const brands = useMemo(() => uniqueDiscoveryBrands(filterDiscoveryProducts(discoveryProducts, { category }).map((product) => product.brand)), [category, discoveryProducts]);
   const retailers = useMemo(() => [...new Set(DISCOVERY_SOURCE_MAPS.map((source) => source.siteKey))], []);
   const selectedCollection = DISCOVERY_SOURCE_MAPS.find((source) => source.id === collectionId);
-  const hasMoreListings = !searchQuery && !collectionId && selectDiscoveryCollections({ categories: category ? [category] : browseAll || retailer ? [] : preferences?.categories, siteKey: retailer, offset: batchLimit, limit: 1 }).length > 0;
+  const hasMoreListings = !searchQuery && !collectionId && selectDiscoveryCollections({ categories: category ? [category] : browseAll || retailer ? [] : watchedCategories, siteKey: retailer, offset: batchLimit, limit: 1 }).length > 0;
   const visibleCount = searchQuery ? searchVisibleCount : discoveryVisibleCount;
   const visibleProducts = filteredProducts.slice(0, visibleCount);
   const resultRetailerCount = new Set(filteredProducts.map((product) => product.siteKey)).size;
@@ -1921,7 +1930,7 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
 
   useEffect(() => { setDiscoveryVisibleCount(24); }, [category, brand, retailer, maximumPrice, browseAll]);
   useEffect(() => { setSearchVisibleCount(24); }, [searchRetailer]);
-  const preferenceKey = preferences?.categories.join(',');
+  const preferenceKey = watchedCategoryKey;
   useEffect(() => { setBatchLimit(24); }, [category, retailer, collectionId, browseAll, preferenceKey]);
 
   function resetBrowse() { setCategory(undefined); setBrand(undefined); setRetailer(undefined); setCollectionId(undefined); setMaximumPrice(''); }
@@ -1931,29 +1940,6 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
     if (!deselect) { setCategory(selected); }
     setBrowseAll(false);
   }
-  async function handleSavePreferences(update: Pick<DiscoveryPreferences, 'completed' | 'categories' | 'favoriteBrands' | 'budgetsByCategory'>) {
-    const saved = await saveDiscoveryPreferences(update);
-    setPreferences(saved);
-    setShowPreferences(false);
-    setDiscoveryVisibleCount(24);
-    resetBrowse();
-    setBrowseAll(false);
-    setNotice({ message: 'Picks updated.' });
-    scrollRef.current?.scrollTo({ y: 0, animated: true });
-  }
-
-  async function handleDismissInvitation() {
-    if (!preferences) {
-      return;
-    }
-    setPreferences(await saveDiscoveryPreferences({
-      completed: true,
-      categories: preferences.categories,
-      favoriteBrands: preferences.favoriteBrands,
-      budgetsByCategory: preferences.budgetsByCategory
-    }));
-  }
-
   async function handleDismiss(productId: string) {
     const product = (searchResult?.products ?? []).find((item) => item.id === productId) ?? discoveryProducts.find((item) => item.id === productId);
     await dismissDiscoveryProduct(productId, product);
@@ -1996,6 +1982,8 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
       const id = await createTrackedProduct({
         parsed: verified,
         sourceUrl: product.url,
+        brand: product.brand === 'Other brands' ? undefined : product.brand,
+        category: Object.prototype.hasOwnProperty.call(SHOPPING_CATEGORY_LABELS, product.category) ? product.category as ShoppingCategory : undefined,
         checkPreference: availableCheckPreferences(result.product.siteKey)[0] ?? 'daily',
         alertMode: 'price_drop',
         restockAlertEnabled: true
@@ -2038,6 +2026,8 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
       }
       const existing = (await listTrackedProducts()).find((item) => cleanUrl(item.canonicalUrl || item.url) === cleanUrl(parsed.canonicalUrl || pendingProduct.listing.url) && item.variant?.id === selectedVariant.id);
       const id = existing?.id ?? await createTrackedProduct({ parsed, sourceUrl: pendingProduct.listing.url,
+        brand: pendingProduct.listing.brand === 'Other brands' ? undefined : pendingProduct.listing.brand,
+        category: Object.prototype.hasOwnProperty.call(SHOPPING_CATEGORY_LABELS, pendingProduct.listing.category) ? pendingProduct.listing.category as ShoppingCategory : undefined,
         variant: parsed.selectedVariant, checkPreference: availableCheckPreferences(parsed.siteKey)[0] ?? 'daily', alertMode: 'price_drop', restockAlertEnabled: true });
       setTrackedProducts(await listTrackedProducts());
       setNotice({ message: existing ? 'You are already tracking this option.' : `Tracking ${parsed.selectedVariant?.label ?? selectedVariant.label}`, trackedId: id });
@@ -2073,13 +2063,9 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
           <AppText weight="bold" style={styles.heading}>Search</AppText>
           <AppText muted>Discover it. Track the price.</AppText>
         </View>
-        <Pressable accessibilityRole="button" accessibilityLabel="Edit discovery preferences" onPress={() => setShowPreferences(true)} style={styles.discoveryPreferencesButton}>
-          <SlidersHorizontal size={19} color={colors.primary} />
-        </Pressable>
       </View>
 
       <DiscoverySearch query={searchQuery} result={searchResult} products={searchProducts} busy={searchBusy} retailer={searchRetailer} onRetailer={setSearchRetailer} onSearch={(query) => { runProductSearch(query); }} onClear={clearProductSearch} />
-      {!searchQuery && !preferences?.completed ? <DiscoverySetupCard onPress={() => setShowPreferences(true)} onDismiss={handleDismissInvitation} /> : null}
 
       {!searchQuery ? <DiscoveryDepartments selected={category} products={discoveryProducts} onSelect={selectDepartment} onBrowse={() => setShowSources(true)} /> : null}
       {!searchQuery && selectedCollection ? <AppText weight="semibold">{getSiteByKey(selectedCollection.siteKey).shortName} · {selectedCollection.label}</AppText> : null}
@@ -2096,13 +2082,14 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
       </View> : discoveryProducts.length > 0 || category || retailer || collectionId ? (
         <>
           <View style={styles.discoverySection}>
-            <View style={styles.titleRow}><AppText weight="bold" style={styles.discoverySectionTitle}>{category ? `${DISCOVERY_CATEGORY_LABELS[category]} for you` : browseAll ? 'Explore all products' : 'Picks for you'}</AppText><Pressable accessibilityRole="button" onPress={() => { resetBrowse(); setBrowseAll(!browseAll && !category); }} style={styles.discoveryToolbarAction}><AppText style={styles.discoveryLink}>{category || browseAll ? 'All picks' : 'All products'}</AppText></Pressable></View>
+            <View style={styles.titleRow}><AppText weight="bold" style={styles.discoverySectionTitle}>{category ? DISCOVERY_CATEGORY_LABELS[category] : 'Explore products'}</AppText><Pressable accessibilityRole="button" onPress={() => { resetBrowse(); setBrowseAll(!browseAll && !category); }} style={styles.discoveryToolbarAction}><AppText style={styles.discoveryLink}>{category || browseAll ? 'Watchlist picks' : 'All products'}</AppText></Pressable></View>
+            {!browseAll && !category && !retailer && !collectionId && watchedCategories.length ? <AppText muted>Showing products related to your watchlist: {watchedCategories.map((item) => SHOPPING_CATEGORY_LABELS[item]).join(', ')}.</AppText> : null}
+            {!browseAll && !category && !retailer && !collectionId && !watchedCategories.length ? <AppText muted>Add a category in a watched product's tracking settings to see related finds here.</AppText> : null}
             <View style={styles.discoveryToolbar}>
               <AppText muted style={styles.discoveryResultCount}>{filteredProducts.length} {filteredProducts.length === 1 ? 'product' : 'products'} · {resultRetailerCount} {resultRetailerCount === 1 ? 'retailer' : 'retailers'}</AppText>
               <Pressable accessibilityRole="button" accessibilityLabel="Refresh discovery products" accessibilityState={{ disabled: catalogBusy || refreshing }} disabled={catalogBusy || refreshing} onPress={refresh} style={styles.discoveryToolbarAction}><RefreshCcw size={16} color={colors.primary} /><AppText style={styles.discoveryLink}>{catalogBusy || refreshing ? 'Refreshing…' : 'Refresh'}</AppText></Pressable>
               <Pressable accessibilityRole="button" onPress={() => setShowFilters((value) => !value)} style={styles.discoveryToolbarAction}><SlidersHorizontal size={16} color={colors.primary} /><AppText style={styles.discoveryLink}>Filters{activeFilter ? ' •' : ''}</AppText></Pressable>
             </View>
-            {category && !browseAll && preferences?.budgetsByCategory[category] !== undefined ? <Pressable accessibilityRole="button" accessibilityLabel={`Edit ${DISCOVERY_CATEGORY_LABELS[category]} budget`} onPress={() => setShowPreferences(true)} style={styles.discoveryToolbarAction}><AppText style={styles.discoveryLink}>Budget {formatPrice(preferences.budgetsByCategory[category], 'AED')}</AppText></Pressable> : null}
             {showFilters ? <View style={styles.listingFilters}>
               <AppText weight="semibold">Retailer</AppText>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.discoveryFilterRail}>
@@ -2122,12 +2109,12 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
             {filteredProducts.length > visibleCount ? <PrimaryButton label={`Show more (${filteredProducts.length - visibleCount} remaining)`} variant="outline" onPress={() => setDiscoveryVisibleCount((count) => count + 24)} /> : null}
           </View>
         </>
-      ) : <View style={styles.discoverySection}><Pressable accessibilityRole="button" accessibilityLabel="Refresh discovery products" accessibilityState={{ disabled: catalogBusy || refreshing }} disabled={catalogBusy || refreshing} onPress={refresh} style={styles.discoveryToolbarAction}><RefreshCcw size={16} color={colors.primary} /><AppText style={styles.discoveryLink}>{catalogBusy || refreshing ? 'Refreshing…' : 'Refresh'}</AppText></Pressable>{catalogBusy ? <><ActivityIndicator color={colors.primary} /><AppText muted>Loading matching listings. Products appear as each retailer responds.</AppText></> : <EmptyDiscovery onPreferences={() => setShowPreferences(true)} />}</View>}
+      ) : <View style={styles.discoverySection}><Pressable accessibilityRole="button" accessibilityLabel="Refresh discovery products" accessibilityState={{ disabled: catalogBusy || refreshing }} disabled={catalogBusy || refreshing} onPress={refresh} style={styles.discoveryToolbarAction}><RefreshCcw size={16} color={colors.primary} /><AppText style={styles.discoveryLink}>{catalogBusy || refreshing ? 'Refreshing…' : 'Refresh'}</AppText></Pressable>{catalogBusy ? <><ActivityIndicator color={colors.primary} /><AppText muted>Loading matching listings. Products appear as each retailer responds.</AppText></> : <EmptyDiscovery onPreferences={() => setShowSources(true)} />}</View>}
 
       {hasMoreListings ? <PrimaryButton label="Load more listings" variant="outline" loading={catalogBusy} onPress={() => setBatchLimit((current) => current + 24)} /> : null}
       {!searchQuery && catalogState.refreshedAt ? <AppText muted style={styles.discoveryFreshness}>{catalogState.stale ? 'Showing saved discovery products from ' : 'Product prices observed '}{formatRelativeTime(catalogState.refreshedAt)}.</AppText> : null}
       {!searchQuery && catalog?.failedCollectionIds?.length ? <Pressable accessibilityRole="button" onPress={() => setShowSources(true)}><AppText muted style={styles.discoveryFreshness}>{catalog.failedCollectionIds.length} collections could not refresh. View source status.</AppText></Pressable> : null}
-      <DiscoveryPreferencesSheet visible={showPreferences} initialPreferences={preferences} products={discoveryProducts} onClose={() => setShowPreferences(false)} onSave={handleSavePreferences} />
+      {(searchQuery ? searchResult?.historyUnavailable : catalog?.historyUnavailable) ? <AppText muted style={styles.discoveryFreshness}>Could not save listing price history. Refresh to retry.</AppText> : null}
       <DiscoveryBrowseSheet visible={showSources} sources={catalog?.sources} onClose={() => setShowSources(false)} onCategory={(selected) => { resetBrowse(); setCategory(selected); setBrowseAll(false); setShowSources(false); }} onRetailer={(selected) => { resetBrowse(); setRetailer(selected); setBrowseAll(true); setShowSources(false); }} onCollection={(source) => { resetBrowse(); setCollectionId(source.id); setRetailer(source.siteKey); setBrowseAll(true); setShowSources(false); }} />
       <Modal visible={Boolean(pendingProduct)} transparent animationType="slide" onRequestClose={() => !savingVariant && setPendingProduct(undefined)}>
         <View style={styles.discoveryModalBackdrop}><SafeAreaView edges={['bottom']} style={styles.discoveryOptionSheet}><Header title="Choose your option" onBack={() => !savingVariant && setPendingProduct(undefined)} /><ScrollView contentContainerStyle={styles.screenContent}>

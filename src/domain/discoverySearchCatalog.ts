@@ -2,6 +2,7 @@ import { getProductSearchCache, saveProductSearchCache } from '../data/discovery
 import { buildSearchRequests, normalizeSearchQuery, parseSearchPage, rankSearchMatches, SearchPage, SearchRequest } from './discoverySearch';
 import { DiscoveryFetcher, fetchDiscoveryHtmlViaWebView, mergeDiscoveryProducts } from './discoveryCatalog';
 import type { DiscoveryProduct } from './types';
+import { recordDiscoveryObservations } from '../data/discoveryHistory';
 
 export type SearchSourceResult = {
   request: SearchRequest;
@@ -10,7 +11,7 @@ export type SearchSourceResult = {
   observedAt?: string;
   nextUrl?: string;
 };
-export type ProductSearchResult = { query: string; products: DiscoveryProduct[]; sources: SearchSourceResult[] };
+export type ProductSearchResult = { query: string; products: DiscoveryProduct[]; sources: SearchSourceResult[]; historyUnavailable?: boolean };
 type SearchOptions = {
   requests?: SearchRequest[];
   fetcher?: DiscoveryFetcher;
@@ -32,12 +33,19 @@ export async function loadProductSearch(input: string, options: SearchOptions = 
   });
   // A continuation retains the exact request set and per-source cursor.
   if (options.loadMore && previous) { entries.splice(0, entries.length, ...previous.sources.map((entry) => ({ ...entry, status: entry.nextUrl ? 'loading' as const : entry.status }))); }
-  const snapshot = (): ProductSearchResult => ({ query, sources: entries.map((entry) => ({ ...entry })), products: rankSearchMatches(mergeDiscoveryProducts(entries.flatMap((entry) => entry.products)), query) });
+  let historyUnavailable = false;
+  const snapshot = (): ProductSearchResult => ({ query, sources: entries.map((entry) => ({ ...entry })), products: rankSearchMatches(mergeDiscoveryProducts(entries.flatMap((entry) => entry.products)), query), ...(historyUnavailable ? { historyUnavailable: true } : {}) });
   const publish = () => { if (!options.isCancelled?.()) { options.onUpdate?.(snapshot()); } };
   const browserFallbacks: { entry: SearchSourceResult; request: SearchRequest; observedAt: string }[] = [];
-  function finish(entry: SearchSourceResult, page: SearchPage | undefined, observedAt: string) {
+  async function finish(entry: SearchSourceResult, page: SearchPage | undefined, observedAt: string) {
     if (page) {
-      entry.products = options.loadMore ? mergeDiscoveryProducts([...entry.products, ...page.products]) : page.products;
+      if (entry.products.length && !options.loadMore) { await recordDiscoveryObservations(entry.products).catch(() => { historyUnavailable = true; }); }
+      if (options.isCancelled?.()) { return; }
+      const observed = page.observedProducts ?? page.products;
+      const recorded = await recordDiscoveryObservations(observed).catch(() => { historyUnavailable = true; return observed; });
+      const products = page.observedProducts ? rankSearchMatches(recorded, query) : recorded;
+      if (options.isCancelled?.()) { return; }
+      entry.products = options.loadMore ? mergeDiscoveryProducts([...entry.products, ...products]) : products;
       entry.nextUrl = page.nextUrl; entry.observedAt = observedAt;
       entry.status = entry.products.length ? 'ready' : 'empty';
     } else { entry.status = 'unavailable'; }
@@ -57,7 +65,7 @@ export async function loadProductSearch(input: string, options: SearchOptions = 
       const page = await fetchSearchPage(request, query, observedAt, options.fetcher ?? fetch, options.isCancelled);
       if (options.isCancelled?.()) { return; }
       if (!page && request.provider === 'html') { browserFallbacks.push({ entry, request, observedAt }); }
-      else { finish(entry, page, observedAt); }
+      else { await finish(entry, page, observedAt); }
     }
   }));
   // Slow browser challenges must not occupy HTTP workers and delay other stores.
@@ -65,7 +73,7 @@ export async function loadProductSearch(input: string, options: SearchOptions = 
     if (options.isCancelled?.()) { break; }
     const body = await fetchDiscoveryHtmlViaWebView(fallback.request.url, options.isCancelled);
     if (options.isCancelled?.()) { break; }
-    finish(fallback.entry, body ? parseSearchPage(body, fallback.request, query, fallback.observedAt) : undefined, fallback.observedAt);
+    await finish(fallback.entry, body ? parseSearchPage(body, fallback.request, query, fallback.observedAt) : undefined, fallback.observedAt);
   }
   const result = snapshot();
   if (!options.isCancelled?.()) { await saveProductSearchCache(result); }
