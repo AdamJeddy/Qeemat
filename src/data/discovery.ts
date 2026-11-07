@@ -20,7 +20,7 @@ export type DiscoveryCacheEntry = {
   parserVersion?: number;
 };
 
-export const DISCOVERY_PARSER_VERSION = 5;
+export const DISCOVERY_PARSER_VERSION = 7;
 
 type DiscoveryAttempt = { attemptedAt: number; failed: boolean; parserVersion: number };
 

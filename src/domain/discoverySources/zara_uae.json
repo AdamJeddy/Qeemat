@@ -1,3 +1,336 @@
 [
-  {"id":"zara_uae-women-dresses","label":"Dresses","siteKey":"zara_uae","category":"clothing","audience":"women","path":["Women","Dresses"],"url":"https://www.zara.com/ae/en/woman-dresses-l1066.html","provider":"html","isDepartment":false}
+  {
+    "id": "zara_uae-women-dresses",
+    "label": "Dresses",
+    "siteKey": "zara_uae",
+    "category": "clothing",
+    "audience": "women",
+    "path": [
+      "Women",
+      "Dresses"
+    ],
+    "url": "https://www.zara.com/ae/en/woman-dresses-l1066.html",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "zara_uae-woman-shirts-l1217",
+    "label": "Shirts",
+    "siteKey": "zara_uae",
+    "category": "clothing",
+    "audience": "women",
+    "path": [
+      "Women",
+      "Shirts"
+    ],
+    "url": "https://www.zara.com/ae/en/woman-shirts-l1217.html",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "zara_uae-woman-tops-l1322",
+    "label": "Tops",
+    "siteKey": "zara_uae",
+    "category": "clothing",
+    "audience": "women",
+    "path": [
+      "Women",
+      "Tops"
+    ],
+    "url": "https://www.zara.com/ae/en/woman-tops-l1322.html",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "zara_uae-woman-tshirts-l1362",
+    "label": "T-shirts",
+    "siteKey": "zara_uae",
+    "category": "clothing",
+    "audience": "women",
+    "path": [
+      "Women",
+      "T-shirts"
+    ],
+    "url": "https://www.zara.com/ae/en/woman-tshirts-l1362.html",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "zara_uae-woman-trousers-l1335",
+    "label": "Trousers",
+    "siteKey": "zara_uae",
+    "category": "clothing",
+    "audience": "women",
+    "path": [
+      "Women",
+      "Trousers"
+    ],
+    "url": "https://www.zara.com/ae/en/woman-trousers-l1335.html",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "zara_uae-woman-jeans-l1119",
+    "label": "Jeans",
+    "siteKey": "zara_uae",
+    "category": "clothing",
+    "audience": "women",
+    "path": [
+      "Women",
+      "Jeans"
+    ],
+    "url": "https://www.zara.com/ae/en/woman-jeans-l1119.html",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "zara_uae-woman-jackets-l1114",
+    "label": "Jackets",
+    "siteKey": "zara_uae",
+    "category": "clothing",
+    "audience": "women",
+    "path": [
+      "Women",
+      "Jackets"
+    ],
+    "url": "https://www.zara.com/ae/en/woman-jackets-l1114.html",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "zara_uae-woman-knitwear-l1152",
+    "label": "Knitwear",
+    "siteKey": "zara_uae",
+    "category": "clothing",
+    "audience": "women",
+    "path": [
+      "Women",
+      "Knitwear"
+    ],
+    "url": "https://www.zara.com/ae/en/woman-knitwear-l1152.html",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "zara_uae-man-shirts-l737",
+    "label": "Shirts",
+    "siteKey": "zara_uae",
+    "category": "clothing",
+    "audience": "men",
+    "path": [
+      "Men",
+      "Shirts"
+    ],
+    "url": "https://www.zara.com/ae/en/man-shirts-l737.html",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "zara_uae-man-tshirts-l855",
+    "label": "T-shirts",
+    "siteKey": "zara_uae",
+    "category": "clothing",
+    "audience": "men",
+    "path": [
+      "Men",
+      "T-shirts"
+    ],
+    "url": "https://www.zara.com/ae/en/man-tshirts-l855.html",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "zara_uae-man-trousers-l838",
+    "label": "Trousers",
+    "siteKey": "zara_uae",
+    "category": "clothing",
+    "audience": "men",
+    "path": [
+      "Men",
+      "Trousers"
+    ],
+    "url": "https://www.zara.com/ae/en/man-trousers-l838.html",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "zara_uae-man-jeans-l659",
+    "label": "Jeans",
+    "siteKey": "zara_uae",
+    "category": "clothing",
+    "audience": "men",
+    "path": [
+      "Men",
+      "Jeans"
+    ],
+    "url": "https://www.zara.com/ae/en/man-jeans-l659.html",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "zara_uae-man-knitwear-l681",
+    "label": "Knitwear",
+    "siteKey": "zara_uae",
+    "category": "clothing",
+    "audience": "men",
+    "path": [
+      "Men",
+      "Knitwear"
+    ],
+    "url": "https://www.zara.com/ae/en/man-knitwear-l681.html",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "zara_uae-man-sweatshirts-l821",
+    "label": "Sweatshirts",
+    "siteKey": "zara_uae",
+    "category": "clothing",
+    "audience": "men",
+    "path": [
+      "Men",
+      "Sweatshirts"
+    ],
+    "url": "https://www.zara.com/ae/en/man-sweatshirts-l821.html",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "zara_uae-man-jackets-l640",
+    "label": "Jackets",
+    "siteKey": "zara_uae",
+    "category": "clothing",
+    "audience": "men",
+    "path": [
+      "Men",
+      "Jackets"
+    ],
+    "url": "https://www.zara.com/ae/en/man-jackets-l640.html",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "zara_uae-woman-shoes-l1251",
+    "label": "Shoes",
+    "siteKey": "zara_uae",
+    "category": "footwear",
+    "audience": "women",
+    "path": [
+      "Women",
+      "Shoes"
+    ],
+    "url": "https://www.zara.com/ae/en/woman-shoes-l1251.html",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "zara_uae-man-shoes-l769",
+    "label": "Shoes",
+    "siteKey": "zara_uae",
+    "category": "footwear",
+    "audience": "men",
+    "path": [
+      "Men",
+      "Shoes"
+    ],
+    "url": "https://www.zara.com/ae/en/man-shoes-l769.html",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "zara_uae-woman-bags-l1024",
+    "label": "Bags",
+    "siteKey": "zara_uae",
+    "category": "bags",
+    "audience": "women",
+    "path": [
+      "Women",
+      "Bags"
+    ],
+    "url": "https://www.zara.com/ae/en/woman-bags-l1024.html",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "zara_uae-man-bags-summer-l4497",
+    "label": "Summer bags",
+    "siteKey": "zara_uae",
+    "category": "bags",
+    "audience": "men",
+    "path": [
+      "Men",
+      "Summer bags"
+    ],
+    "url": "https://www.zara.com/ae/en/man-bags-summer-l4497.html",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "zara_uae-kids-girl-shoes-l404",
+    "label": "Girls shoes",
+    "siteKey": "zara_uae",
+    "category": "footwear",
+    "audience": "kids",
+    "path": [
+      "Kids",
+      "Girls shoes"
+    ],
+    "url": "https://www.zara.com/ae/en/kids-girl-shoes-l404.html",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "zara_uae-kids-boy-shoes-l241",
+    "label": "Boys shoes",
+    "siteKey": "zara_uae",
+    "category": "footwear",
+    "audience": "kids",
+    "path": [
+      "Kids",
+      "Boys shoes"
+    ],
+    "url": "https://www.zara.com/ae/en/kids-boy-shoes-l241.html",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "zara_uae-home-living-room-stationery-l2619",
+    "label": "Office",
+    "siteKey": "zara_uae",
+    "category": "stationery",
+    "path": [
+      "Home",
+      "Office"
+    ],
+    "url": "https://www.zara.com/ae/en/home-living-room-stationery-l2619.html",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "zara_uae-home-living-room-pets-l4102",
+    "label": "Pets",
+    "siteKey": "zara_uae",
+    "category": "pets",
+    "path": [
+      "Home",
+      "Pets"
+    ],
+    "url": "https://www.zara.com/ae/en/home-living-room-pets-l4102.html",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "zara_uae-kids-accessories-l3",
+    "label": "Accessories and shoes",
+    "siteKey": "zara_uae",
+    "category": "accessories",
+    "audience": "kids",
+    "path": [
+      "Kids",
+      "Accessories and shoes"
+    ],
+    "url": "https://www.zara.com/ae/en/kids-accessories-l3.html",
+    "provider": "html",
+    "isDepartment": false
+  }
 ]

@@ -15,7 +15,7 @@ test('recognizes Zara UAE and resolves the selected source size', () => {
   expect(detectSupportedSite(url)?.key).toBe('zara_uae');
   const result = parseProductHtml('zara_uae', url, html);
   expect(result?.variants).toEqual(expect.arrayContaining([
-    expect.objectContaining({ id: '566273592-839-1', priceMinor: 44900, availability: 'in_stock' }),
+    expect.objectContaining({ id: '566273592-839-1', label: 'Color: Black · Size: XS', priceMinor: 44900, availability: 'in_stock' }),
     expect.objectContaining({ id: '566273592-839-2', priceMinor: 39900, availability: 'out_of_stock' })
   ]));
   const selection = { id: '566273592-839-2', label: 'Black S', attributes: [{ name: 'Color', value: 'Black' }, { name: 'Size', value: 'S' }], url };
@@ -57,4 +57,10 @@ test('uses the Android WebView when the storefront blocks the network client', a
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test('tracks a Zara fragrance with a size but no colour', () => {
+ const fragrance={...product,name:'GOLDEN DECADE EDP',hasVariant:[{'@type':'Product',sku:'545456605-999-99',color:'',size:'ONE SIZE ONLY',offers:{price:'139',priceCurrency:'AED',availability:'https://schema.org/InStock',url}}]};
+ const parsed=parseProductHtml('zara_uae',url,`<script type="application/ld+json">${JSON.stringify(fragrance)}</script>`);
+ expect(parsed?.variants).toEqual([expect.objectContaining({id:'545456605-999-99',priceMinor:13900,attributes:[{name:'Size',value:'ONE SIZE ONLY'}]})]);
 });

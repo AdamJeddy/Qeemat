@@ -65,15 +65,62 @@ export function parseDiscoveryListing(body: string, source: DiscoveryCollection,
     return unique(found);
   }
 
+  if (source.siteKey === 'hm_uae') {
+    const listing = readDivContentsByClass(body, 'algolia-product-listing');
+    if (listing === undefined) { return []; }
+    const cards = [...listing.matchAll(/<div\b[^>]*class=["'][^"']*\bproduct-item\b[^"']*\bcard\b[^"']*["'][^>]*>/gi)];
+    for (let i = 0; i < cards.length; i++) {
+      const tag = cards[i][0];
+      const tile = readNestedDivContents(listing, cards[i].index! + tag.length);
+      const link = tile.match(/<a\b[^>]*class=["'][^"']*\bproduct-item-title\b[^"']*["'][^>]*>/i)?.[0];
+      const image = tile.match(/<img\b[^>]*>/i)?.[0];
+      const price = tile.match(/<p\b[^>]*class=["'][^"']*\bitem-price-discounted\b[^"']*["'][^>]*>([\s\S]*?)<\/p>/i)?.[1] ??
+        tile.match(/<p\b[^>]*class=["'][^"']*\bitem-price\b[^"']*["'][^>]*>([\s\S]*?)<\/p>/i)?.[1];
+      const brand = tile.match(/<p\b[^>]*class=["'][^"']*\bproduct-item-collection\b[^"']*["'][^>]*>([\s\S]*?)<\/p>/i)?.[1];
+      if (link && price) add({ id: attribute(tag, 'data-id'), title: attribute(link, 'title'), url: attribute(link, 'href'),
+        image: image && (attribute(image, 'src') ?? attribute(image, 'data-src')), brand: brand && textContent(brand), price: textContent(price).replace(/[^\d.,]/g, '') });
+    }
+    return unique(found);
+  }
+
   if (source.siteKey === 'zara_uae') {
-    for (const section of body.split(/<div class=["']product-grid-product-info__product-header["']>/i).slice(1)) {
-      const header = section.split('product-grid-product-info__product-header')[0];
-      const link = header.match(/<a\b[^>]*class=["'][^"']*product-grid-product-info__name[^"']*["'][^>]*>/i)?.[0];
-      const title = header.match(/<h3[^>]*>([\s\S]*?)<\/h3>/i)?.[1];
-      const amount = header.match(/class=["'][^"']*\bprice-current\b[^"']*["'][\s\S]*?<data\b[^>]*data-currency=["']AED["'][^>]*value=["']([^"']+)["']/i)?.[1];
-      if (link && title && amount) {
-        add({ title: textContent(title), url: attribute(link, 'href'), price: amount, brand: 'Zara', currency: 'AED' });
-      }
+    // Zara renders the image and product header in separate parts of the grid.
+    const imagesById = new Map<string, string>();
+    const payload = body.match(/window\.zara\.viewPayload\s*=\s*(\{[\s\S]*?\})\s*;\s*<\/script>/i)?.[1];
+    if (payload) {
+      try {
+        visit(JSON.parse(payload), (item) => {
+          const colors = asRecord(item.detail).colors;
+          if (!Array.isArray(colors)) { return; }
+          for (const value of colors) {
+            const color = asRecord(value);
+            if (!Array.isArray(color.xmedia)) { continue; }
+            const image = color.xmedia.map(asRecord).find((media) => media.type === 'image' && typeof asRecord(media.extraInfo).deliveryUrl === 'string');
+            const url = asRecord(image?.extraInfo).deliveryUrl;
+            if (color.productId && typeof url === 'string' && /^https:\/\/static\.zara\.net\//i.test(url)) { imagesById.set(String(color.productId), `${url}${url.includes('?') ? '&' : '?'}w=352`); }
+          }
+        });
+      } catch { /* Fall back to images present in the rendered grid. */ }
+    }
+    const imagesByUrl = new Map<string, string>();
+    for (const match of body.matchAll(/<li\b[^>]*data-productid=["']([^"']+)["'][^>]*>\s*(<article\b[\s\S]*?<\/article>)/gi)) {
+      const link = match[2].match(/<a\b[^>]*class=["'][^"']*\bproduct-grid-product__link\b[^"']*["'][^>]*>/i)?.[0];
+      const img = match[2].match(/<img\b[^>]*>/i)?.[0];
+      const url = link && absoluteUrl(attribute(link, 'href'), origin);
+      const rendered = img && (attribute(img, 'src') ?? attribute(img, 'data-src'));
+      const image = imagesById.get(match[1]) ?? (rendered && !/transparent-background/i.test(rendered) ? rendered : undefined);
+      if (url && image && !imagesByUrl.has(url)) { imagesByUrl.set(url, image); }
+    }
+    const articles = [...body.matchAll(/<article\b[^>]*class=["'][^"']*\bproduct-grid-product__container\b[^"']*["'][^>]*>([\s\S]*?)<\/article>/gi)].map((match) => match[1]);
+    const tiles = articles.some((article) => article.includes('product-grid-product-info__product-header')) ? articles : body.split(/<div class=["']product-grid-product-info__product-header["']>/i).slice(1);
+    for (const tile of tiles) {
+      const link = tile.match(/<a\b[^>]*class=["'][^"']*product-grid-product-info__name[^"']*["'][^>]*>/i)?.[0];
+      const title = tile.match(/<h3[^>]*>([\s\S]*?)<\/h3>/i)?.[1];
+      const amount = tile.match(/class=["'][^"']*\bprice-current\b[^"']*["'][\s\S]*?<data\b[^>]*data-currency=["']AED["'][^>]*value=["']([^"']+)["']/i)?.[1];
+      const image = tile.match(/<img\b[^>]*>/i)?.[0];
+      const url = link && attribute(link, 'href');
+      if (link && title && amount) add({ title: textContent(title), url, price: amount,
+        image: (url && imagesByUrl.get(absoluteUrl(url, origin) ?? '')) ?? (image && (attribute(image, 'src') ?? attribute(image, 'data-src'))), brand: 'Zara', currency: 'AED' });
     }
     return unique(found);
   }
@@ -254,10 +301,16 @@ export function parseDiscoveryListing(body: string, source: DiscoveryCollection,
 }
 
 function asRecord(value: unknown): RecordValue { return value && typeof value === 'object' ? value as RecordValue : {}; }
+function readDivContentsByClass(html: string, className: string): string | undefined {
+  const opening = new RegExp(`<div\\b[^>]*class=["'][^"']*\\b${className}\\b[^"']*["'][^>]*>`, 'i').exec(html);
+  return opening ? readNestedDivContents(html, opening.index + opening[0].length) : undefined;
+}
 function readDivContents(html: string, id: string): string | undefined {
   const opening = new RegExp(`<div\\b[^>]*\\bid=["']${id}["'][^>]*>`, 'i').exec(html);
   if (!opening) { return undefined; }
-  const start = opening.index + opening[0].length;
+  return readNestedDivContents(html, opening.index + opening[0].length);
+}
+function readNestedDivContents(html: string, start: number): string {
   const tags = /<\/?div\b(?:"[^"]*"|'[^']*'|[^'">])*>/gi;
   tags.lastIndex = start;
   let depth = 1;

@@ -20,9 +20,10 @@ import noon from './discoverySources/noon.json';
 import amazon from './discoverySources/amazon_ae.json';
 import bfl from './discoverySources/brands_for_less.json';
 import zara from './discoverySources/zara_uae.json';
+import hm from './discoverySources/hm_uae.json';
 
 const MIXED_DEPARTMENTS = new Set<DiscoveryCategory>(['fashion', 'beauty', 'electronics', 'sport', 'home_department', 'groceries', 'general']);
-const maps = [decathlon, nike, sss, level, ay, ounass, noon, amazon, adidas, puma, salomon, sephora, faces, centrepoint, namshi, deal, sharaf, carrefour, bfl, zara].flat() as DiscoveryCollection[];
+const maps = [decathlon, nike, sss, level, ay, ounass, noon, amazon, adidas, puma, salomon, sephora, faces, centrepoint, namshi, deal, sharaf, carrefour, bfl, zara, hm].flat() as DiscoveryCollection[];
 
 /** Observed retailer navigation, not generated search terms. Extraction failures remain visible. */
 export const DISCOVERY_SOURCE_MAPS: DiscoveryCollection[] = [

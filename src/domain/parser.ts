@@ -454,9 +454,11 @@ function parseZaraProduct(inputUrl: string, html: string): ParsedProduct | undef
         const currency = asString(offer?.priceCurrency);
         const priceMinor = parsePriceToMinor(asPriceValue(offer?.price));
         const availability = parseAvailability(asString(offer?.availability));
-        if (!id || !color || !size || !currency || (priceMinor === undefined && availability !== 'out_of_stock')) continue;
-        const attributes = [{ name: 'Color', value: color }, { name: 'Size', value: size }];
-        variants.push({ id, sku: id, label: `Color: ${color} · Size: ${size}`, attributes,
+        if (!id || (!color && !size) || !currency || (priceMinor === undefined && availability !== 'out_of_stock')) continue;
+        const attributes: VariantAttribute[] = [];
+        if (color) attributes.push({ name: 'Color', value: color });
+        if (size) attributes.push({ name: 'Size', value: size });
+        variants.push({ id, sku: id, label: attributes.map((attribute) => `${attribute.name}: ${attribute.value}`).join(' Â· '), attributes,
           url: asString(offer?.url) ?? inputUrl, priceMinor, currency, availability, imageUrl: firstString(item.image) });
       }
       const first = variants.find((variant) => variant.availability !== 'out_of_stock' && variant.priceMinor !== undefined) ?? variants[0];

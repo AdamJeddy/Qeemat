@@ -31,7 +31,12 @@ class QeematWebViewFetcherModule(private val reactContext: ReactApplicationConte
     var resolved = false
     var activeWebView: WebView? = null
     val requestedUri = android.net.Uri.parse(url)
-    val waitForHmProduct = requestedUri.host == "ae.hm.com" && requestedUri.path.orEmpty().contains("/buy-")
+    val isHm = requestedUri.host == "ae.hm.com"
+    val waitForHmProduct = isHm && requestedUri.path.orEmpty().contains("/buy-")
+    val waitForHmListing = isHm && !waitForHmProduct && (requestedUri.path.orEmpty().contains("/shop-") || requestedUri.path.orEmpty().contains("/search"))
+    val isZara = requestedUri.host.orEmpty().removePrefix("www.") == "zara.com"
+    val waitForZaraSearch = isZara && requestedUri.path.orEmpty().contains("/search")
+    val waitForZaraListing = isZara && !waitForZaraSearch && requestedUri.path.orEmpty().matches(Regex(".*-l[0-9]+\\.html"))
     val waitForSharafListing = requestedUri.host == "uae.sharafdg.com" && requestedUri.path.orEmpty().startsWith("/c/")
     val waitForBflListing = requestedUri.host.orEmpty().removePrefix("www.") == "brandsforless.com" && !requestedUri.path.orEmpty().contains("/p/")
     val waitForBflProduct = requestedUri.host.orEmpty().removePrefix("www.") == "brandsforless.com" && requestedUri.path.orEmpty().contains("/p/")
@@ -67,9 +72,9 @@ class QeematWebViewFetcherModule(private val reactContext: ReactApplicationConte
         webView = WebView(reactContext.applicationContext).apply {
           settings.javaScriptEnabled = true
           settings.domStorageEnabled = true
-          if (!waitForHmProduct) settings.userAgentString = USER_AGENT
+          if (!isHm) settings.userAgentString = USER_AGENT
           settings.blockNetworkLoads = false
-          settings.blockNetworkImage = !waitForHmProduct // H&M needs its normal storefront configuration
+          settings.blockNetworkImage = !isHm // H&M needs its normal storefront configuration
           settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
         }
       } catch (e: Exception) {
@@ -81,7 +86,7 @@ class QeematWebViewFetcherModule(private val reactContext: ReactApplicationConte
         return@post
       }
       activeWebView = webView
-      if (waitForHmProduct) android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true)
+      if (isHm) android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true)
 
       webView.webViewClient = object : WebViewClient() {
         private var pageLoadCount = 0
@@ -131,6 +136,9 @@ class QeematWebViewFetcherModule(private val reactContext: ReactApplicationConte
                 var headings = Array.from(document.querySelectorAll('h1,h2,h3')).map(function(el) { return el.innerText; }).join(' ');
                 var empty = /no (?:matching )?(?:products|results|matches)(?: were)? (?:found|available|for|could be found)|did not match any/i.test(document.body ? document.body.innerText : '') || /\b0\s+(?:products|results|items)/i.test(headings);
                 if (($waitForSharafListing && !document.querySelector('#hits a.product-link[data-objectid]') && !empty) || ($waitForBflListing && !document.querySelector('#product-listing a.hover_view_content') && !empty) || ($waitForBflProduct && !document.querySelector('#product-detail h1'))) return '__QEEMAT_LISTING_PENDING__';
+                if ($waitForHmListing && !document.querySelector('.algolia-product-listing .product-item.card') && !empty) return '__QEEMAT_LISTING_PENDING__';
+                if ($waitForZaraListing && (!document.querySelector('article.product-grid-product__container') || !document.querySelector('.product-grid-product-info__product-header')) && !empty) return '__QEEMAT_LISTING_PENDING__';
+                if ($waitForZaraSearch && !empty && (!document.querySelector('#search-products-form-combo-input') || !document.querySelector('article.product-grid-product__container'))) return '__QEEMAT_LISTING_PENDING__';
                 $searchReadiness
                 return document.documentElement.outerHTML;
               })();"""

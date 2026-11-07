@@ -219,17 +219,18 @@ export const SUPPORTED_SITES: SupportedSite[] = [
     displayName: 'H&M UAE',
     shortName: 'H&M',
     hostnames: ['ae.hm.com'],
-    status: 'experimental',
-    discoveryAvailable: false,
-    notes: 'Individual sizes use retailer catalogue SKUs, prices and stock. Android WebView access is required.'
+    status: 'supported',
+    notes: 'Individual sizes use retailer catalogue SKUs, prices and stock. Android WebView access is required.',
+    iconAsset: require('../../assets/site-icons/hm_uae.png')
   },
   {
     key: 'zara_uae',
     displayName: 'Zara UAE',
     shortName: 'Zara',
     hostnames: ['zara.com', 'www.zara.com'],
-    status: 'experimental',
-    notes: 'Product pages expose colour and size offers; access may require the Android WebView.'
+    status: 'supported',
+    notes: 'Product pages expose colour and size offers; access may require the Android WebView.',
+    iconAsset: require('../../assets/site-icons/zara_uae.png')
   },
 
 ];

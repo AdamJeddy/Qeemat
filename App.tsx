@@ -39,6 +39,7 @@ import {
   Pause,
   Plus,
   RefreshCcw,
+  Search,
   Settings as SettingsIcon,
   SlidersHorizontal,
   SquareStack,
@@ -365,7 +366,7 @@ function TabsScreen({ tab, navigate }: { tab: TabKey; navigate: (route: Route) =
       {tab === 'settings' ? <SettingsScreen /> : null}
       <View style={styles.tabBar}>
         <TabButton active={tab === 'watchlist'} label="Watchlist" icon={<SquareStack />} onPress={() => navigate({ name: 'tabs', tab: 'watchlist' })} />
-        <TabButton active={tab === 'opportunities'} label="For you" icon={<Sparkles />} onPress={() => navigate({ name: 'tabs', tab: 'opportunities' })} />
+        <TabButton active={tab === 'opportunities'} label="Search" icon={<Search />} onPress={() => navigate({ name: 'tabs', tab: 'opportunities' })} />
         <TabButton active={tab === 'activity'} label="Activity" icon={<Clock />} onPress={() => navigate({ name: 'tabs', tab: 'activity' })} />
         <TabButton active={tab === 'settings'} label="Settings" icon={<SettingsIcon />} onPress={() => navigate({ name: 'tabs', tab: 'settings' })} />
       </View>
@@ -2069,7 +2070,7 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
           <Sparkles size={22} color={colors.primary} />
         </View>
         <View style={styles.flex}>
-          <AppText weight="bold" style={styles.heading}>For you</AppText>
+          <AppText weight="bold" style={styles.heading}>Search</AppText>
           <AppText muted>Discover it. Track the price.</AppText>
         </View>
         <Pressable accessibilityRole="button" accessibilityLabel="Edit discovery preferences" onPress={() => setShowPreferences(true)} style={styles.discoveryPreferencesButton}>

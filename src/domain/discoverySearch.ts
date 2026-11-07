@@ -1,12 +1,13 @@
 import type { DiscoveryProduct, SiteKey } from './types';
 import type { DiscoveryCollection } from './discovery';
-import { parseDiscoveryListing } from './discoveryListings';
+import { decodeHtml, parseDiscoveryListing } from './discoveryListings';
 import { parseRenderedSearch } from './searchRenderedListings';
 
 export type SearchRequest = DiscoveryCollection & { url: string };
 export type SearchPage = { products: DiscoveryProduct[]; nextUrl?: string };
 
 const SEARCH_URLS: Partial<Record<SiteKey, string>> = {
+  hm_uae: 'https://ae.hm.com/en/search?q=',
   nike_uae: 'https://www.nike.ae/en/search?q=',
   sun_sand_sports: 'https://en-ae.sssports.com/search?q=',
   adidas: 'https://www.adidas.ae/en/search?q=',
@@ -39,7 +40,10 @@ export function buildSearchRequests(input: string): SearchRequest[] {
     id: `search-${site}`, siteKey: site as SiteKey, label: 'Product search', category: 'general' as const,
     provider: site === 'ay_accessories' ? 'woocommerce' as const : 'html' as const, url: `${prefix}${encodeURIComponent(query)}`
   }));
-  return [...requests, ...['women', 'men', 'kids'].map((audience): SearchRequest => ({
+  return [...requests, ...['WOMAN', 'MAN', 'KIDS', 'HOME'].map((section): SearchRequest => ({
+    id: `search-zara_uae-${section.toLowerCase()}`, siteKey: 'zara_uae', label: `${section.toLowerCase()} product search`,
+    category: 'general', provider: 'html', url: `https://www.zara.com/ae/en/search?searchTerm=${encodeURIComponent(query)}&section=${section}`
+  })), ...['women', 'men', 'kids'].map((audience): SearchRequest => ({
     id: `search-ounass-${audience}`, siteKey: 'ounass', label: `${audience} product search`, category: 'general', provider: 'html',
     url: `https://www.ounass.ae/${audience}?fh_location=%2F%24s%3D${encodeURIComponent(query)}`
   })), ...['women', 'men', 'kids'].map((audience): SearchRequest => ({
@@ -84,6 +88,15 @@ export function parseSearchPage(body: string, request: SearchRequest, query: str
   if (/cf_chl_opt|cf-browser-verify|<title>\s*just a moment|reference&#|<title>\s*access denied|<title>\s*robot check|id="captchacharacters"|\/errors\/validateCaptcha/i.test(body)) { return undefined; }
   let listingBody = body;
   let verifiedEmpty = false;
+  if (request.siteKey === 'hm_uae') {
+    const term = body.match(/<p\b[^>]*class=["'][^"']*\bsearch-term\b[^"']*["'][^>]*>([\s\S]*?)<\/p>/i)?.[1];
+    if (!term || normalizeSearchQuery(decodeHtml(term.replace(/<[^>]*>/g, ' '))).toLowerCase() !== query.toLowerCase()) { return undefined; }
+  }
+  if (request.siteKey === 'zara_uae') {
+    const input = body.match(/<input\b[^>]*id=["']search-products-form-combo-input["'][^>]*>/i)?.[0];
+    const term = input?.match(/\bvalue=["']([^"']*)["']/i)?.[1];
+    if (!term || normalizeSearchQuery(decodeHtml(term)).toLowerCase() !== query.toLowerCase()) { return undefined; }
+  }
   if (request.siteKey === 'level_shoes') {
     const json = body.match(/<script\b[^>]*id=["']__NEXT_DATA__["'][^>]*>([\s\S]*?)<\/script>/i)?.[1];
     if (!json) { return undefined; }
