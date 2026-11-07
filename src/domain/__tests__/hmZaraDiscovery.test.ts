@@ -45,3 +45,13 @@ test('includes H&M and all Zara audience search requests and rejects suggestion-
  expect(parseSearchPage(`<main><h2>You might be interested in</h2>${zaraArticle}</main>`,zara[0],'linen shirt',now)).toBeUndefined();
  expect(parseSearchPage(zaraHtml,zara[0],'linen shirt',now)?.products).toHaveLength(1);
 });
+test.each([
+  ['men\'s jeans', '"men\'s jeans"'],
+  ['men\'s jeans', '"men&#39;s jeans"'],
+  ['"linen" shirt', '\'"linen" shirt\'']
+])('accepts the complete Zara search term %s from value=%s', (query, value) => {
+ const request = buildSearchRequests(query).find(x => x.siteKey === 'zara_uae')!;
+ const product = zaraArticle.replace('LINEN SHIRT', query.toUpperCase());
+ const body = `<input id="search-products-form-combo-input" value=${value}>${product}`;
+ expect(parseSearchPage(body, request, query, now)?.products).toHaveLength(1);
+});

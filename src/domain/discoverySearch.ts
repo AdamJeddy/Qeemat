@@ -94,7 +94,7 @@ export function parseSearchPage(body: string, request: SearchRequest, query: str
   }
   if (request.siteKey === 'zara_uae') {
     const input = body.match(/<input\b[^>]*id=["']search-products-form-combo-input["'][^>]*>/i)?.[0];
-    const term = input?.match(/\bvalue=["']([^"']*)["']/i)?.[1];
+    const term = input?.match(/\bvalue=(["'])([\s\S]*?)\1/i)?.[2];
     if (!term || normalizeSearchQuery(decodeHtml(term)).toLowerCase() !== query.toLowerCase()) { return undefined; }
   }
   if (request.siteKey === 'level_shoes') {
