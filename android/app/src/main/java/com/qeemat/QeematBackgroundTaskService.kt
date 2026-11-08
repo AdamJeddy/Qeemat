@@ -11,7 +11,11 @@ class QeematBackgroundTaskService : HeadlessJsTaskService() {
     val data = if (extras != null) Arguments.fromBundle(extras) else Arguments.createMap()
 
     return HeadlessJsTaskConfig(
-        if (extras?.getString("task") == "update") "QeematBackgroundUpdateCheck" else "QeematBackgroundPriceCheck",
+        when (extras?.getString("task")) {
+          "update" -> "QeematBackgroundUpdateCheck"
+          "discovery" -> "QeematBackgroundDiscoveryRefresh"
+          else -> "QeematBackgroundPriceCheck"
+        },
         data,
         300000,
         true,

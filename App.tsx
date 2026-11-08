@@ -94,7 +94,7 @@ import {
   getDiscoveryPreferences,
   markDiscoveryProductsSeen
 } from './src/data/discovery';
-import { runBackgroundCheckOnce, scheduleBackgroundChecks, scheduleUpdateChecks, checkBatteryOptimizationExempt, requestBatteryOptimizationExemption, openAppSystemSettings } from './src/domain/backgroundScheduler';
+import { runBackgroundCheckOnce, scheduleBackgroundChecks, scheduleUpdateChecks, scheduleDiscoveryChecks, checkBatteryOptimizationExempt, requestBatteryOptimizationExemption, openAppSystemSettings } from './src/domain/backgroundScheduler';
 import { checkAllActiveProducts, checkProductById } from './src/domain/checker';
 import { availableCheckPreferences, formatRelativeTime, formatSnapshotTime } from './src/domain/dates';
 import { getOnboardingState, markOnboardingCompleted } from './src/domain/onboarding';
@@ -188,6 +188,7 @@ export default function App() {
       }
 
       await scheduleUpdateChecks().catch(() => false);
+      await scheduleDiscoveryChecks().catch(() => false);
       const scheduled = await scheduleBackgroundChecks(backgroundStatus.preferredHour).catch(() => false);
       if (scheduled) {
         await markBackgroundSchedule(backgroundStatus.preferredHour);
