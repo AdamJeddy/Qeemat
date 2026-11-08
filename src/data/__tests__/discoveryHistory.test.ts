@@ -31,3 +31,15 @@ test('clearing discovery data also removes stored listing history', async () => 
   await clearDiscoveryData();
   expect(await getDiscoveryHistory(item)).toEqual([]);
 });
+
+test('flushes batched history reads without relying on background JS timers', async () => {
+  let release = () => {};
+  const read = jest.spyOn(AsyncStorage, 'multiGet').mockImplementationOnce((keys) => new Promise((resolve) => {
+    release = () => resolve(keys.map((key) => [key, null] as const));
+  }));
+  const flush = jest.spyOn(AsyncStorage, 'flushGetRequests').mockImplementationOnce(() => release());
+  try {
+    await expect(recordDiscoveryObservations([item])).resolves.toHaveLength(1);
+    expect(flush).toHaveBeenCalled();
+  } finally { read.mockRestore(); flush.mockRestore(); }
+});

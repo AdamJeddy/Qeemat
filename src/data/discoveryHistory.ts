@@ -20,7 +20,10 @@ export async function getDiscoveryHistory(product: DiscoveryProduct): Promise<Di
 export function recordDiscoveryObservations(products: DiscoveryProduct[]): Promise<DiscoveryProduct[]> {
   const task = writes.then(async () => {
     const keys = [...new Set(products.map(key))];
-    const stored = await AsyncStorage.multiGet(keys);
+    const pending = AsyncStorage.multiGet(keys);
+    // multiGet normally waits for a JS timer, which Android can pause in the background.
+    AsyncStorage.flushGetRequests();
+    const stored = await pending;
     const histories = new Map<string, DiscoveryObservation[]>();
     for (const [entryKey, raw] of stored) {
       try { const value = JSON.parse(raw ?? '[]'); histories.set(entryKey, Array.isArray(value) ? value : []); }

@@ -125,7 +125,9 @@ async function getLegacyFeedbackAliases(): Promise<Map<string, string>> {
         }
       };
       const keys = (await AsyncStorage.getAllKeys()).filter((key) => key.startsWith(`${SOURCE_CACHE_PREFIX}decathlon-`) || key.startsWith(`${SOURCE_CACHE_PREFIX}salomon-`));
-      const entries = await AsyncStorage.multiGet(keys);
+      const pending = AsyncStorage.multiGet(keys);
+      AsyncStorage.flushGetRequests();
+      const entries = await pending;
       for (const [, raw] of entries) {
         if (!raw) { continue; }
         try { const entry = JSON.parse(raw) as DiscoveryCacheEntry; if (Array.isArray(entry.products)) { add(entry); } } catch { /* Ignore a corrupt collection cache. */ }
