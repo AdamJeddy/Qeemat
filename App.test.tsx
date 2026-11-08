@@ -288,8 +288,8 @@ describe('OpportunityScreen', () => {
     const text = tree!.root.findAllByType(AppText).map(node => [node.props.children].flat().join('')).join(' ');
     expect(text).toContain('Price down AED 20 · was AED 100');
   });
-  it('shows products related to active watchlist categories and explains why', async () => {
-    const listTracked = jest.spyOn(require('./src/data/database'), 'listTrackedProducts').mockResolvedValue([{ id: 1, isActive: true, category: 'footwear', canonicalUrl: 'https://www.noon.com/watched', url: 'https://www.noon.com/watched' }]);
+  it('uses an existing uncategorised watched product to show related products', async () => {
+    const listTracked = jest.spyOn(require('./src/data/database'), 'listTrackedProducts').mockResolvedValue([{ id: 1, title: 'Running sneakers', isActive: true, canonicalUrl: 'https://www.noon.com/watched', url: 'https://www.noon.com/watched' }]);
     const base = { siteKey: 'noon', brand: 'Brand', currency: 'AED', availability: 'in_stock', observedAt: '2026-11-01T00:00:00Z', priceMinor: 10000 };
     mockGetDiscoveryPreferences.mockResolvedValue({ completed: false, categories: [], favoriteBrands: [], budgetsByCategory: {}, dismissedProductIds: [], seenProductIds: [] });
     mockLoadDiscoveryCatalog.mockResolvedValue({ products: [{ ...base, id: 'shoe', title: 'Shoe', category: 'footwear', url: 'https://www.noon.com/shoe' }, { ...base, id: 'shirt', title: 'Shirt', category: 'clothing', url: 'https://www.noon.com/shirt' }], stale: false });

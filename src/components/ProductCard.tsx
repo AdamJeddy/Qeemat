@@ -10,6 +10,7 @@ import { CheckStatus, TrackedProduct } from '../domain/types';
 import { colors, radius, shadow } from '../theme/theme';
 import { isCompactLayout } from '../theme/layout';
 import { DISCOVERY_CATEGORY_LABELS } from '../domain/discoveryCategories';
+import { inferWatchlistCategory } from '../domain/watchlistDiscovery';
 
 type ProductCardProps = {
   product: TrackedProduct;
@@ -23,6 +24,7 @@ export function ProductCard({ product, onPress, onRemove, onLongPress, selected 
   const { width, fontScale } = useWindowDimensions();
   const compact = isCompactLayout(width, fontScale);
   const site = getSiteByKey(product.siteKey);
+  const category = inferWatchlistCategory(product);
   const isOos = product.lastAvailability === 'out_of_stock';
   const status: CheckStatus = product.lastErrorCode ?? 'ok';
   const checkFailed = status !== 'ok' && status !== 'price_changed';
@@ -76,7 +78,7 @@ export function ProductCard({ product, onPress, onRemove, onLongPress, selected 
           </View>
         ) : null}
         {product.variant ? <AppText muted style={styles.variantLabel}>{product.variant.label}</AppText> : null}
-        {product.category && DISCOVERY_CATEGORY_LABELS[product.category] ? <AppText muted style={styles.variantLabel}>{DISCOVERY_CATEGORY_LABELS[product.category]}</AppText> : null}
+        {category ? <AppText muted style={styles.variantLabel}>{product.category ? '' : 'Suggested: '}{DISCOVERY_CATEGORY_LABELS[category]}</AppText> : null}
         {checkFailed || isOos ? <AppText muted style={styles.caption}>Last known price</AppText> : null}
         <View style={styles.priceRow}>
           <AppText weight="bold" style={[styles.price, isOos && styles.priceMuted]}>

@@ -127,6 +127,8 @@ export type TrackedProduct = {
   brand?: string;
   /** Shopper-selected or source-provided category for discovery. */
   category?: import('./discoveryCategories').ShoppingCategory;
+  /** True when the shopper explicitly chose no category. */
+  categoryExcluded?: boolean;
   priceBasis?: import('./priceBasis').PriceBasis;
   id: number;
   url: string;
@@ -184,6 +186,7 @@ export type ProductWithSnapshots = {
 export type ProductDraft = {
   brand?: string;
   category?: import('./discoveryCategories').ShoppingCategory;
+  categoryExcluded?: boolean;
   parsed: ParsedProduct;
   sourceUrl: string;
   checkPreference: CheckPreference;

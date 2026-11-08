@@ -113,6 +113,7 @@ export async function createTrackedProduct(draft: ProductDraft): Promise<number>
     title: parsed.title,
     brand: draft.brand,
     category: draft.category,
+    categoryExcluded: draft.categoryExcluded,
     imageUrl: parsed.imageUrl,
     currency: parsed.currency ?? 'AED',
     currentPriceMinor: parsed.priceMinor,
@@ -191,6 +192,7 @@ export async function updateTrackingSettings(
             restockAlertEnabled: settings.restockAlertEnabled ?? product.restockAlertEnabled ?? true,
             folder: normalizeFolderName(settings.folder, knownFolders),
             category: settings.category === undefined ? product.category : settings.category ?? undefined,
+            categoryExcluded: settings.category === undefined ? product.categoryExcluded : settings.category === null,
             isActive: settings.isActive,
             updatedAt: now
           }

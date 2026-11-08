@@ -59,7 +59,7 @@ import { PrimaryButton } from './src/components/PrimaryButton';
 import { ProductCard } from './src/components/ProductCard';
 import { ProductCategoryPicker } from './src/components/ProductCategoryPicker';
 import { DISCOVERY_CATEGORY_LABELS as SHOPPING_CATEGORY_LABELS, ShoppingCategory } from './src/domain/discoveryCategories';
-import { watchlistCategories } from './src/domain/watchlistDiscovery';
+import { inferWatchlistCategory, watchlistCategories } from './src/domain/watchlistDiscovery';
 import { StatusPill } from './src/components/StatusPill';
 import { VariantSelector } from './src/components/VariantSelector';
 import { UpdateNotice } from './src/components/UpdateNotice';
@@ -928,6 +928,7 @@ export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { i
   const [restockAlertEnabled, setRestockAlertEnabled] = useState(true);
   const [folder, setFolder] = useState('');
   const [productCategory, setProductCategory] = useState<ShoppingCategory>();
+  const [categoryExcluded, setCategoryExcluded] = useState(false);
   const organizationOptions = useOrganizationOptions();
   const [selectedVariantAttributes, setSelectedVariantAttributes] = useState<VariantAttributes>({});
   const scrollRef = useRef<ScrollView>(null);
@@ -939,6 +940,7 @@ export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { i
     setError(undefined);
     setParsedProduct(undefined);
     setProductCategory(undefined);
+    setCategoryExcluded(false);
     setSelectedVariantAttributes({});
     shouldFocusParsedResult.current = true;
     setLoading(true);
@@ -949,6 +951,7 @@ export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { i
     }
     if (result.ok) {
       setParsedProduct(result.product);
+      setProductCategory(inferWatchlistCategory({ ...result.product, url: sourceUrl }));
     } else {
       shouldFocusParsedResult.current = false;
       setError(result.message);
@@ -1049,6 +1052,7 @@ export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { i
       restockAlertEnabled,
       folder,
       category: productCategory,
+      categoryExcluded,
       variant: productToSave.selectedVariant
     });
     setSaving(false);
@@ -1215,7 +1219,7 @@ export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { i
               <Switch value={restockAlertEnabled} onValueChange={setRestockAlertEnabled} trackColor={{ true: colors.primary }} />
             </View>
             <FolderPicker value={folder} folders={organizationOptions.folders} onChange={setFolder} />
-            <ProductCategoryPicker value={productCategory} onChange={setProductCategory} />
+            <ProductCategoryPicker value={productCategory} onChange={(value) => { setProductCategory(value); setCategoryExcluded(value === undefined); }} />
             <PrimaryButton
               label="Confirm Tracking"
               onPress={saveProduct}
@@ -1517,7 +1521,7 @@ function TrackingSettingsScreen({ productId, navigate }: { productId: number; na
       setMinimumPriceDrop(row.minimumPriceDropMinor ? String(row.minimumPriceDropMinor / 100) : '');
       setRestockAlertEnabled(row.restockAlertEnabled ?? true);
       setFolder(row.folder ?? '');
-      setProductCategory(row.category);
+      setProductCategory(inferWatchlistCategory(row));
     });
   }, [productId]);
 

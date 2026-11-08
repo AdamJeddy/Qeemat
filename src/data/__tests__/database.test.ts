@@ -24,6 +24,7 @@ describe('createTrackedProduct', () => {
     expect((await getTrackedProduct(id))?.category).toBe('clothing');
     await updateTrackingSettings(id, { alertMode: 'price_drop', checkPreference: 'daily', isActive: true, category: null });
     expect((await getTrackedProduct(id))?.category).toBeUndefined();
+    expect((await getTrackedProduct(id))?.categoryExcluded).toBe(true);
   });
 
   it('persists the selected variant with a new tracker', async () => {
