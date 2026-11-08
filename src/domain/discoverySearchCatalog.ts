@@ -1,4 +1,4 @@
-import { getProductSearchCache, saveProductSearchCache } from '../data/discoverySearch';
+import { getProductSearchCache, rememberSearchSource, saveProductSearchCache, updateProductSearchCache } from '../data/discoverySearch';
 import { buildSearchRequests, normalizeSearchQuery, parseSearchPage, rankSearchMatches, SearchPage, SearchRequest } from './discoverySearch';
 import { DiscoveryFetcher, fetchDiscoveryHtmlViaWebView, mergeDiscoveryProducts } from './discoveryCatalog';
 import type { DiscoveryProduct } from './types';
@@ -43,6 +43,7 @@ export async function loadProductSearch(input: string, options: SearchOptions = 
       if (options.isCancelled?.()) { return; }
       const observed = page.observedProducts ?? page.products;
       const recorded = await recordDiscoveryObservations(observed).catch(() => { historyUnavailable = true; return observed; });
+      if (observed.length) { await rememberSearchSource(query, entry.request.id).catch(() => { historyUnavailable = true; }); }
       const products = page.observedProducts ? rankSearchMatches(recorded, query) : recorded;
       if (options.isCancelled?.()) { return; }
       entry.products = options.loadMore ? mergeDiscoveryProducts([...entry.products, ...products]) : products;
@@ -78,6 +79,34 @@ export async function loadProductSearch(input: string, options: SearchOptions = 
   const result = snapshot();
   if (!options.isCancelled?.()) { await saveProductSearchCache(result); }
   return result;
+}
+
+/** Revisit one previously productive search source without replacing other cached stores. */
+export async function refreshSavedSearchSource(query: string, sourceId: string, fetcher: DiscoveryFetcher = fetch): Promise<void> {
+  const request = buildSearchRequests(query).find((item) => item.id === sourceId);
+  if (!request) { return; }
+  const observedAt = new Date().toISOString();
+  let page = await fetchSearchPage(request, query, observedAt, fetcher);
+  if (!page && request.provider === 'html') {
+    const html = await fetchDiscoveryHtmlViaWebView(request.url);
+    page = html ? parseSearchPage(html, request, query, observedAt) : undefined;
+  }
+  if (!page) { return; }
+  console.info('[Discovery refresh] Search listing received');
+  const saved = await getProductSearchCache(query);
+  const old = saved?.sources.find((source) => source.request.id === sourceId);
+  if (old?.products.length) { await recordDiscoveryObservations(old.products); }
+  console.info('[Discovery refresh] Saving search observations');
+  const observed = await recordDiscoveryObservations(page.observedProducts ?? page.products);
+  const products = page.observedProducts ? rankSearchMatches(observed, query) : observed;
+  const nextUrl = page.nextUrl;
+  await updateProductSearchCache(query, (current) => {
+    const existing = current.sources.find((source) => source.request.id === sourceId);
+    if (!existing || (existing.observedAt && existing.observedAt > observedAt)) { return current; }
+    const sources = current.sources.map((source) => source.request.id === sourceId
+      ? { ...source, request, products, observedAt, nextUrl, status: products.length ? 'ready' as const : 'empty' as const } : source);
+    return { ...current, sources, products: rankSearchMatches(mergeDiscoveryProducts(sources.flatMap((source) => source.products)), query) };
+  });
 }
 
 async function fetchSearchPage(request: SearchRequest, query: string, observedAt: string, fetcher: DiscoveryFetcher, isCancelled?: () => boolean) {
