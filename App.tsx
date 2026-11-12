@@ -43,7 +43,6 @@ import {
   Settings as SettingsIcon,
   SlidersHorizontal,
   SquareStack,
-  Sparkles,
   Store,
   Trash2,
   TrendingDown,
@@ -90,6 +89,7 @@ import {
   updateTrackingSettings
 } from './src/data/database';
 import {
+  advanceDiscoveryOffset,
   clearDiscoveryData,
   dismissDiscoveryProduct,
   getDiscoveryPreferences,
@@ -168,6 +168,7 @@ const BACKGROUND_TIME_PRESETS = [
 
 export default function App() {
   const [route, setRoute] = useState<Route>({ name: 'tabs', tab: 'watchlist' });
+  const [discoveryOffset, setDiscoveryOffset] = useState(0);
   const [ready, setReady] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const shareEventId = useRef(0);
@@ -177,6 +178,8 @@ export default function App() {
 
     (async () => {
       await initializeDatabase();
+      const offset = await advanceDiscoveryOffset().catch(() => 0);
+      if (active) { setDiscoveryOffset(offset); }
       const [backgroundStatus, onboarding] = await Promise.all([
         getBackgroundStatus(),
         getOnboardingState()
@@ -253,7 +256,7 @@ export default function App() {
       <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
       <SafeAreaView style={styles.app}>
         <UpdateNotice visible={route.name === 'tabs' && route.tab !== 'activity'} />
-        {route.name === 'tabs' ? <TabsScreen tab={route.tab} navigate={setRoute} /> : null}
+        {route.name === 'tabs' ? <TabsScreen tab={route.tab} navigate={setRoute} discoveryOffset={discoveryOffset} /> : null}
         {route.name === 'add' ? <AddScreen initialUrl={route.initialUrl} shareEventId={route.shareEventId} returnTab={route.returnTab} navigate={setRoute} /> : null}
         {route.name === 'detail' ? <DetailScreen productId={route.id} navigate={setRoute} /> : null}
         {route.name === 'trackingSettings' ? <TrackingSettingsScreen productId={route.id} navigate={setRoute} /> : null}
@@ -359,11 +362,13 @@ function getBackRoute(route: Route): Route | undefined {
   return undefined;
 }
 
-function TabsScreen({ tab, navigate }: { tab: TabKey; navigate: (route: Route) => void }) {
+export function TabsScreen({ tab, navigate, discoveryOffset }: { tab: TabKey; navigate: (route: Route) => void; discoveryOffset?: number }) {
+  const [searchOpened, setSearchOpened] = useState(tab === 'opportunities');
+  useEffect(() => { if (tab === 'opportunities') { setSearchOpened(true); } }, [tab]);
   return (
     <View style={styles.app}>
       {tab === 'watchlist' ? <WatchlistScreen navigate={navigate} /> : null}
-      {tab === 'opportunities' ? <OpportunityScreen navigate={navigate} /> : null}
+      {searchOpened || tab === 'opportunities' ? <View style={tab === 'opportunities' ? styles.flex : styles.hiddenTab}><OpportunityScreen navigate={navigate} active={tab === 'opportunities'} sessionOffset={discoveryOffset} /></View> : null}
       {tab === 'activity' ? <ActivityScreen navigate={navigate} /> : null}
       {tab === 'settings' ? <SettingsScreen /> : null}
       <View style={styles.tabBar}>
@@ -1831,7 +1836,14 @@ function EmptyActivity() {
   );
 }
 
-export function OpportunityScreen({ navigate }: { navigate: (route: Route) => void }) {
+export function rotateDiscoveryProducts<T>(products: T[], offset: number): T[] {
+  const first = products.slice(0, 24);
+  if (first.length < 2) { return products; }
+  const shift = offset % first.length;
+  return [...first.slice(shift), ...first.slice(0, shift), ...products.slice(24)];
+}
+
+export function OpportunityScreen({ navigate, active = true, sessionOffset }: { navigate: (route: Route) => void; active?: boolean; sessionOffset?: number }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResult, setSearchResult] = useState<ProductSearchResult>();
   const [searchBusy, setSearchBusy] = useState(false);
@@ -1870,6 +1882,9 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
   const [maximumPrice, setMaximumPrice] = useState('');
   const scrollRef = useRef<ScrollView>(null);
   const [catalogState, setCatalogState] = useState<{ refreshedAt?: string; stale: boolean }>({ stale: false });
+  useEffect(() => {
+    if (active) { listTrackedProducts().then(setTrackedProducts).catch(() => {}); }
+  }, [active]);
 
   const load = useCallback(async (force = false) => {
     if (!preferences || searchQuery) { return; }
@@ -1965,7 +1980,8 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
   const selectedCollection = DISCOVERY_SOURCE_MAPS.find((source) => source.id === collectionId);
   const hasMoreListings = !searchQuery && !collectionId && selectDiscoveryCollections({ categories: category ? [category] : browseAll || retailer ? [] : watchedCategories, siteKey: retailer, offset: batchLimit, limit: 1 }).length > 0;
   const visibleCount = searchQuery ? searchVisibleCount : discoveryVisibleCount;
-  const visibleProducts = filteredProducts.slice(0, visibleCount);
+  const visibleProducts = (!searchQuery && !category && !retailer && !collectionId && !brand && !maximumPrice
+    ? rotateDiscoveryProducts(filteredProducts, sessionOffset ?? 0) : filteredProducts).slice(0, visibleCount);
   const resultRetailerCount = new Set(filteredProducts.map((product) => product.siteKey)).size;
   const variantChoices = discoveryVariantChoices(pendingProduct?.parsed.variants ?? []);
   const selectedChoice = resolveSelectedVariant(variantChoices, variantAttributes);
@@ -2100,9 +2116,6 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.primary} />}
     >
       <View style={styles.discoveryHeader}>
-        <View style={styles.discoveryHeaderIcon}>
-          <Sparkles size={22} color={colors.primary} />
-        </View>
         <View style={styles.flex}>
           <AppText weight="bold" style={styles.heading}>Search</AppText>
           <AppText muted>Discover it. Track the price.</AppText>
@@ -2127,7 +2140,7 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
         <>
           <View style={styles.discoverySection}>
             <View style={styles.titleRow}><AppText weight="bold" style={styles.discoverySectionTitle}>{category ? DISCOVERY_CATEGORY_LABELS[category] : 'Explore products'}</AppText><Pressable accessibilityRole="button" onPress={() => { resetBrowse(); setBrowseAll(!browseAll && !category); }} style={styles.discoveryToolbarAction}><AppText style={styles.discoveryLink}>{category || browseAll ? 'Watchlist picks' : 'All products'}</AppText></Pressable></View>
-            {!browseAll && !category && !retailer && !collectionId && watchedCategories.length ? <AppText muted>Showing products related to your watchlist: {watchedCategories.map((item) => SHOPPING_CATEGORY_LABELS[item]).join(', ')}.</AppText> : null}
+            {!browseAll && !category && !retailer && !collectionId && watchedCategories.length ? <View style={styles.watchlistReason}><AppText weight="semibold" style={styles.watchlistReasonTitle}>Inspired by your watchlist</AppText><AppText muted style={styles.watchlistReasonCategories}>{watchedCategories.map((item) => SHOPPING_CATEGORY_LABELS[item]).join('  ·  ')}</AppText></View> : null}
             {!browseAll && !category && !retailer && !collectionId && !watchedCategories.length ? <AppText muted>Track products to see related finds here.</AppText> : null}
             <View style={styles.discoveryToolbar}>
               <AppText muted style={styles.discoveryResultCount}>{filteredProducts.length} {filteredProducts.length === 1 ? 'product' : 'products'} · {resultRetailerCount} {resultRetailerCount === 1 ? 'retailer' : 'retailers'}</AppText>
@@ -3348,6 +3361,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12
   },
+  watchlistReason: { paddingVertical: 10, paddingHorizontal: 12, borderLeftWidth: 3, borderLeftColor: colors.primary, backgroundColor: colors.blueSoft, borderRadius: radius.sm, gap: 2 },
+  watchlistReasonTitle: { color: colors.primaryDark, fontSize: 13 },
+  watchlistReasonCategories: { fontSize: 12, lineHeight: 18 },
   discoveryToolbarAction: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 6 },
   discoveryModalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: colors.scrim },
   discoveryOptionSheet: { height: '75%', backgroundColor: colors.background, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, overflow: 'hidden' },
@@ -3654,6 +3670,7 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0
   },
+  hiddenTab: { display: 'none' },
   errorText: {
     color: colors.red
   },

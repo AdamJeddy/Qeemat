@@ -29,7 +29,7 @@ jest.mock('./src/domain/discoveryCatalog', () => ({
 }));
 jest.mock('./src/domain/discoverySearchCatalog', () => ({ loadProductSearch: jest.fn() }));
 
-import { AddScreen, DetailScreen, getTrackedProductLink, OpportunityScreen } from './App';
+import { AddScreen, DetailScreen, getTrackedProductLink, OpportunityScreen, rotateDiscoveryProducts, TabsScreen } from './App';
 import { AppText } from './src/components/AppText';
 import { DiscoveryFilterChip, DiscoveryProductGrid } from './src/components/Discovery';
 import { DiscoveryBrowseSheet } from './src/components/DiscoveryBrowseSheet';
@@ -304,12 +304,41 @@ describe('DetailScreen', () => {
 });
 
 describe('OpportunityScreen', () => {
+  it('keeps the search screen mounted when switching tabs', async () => {
+    mockListProductsWithSnapshots.mockResolvedValue([]);
+    mockGetDiscoveryPreferences.mockResolvedValue({ completed: false, categories: [], favoriteBrands: [], budgetsByCategory: {}, dismissedProductIds: [], seenProductIds: [] });
+    mockLoadDiscoveryCatalog.mockResolvedValue({ products: [], stale: false });
+    const navigate = jest.fn();
+    let tree: renderer.ReactTestRenderer;
+    await act(async () => { tree = renderer.create(<TabsScreen tab="opportunities" navigate={navigate} />); await new Promise<void>(resolve => setImmediate(resolve)); });
+    const screen = tree!.root.findByType(OpportunityScreen);
+    await act(async () => { tree!.update(<TabsScreen tab="watchlist" navigate={navigate} />); await new Promise<void>(resolve => setImmediate(resolve)); });
+    expect(tree!.root.findByType(OpportunityScreen)).toBe(screen);
+    await act(async () => { tree!.update(<TabsScreen tab="opportunities" navigate={navigate} />); await new Promise<void>(resolve => setImmediate(resolve)); });
+    expect(tree!.root.findByType(OpportunityScreen)).toBe(screen);
+    await act(async () => tree!.unmount());
+  });
+  it('varies the first products without losing items or moving later results', () => {
+    const products = Array.from({ length: 30 }, (_, index) => index);
+    const rotated = rotateDiscoveryProducts(products, 5);
+    expect(rotated.slice(0, 3)).toEqual([5, 6, 7]);
+    expect(rotated.slice(24)).toEqual(products.slice(24));
+    expect([...rotated].sort((a, b) => a - b)).toEqual(products);
+    expect(rotateDiscoveryProducts(products, 5)).toEqual(rotated);
+  });
   it('shows the price change for a previously observed listing', () => {
     const product = { id: 'shoe', siteKey: 'noon' as const, category: 'footwear' as const, brand: 'Brand', title: 'Shoe', url: 'https://www.noon.com/shoe', priceMinor: 8000, previousPriceMinor: 10000, currency: 'AED', availability: 'in_stock' as const, observedAt: '2026-11-07T00:00:00Z' };
     let tree: renderer.ReactTestRenderer;
     act(() => { tree = renderer.create(<DiscoveryProductGrid products={[product]} trackedProducts={[]} onTrack={jest.fn()} onDismiss={jest.fn()} onMoreLikeThis={jest.fn()} onViewAtRetailer={jest.fn()} />); });
     const text = tree!.root.findAllByType(AppText).map(node => [node.props.children].flat().join('')).join(' ');
     expect(text).toContain('Price down AED 20 · was AED 100');
+  });
+  it('does not display a price change when the price is unchanged', () => {
+    const product = { id: 'shoe', siteKey: 'noon' as const, category: 'footwear' as const, brand: 'Brand', title: 'Shoe', url: 'https://www.noon.com/shoe', priceMinor: 8000, previousPriceMinor: 8000, currency: 'AED', availability: 'in_stock' as const, observedAt: '2026-11-07T00:00:00Z' };
+    let tree: renderer.ReactTestRenderer;
+    act(() => { tree = renderer.create(<DiscoveryProductGrid products={[product]} trackedProducts={[]} onTrack={jest.fn()} onDismiss={jest.fn()} onMoreLikeThis={jest.fn()} onViewAtRetailer={jest.fn()} />); });
+    const text = tree!.root.findAllByType(AppText).map(node => [node.props.children].flat().join('')).join(' ');
+    expect(text).not.toContain('unchanged');
   });
   it('uses an existing uncategorised watched product to show related products', async () => {
     const listTracked = jest.spyOn(require('./src/data/database'), 'listTrackedProducts').mockResolvedValue([{ id: 1, title: 'Running sneakers', isActive: true, canonicalUrl: 'https://www.noon.com/watched', url: 'https://www.noon.com/watched' }]);
@@ -320,7 +349,8 @@ describe('OpportunityScreen', () => {
     await act(async () => { tree = renderer.create(<OpportunityScreen navigate={jest.fn()} />); await new Promise<void>(resolve => setImmediate(resolve)); });
     expect(tree!.root.findByType(DiscoveryProductGrid).props.products.map((product: { id: string }) => product.id)).toEqual(['shoe']);
     const text = tree!.root.findAllByType(AppText).map(node => [node.props.children].flat().join('')).join(' ');
-    expect(text).toContain('Showing products related to your watchlist: Footwear');
+    expect(text).toContain('Inspired by your watchlist');
+    expect(text).toContain('Footwear');
     expect(mockLoadDiscoveryCatalog).toHaveBeenLastCalledWith(undefined, expect.objectContaining({ scope: expect.objectContaining({ categories: ['footwear'] }) }));
     await act(async () => tree!.unmount());
     listTracked.mockRestore();
