@@ -61,6 +61,36 @@ describe('fetchDecathlonCollection', () => {
 describe('multi-retailer discovery refresh', () => {
   beforeEach(async () => { await AsyncStorage.clear(); });
 
+  it('compares a refreshed listing with the previous observed price', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-11-01T00:00:00Z'));
+    let price = '100.00';
+    const fetcher = jest.fn(async () => ({ ok: true, json: async () => ({ products: [{ id: 101, title: 'Training mat', handle: 'training-mat', vendor: 'Domyos', images: [], variants: [{ price }] }] }) }));
+    try {
+      const scope = { collectionId: 'decathlon-fitness' };
+      expect((await loadScopedCatalog(fetcher, { scope, force: true })).products[0].previousPriceMinor).toBeUndefined();
+      price = '80.00';
+      jest.setSystemTime(new Date('2026-11-02T00:00:00Z'));
+      const product = (await loadScopedCatalog(fetcher, { scope, force: true })).products[0];
+      expect(product).toEqual(expect.objectContaining({ priceMinor: 8000, previousPriceMinor: 10000 }));
+    } finally { jest.useRealTimers(); }
+  });
+
+  it('uses an existing cached listing as the first observation after upgrade', async () => {
+    const cached = { id: 'decathlon_uae:101', siteKey: 'decathlon_uae' as const, category: 'fitness' as const, brand: 'Domyos', title: 'Training mat', url: 'https://decathlon.ae/products/training-mat', priceMinor: 10000, currency: 'AED', availability: 'unknown' as const, observedAt: '2026-11-01T00:00:00Z' };
+    await saveDiscoveryCache('decathlon-fitness', [cached], cached.observedAt);
+    const fetcher = jest.fn(async () => ({ ok: true, json: async () => ({ products: [{ id: 101, title: 'Training mat', handle: 'training-mat', vendor: 'Domyos', images: [], variants: [{ price: '80.00' }] }] }) }));
+    const result = await loadScopedCatalog(fetcher, { scope: { collectionId: 'decathlon-fitness' }, force: true });
+    expect(result.products[0].previousPriceMinor).toBe(10000);
+  });
+
+  it('keeps listings visible and reports a history storage failure', async () => {
+    (AsyncStorage.multiSet as jest.Mock).mockRejectedValueOnce(new Error('storage full'));
+    const fetcher = jest.fn(async () => ({ ok: true, json: async () => ({ products: [{ id: 101, title: 'Training mat', handle: 'training-mat', vendor: 'Domyos', images: [], variants: [{ price: '80.00' }] }] }) }));
+    const result = await loadScopedCatalog(fetcher, { scope: { collectionId: 'decathlon-fitness' }, force: true });
+    expect(result.products).toHaveLength(1);
+    expect(result.historyUnavailable).toBe(true);
+  });
+
   it.each([true, false])('does not cache a cancelled request as a failure or success (response succeeds: %s)', async (success) => {
     let cancel = false;
     let release!: () => void;

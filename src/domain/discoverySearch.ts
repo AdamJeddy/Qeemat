@@ -4,7 +4,7 @@ import { decodeHtml, parseDiscoveryListing } from './discoveryListings';
 import { parseRenderedSearch } from './searchRenderedListings';
 
 export type SearchRequest = DiscoveryCollection & { url: string };
-export type SearchPage = { products: DiscoveryProduct[]; nextUrl?: string };
+export type SearchPage = { products: DiscoveryProduct[]; observedProducts?: DiscoveryProduct[]; nextUrl?: string };
 
 const SEARCH_URLS: Partial<Record<SiteKey, string>> = {
   hm_uae: 'https://ae.hm.com/en/search?q=',
@@ -121,7 +121,8 @@ export function parseSearchPage(body: string, request: SearchRequest, query: str
   const explicitEmpty = /no (?:matching )?(?:products|results|matches)(?: were)? (?:found|available|for|could be found)|could(?:n.t| not) find|did not match any/i.test(text) || /\b0\s+(?:products|results|items)/i.test(headings);
   const emptyJson = request.provider === 'woocommerce' && body.trim() === '[]';
   if (!products.length && !verifiedEmpty && !explicitEmpty && !emptyJson) { return undefined; }
-  return { products: rankSearchMatches(products, query), ...nextSearchPage(body, request, query) };
+  const matches = rankSearchMatches(products, query);
+  return { products: matches, ...(matches.length < products.length ? { observedProducts: products } : {}), ...nextSearchPage(body, request, query) };
 }
 
 function nextSearchPage(body: string, request: SearchRequest, query: string): { nextUrl?: string } {

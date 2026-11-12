@@ -2,14 +2,45 @@ jest.mock('@react-native-async-storage/async-storage', () => require('@react-nat
 jest.mock('../webViewFetcher', () => ({ fetchPageHtmlViaWebView: jest.fn().mockResolvedValue(null) }));
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { loadProductSearch } from '../discoverySearchCatalog';
+import { loadProductSearch, refreshSavedSearchSource } from '../discoverySearchCatalog';
 import { buildSearchRequests } from '../discoverySearch';
 import { fetchPageHtmlViaWebView } from '../webViewFetcher';
+import { DISCOVERY_HISTORY_PREFIX } from '../../data/discoveryHistory';
+import { getProductSearchCache, listSavedSearchSources, rememberSearchSource } from '../../data/discoverySearch';
 
 const response = (name: string) => ({ ok: true, json: async () => ({}), text: async () => `<script type="application/ld+json">${JSON.stringify({ '@type': 'Product', name, url: '/shoe.html', offers: { price: 100 } })}</script>` });
 
 describe('progressive retailer search', () => {
   beforeEach(async () => { await AsyncStorage.clear(); });
+  it('refreshes a saved search source without discarding other retailer results', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-11-01T00:00:00Z'));
+    try {
+      const requests = buildSearchRequests('shoes').filter((request) => ['nike_uae', 'faces_uae'].includes(request.siteKey));
+      await loadProductSearch('shoes', { requests, fetcher: jest.fn(async () => response('Running shoes')) });
+      expect(await listSavedSearchSources()).toEqual(expect.arrayContaining([{ query: 'shoes', sourceId: 'search-nike_uae' }]));
+      jest.setSystemTime(new Date('2026-11-02T00:00:00Z'));
+      const cheaper = jest.fn(async () => ({ ...response('Running shoes'), text: async () => `<script type="application/ld+json">${JSON.stringify({ '@type': 'Product', name: 'Running shoes', url: '/shoe.html', offers: { price: 80 } })}</script>` }));
+      await refreshSavedSearchSource('shoes', 'search-nike_uae', cheaper);
+      const cached = await getProductSearchCache('shoes');
+      expect(cached?.sources).toHaveLength(2);
+      expect(cached?.sources.find(source => source.request.siteKey === 'nike_uae')?.products[0]).toEqual(expect.objectContaining({ priceMinor: 8000, previousPriceMinor: 10000 }));
+      expect(cached?.sources.find(source => source.request.siteKey === 'faces_uae')?.products).toHaveLength(1);
+    } finally { jest.useRealTimers(); }
+  });
+  it('keeps a previously cached source subscribed after its search cache is removed', async () => {
+    const requests = buildSearchRequests('shoes').filter((request) => request.siteKey === 'nike_uae');
+    await loadProductSearch('shoes', { requests, fetcher: jest.fn(async () => response('Running shoes')) });
+    await AsyncStorage.removeItem('qeemat.discovery.search.sources.v1');
+    await rememberSearchSource('shoes', 'search-nike_uae');
+    await AsyncStorage.removeItem('qeemat.discovery.search.v1');
+    expect(await listSavedSearchSources()).toContainEqual({ query: 'shoes', sourceId: 'search-nike_uae' });
+  });
+  it('records observed listings even when they do not match the search', async () => {
+    const requests = buildSearchRequests('shoes').filter((request) => request.siteKey === 'nike_uae');
+    const result = await loadProductSearch('shoes', { requests, fetcher: jest.fn(async () => response('Cotton shirt')) });
+    expect(result.products).toEqual([]);
+    expect((await AsyncStorage.getAllKeys()).some(key => key.startsWith(DISCOVERY_HISTORY_PREFIX))).toBe(true);
+  });
   it('keeps primary products ahead of accessories across different retailers', async () => {
     const requests = buildSearchRequests('iphone 16').filter((request) => ['namshi', 'noon'].includes(request.siteKey));
     const fetcher = jest.fn(async (url: string) => ({ ...response(''), text: async () => `<script type="application/ld+json">${JSON.stringify({ '@type': 'ItemList', itemListElement: [0, 1].map((index) => ({ '@type': 'Product', name: url.includes('noon.com') ? `iPhone 16 ${index ? '256GB White' : '128GB Black'} International Version` : `iPhone 16 clear case with magnetic compatibility ${index}`, url: `/product-${index}`, offers: { price: 100 } })) })}</script>` }));

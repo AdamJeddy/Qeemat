@@ -31,11 +31,12 @@ jest.mock('./src/domain/discoverySearchCatalog', () => ({ loadProductSearch: jes
 
 import { AddScreen, DetailScreen, getTrackedProductLink, OpportunityScreen } from './App';
 import { AppText } from './src/components/AppText';
-import { DiscoveryFilterChip, DiscoveryPreferencesSheet, DiscoveryProductGrid } from './src/components/Discovery';
+import { DiscoveryFilterChip, DiscoveryProductGrid } from './src/components/Discovery';
 import { DiscoveryBrowseSheet } from './src/components/DiscoveryBrowseSheet';
 import { DISCOVERY_SOURCE_MAPS } from './src/domain/discoverySources';
 import { ProductCard } from './src/components/ProductCard';
 import { PrimaryButton } from './src/components/PrimaryButton';
+import { ProductCategoryPicker } from './src/components/ProductCategoryPicker';
 import { CheckStatus, TrackedProduct } from './src/domain/types';
 
 const mockFetchAndParseProduct = jest.requireMock('./src/domain/parser').fetchAndParseProduct as jest.Mock;
@@ -60,6 +61,17 @@ describe('AddScreen', () => {
     act(() => { tree = renderer.create(<AddScreen navigate={jest.fn()} />); });
     const labels = tree!.root.findAllByType(AppText).map((item) => item.props.children);
     expect(labels).toEqual(expect.arrayContaining(['H&M', 'Zara']));
+  });
+
+  it('saves the selected category when tracking a shared URL', async () => {
+    const create = jest.spyOn(require('./src/data/database'), 'createTrackedProduct').mockResolvedValue(22);
+    mockFetchAndParseProduct.mockResolvedValueOnce({ ok: true, product: { siteKey: 'noon', title: 'Shoe', canonicalUrl: 'https://www.noon.com/shoe', priceMinor: 10000, currency: 'AED', availability: 'in_stock' } });
+    let tree: renderer.ReactTestRenderer;
+    await act(async () => { tree = renderer.create(<AddScreen initialUrl="https://www.noon.com/shoe" shareEventId={1} navigate={jest.fn()} />); await Promise.resolve(); });
+    act(() => tree!.root.findByType(ProductCategoryPicker).props.onChange('footwear'));
+    await act(async () => { await tree!.root.findByProps({ label: 'Confirm Tracking' }).props.onPress(); });
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({ category: 'footwear' }));
+    create.mockRestore();
   });
 
   it('automatically finds a product when its URL is shared to the app', async () => {
@@ -269,6 +281,27 @@ describe('DetailScreen', () => {
 });
 
 describe('OpportunityScreen', () => {
+  it('shows the price change for a previously observed listing', () => {
+    const product = { id: 'shoe', siteKey: 'noon' as const, category: 'footwear' as const, brand: 'Brand', title: 'Shoe', url: 'https://www.noon.com/shoe', priceMinor: 8000, previousPriceMinor: 10000, currency: 'AED', availability: 'in_stock' as const, observedAt: '2026-11-07T00:00:00Z' };
+    let tree: renderer.ReactTestRenderer;
+    act(() => { tree = renderer.create(<DiscoveryProductGrid products={[product]} trackedProducts={[]} onTrack={jest.fn()} onDismiss={jest.fn()} onMoreLikeThis={jest.fn()} onViewAtRetailer={jest.fn()} />); });
+    const text = tree!.root.findAllByType(AppText).map(node => [node.props.children].flat().join('')).join(' ');
+    expect(text).toContain('Price down AED 20 · was AED 100');
+  });
+  it('uses an existing uncategorised watched product to show related products', async () => {
+    const listTracked = jest.spyOn(require('./src/data/database'), 'listTrackedProducts').mockResolvedValue([{ id: 1, title: 'Running sneakers', isActive: true, canonicalUrl: 'https://www.noon.com/watched', url: 'https://www.noon.com/watched' }]);
+    const base = { siteKey: 'noon', brand: 'Brand', currency: 'AED', availability: 'in_stock', observedAt: '2026-11-01T00:00:00Z', priceMinor: 10000 };
+    mockGetDiscoveryPreferences.mockResolvedValue({ completed: false, categories: [], favoriteBrands: [], budgetsByCategory: {}, dismissedProductIds: [], seenProductIds: [] });
+    mockLoadDiscoveryCatalog.mockResolvedValue({ products: [{ ...base, id: 'shoe', title: 'Shoe', category: 'footwear', url: 'https://www.noon.com/shoe' }, { ...base, id: 'shirt', title: 'Shirt', category: 'clothing', url: 'https://www.noon.com/shirt' }], stale: false });
+    let tree: renderer.ReactTestRenderer;
+    await act(async () => { tree = renderer.create(<OpportunityScreen navigate={jest.fn()} />); await new Promise<void>(resolve => setImmediate(resolve)); });
+    expect(tree!.root.findByType(DiscoveryProductGrid).props.products.map((product: { id: string }) => product.id)).toEqual(['shoe']);
+    const text = tree!.root.findAllByType(AppText).map(node => [node.props.children].flat().join('')).join(' ');
+    expect(text).toContain('Showing products related to your watchlist: Footwear');
+    expect(mockLoadDiscoveryCatalog).toHaveBeenLastCalledWith(undefined, expect.objectContaining({ scope: expect.objectContaining({ categories: ['footwear'] }) }));
+    await act(async () => tree!.unmount());
+    listTracked.mockRestore();
+  });
   it('shows the store without an unknown brand and preserves known brands', () => {
     const base = { siteKey: 'hm_uae' as const, category: 'clothing' as const, currency: 'AED', availability: 'unknown' as const, observedAt: '2026-11-07T00:00:00Z', url: 'https://ae.hm.com/en/buy-shirt', priceMinor: 10000 };
     let tree: renderer.ReactTestRenderer;
@@ -308,7 +341,7 @@ describe('OpportunityScreen', () => {
     expect(tree!.root.findByType(DiscoveryProductGrid).props.products).toHaveLength(0);
     await act(async () => tree!.unmount());
   });
-  it('browses a department in place and applies its saved budget', async () => {
+  it('browses a department without applying the old personalization budget', async () => {
     const navigate = jest.fn();
     mockGetDiscoveryPreferences.mockResolvedValue({ completed: true, categories: ['footwear'], favoriteBrands: [], budgetsByCategory: { footwear: 10000 }, dismissedProductIds: [], seenProductIds: [] });
     const base = { siteKey: 'noon', category: 'footwear', brand: 'Brand', currency: 'AED', availability: 'in_stock', observedAt: '2026-10-28T09:00:00Z' };
@@ -320,8 +353,11 @@ describe('OpportunityScreen', () => {
     await act(async () => { tree = renderer.create(<OpportunityScreen navigate={navigate} />); await new Promise<void>((resolve) => setImmediate(resolve)); });
     await act(async () => { tree!.root.findByProps({ accessibilityLabel: 'Browse Footwear' }).props.onPress(); await new Promise<void>((resolve) => setImmediate(resolve)); });
     expect(mockLoadDiscoveryCatalog).toHaveBeenLastCalledWith(undefined, expect.objectContaining({ scope: expect.objectContaining({ categories: ['footwear'] }) }));
-    expect(tree!.root.findByType(DiscoveryProductGrid).props.products.map((product: { id: string }) => product.id)).toEqual(['shoe']);
+    expect(tree!.root.findByType(DiscoveryProductGrid).props.products.map((product: { id: string }) => product.id)).toEqual(['shoe', 'expensive-shoe']);
     expect(tree!.root.findByProps({ accessibilityLabel: 'Browse Footwear' }).props.accessibilityState.selected).toBe(true);
+    await act(async () => { tree!.root.findByProps({ accessibilityLabel: 'Clear discovery filters' }).props.onPress(); await new Promise<void>((resolve) => setImmediate(resolve)); });
+    expect(tree!.root.findByProps({ accessibilityLabel: 'Browse Footwear' }).props.accessibilityState.selected).toBe(false);
+    expect(mockLoadDiscoveryCatalog).toHaveBeenLastCalledWith(undefined, expect.objectContaining({ scope: expect.objectContaining({ categories: [] }) }));
     expect(navigate).not.toHaveBeenCalled();
     await act(async () => tree!.unmount());
   });
@@ -446,7 +482,7 @@ describe('OpportunityScreen', () => {
     expect(text).not.toContain('Target running shoes');
   });
 
-  it('offers every planned category during personalization, not just the live catalogue categories', async () => {
+  it('does not prompt for the old personalization quiz', async () => {
     mockListProductsWithSnapshots.mockResolvedValueOnce([]);
     mockGetDiscoveryPreferences.mockResolvedValueOnce({
       completed: false,
@@ -463,13 +499,9 @@ describe('OpportunityScreen', () => {
       await new Promise<void>((resolve) => setImmediate(() => resolve()));
     });
 
-    act(() => {
-      tree!.root.findByProps({ accessibilityLabel: 'Personalize discovery' }).props.onPress();
-    });
-
     const text = tree!.root.findAllByType(AppText).map((node) => [node.props.children].flat().join('')).join(' ');
-    for (const label of ['Clothing', 'Footwear', 'Makeup', 'Skincare', 'Fragrance', 'Phones', 'Computers', 'Audio', 'Fresh food', 'Pantry', 'Pets']) { expect(text).toContain(label); }
-    expect(text).not.toContain('Fashion & footwear');
+    expect(text).not.toContain('Make Search yours');
+    expect(tree!.root.findAllByProps({ accessibilityLabel: 'Browse all departments and retailers' }).length).toBeGreaterThan(0);
   });
 
   it('shows cached discovery products with a clear price-tracking action', async () => {
@@ -508,7 +540,7 @@ describe('OpportunityScreen', () => {
     });
 
     const text = tree!.root.findAllByType(AppText).map((node) => [node.props.children].flat().join('')).join(' ');
-    expect(text).toContain('Picks for you');
+    expect(text).toContain('Explore products');
     expect(text).toContain('Domyos training mat');
     expect(text).toContain('AED 89');
     expect(text).toContain('Track price');
@@ -521,7 +553,7 @@ describe('OpportunityScreen', () => {
     await act(async () => tree!.unmount());
   });
 
-  it('applies saved quiz interests and budgets to the same feed immediately', async () => {
+  it('browses explicit categories independently of saved quiz interests', async () => {
     const navigate = jest.fn();
     const initial = { completed: true, categories: [], favoriteBrands: [], budgetsByCategory: {}, dismissedProductIds: [], seenProductIds: [] };
     mockGetDiscoveryPreferences.mockResolvedValueOnce(initial);
@@ -531,20 +563,12 @@ describe('OpportunityScreen', () => {
       { ...base, id: 'premium-serum', title: 'Premium serum', url: 'https://www.faces.ae/en/premium-serum', priceMinor: 25000 },
       { ...base, id: 'shoes', title: 'Running shoes', category: 'footwear', url: 'https://decathlon.ae/products/shoes', siteKey: 'decathlon_uae', priceMinor: 8000 }
     ], stale: false });
-    const saved = { ...initial, categories: ['skincare'], budgetsByCategory: { skincare: 10000 } };
-    jest.requireMock('./src/data/discovery').saveDiscoveryPreferences.mockResolvedValueOnce(saved);
     let tree: renderer.ReactTestRenderer;
     await act(async () => {
       tree = renderer.create(<OpportunityScreen navigate={navigate} />);
       await new Promise<void>((resolve) => setImmediate(resolve));
     });
     expect(tree!.root.findByType(DiscoveryProductGrid).props.products).toHaveLength(3);
-    await act(async () => {
-      await tree!.root.findByType(DiscoveryPreferencesSheet).props.onSave(saved);
-    });
-    expect(tree!.root.findByType(DiscoveryProductGrid).props.products.map((product: { id: string }) => product.id)).toEqual(['serum']);
-    expect(navigate).not.toHaveBeenCalled();
-    expect(mockLoadDiscoveryCatalog).toHaveBeenLastCalledWith(undefined, expect.objectContaining({ scope: expect.objectContaining({ categories: ['skincare'] }) }));
     await act(async () => tree!.root.findByType(DiscoveryBrowseSheet).props.onCategory('footwear'));
     expect(tree!.root.findByType(DiscoveryProductGrid).props.products.map((product: { id: string }) => product.id)).toEqual(['shoes']);
     expect(navigate).not.toHaveBeenCalled();
