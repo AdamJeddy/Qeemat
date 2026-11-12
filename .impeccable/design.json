@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-12T00:00:00Z",
+  "title": "Design System: Qeemat",
+  "extensions": {
+    "breakpoints": [{ "name": "compact-effective-width", "value": "360dp" }]
+  },
+  "components": [
+    {"name":"Primary button","kind":"button","refersTo":"button-primary","description":"Main action, based on PrimaryButton.","html":"<button class=\"ds-primary\">Check now</button>","css":".ds-primary { min-height:58px; padding:0 18px; border:0; border-radius:8px; background:#075FD8; color:#fff; font-size:17px; font-weight:600; } .ds-primary:active { opacity:.82; }"},
+    {"name":"Outline button","kind":"button","refersTo":"button-outline","description":"Secondary action, based on PrimaryButton.","html":"<button class=\"ds-outline\">Open link</button>","css":".ds-outline { min-height:58px; padding:0 18px; border:1px solid #075FD8; border-radius:8px; background:#fff; color:#075FD8; font-size:17px; font-weight:600; } .ds-outline:active { opacity:.82; }"},
+    {"name":"Status pill","kind":"chip","description":"A checked status, based on StatusPill.","html":"<span class=\"ds-status\">✓ Checked</span>","css":".ds-status { display:inline-block; padding:5px 8px; border-radius:6px; background:#DDF8E5; color:#16833A; font-size:12px; font-weight:500; }"}
+  ],
+  "narrative": {
+    "overview": "Qeemat is an Android-first price tracker. The chosen direction is clean, practical, compact and calm: prices and useful status should be easy to scan. Retain the existing blue and light palette and Android system typography. Cards and controls should be mostly flat with subtle borders.",
+    "keyCharacteristics": ["Price-led hierarchy", "Compact and calm", "Mostly flat surfaces", "Existing blue and light palette"]
+  }
+}
