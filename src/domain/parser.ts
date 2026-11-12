@@ -6,6 +6,7 @@ import { findTrackedVariant } from './variants';
 import { parseCarrefourProduct } from './carrefour';
 import { withBflSizeVariants } from './bfl';
 import { parseHmCatalogue } from './hm';
+import { extractProductMetadata, mergeProductMetadata, metadataForVariant } from './productMetadata';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -310,6 +311,20 @@ async function fetchAndParseWithFetch(
 }
 
 export function parseProductHtml(
+  siteKey: SiteKey,
+  inputUrl: string,
+  html: string,
+  selectedVariant?: VariantSelection
+): ParsedProduct | undefined {
+  const product = parseProductHtmlCore(siteKey, inputUrl, html, selectedVariant);
+  if (!product) { return undefined; }
+  const sourceMetadata = extractProductMetadata(siteKey, html, product.title);
+  const merged = mergeProductMetadata(product.sourceMetadata, sourceMetadata);
+  const variantMetadata = metadataForVariant(merged, product.selectedVariant);
+  return variantMetadata ? { ...product, sourceMetadata: variantMetadata } : product.sourceMetadata ? { ...product, sourceMetadata: undefined } : product;
+}
+
+function parseProductHtmlCore(
   siteKey: SiteKey,
   inputUrl: string,
   html: string,

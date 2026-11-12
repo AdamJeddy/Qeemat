@@ -27,8 +27,9 @@ import { DiscoveryObservation, getDiscoveryHistory } from '../data/discoveryHist
 function listingPriceChange(product: DiscoveryProduct): string | undefined {
   if (product.previousPriceMinor === undefined || product.priceMinor === undefined) { return undefined; }
   const difference = product.priceMinor - product.previousPriceMinor;
+  if (difference === 0) { return undefined; }
   const prefix = product.hasPriceRange ? 'Starting price ' : 'Price ';
-  return difference === 0 ? `${prefix}unchanged from previous price` : `${prefix}${difference < 0 ? 'down' : 'up'} ${formatPrice(Math.abs(difference), product.currency, product.priceBasis)} · was ${formatPrice(product.previousPriceMinor, product.currency, product.priceBasis)}`;
+  return `${prefix}${difference < 0 ? 'down' : 'up'} ${formatPrice(Math.abs(difference), product.currency, product.priceBasis)} · was ${formatPrice(product.previousPriceMinor, product.currency, product.priceBasis)}`;
 }
 
 export function DiscoverySetupCard({ onPress, onDismiss }: { onPress: () => void; onDismiss: () => void }) {

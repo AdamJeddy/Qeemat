@@ -5,6 +5,7 @@ jest.mock('@react-native-async-storage/async-storage', () =>
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   DISCOVERY_PARSER_VERSION,
+  advanceDiscoveryOffset,
   clearDiscoveryData,
   dismissDiscoveryProduct,
   getDiscoveryCache,
@@ -35,6 +36,12 @@ describe('discovery persistence', () => {
   beforeEach(async () => {
     await clearDiscoveryData();
     await AsyncStorage.clear();
+  });
+
+  it('advances the discovery starting position on each launch', async () => {
+    expect(await advanceDiscoveryOffset()).toBe(0);
+    expect(await advanceDiscoveryOffset()).toBe(1);
+    expect(await advanceDiscoveryOffset()).toBe(2);
   });
 
   it('starts with skippable empty preferences', async () => {

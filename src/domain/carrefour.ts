@@ -77,11 +77,16 @@ export function parseCarrefourProduct(inputUrl: string, html: string): ParsedPro
   const availability = carrefourAvailability(record.stockStatus, record.availableQuantity);
   const { priceMinor, priceBasis } = carrefourPrice(record, availability === 'out_of_stock' ? undefined : parsePriceToMinor(scalar(record.price)));
   const imageUrl = scalar(record.image);
+  const additional = record.additionalAttributes && typeof record.additionalAttributes === 'object' ? record.additionalAttributes as RecordValue : undefined;
+  const categoryValues = record.productCategory ?? additional?.productCategory;
+  const categoryIds = Array.isArray(categoryValues) ? categoryValues.map(scalar).filter((value): value is string => Boolean(value)) : [];
+  const productType = scalar(record.productType);
+  const sourceMetadata = categoryIds.length || productType ? { ...(categoryIds.length ? { categoryIds } : {}), ...(productType ? { productType } : {}) } : undefined;
   const variant: ProductVariant = {
     id: `${productId}:${record.shopId}:${record.offerId}:${record.intent}`,
     label: `Sold by ${seller}`, attributes: [{ name: 'Seller', value: seller }], url: canonicalUrl,
     priceMinor, priceBasis, currency: 'AED', availability, sku: productId, imageUrl
   };
-  return { siteKey: 'carrefour_uae', canonicalUrl, title, imageUrl, priceMinor, priceBasis, currency: 'AED', availability,
+  return { siteKey: 'carrefour_uae', canonicalUrl, title, imageUrl, priceMinor, priceBasis, currency: 'AED', availability, ...(sourceMetadata ? { sourceMetadata } : {}),
     rawPriceText: priceMinor === undefined ? undefined : `${priceMinor / 100}${priceBasis === 'kg' ? ' /kg' : ''}`, sku: productId, variants: [variant] };
 }

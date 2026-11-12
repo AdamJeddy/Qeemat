@@ -43,7 +43,6 @@ import {
   Settings as SettingsIcon,
   SlidersHorizontal,
   SquareStack,
-  Sparkles,
   Store,
   Trash2,
   TrendingDown,
@@ -60,6 +59,7 @@ import { ProductCard } from './src/components/ProductCard';
 import { ProductCategoryPicker } from './src/components/ProductCategoryPicker';
 import { DISCOVERY_CATEGORY_LABELS as SHOPPING_CATEGORY_LABELS, ShoppingCategory } from './src/domain/discoveryCategories';
 import { inferWatchlistCategory, watchlistCategories } from './src/domain/watchlistDiscovery';
+import { mergeProductMetadata } from './src/domain/productMetadata';
 import { StatusPill } from './src/components/StatusPill';
 import { VariantSelector } from './src/components/VariantSelector';
 import { UpdateNotice } from './src/components/UpdateNotice';
@@ -89,6 +89,7 @@ import {
   updateTrackingSettings
 } from './src/data/database';
 import {
+  advanceDiscoveryOffset,
   clearDiscoveryData,
   dismissDiscoveryProduct,
   getDiscoveryPreferences,
@@ -167,6 +168,7 @@ const BACKGROUND_TIME_PRESETS = [
 
 export default function App() {
   const [route, setRoute] = useState<Route>({ name: 'tabs', tab: 'watchlist' });
+  const [discoveryOffset, setDiscoveryOffset] = useState(0);
   const [ready, setReady] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const shareEventId = useRef(0);
@@ -176,6 +178,8 @@ export default function App() {
 
     (async () => {
       await initializeDatabase();
+      const offset = await advanceDiscoveryOffset().catch(() => 0);
+      if (active) { setDiscoveryOffset(offset); }
       const [backgroundStatus, onboarding] = await Promise.all([
         getBackgroundStatus(),
         getOnboardingState()
@@ -252,7 +256,7 @@ export default function App() {
       <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
       <SafeAreaView style={styles.app}>
         <UpdateNotice visible={route.name === 'tabs' && route.tab !== 'activity'} />
-        {route.name === 'tabs' ? <TabsScreen tab={route.tab} navigate={setRoute} /> : null}
+        {route.name === 'tabs' ? <TabsScreen tab={route.tab} navigate={setRoute} discoveryOffset={discoveryOffset} /> : null}
         {route.name === 'add' ? <AddScreen initialUrl={route.initialUrl} shareEventId={route.shareEventId} returnTab={route.returnTab} navigate={setRoute} /> : null}
         {route.name === 'detail' ? <DetailScreen productId={route.id} navigate={setRoute} /> : null}
         {route.name === 'trackingSettings' ? <TrackingSettingsScreen productId={route.id} navigate={setRoute} /> : null}
@@ -358,11 +362,13 @@ function getBackRoute(route: Route): Route | undefined {
   return undefined;
 }
 
-function TabsScreen({ tab, navigate }: { tab: TabKey; navigate: (route: Route) => void }) {
+export function TabsScreen({ tab, navigate, discoveryOffset }: { tab: TabKey; navigate: (route: Route) => void; discoveryOffset?: number }) {
+  const [searchOpened, setSearchOpened] = useState(tab === 'opportunities');
+  useEffect(() => { if (tab === 'opportunities') { setSearchOpened(true); } }, [tab]);
   return (
     <View style={styles.app}>
       {tab === 'watchlist' ? <WatchlistScreen navigate={navigate} /> : null}
-      {tab === 'opportunities' ? <OpportunityScreen navigate={navigate} /> : null}
+      {searchOpened || tab === 'opportunities' ? <View style={tab === 'opportunities' ? styles.flex : styles.hiddenTab}><OpportunityScreen navigate={navigate} active={tab === 'opportunities'} sessionOffset={discoveryOffset} /></View> : null}
       {tab === 'activity' ? <ActivityScreen navigate={navigate} /> : null}
       {tab === 'settings' ? <SettingsScreen /> : null}
       <View style={styles.tabBar}>
@@ -930,6 +936,7 @@ export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { i
   const [folder, setFolder] = useState('');
   const [productCategory, setProductCategory] = useState<ShoppingCategory>();
   const [categoryExcluded, setCategoryExcluded] = useState(false);
+  const [categoryEdited, setCategoryEdited] = useState(false);
   const organizationOptions = useOrganizationOptions();
   const [selectedVariantAttributes, setSelectedVariantAttributes] = useState<VariantAttributes>({});
   const scrollRef = useRef<ScrollView>(null);
@@ -942,6 +949,7 @@ export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { i
     setParsedProduct(undefined);
     setProductCategory(undefined);
     setCategoryExcluded(false);
+    setCategoryEdited(false);
     setSelectedVariantAttributes({});
     shouldFocusParsedResult.current = true;
     setLoading(true);
@@ -1041,7 +1049,7 @@ export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { i
         setSaving(false);
         return;
       }
-      productToSave = result.product;
+      productToSave = { ...result.product, sourceMetadata: mergeProductMetadata(parsedProduct.sourceMetadata, result.product.sourceMetadata) };
     }
     const id = await createTrackedProduct({
       parsed: productToSave,
@@ -1052,7 +1060,7 @@ export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { i
       minimumPriceDropMinor: alertMode === 'price_drop' ? parseTargetPriceInput(minimumPriceDrop) : undefined,
       restockAlertEnabled,
       folder,
-      category: productCategory,
+      category: categoryEdited ? productCategory : undefined,
       categoryExcluded,
       variant: productToSave.selectedVariant
     });
@@ -1220,7 +1228,7 @@ export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { i
               <Switch value={restockAlertEnabled} onValueChange={setRestockAlertEnabled} trackColor={{ true: colors.primary }} />
             </View>
             <FolderPicker value={folder} folders={organizationOptions.folders} onChange={setFolder} />
-            <ProductCategoryPicker value={productCategory} onChange={(value) => { setProductCategory(value); setCategoryExcluded(value === undefined); }} />
+            <ProductCategoryPicker value={productCategory} onChange={(value) => { setProductCategory(value); setCategoryExcluded(value === undefined); setCategoryEdited(true); }} />
             <PrimaryButton
               label="Confirm Tracking"
               onPress={saveProduct}
@@ -1394,6 +1402,7 @@ export function DetailScreen({ productId, navigate }: { productId: number; navig
         <SectionTitle title="Price History" />
         {product.priceBasis ? <AppText muted>Prices, chart and targets use{priceBasisSuffix(product.priceBasis)}. Weighted grocery totals depend on the final delivered weight.</AppText> : null}
         <PriceChart snapshots={snapshots} currency={product.currency} />
+        <ProductInformation product={product} />
         <SectionTitle title="Price Snapshots" />
         <SnapshotList snapshots={snapshots} currency={product.currency} />
       </ScrollView>
@@ -1404,6 +1413,39 @@ export function DetailScreen({ productId, navigate }: { productId: number; navig
           icon={<Link2 size={18} color={colors.primary} />} />
       </View>
     </View>
+  );
+}
+
+function ProductInformation({ product }: { product: TrackedProduct }) {
+  const metadata = product.sourceMetadata;
+  if (!metadata) { return null; }
+  const selectedAttributes = new Set(product.variant?.attributes.map((attribute) => attribute.name.toLowerCase().replace('colour', 'color')) ?? []);
+  const attributeLabels: Record<string, string> = {
+    material: 'Material', color: 'Color', gender: 'For', fit: 'Fit', style: 'Style',
+    garment_length: 'Length', sleeve_length: 'Sleeve length', age_group: 'Age group'
+  };
+  const rows = [
+    ...(metadata.brand ? [{ label: 'Brand', value: metadata.brand }] : []),
+    ...(metadata.productType ? [{ label: 'Product type', value: metadata.productType }] : []),
+    ...Object.entries(attributeLabels).flatMap(([key, label]) => {
+      const value = metadata.attributes?.[key];
+      return value && !selectedAttributes.has(key) ? [{ label, value }] : [];
+    }),
+    ...(metadata.categoryPath?.length ? [{ label: 'Store category', value: metadata.categoryPath.join('  ›  ') }] : [])
+  ];
+  if (!rows.length) { return null; }
+  return (
+    <>
+      <SectionTitle title="About this item" />
+      <View style={styles.productInformation}>
+        {rows.map((row, index) => (
+          <View key={row.label} style={[styles.productInformationRow, index > 0 && styles.productInformationDivider]}>
+            <AppText muted style={styles.productInformationLabel}>{row.label}</AppText>
+            <AppText weight="medium" style={styles.productInformationValue}>{row.value}</AppText>
+          </View>
+        ))}
+      </View>
+    </>
   );
 }
 
@@ -1503,6 +1545,7 @@ function TrackingSettingsScreen({ productId, navigate }: { productId: number; na
   const [restockAlertEnabled, setRestockAlertEnabled] = useState(true);
   const [folder, setFolder] = useState('');
   const [productCategory, setProductCategory] = useState<ShoppingCategory>();
+  const [categoryEdited, setCategoryEdited] = useState(false);
   const organizationOptions = useOrganizationOptions();
 
   useEffect(() => {
@@ -1523,6 +1566,7 @@ function TrackingSettingsScreen({ productId, navigate }: { productId: number; na
       setRestockAlertEnabled(row.restockAlertEnabled ?? true);
       setFolder(row.folder ?? '');
       setProductCategory(inferWatchlistCategory(row));
+      setCategoryEdited(false);
     });
   }, [productId]);
 
@@ -1534,7 +1578,7 @@ function TrackingSettingsScreen({ productId, navigate }: { productId: number; na
       minimumPriceDropMinor: alertMode === 'price_drop' ? parseTargetPriceInput(minimumPriceDrop) : undefined,
       restockAlertEnabled,
       folder,
-      category: productCategory ?? null,
+      category: categoryEdited ? productCategory ?? null : undefined,
       isActive: product?.isActive ?? true
     });
     navigate({ name: 'detail', id: productId });
@@ -1591,7 +1635,7 @@ function TrackingSettingsScreen({ productId, navigate }: { productId: number; na
           <Switch value={restockAlertEnabled} onValueChange={setRestockAlertEnabled} trackColor={{ true: colors.primary }} />
         </View>
         <FolderPicker value={folder} folders={organizationOptions.folders} onChange={setFolder} />
-        <ProductCategoryPicker value={productCategory} onChange={setProductCategory} />
+        <ProductCategoryPicker value={productCategory} onChange={(value) => { setProductCategory(value); setCategoryEdited(true); }} />
         <PrimaryButton label="Save settings" onPress={save} />
         <PrimaryButton label="Delete product" variant="danger" onPress={confirmDelete} icon={<Trash2 size={18} color={colors.red} />} />
       </ScrollView>
@@ -1792,7 +1836,14 @@ function EmptyActivity() {
   );
 }
 
-export function OpportunityScreen({ navigate }: { navigate: (route: Route) => void }) {
+export function rotateDiscoveryProducts<T>(products: T[], offset: number): T[] {
+  const first = products.slice(0, 24);
+  if (first.length < 2) { return products; }
+  const shift = offset % first.length;
+  return [...first.slice(shift), ...first.slice(0, shift), ...products.slice(24)];
+}
+
+export function OpportunityScreen({ navigate, active = true, sessionOffset }: { navigate: (route: Route) => void; active?: boolean; sessionOffset?: number }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResult, setSearchResult] = useState<ProductSearchResult>();
   const [searchBusy, setSearchBusy] = useState(false);
@@ -1831,6 +1882,9 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
   const [maximumPrice, setMaximumPrice] = useState('');
   const scrollRef = useRef<ScrollView>(null);
   const [catalogState, setCatalogState] = useState<{ refreshedAt?: string; stale: boolean }>({ stale: false });
+  useEffect(() => {
+    if (active) { listTrackedProducts().then(setTrackedProducts).catch(() => {}); }
+  }, [active]);
 
   const load = useCallback(async (force = false) => {
     if (!preferences || searchQuery) { return; }
@@ -1926,7 +1980,8 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
   const selectedCollection = DISCOVERY_SOURCE_MAPS.find((source) => source.id === collectionId);
   const hasMoreListings = !searchQuery && !collectionId && selectDiscoveryCollections({ categories: category ? [category] : browseAll || retailer ? [] : watchedCategories, siteKey: retailer, offset: batchLimit, limit: 1 }).length > 0;
   const visibleCount = searchQuery ? searchVisibleCount : discoveryVisibleCount;
-  const visibleProducts = filteredProducts.slice(0, visibleCount);
+  const visibleProducts = (!searchQuery && !category && !retailer && !collectionId && !brand && !maximumPrice
+    ? rotateDiscoveryProducts(filteredProducts, sessionOffset ?? 0) : filteredProducts).slice(0, visibleCount);
   const resultRetailerCount = new Set(filteredProducts.map((product) => product.siteKey)).size;
   const variantChoices = discoveryVariantChoices(pendingProduct?.parsed.variants ?? []);
   const selectedChoice = resolveSelectedVariant(variantChoices, variantAttributes);
@@ -2061,9 +2116,6 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.primary} />}
     >
       <View style={styles.discoveryHeader}>
-        <View style={styles.discoveryHeaderIcon}>
-          <Sparkles size={22} color={colors.primary} />
-        </View>
         <View style={styles.flex}>
           <AppText weight="bold" style={styles.heading}>Search</AppText>
           <AppText muted>Discover it. Track the price.</AppText>
@@ -2088,7 +2140,7 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
         <>
           <View style={styles.discoverySection}>
             <View style={styles.titleRow}><AppText weight="bold" style={styles.discoverySectionTitle}>{category ? DISCOVERY_CATEGORY_LABELS[category] : 'Explore products'}</AppText><Pressable accessibilityRole="button" onPress={() => { resetBrowse(); setBrowseAll(!browseAll && !category); }} style={styles.discoveryToolbarAction}><AppText style={styles.discoveryLink}>{category || browseAll ? 'Watchlist picks' : 'All products'}</AppText></Pressable></View>
-            {!browseAll && !category && !retailer && !collectionId && watchedCategories.length ? <AppText muted>Showing products related to your watchlist: {watchedCategories.map((item) => SHOPPING_CATEGORY_LABELS[item]).join(', ')}.</AppText> : null}
+            {!browseAll && !category && !retailer && !collectionId && watchedCategories.length ? <AppText muted style={styles.watchlistReason}>Based on your watchlist · {watchedCategories.map((item) => SHOPPING_CATEGORY_LABELS[item]).join(', ')}</AppText> : null}
             {!browseAll && !category && !retailer && !collectionId && !watchedCategories.length ? <AppText muted>Track products to see related finds here.</AppText> : null}
             <View style={styles.discoveryToolbar}>
               <AppText muted style={styles.discoveryResultCount}>{filteredProducts.length} {filteredProducts.length === 1 ? 'product' : 'products'} · {resultRetailerCount} {resultRetailerCount === 1 ? 'retailer' : 'retailers'}</AppText>
@@ -3138,6 +3190,32 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: -8
   },
+  productInformation: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: 16
+  },
+  productInformationRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingVertical: 12,
+    gap: 12
+  },
+  productInformationDivider: {
+    borderTopWidth: 1,
+    borderTopColor: colors.border
+  },
+  productInformationLabel: {
+    width: 105,
+    fontSize: 13
+  },
+  productInformationValue: {
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 20
+  },
   statCard: {
     flex: 1,
     backgroundColor: colors.surface,
@@ -3283,6 +3361,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12
   },
+  watchlistReason: { fontSize: 12, lineHeight: 18 },
   discoveryToolbarAction: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 6 },
   discoveryModalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: colors.scrim },
   discoveryOptionSheet: { height: '75%', backgroundColor: colors.background, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, overflow: 'hidden' },
@@ -3589,6 +3668,7 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0
   },
+  hiddenTab: { display: 'none' },
   errorText: {
     color: colors.red
   },

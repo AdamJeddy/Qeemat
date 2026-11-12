@@ -1,3 +1,4 @@
+import { mergeProductMetadata } from '../domain/productMetadata';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {
@@ -111,7 +112,8 @@ export async function createTrackedProduct(draft: ProductDraft): Promise<number>
     canonicalUrl: parsed.canonicalUrl,
     siteKey: parsed.siteKey,
     title: parsed.title,
-    brand: draft.brand,
+    sourceMetadata: parsed.sourceMetadata,
+    brand: draft.brand ?? parsed.sourceMetadata?.brand,
     category: draft.category,
     categoryExcluded: draft.categoryExcluded,
     imageUrl: parsed.imageUrl,
@@ -402,6 +404,8 @@ export async function recordSuccessfulCheck(
             ...item,
             canonicalUrl: parsed.canonicalUrl,
             title: parsed.title,
+            sourceMetadata: mergeProductMetadata(item.sourceMetadata, parsed.sourceMetadata),
+            brand: item.brand ?? parsed.sourceMetadata?.brand,
             imageUrl: parsed.imageUrl ?? item.imageUrl,
             currency: parsed.currency ?? item.currency,
             currentPriceMinor: newPriceMinor,
