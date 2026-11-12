@@ -349,7 +349,7 @@ describe('OpportunityScreen', () => {
     await act(async () => { tree = renderer.create(<OpportunityScreen navigate={jest.fn()} />); await new Promise<void>(resolve => setImmediate(resolve)); });
     expect(tree!.root.findByType(DiscoveryProductGrid).props.products.map((product: { id: string }) => product.id)).toEqual(['shoe']);
     const text = tree!.root.findAllByType(AppText).map(node => [node.props.children].flat().join('')).join(' ');
-    expect(text).toContain('Inspired by your watchlist');
+    expect(text).toContain('Based on your watchlist');
     expect(text).toContain('Footwear');
     expect(mockLoadDiscoveryCatalog).toHaveBeenLastCalledWith(undefined, expect.objectContaining({ scope: expect.objectContaining({ categories: ['footwear'] }) }));
     await act(async () => tree!.unmount());

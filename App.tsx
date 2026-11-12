@@ -2140,7 +2140,7 @@ export function OpportunityScreen({ navigate, active = true, sessionOffset }: { 
         <>
           <View style={styles.discoverySection}>
             <View style={styles.titleRow}><AppText weight="bold" style={styles.discoverySectionTitle}>{category ? DISCOVERY_CATEGORY_LABELS[category] : 'Explore products'}</AppText><Pressable accessibilityRole="button" onPress={() => { resetBrowse(); setBrowseAll(!browseAll && !category); }} style={styles.discoveryToolbarAction}><AppText style={styles.discoveryLink}>{category || browseAll ? 'Watchlist picks' : 'All products'}</AppText></Pressable></View>
-            {!browseAll && !category && !retailer && !collectionId && watchedCategories.length ? <View style={styles.watchlistReason}><AppText weight="semibold" style={styles.watchlistReasonTitle}>Inspired by your watchlist</AppText><AppText muted style={styles.watchlistReasonCategories}>{watchedCategories.map((item) => SHOPPING_CATEGORY_LABELS[item]).join('  ·  ')}</AppText></View> : null}
+            {!browseAll && !category && !retailer && !collectionId && watchedCategories.length ? <AppText muted style={styles.watchlistReason}>Based on your watchlist · {watchedCategories.map((item) => SHOPPING_CATEGORY_LABELS[item]).join(', ')}</AppText> : null}
             {!browseAll && !category && !retailer && !collectionId && !watchedCategories.length ? <AppText muted>Track products to see related finds here.</AppText> : null}
             <View style={styles.discoveryToolbar}>
               <AppText muted style={styles.discoveryResultCount}>{filteredProducts.length} {filteredProducts.length === 1 ? 'product' : 'products'} · {resultRetailerCount} {resultRetailerCount === 1 ? 'retailer' : 'retailers'}</AppText>
@@ -3361,9 +3361,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12
   },
-  watchlistReason: { paddingVertical: 10, paddingHorizontal: 12, borderLeftWidth: 3, borderLeftColor: colors.primary, backgroundColor: colors.blueSoft, borderRadius: radius.sm, gap: 2 },
-  watchlistReasonTitle: { color: colors.primaryDark, fontSize: 13 },
-  watchlistReasonCategories: { fontSize: 12, lineHeight: 18 },
+  watchlistReason: { fontSize: 12, lineHeight: 18 },
   discoveryToolbarAction: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 6 },
   discoveryModalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: colors.scrim },
   discoveryOptionSheet: { height: '75%', backgroundColor: colors.background, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, overflow: 'hidden' },
