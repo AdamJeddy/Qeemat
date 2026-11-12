@@ -60,6 +60,7 @@ import { ProductCard } from './src/components/ProductCard';
 import { ProductCategoryPicker } from './src/components/ProductCategoryPicker';
 import { DISCOVERY_CATEGORY_LABELS as SHOPPING_CATEGORY_LABELS, ShoppingCategory } from './src/domain/discoveryCategories';
 import { inferWatchlistCategory, watchlistCategories } from './src/domain/watchlistDiscovery';
+import { mergeProductMetadata } from './src/domain/productMetadata';
 import { StatusPill } from './src/components/StatusPill';
 import { VariantSelector } from './src/components/VariantSelector';
 import { UpdateNotice } from './src/components/UpdateNotice';
@@ -930,6 +931,7 @@ export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { i
   const [folder, setFolder] = useState('');
   const [productCategory, setProductCategory] = useState<ShoppingCategory>();
   const [categoryExcluded, setCategoryExcluded] = useState(false);
+  const [categoryEdited, setCategoryEdited] = useState(false);
   const organizationOptions = useOrganizationOptions();
   const [selectedVariantAttributes, setSelectedVariantAttributes] = useState<VariantAttributes>({});
   const scrollRef = useRef<ScrollView>(null);
@@ -942,6 +944,7 @@ export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { i
     setParsedProduct(undefined);
     setProductCategory(undefined);
     setCategoryExcluded(false);
+    setCategoryEdited(false);
     setSelectedVariantAttributes({});
     shouldFocusParsedResult.current = true;
     setLoading(true);
@@ -1041,7 +1044,7 @@ export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { i
         setSaving(false);
         return;
       }
-      productToSave = result.product;
+      productToSave = { ...result.product, sourceMetadata: mergeProductMetadata(parsedProduct.sourceMetadata, result.product.sourceMetadata) };
     }
     const id = await createTrackedProduct({
       parsed: productToSave,
@@ -1052,7 +1055,7 @@ export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { i
       minimumPriceDropMinor: alertMode === 'price_drop' ? parseTargetPriceInput(minimumPriceDrop) : undefined,
       restockAlertEnabled,
       folder,
-      category: productCategory,
+      category: categoryEdited ? productCategory : undefined,
       categoryExcluded,
       variant: productToSave.selectedVariant
     });
@@ -1220,7 +1223,7 @@ export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { i
               <Switch value={restockAlertEnabled} onValueChange={setRestockAlertEnabled} trackColor={{ true: colors.primary }} />
             </View>
             <FolderPicker value={folder} folders={organizationOptions.folders} onChange={setFolder} />
-            <ProductCategoryPicker value={productCategory} onChange={(value) => { setProductCategory(value); setCategoryExcluded(value === undefined); }} />
+            <ProductCategoryPicker value={productCategory} onChange={(value) => { setProductCategory(value); setCategoryExcluded(value === undefined); setCategoryEdited(true); }} />
             <PrimaryButton
               label="Confirm Tracking"
               onPress={saveProduct}
@@ -1394,6 +1397,7 @@ export function DetailScreen({ productId, navigate }: { productId: number; navig
         <SectionTitle title="Price History" />
         {product.priceBasis ? <AppText muted>Prices, chart and targets use{priceBasisSuffix(product.priceBasis)}. Weighted grocery totals depend on the final delivered weight.</AppText> : null}
         <PriceChart snapshots={snapshots} currency={product.currency} />
+        <ProductInformation product={product} />
         <SectionTitle title="Price Snapshots" />
         <SnapshotList snapshots={snapshots} currency={product.currency} />
       </ScrollView>
@@ -1404,6 +1408,39 @@ export function DetailScreen({ productId, navigate }: { productId: number; navig
           icon={<Link2 size={18} color={colors.primary} />} />
       </View>
     </View>
+  );
+}
+
+function ProductInformation({ product }: { product: TrackedProduct }) {
+  const metadata = product.sourceMetadata;
+  if (!metadata) { return null; }
+  const selectedAttributes = new Set(product.variant?.attributes.map((attribute) => attribute.name.toLowerCase().replace('colour', 'color')) ?? []);
+  const attributeLabels: Record<string, string> = {
+    material: 'Material', color: 'Color', gender: 'For', fit: 'Fit', style: 'Style',
+    garment_length: 'Length', sleeve_length: 'Sleeve length', age_group: 'Age group'
+  };
+  const rows = [
+    ...(metadata.brand ? [{ label: 'Brand', value: metadata.brand }] : []),
+    ...(metadata.productType ? [{ label: 'Product type', value: metadata.productType }] : []),
+    ...Object.entries(attributeLabels).flatMap(([key, label]) => {
+      const value = metadata.attributes?.[key];
+      return value && !selectedAttributes.has(key) ? [{ label, value }] : [];
+    }),
+    ...(metadata.categoryPath?.length ? [{ label: 'Store category', value: metadata.categoryPath.join('  ›  ') }] : [])
+  ];
+  if (!rows.length) { return null; }
+  return (
+    <>
+      <SectionTitle title="About this item" />
+      <View style={styles.productInformation}>
+        {rows.map((row, index) => (
+          <View key={row.label} style={[styles.productInformationRow, index > 0 && styles.productInformationDivider]}>
+            <AppText muted style={styles.productInformationLabel}>{row.label}</AppText>
+            <AppText weight="medium" style={styles.productInformationValue}>{row.value}</AppText>
+          </View>
+        ))}
+      </View>
+    </>
   );
 }
 
@@ -1503,6 +1540,7 @@ function TrackingSettingsScreen({ productId, navigate }: { productId: number; na
   const [restockAlertEnabled, setRestockAlertEnabled] = useState(true);
   const [folder, setFolder] = useState('');
   const [productCategory, setProductCategory] = useState<ShoppingCategory>();
+  const [categoryEdited, setCategoryEdited] = useState(false);
   const organizationOptions = useOrganizationOptions();
 
   useEffect(() => {
@@ -1523,6 +1561,7 @@ function TrackingSettingsScreen({ productId, navigate }: { productId: number; na
       setRestockAlertEnabled(row.restockAlertEnabled ?? true);
       setFolder(row.folder ?? '');
       setProductCategory(inferWatchlistCategory(row));
+      setCategoryEdited(false);
     });
   }, [productId]);
 
@@ -1534,7 +1573,7 @@ function TrackingSettingsScreen({ productId, navigate }: { productId: number; na
       minimumPriceDropMinor: alertMode === 'price_drop' ? parseTargetPriceInput(minimumPriceDrop) : undefined,
       restockAlertEnabled,
       folder,
-      category: productCategory ?? null,
+      category: categoryEdited ? productCategory ?? null : undefined,
       isActive: product?.isActive ?? true
     });
     navigate({ name: 'detail', id: productId });
@@ -1591,7 +1630,7 @@ function TrackingSettingsScreen({ productId, navigate }: { productId: number; na
           <Switch value={restockAlertEnabled} onValueChange={setRestockAlertEnabled} trackColor={{ true: colors.primary }} />
         </View>
         <FolderPicker value={folder} folders={organizationOptions.folders} onChange={setFolder} />
-        <ProductCategoryPicker value={productCategory} onChange={setProductCategory} />
+        <ProductCategoryPicker value={productCategory} onChange={(value) => { setProductCategory(value); setCategoryEdited(true); }} />
         <PrimaryButton label="Save settings" onPress={save} />
         <PrimaryButton label="Delete product" variant="danger" onPress={confirmDelete} icon={<Trash2 size={18} color={colors.red} />} />
       </ScrollView>
@@ -3137,6 +3176,32 @@ const styles = StyleSheet.create({
   insightCaption: {
     fontSize: 12,
     marginTop: -8
+  },
+  productInformation: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: 16
+  },
+  productInformationRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingVertical: 12,
+    gap: 12
+  },
+  productInformationDivider: {
+    borderTopWidth: 1,
+    borderTopColor: colors.border
+  },
+  productInformationLabel: {
+    width: 105,
+    fontSize: 13
+  },
+  productInformationValue: {
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 20
   },
   statCard: {
     flex: 1,

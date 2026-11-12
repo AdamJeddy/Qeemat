@@ -74,6 +74,17 @@ describe('AddScreen', () => {
     create.mockRestore();
   });
 
+  it('uses a retailer category as a suggestion without saving it as a manual choice', async () => {
+    const create = jest.spyOn(require('./src/data/database'), 'createTrackedProduct').mockResolvedValue(23);
+    mockFetchAndParseProduct.mockResolvedValueOnce({ ok: true, product: { siteKey: 'noon', title: 'Runner X', canonicalUrl: 'https://www.noon.com/runner', priceMinor: 10000, currency: 'AED', availability: 'in_stock', sourceMetadata: { categoryPath: ['Shoes'] } } });
+    let tree: renderer.ReactTestRenderer;
+    await act(async () => { tree = renderer.create(<AddScreen initialUrl="https://www.noon.com/runner" shareEventId={1} navigate={jest.fn()} />); await Promise.resolve(); });
+    expect(tree!.root.findByType(ProductCategoryPicker).props.value).toBe('footwear');
+    await act(async () => { await tree!.root.findByProps({ label: 'Confirm Tracking' }).props.onPress(); });
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({ category: undefined, parsed: expect.objectContaining({ sourceMetadata: { categoryPath: ['Shoes'] } }) }));
+    create.mockRestore();
+  });
+
   it('automatically finds a product when its URL is shared to the app', async () => {
     const navigate = jest.fn();
     mockFetchAndParseProduct.mockResolvedValueOnce({
@@ -220,6 +231,18 @@ describe('AddScreen', () => {
 });
 
 describe('DetailScreen', () => {
+  it('shows the retailer category, product type, and attributes when available', async () => {
+    mockGetProductWithSnapshots.mockResolvedValueOnce({ product: { id: 80, url: 'https://www.nike.ae/en/example.html', canonicalUrl: 'https://www.nike.ae/en/example.html', siteKey: 'nike_uae', title: 'Example', currency: 'AED', currentPriceMinor: 10000, alertMode: 'price_drop', checkPreference: 'daily', isActive: true, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z', sourceMetadata: { categoryPath: ['Women', 'Shoes'], productType: 'Running shoes', attributes: { material: 'Mesh' } } }, snapshots: [] });
+    let tree: renderer.ReactTestRenderer;
+    await act(async () => { tree = renderer.create(<DetailScreen productId={80} navigate={jest.fn()} />); await Promise.resolve(); });
+    const labels = tree!.root.findAllByType(AppText).map((node) => [node.props.children].flat().join('')).join(' ');
+    expect(labels).toContain('About this item');
+    expect(labels).toContain('Store category Women  ›  Shoes');
+    expect(labels).toContain('Product type Running shoes');
+    expect(labels).toContain('Material Mesh');
+    expect(labels.indexOf('Price History')).toBeLessThan(labels.indexOf('About this item'));
+    await act(async () => tree!.unmount());
+  });
   it('uses The Deal storefront URLs for customer-facing variant links', () => {
     const storefrontUrl = 'https://www.thedealoutlet.com/ae-en/serve-slide-1.0-fabric/0188147CMA0025.html?dwvar_0188147CMA0025_color=blue';
     const variationEndpoint = 'https://www.thedealoutlet.com/on/demandware.store/Sites-TheDealOutlet_AE-Site/en_AE/Product-Variation?pid=0188147CMA0025';
