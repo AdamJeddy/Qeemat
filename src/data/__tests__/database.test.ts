@@ -2,7 +2,7 @@ jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock')
 );
 
-import { createTrackedProduct, deleteAllLocalData, deleteTrackedProducts, getTrackedProduct, initializeDatabase, updateTrackedProducts, updateTrackingSettings } from '../database';
+import { createTrackedProduct, deleteAllLocalData, deleteTrackedProducts, getTrackedProduct, initializeDatabase, recordSuccessfulCheck, updateTrackedProducts, updateTrackingSettings } from '../database';
 
 describe('createTrackedProduct', () => {
   beforeEach(async () => {
@@ -25,6 +25,21 @@ describe('createTrackedProduct', () => {
     await updateTrackingSettings(id, { alertMode: 'price_drop', checkPreference: 'daily', isActive: true, category: null });
     expect((await getTrackedProduct(id))?.category).toBeUndefined();
     expect((await getTrackedProduct(id))?.categoryExcluded).toBe(true);
+  });
+
+  it('keeps source metadata on creation and updates it without losing missing fields or a user category', async () => {
+    const parsed = { siteKey: 'nike_uae' as const, canonicalUrl: 'https://www.nike.ae/en/example.html', title: 'Runner', priceMinor: 10000, currency: 'AED', availability: 'in_stock' as const,
+      sourceMetadata: { categoryPath: ['Women', 'Shoes'], productType: 'Running shoes', brand: 'Nike', attributes: { material: 'Mesh' } } };
+    const id = await createTrackedProduct({ sourceUrl: parsed.canonicalUrl, checkPreference: 'daily', alertMode: 'price_drop', category: 'clothing', parsed });
+    const tracked = (await getTrackedProduct(id))!;
+    expect(tracked.sourceMetadata).toEqual(parsed.sourceMetadata);
+    expect(tracked.brand).toBe('Nike');
+    await recordSuccessfulCheck(tracked, { ...parsed, sourceMetadata: { productType: 'Trail running shoes', attributes: { color: 'Blue' } } }, 'manual_single');
+    const updated = (await getTrackedProduct(id))!;
+    expect(updated.category).toBe('clothing');
+    expect(updated.sourceMetadata).toEqual({ categoryPath: ['Women', 'Shoes'], productType: 'Trail running shoes', brand: 'Nike', attributes: { material: 'Mesh', color: 'Blue' } });
+    await recordSuccessfulCheck(updated, { ...parsed, sourceMetadata: undefined }, 'manual_single');
+    expect((await getTrackedProduct(id))?.sourceMetadata).toEqual(updated.sourceMetadata);
   });
 
   it('persists the selected variant with a new tracker', async () => {

@@ -1,7 +1,8 @@
+import { DISCOVERY_CATEGORY_LABELS } from './discoveryCategories';
 import type { ShoppingCategory } from './discoveryCategories';
 import type { TrackedProduct } from './types';
 
-type CategoryInput = Pick<TrackedProduct, 'title' | 'url' | 'canonicalUrl'> & Partial<Pick<TrackedProduct, 'category' | 'categoryExcluded'>>;
+type CategoryInput = Pick<TrackedProduct, 'title' | 'url' | 'canonicalUrl'> & Partial<Pick<TrackedProduct, 'category' | 'categoryExcluded' | 'sourceMetadata'>>;
 
 /** Conservative hints for legacy trackers whose retailer did not supply a category. */
 export function inferWatchlistCategory(product: CategoryInput): ShoppingCategory | undefined {
@@ -28,6 +29,14 @@ export function inferWatchlistCategory(product: CategoryInput): ShoppingCategory
     ['bedding', /\b(?:duvet|bedsheets?|bed linen|pillowcases?)\b/],
     ['fitness', /\b(?:yoga mat|training mat|dumbbells?|kettlebells?)\b/]
   ];
+  const metadata = [product.sourceMetadata?.productType, ...(product.sourceMetadata?.categoryPath ?? []).slice().reverse(), product.sourceMetadata?.displayName].filter((value): value is string => Boolean(value));
+  for (const value of metadata) {
+    const normalized = value.toLowerCase().trim();
+    const exact = (Object.entries(DISCOVERY_CATEGORY_LABELS) as [ShoppingCategory, string][]).find(([key, label]) => normalized === key.replace(/_/g, ' ') || normalized === label.toLowerCase());
+    if (exact) { return exact[0]; }
+    const matched = rules.find(([, pattern]) => pattern.test(normalized.replace(/[-_/]+/g, ' ')));
+    if (matched) { return matched[0]; }
+  }
   return rules.find(([, pattern]) => pattern.test(text))?.[0];
 }
 

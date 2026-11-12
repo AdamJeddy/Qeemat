@@ -106,6 +106,7 @@ export type ProductVariant = {
 export type VariantSelection = Pick<ProductVariant, 'id' | 'label' | 'attributes' | 'url'>;
 
 export type ParsedProduct = {
+  sourceMetadata?: import('./productMetadata').ProductMetadata;
   priceBasis?: import('./priceBasis').PriceBasis;
   siteKey: SiteKey;
   canonicalUrl: string;
@@ -123,6 +124,7 @@ export type ParsedProduct = {
 };
 
 export type TrackedProduct = {
+  sourceMetadata?: import('./productMetadata').ProductMetadata;
   /** Brand supplied by the listing when the tracker was created. */
   brand?: string;
   /** Shopper-selected or source-provided category for discovery. */

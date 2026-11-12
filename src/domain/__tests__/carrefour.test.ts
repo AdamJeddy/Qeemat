@@ -66,6 +66,13 @@ describe('Carrefour UAE tracking', () => {
     expect(parseProductHtml('carrefour_uae', url, '<script type="application/ld+json">{"@type":"Product","name":"Default","offers":{"price":1}}</script>')).toBeUndefined();
   });
 
+  it('captures category identifiers and product type only from the selected product record', () => {
+    const chosen = { ...product, productType: 'FOOD', productCategory: ['f11601', 'f1160101'] };
+    const other = { ...product, productId: 'other', productType: 'ELECTRONICS', productCategory: ['n000'] };
+    expect(parseProductHtml('carrefour_uae', url, flight([other, chosen]))?.sourceMetadata)
+      .toEqual(expect.objectContaining({ productType: 'FOOD', categoryIds: ['f11601', 'f1160101'] }));
+  });
+
   it('recognizes the normal stock state returned by a live marketplace offer', () => {
     expect(parseProductHtml('carrefour_uae', url, flight({ ...product, stockStatus: 'normal', availableQuantity: 22 }))?.availability).toBe('in_stock');
   });
