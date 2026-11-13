@@ -58,6 +58,7 @@ import { PriceChart } from './src/components/PriceChart';
 import { PrimaryButton } from './src/components/PrimaryButton';
 import { ProductCard } from './src/components/ProductCard';
 import { ProductCategoryPicker } from './src/components/ProductCategoryPicker';
+import { SourceLabel } from './src/components/SourceLabel';
 import { DISCOVERY_CATEGORY_LABELS as SHOPPING_CATEGORY_LABELS, ShoppingCategory } from './src/domain/discoveryCategories';
 import { inferWatchlistCategory, watchlistCategories } from './src/domain/watchlistDiscovery';
 import { mergeProductMetadata } from './src/domain/productMetadata';
@@ -106,8 +107,8 @@ import { calculatePriceInsights } from './src/domain/priceInsights';
 import { formatPrice, parseTargetPriceInput } from './src/domain/price';
 import { priceBasisSuffix, verifyDiscoveryTrackingBasis } from './src/domain/priceBasis';
 import { cleanUrl, detectSharedUrl, detectSupportedSite, getSiteByKey, normalizeUrl, SUPPORTED_SITES } from './src/domain/sites';
-import { ActivityEvent, AlertMode, CheckPreference, DiscoveryCategory, DiscoveryPreferences, DiscoveryProduct, ParsedProduct, PriceSnapshot, ProductWithSnapshots, SnapshotSource, TrackedProduct } from './src/domain/types';
-import { colors, radius, shadow } from './src/theme/theme';
+import { ActivityEvent, AlertMode, CheckPreference, DiscoveryCategory, DiscoveryPreferences, DiscoveryProduct, ParsedProduct, PriceSnapshot, ProductWithSnapshots, TrackedProduct } from './src/domain/types';
+import { colors, layoutMetrics, radius, shadow, typography } from './src/theme/theme';
 import { isCompactLayout } from './src/theme/layout';
 import {
   filterWatchlistProducts,
@@ -1535,11 +1536,7 @@ function SnapshotRow({
           <AppText weight={subtle ? 'regular' : 'medium'} muted={subtle}>
             {formatSnapshotTime(snapshot.checkedAt)}
           </AppText>
-          <View style={[styles.sourceBadge, snapshotSourceBadgeStyle(snapshot.source)]}>
-            <AppText weight="semibold" style={styles.sourceBadgeText}>
-              {snapshotSourceLabel(snapshot.source)}
-            </AppText>
-          </View>
+          <SourceLabel source={snapshot.source} />
         </View>
         {snapshot.errorCode ? <AppText muted>{snapshot.rawPriceText?.slice(0, 400) ?? snapshot.errorCode}</AppText> : null}
       </View>
@@ -1750,7 +1747,7 @@ function ActivityScreen({ navigate }: { navigate: (route: Route) => void }) {
                         </>
                       ) : event.availability === 'in_stock' ? (
                         <>
-                          <Check size={18} color={colors.green} />
+                          <Check size={18} color={colors.primary} />
                           <AppText weight="semibold" style={styles.restockActivityLabel}>Back in stock</AppText>
                           <AppText weight="bold" style={styles.activityNewPrice}>{formatPrice(event.newPriceMinor, event.currency, event.priceBasis)}</AppText>
                         </>
@@ -1765,7 +1762,7 @@ function ActivityScreen({ navigate }: { navigate: (route: Route) => void }) {
                             {event.priceDirection === 'down' ? (
                               <TrendingDown size={16} color={colors.green} />
                             ) : event.priceDirection === 'up' ? (
-                              <TrendingUp size={16} color={colors.red} />
+                              <TrendingUp size={16} color={colors.amber} />
                             ) : (
                               <View style={styles.activityFirstDot} />
                             )}
@@ -1794,7 +1791,7 @@ function ActivityScreen({ navigate }: { navigate: (route: Route) => void }) {
                           </AppText>
                         </View>
                       ) : null}
-                      <AppText muted style={styles.sourceBadgeText}>{snapshotSourceLabel(event.source)}</AppText>
+                      <SourceLabel source={event.source} />
                     </View>
                   </View>
                 </View>
@@ -2528,38 +2525,6 @@ function formatPreferredHour(hour: number): string {
   return `${hour12}:00 ${suffix}`;
 }
 
-function snapshotSourceLabel(source: SnapshotSource): string {
-  if (source === 'manual_single') {
-    return 'Check now';
-  }
-
-  if (source === 'manual_batch') {
-    return 'Recheck all';
-  }
-
-  if (source === 'background') {
-    return 'Background';
-  }
-
-  return 'Unknown';
-}
-
-function snapshotSourceBadgeStyle(source: SnapshotSource) {
-  if (source === 'manual_single') {
-    return styles.sourceBadgeBlue;
-  }
-
-  if (source === 'manual_batch') {
-    return styles.sourceBadgeAmber;
-  }
-
-  if (source === 'background') {
-    return styles.sourceBadgeGreen;
-  }
-
-  return styles.sourceBadgeMuted;
-}
-
 function formatRunSource(source: string, forced?: boolean): string {
   if (source === 'work-manager') {
     return forced ? 'Background (forced once)' : 'Background';
@@ -2589,33 +2554,33 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border
   },
   headerButton: {
-    width: 44,
-    height: 44,
+    width: layoutMetrics.touchTarget,
+    height: layoutMetrics.touchTarget,
     alignItems: 'center',
     justifyContent: 'center'
   },
   headerTitle: {
-    fontSize: 20,
+    ...typography.sheetTitle,
     flex: 1,
     minWidth: 0,
     textAlign: 'center'
   },
   screenContent: {
-    padding: 20,
+    padding: layoutMetrics.screenGutter,
     paddingBottom: 110,
-    gap: 16
+    gap: layoutMetrics.sectionGap
   },
   discoveryScreenContent: { padding: 16, gap: 10 },
   watchlistContent: { backgroundColor: colors.surface, paddingTop: 0, paddingBottom: 110 },
   watchlistSystemBar: { backgroundColor: colors.primary },
-  watchlistBanner: { backgroundColor: colors.primary, marginHorizontal: -20, paddingHorizontal: 20, paddingTop: 14, paddingBottom: 18, gap: 12 },
+  watchlistBanner: { backgroundColor: colors.primary, marginHorizontal: -layoutMetrics.screenGutter, paddingHorizontal: layoutMetrics.screenGutter, paddingTop: 14, paddingBottom: 18, gap: 12 },
   watchlistBrandRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   watchlistBrandLockup: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 },
   watchlistBrandIcon: { width: 30, height: 30, borderRadius: 7 },
   watchlistHeaderActions: { flexDirection: 'row', alignItems: 'center' },
   watchlistBrand: { color: colors.surface, fontSize: 20, lineHeight: 26 },
-  watchlistSearchButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  watchlistBannerTitle: { color: colors.surface, fontSize: 28, lineHeight: 34 },
+  watchlistSearchButton: { width: layoutMetrics.touchTarget, height: layoutMetrics.touchTarget, alignItems: 'center', justifyContent: 'center' },
+  watchlistBannerTitle: { color: colors.surface, ...typography.screenTitle },
   watchlistBannerCount: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#FFFFFF33', borderRadius: radius.lg, paddingHorizontal: 12, paddingVertical: 7 },
   watchlistBannerCountText: { color: colors.surface, fontSize: 12 },
   watchlistFilterText: { color: colors.surface, fontSize: 14 },
@@ -2628,8 +2593,7 @@ const styles = StyleSheet.create({
     lineHeight: 24
   },
   heading: {
-    fontSize: 28,
-    lineHeight: 34
+    ...typography.screenTitle
   },
   titleRow: {
     flexDirection: 'row',
@@ -2723,11 +2687,11 @@ const styles = StyleSheet.create({
     marginBottom: 20
   },
   controlSheetTitle: {
-    fontSize: 20
+    ...typography.sheetTitle
   },
   controlSheetClose: {
-    width: 44,
-    height: 44,
+    width: layoutMetrics.touchTarget,
+    height: layoutMetrics.touchTarget,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 22,
@@ -3170,8 +3134,7 @@ const styles = StyleSheet.create({
   },
   detailTitle: {
     flex: 1,
-    fontSize: 18,
-    lineHeight: 24
+    ...typography.detailTitle
   },
   iconButton: {
     width: 34,
@@ -3182,8 +3145,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface
   },
   currentPrice: {
-    fontSize: 26,
-    lineHeight: 32
+    ...typography.price
   },
   oosBanner: {
     flexDirection: 'row',
@@ -3201,7 +3163,7 @@ const styles = StyleSheet.create({
     flex: 1
   },
   sectionTitle: {
-    fontSize: 18
+    ...typography.sectionTitle
   },
   statsRow: {
     flexDirection: 'row',
@@ -3268,7 +3230,7 @@ const styles = StyleSheet.create({
     color: colors.green
   },
   restockActivityLabel: {
-    color: colors.green,
+    color: colors.primary,
     fontSize: 14
   },
   restockActivityBadge: {
@@ -3327,26 +3289,6 @@ const styles = StyleSheet.create({
   snapshotAvailability: {
     fontSize: 12,
     textTransform: 'capitalize'
-  },
-  sourceBadge: {
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 4
-  },
-  sourceBadgeText: {
-    fontSize: 11
-  },
-  sourceBadgeBlue: {
-    backgroundColor: colors.blueSoft
-  },
-  sourceBadgeAmber: {
-    backgroundColor: colors.amberSoft
-  },
-  sourceBadgeGreen: {
-    backgroundColor: colors.greenSoft
-  },
-  sourceBadgeMuted: {
-    backgroundColor: colors.surfaceMuted
   },
   bottomAction: {
     position: 'absolute',
@@ -3410,7 +3352,7 @@ const styles = StyleSheet.create({
     gap: 12
   },
   discoverySectionTitle: {
-    fontSize: 18
+    ...typography.sectionTitle
   },
   discoverySectionCopy: {
     fontSize: 13,
@@ -3513,7 +3455,7 @@ const styles = StyleSheet.create({
     color: colors.green
   },
   activityPriceUp: {
-    color: colors.red
+    color: colors.amber
   },
   activityMetaRow: {
     flexDirection: 'row',
