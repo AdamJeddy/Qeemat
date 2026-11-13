@@ -1141,6 +1141,26 @@ describe('parseProductHtml', () => {
     expect(parseProductHtml('decathlon_uae', decathlonUrl, incompleteRecordHtml)?.variants).toBeUndefined();
   });
 
+  it('does not treat a Shopify product page with theme 404-like strings as missing', () => {
+    const html = `
+      <img src="//decathlon.ae/cdn/shop/files/jersey.jpg?width=404" alt="Germany 26 Home Replica Jersey" />
+      <script>console.error('Product section not found for variant price updates');</script>
+      <script id="ProductJson" type="application/json">{"id":123456,"title":"Germany 26 Home Replica Jersey, White","options":["Size"],"price":25000,"available":true,"variants":[{"id":111,"price":25000,"available":true,"options":["XL"]}]}</script>
+    `;
+
+    expect(parseProductHtml('decathlon_uae', decathlonUrl, html)).toEqual(expect.objectContaining({
+      siteKey: 'decathlon_uae',
+      title: 'Germany 26 Home Replica Jersey, White',
+      priceMinor: 25000,
+      availability: 'in_stock'
+    }));
+  });
+
+  it('still treats a genuine 404 page as a missing product', () => {
+    const html = '<html><body><h1>404</h1><img src="/missing.png" alt="404 page" /></body></html>';
+    expect(parseProductHtml('noon', noonUrl, html)).toBeUndefined();
+  });
+
   it('uses Salomon Shopify variant records for the chosen exact size', () => {
     const html = `
       <script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"AERO BLAZE 2","image":"https://salomongcc.com/shoe.jpg","offers":{"@type":"Offer","price":"455.00","priceCurrency":"AED","availability":"https://schema.org/InStock"}}</script>
@@ -2169,6 +2189,80 @@ describe('fetchAndParseProduct', () => {
       })
     });
     expect(fetchPageHtmlViaWebView).toHaveBeenCalledWith(theDealUrl);
+  });
+
+  it('uses the Android WebView fallback when Amazon returns a page without product details', async () => {
+    globalThis.fetch = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      url: amazonUrl,
+      text: async () => '<html><body><div id="nav-belt">Amazon</div></body></html>'
+    })) as unknown as typeof fetch;
+    jest.mocked(fetchPageHtmlViaWebView).mockResolvedValue(`
+      <link rel="canonical" href="${amazonUrl}" />
+      <span id="productTitle">Logitech H390 Wired Headset</span>
+      <div id="corePriceDisplay_desktop_feature_div">
+        <span class="a-price priceToPay"><span class="a-offscreen">AED 79.00</span></span>
+      </div>
+      <div id="availability"><span class="primary-availability-message">In Stock</span></div>
+    `);
+
+    await expect(fetchAndParseProduct(amazonUrl)).resolves.toEqual({
+      ok: true,
+      product: expect.objectContaining({
+        siteKey: 'amazon_ae',
+        title: 'Logitech H390 Wired Headset',
+        priceMinor: 7900,
+        currency: 'AED',
+        availability: 'in_stock'
+      })
+    });
+    expect(fetchPageHtmlViaWebView).toHaveBeenCalledWith(amazonUrl);
+  });
+
+  it('retries Amazon once, then uses the Android WebView fallback after a network error', async () => {
+    const fetchMock = jest.fn()
+      .mockRejectedValueOnce(new Error('socket reset'))
+      .mockRejectedValueOnce(new Error('socket reset'));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    jest.mocked(fetchPageHtmlViaWebView).mockResolvedValue(`
+      <span id="productTitle">Logitech H390 Wired Headset</span>
+      <div id="corePriceDisplay_desktop_feature_div">
+        <span class="a-price priceToPay"><span class="a-offscreen">AED 79.00</span></span>
+      </div>
+      <div id="availability"><span class="primary-availability-message">In Stock</span></div>
+    `);
+
+    await expect(fetchAndParseProduct(amazonUrl)).resolves.toEqual({
+      ok: true,
+      product: expect.objectContaining({ priceMinor: 7900 })
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchPageHtmlViaWebView).toHaveBeenCalledWith(amazonUrl);
+  });
+
+  it('uses the Android WebView fallback when Decathlon returns a page without ProductJson', async () => {
+    globalThis.fetch = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      url: decathlonUrl,
+      text: async () => '<html><body><div id="app"></div></body></html>'
+    })) as unknown as typeof fetch;
+    jest.mocked(fetchPageHtmlViaWebView).mockResolvedValue(`
+      <script id="ProductJson" type="application/json">{"id":123456,"title":"Kiprun Run 500","options":["Size"],"price":10000,"available":true,"variants":[{"id":111,"price":10000,"available":true,"options":["42"]}]}</script>
+    `);
+
+    await expect(fetchAndParseProduct(decathlonUrl)).resolves.toEqual({
+      ok: true,
+      product: expect.objectContaining({
+        siteKey: 'decathlon_uae',
+        title: 'Kiprun Run 500',
+        priceMinor: 10000,
+        currency: 'AED',
+        availability: 'in_stock'
+      })
+    });
+    expect(fetchPageHtmlViaWebView).toHaveBeenCalledWith(decathlonUrl);
   });
 
   it('resolves a selected The Deal variant price before saving a tracker', async () => {
