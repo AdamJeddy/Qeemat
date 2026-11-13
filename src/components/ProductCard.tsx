@@ -1,5 +1,6 @@
+import { useEffect, useState } from 'react';
 import { Image, Pressable, StyleSheet, TouchableOpacity, useWindowDimensions, View } from 'react-native';
-import { CheckCircle2, CircleAlert, Clock3, PackageX, TrendingDown, TrendingUp, X } from 'lucide-react-native';
+import { CheckCircle2, CircleAlert, Clock3, ImageOff, PackageX, TrendingDown, TrendingUp, X } from 'lucide-react-native';
 
 import { AppText } from './AppText';
 import { SiteIcon } from './SiteIcon';
@@ -7,7 +8,7 @@ import { formatRelativeTime } from '../domain/dates';
 import { formatPrice } from '../domain/price';
 import { getSiteByKey } from '../domain/sites';
 import { CheckStatus, TrackedProduct } from '../domain/types';
-import { colors, radius, shadow } from '../theme/theme';
+import { colors, radius } from '../theme/theme';
 import { isCompactLayout } from '../theme/layout';
 import { DISCOVERY_CATEGORY_LABELS } from '../domain/discoveryCategories';
 import { inferWatchlistCategory } from '../domain/watchlistDiscovery';
@@ -22,6 +23,8 @@ type ProductCardProps = {
 
 export function ProductCard({ product, onPress, onRemove, onLongPress, selected }: ProductCardProps) {
   const { width, fontScale } = useWindowDimensions();
+  const [imageFailed, setImageFailed] = useState(false);
+  useEffect(() => { setImageFailed(false); }, [product.imageUrl]);
   const compact = isCompactLayout(width, fontScale);
   const site = getSiteByKey(product.siteKey);
   const category = inferWatchlistCategory(product);
@@ -40,27 +43,14 @@ export function ProductCard({ product, onPress, onRemove, onLongPress, selected 
   const showPriceDrop = delta < 0;
   const showPriceUp = delta > 0;
 
-  // Status icon for the price row (replaces the old green dot)
-  function renderStatusIcon() {
-    if (isOos) {return null;}
-    if (showPriceDrop || showPriceUp) {return null;} // price change badge takes priority
-    if (status === 'ok' || status === 'price_changed') {
-      return <CheckCircle2 size={15} color={colors.green} />;
-    }
-    if (status === 'network_error') {
-      return <Clock3 size={15} color={colors.amber} />;
-    }
-    return <CircleAlert size={15} color={colors.red} />;
-  }
-
   // Show error pill in footer only for actual errors (not ok/price_changed/OOS)
   const showErrorPill = status !== 'ok' && status !== 'price_changed' && !isOos;
 
   return (
-    <Pressable onPress={onPress} onLongPress={onLongPress} delayLongPress={250} style={({ pressed }) => [styles.card, compact && styles.cardCompact, selected && styles.cardSelected, pressed && styles.pressed]}>
+    <Pressable accessibilityRole="button" accessibilityState={{ selected: Boolean(selected) }} onPress={onPress} onLongPress={onLongPress} delayLongPress={250} style={({ pressed }) => [styles.card, compact && styles.cardCompact, selected && styles.cardSelected, pressed && styles.pressed]}>
       {selected ? <View style={styles.selectionMark}><CheckCircle2 size={22} color={colors.primary} /></View> : null}
       <View style={[styles.imageWrap, compact && styles.imageWrapCompact]}>
-        {product.imageUrl ? <Image source={{ uri: product.imageUrl }} style={[styles.image, compact && styles.imageCompact, isOos && styles.imageMuted]} resizeMode="contain" /> : null}
+        {product.imageUrl && !imageFailed ? <Image source={{ uri: product.imageUrl }} style={[styles.image, compact && styles.imageCompact, isOos && styles.imageMuted]} resizeMode="contain" onError={() => setImageFailed(true)} /> : <View accessible accessibilityLabel="Product image unavailable"><ImageOff size={24} color={colors.textMuted} /></View>}
       </View>
       <View style={styles.content}>
         <View style={styles.titleRow}>
@@ -68,17 +58,6 @@ export function ProductCard({ product, onPress, onRemove, onLongPress, selected 
             {product.title}
           </AppText>
         </View>
-        <View style={styles.badge}>
-          <SiteIcon siteKey={product.siteKey} size={14} />
-          <AppText style={styles.badgeText}>{site.shortName}</AppText>
-        </View>
-        {product.folder ? (
-          <View style={styles.metadataRow}>
-            {product.folder ? <AppText muted style={styles.metadataText}>{product.folder}</AppText> : null}
-          </View>
-        ) : null}
-        {product.variant ? <AppText muted style={styles.variantLabel}>{product.variant.label}</AppText> : null}
-        {category ? <AppText muted style={styles.variantLabel}>{product.category ? '' : 'Suggested: '}{DISCOVERY_CATEGORY_LABELS[category]}</AppText> : null}
         {checkFailed || isOos ? <AppText muted style={styles.caption}>Last known price</AppText> : null}
         <View style={styles.priceRow}>
           <AppText weight="bold" style={[styles.price, isOos && styles.priceMuted]}>
@@ -95,20 +74,23 @@ export function ProductCard({ product, onPress, onRemove, onLongPress, selected 
             <View style={styles.priceDropBadge}>
               <TrendingDown size={13} color={colors.green} />
               <AppText weight="semibold" style={styles.priceDropText}>
-                ↓ {formatPrice(Math.abs(delta), product.currency, product.priceBasis)}
+                {formatPrice(Math.abs(delta), product.currency, product.priceBasis)} lower
               </AppText>
             </View>
           ) : showPriceUp ? (
             <View style={styles.priceUpBadge}>
               <TrendingUp size={13} color={colors.red} />
               <AppText weight="semibold" style={styles.priceUpText}>
-                ↑ {formatPrice(delta, product.currency, product.priceBasis)}
+                {formatPrice(delta, product.currency, product.priceBasis)} higher
               </AppText>
             </View>
-          ) : (
-            renderStatusIcon()
-          )}
+          ) : null}
         </View>
+        <View style={styles.badge}>
+          <SiteIcon siteKey={product.siteKey} size={14} />
+          <AppText style={styles.badgeText}>{site.shortName}</AppText>
+        </View>
+        {product.variant || product.folder || (category && product.category) ? <AppText muted style={styles.variantLabel}>{[product.variant?.label, product.folder, category && product.category ? DISCOVERY_CATEGORY_LABELS[category] : undefined].filter(Boolean).join(' · ')}</AppText> : null}
         <View style={styles.footer}>
           <AppText muted style={styles.caption}>
             {checkFailed ? 'Last attempt' : 'Last checked'}: {formatRelativeTime(product.lastCheckedAt)}
@@ -150,8 +132,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     padding: 12,
-    gap: 12,
-    ...shadow
+    gap: 12
   },
   cardCompact: {
     flexDirection: 'column'
@@ -209,11 +190,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: colors.surfaceMuted,
-    borderRadius: radius.sm,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    marginTop: 5
+    marginTop: 8
   },
   badgeText: {
     fontSize: 12
@@ -234,6 +211,7 @@ const styles = StyleSheet.create({
   priceRow: {
     marginTop: 9,
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 8

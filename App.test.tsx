@@ -1,5 +1,5 @@
 import React from 'react';
-import { Linking, TextInput } from 'react-native';
+import { Image, Linking, TextInput } from 'react-native';
 import renderer, { act } from 'react-test-renderer';
 
 jest.mock('@react-native-clipboard/clipboard', () => ({
@@ -657,6 +657,28 @@ describe('saved price freshness', () => {
   });
 
   afterEach(() => jest.restoreAllMocks());
+
+  it('prioritizes the price while retaining the selected variant and folder', () => {
+    const item = { ...product, folder: 'Running', variant: { id: 'size-40', label: 'Size: 40', attributes: [{ name: 'Size', value: '40' }] } };
+    let tree: renderer.ReactTestRenderer;
+    act(() => { tree = renderer.create(<ProductCard product={item} onPress={jest.fn()} />); });
+    const labels = tree!.root.findAllByType(AppText).map((node) => [node.props.children].flat().join(''));
+    expect(labels.join(' ')).toContain('Size: 40');
+    expect(labels.join(' ')).toContain('Running');
+    expect(labels.indexOf('AED 719.40')).toBeLessThan(labels.findIndex((label) => label.includes('Size: 40')));
+  });
+
+  it('shows a fallback for missing or failed product images and retries a changed image', () => {
+    let tree: renderer.ReactTestRenderer;
+    act(() => { tree = renderer.create(<ProductCard product={product} onPress={jest.fn()} />); });
+    expect(tree!.root.findAllByProps({ accessibilityLabel: 'Product image unavailable' }).length).toBeGreaterThan(0);
+    act(() => { tree!.update(<ProductCard product={{ ...product, imageUrl: 'https://example.com/a.jpg' }} onPress={jest.fn()} />); });
+    act(() => { tree!.root.findAllByType(Image).find((image) => image.props.onError)!.props.onError(); });
+    expect(tree!.root.findAllByProps({ accessibilityLabel: 'Product image unavailable' }).length).toBeGreaterThan(0);
+    act(() => { tree!.update(<ProductCard product={{ ...product, imageUrl: 'https://example.com/b.jpg' }} onPress={jest.fn()} />); });
+    expect(tree!.root.findAllByType(Image).find((image) => image.props.onError)!.props.source.uri).toBe('https://example.com/b.jpg');
+    act(() => tree!.unmount());
+  });
 
   it.each<CheckStatus>(['site_parser_failed', 'blocked', 'network_error'])('labels the saved price and last successful check after %s', async (status) => {
     const failedProduct = { ...product, lastErrorCode: status };
