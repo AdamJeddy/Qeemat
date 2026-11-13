@@ -72,3 +72,9 @@ Activity no longer repeats stock labels or presents the check source as a green 
 ## Implementation constraints
 
 The project uses React Native + TypeScript, a manual route stack in `App.tsx`, AsyncStorage, Lucide icons and `AppText`; follow the project `AGENTS.md`. Avoid introducing React Navigation, SQLite, iOS native work or a server/backend. Do not use `QeematTemplate/`. User-facing experience should not expose internal engineering details unnecessarily. Respect the user's chosen design and work from screenshots, not assumptions.
+
+## Postscript (later 13 November 2026)
+
+- `output/pdf/qeemat-whats-new-since-v0.5.5-alpha.pdf` is now tracked (commit `5bc1294`). The `output/` directory is no longer untracked, and its PDF must not be deleted. The earlier note that `output/` pre-existed as an untracked directory describes the handover state only.
+- After the floating-button revert (`12aaa66`), the full Jest suite was rerun and passed: 42 suites, 377 passed, 1 skipped. The current run after the accessibility label/touch-target fixes adds two regression tests: 42 suites, 378 passed, 1 skipped (379 total). Typecheck is clean, and ESLint reports only the one known `react-native/no-inline-styles` warning noted above. This supersedes the earlier note that the full suite was not rerun for the revert.
+- The rest of this handover remains the historical record; check current `git log` and `git status` before continuing.

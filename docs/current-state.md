@@ -1,6 +1,6 @@
 # Qeemat Current State
 
-**Last reconciled with the implementation:** 2026-10-26
+**Last reconciled with the implementation:** 2026-11-13
 **App version:** 0.6.0-alpha (development; not yet published)
 
 This is the repo handoff for the current app. Product-planning documents are useful for intent, but this file describes shipped behavior and active limitations.
@@ -46,7 +46,7 @@ The site registry is `src/domain/sites.ts`. It controls hostnames, enabled statu
 - The watchlist supports pull-to-refresh, manual `Recheck all prices`, price-direction arrows, an archived-items view, and a collapsible out-of-stock section below in-stock products. When products from multiple stores are tracked, a logo-only store rail filters both sections; a separate control filters local folders and sorts by recency, lowest price, largest drop, closest target, or name.
 - Long-press selection opens a compact floating action dock. Selected products can be moved to a folder, paused/resumed, archived/restored, or deleted in bulk.
 - Product cards show a site icon, local folder when present, price, status, and the most recent price-change direction. OOS cards are dimmed and show an amber out-of-stock badge.
-- The Activity tab is newest-first, groups events by date, shows old and new prices with direction/source badges, records both out-of-stock and back-in-stock transitions, and can open an existing product. Events remain visible but non-tappable after a product is deleted.
+- The Activity tab is newest-first, groups events by relative-time labels (for example `Just now`, `5h ago`, `Yesterday`), shows old and new prices with direction indicators and the check source as muted text, records both out-of-stock and back-in-stock transitions, and can open an existing product. Events remain visible but non-tappable after a product is deleted.
 - `Watchlist` is the opening tab; `Search` provides discovery. The default Explore feed uses categories on active, non-archived watchlist products. When no category is assigned, it uses recognizable product-page metadata and then conservative suggestions inferred from names and URLs. Users can change or remove a suggestion. It explains those categories and supports browsing all products or filtering by department, store, brand and price. With no recognizable categories, it shows general listings. Saved quiz preferences no longer filter the feed.
 - Search keeps its screen state while switching between tabs. Its default feed rotates the first group of products at each app launch, while search results and explicitly filtered views keep their existing order. Listing cards show a previous price comparison only when the price changes.
 - Tracked products retain available retailer-provided category paths, product types and selected attributes separately from shopper-selected categories. Product details show the captured information; existing products acquire it on their next successful check. Fields vary by page and retailer, and an omitted field does not erase previously captured metadata. See the [product metadata source review](product-metadata-audit.md) for retailer-specific evidence and gaps.

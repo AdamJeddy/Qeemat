@@ -18,6 +18,17 @@ Reviewed 13 November 2026 against the current React Native code and Watchlist, S
 5. **Accessibility and adaptation.** `AppText` caps font scaling at 1.3; some controls lack explicit roles or labels. A 1.3 font-scale phone check confirmed Watchlist control wrapping, but not TalkBack, contrast or larger scales throughout the app. Set a scaling and touch-target policy, then verify each screen.
 6. **System documentation and governance.** `DESIGN.md` now records the existing baseline and chosen direction, but it does not yet define complete states or a validated component catalog. Update it alongside implemented primitives and distinguish desired direction from shipped behavior.
 
+**Status at 13 November 2026** (after the day's fixes; source inspection at `5bc1294`, device follow-up recorded in [`design-qa.md`](../design-qa.md)):
+
+| # | Status | Evidence and remaining work |
+| --- | --- | --- |
+| 1 | Partial | The product-detail `StatusPill` now shows a neutral blue check for `price_changed` instead of a green down-trend (`16019c1`; covered by `StatusPill.test.tsx`), with direction left to price history. It is not yet a shared primitive: `StatusPill` is used on product detail only, while `ProductCard` price-direction badges, Activity rows and the detail snapshot list render status separately. The detail snapshot list still shows `Background` provenance as a green badge (`snapshotSourceBadgeStyle` returns the green `sourceBadgeGreen` style for `background` in `App.tsx`). |
+| 2 | Partial | Settings now uses flat bordered cards without the shared shadow, and Watchlist cards are flat. Product-detail stat cards still use the shared shadow, and Search keeps its own discovery card and chip treatments (`src/components/Discovery.tsx`). |
+| 3 | Partial | Settings now leads with notifications, battery and scheduling before supported stores (`b1069b6`); Add puts **Find product** directly after the URL field (`04e8bfb`). Search still repeats a strong blue **Track price** action on every discovery card, and product detail still gives average price the strongest treatment (`statCardEmphasized`). |
+| 4 | Open | Semantic type roles and a consistent spacing rhythm are still not implemented; screens keep local font sizes and spacing values. |
+| 5 | Partial | The live 1.3 system-font remeasure is fixed (`bb1883f`). TalkBack, contrast, scales above 1.3 and consistent `TextInput` scaling remain unverified. |
+| 6 | Open | `DESIGN.md` was not updated alongside the fixes; this reconciliation now separates shipped from intended behavior for the status pill, typography cap and floating add button, but complete states and a validated component catalog are still missing. |
+
 ## Suggested sequence
 
 1. Define status semantics and fix the misleading direction indicator.
