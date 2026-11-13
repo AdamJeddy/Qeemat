@@ -175,6 +175,8 @@ export default function App() {
   const [route, setRoute] = useState<Route>({ name: 'tabs', tab: 'watchlist' });
   const [discoveryOffset, setDiscoveryOffset] = useState(0);
   const [lastTab, setLastTab] = useState<TabKey>('watchlist');
+  const [tabsRefreshKey, setTabsRefreshKey] = useState(0);
+  const previousRouteName = useRef(route.name);
   const [ready, setReady] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const shareEventId = useRef(0);
@@ -234,6 +236,16 @@ export default function App() {
     }
   }, [route]);
 
+  // The tab stack stays mounted so lists keep their state. When a flow (Add,
+  // product detail, tracking settings) returns to the tabs, bump a refresh key
+  // so the visible tab reloads its stored data instead of showing stale rows.
+  useEffect(() => {
+    if (previousRouteName.current !== 'tabs' && route.name === 'tabs') {
+      setTabsRefreshKey((value) => value + 1);
+    }
+    previousRouteName.current = route.name;
+  }, [route]);
+
   useEffect(() => {
     const shareModule = NativeModules.QeematShare;
     if (!shareModule) {
@@ -274,7 +286,7 @@ export default function App() {
       <SafeAreaView edges={['bottom', 'left', 'right']} style={styles.app}>
         <UpdateNotice visible={route.name === 'tabs' && route.tab !== 'activity'} />
         <View style={route.name === 'tabs' ? styles.flex : styles.hiddenTab}>
-          <TabsScreen tab={activeTab} navigate={setRoute} discoveryOffset={discoveryOffset} />
+          <TabsScreen tab={activeTab} navigate={setRoute} discoveryOffset={discoveryOffset} refreshKey={tabsRefreshKey} />
         </View>
         {route.name === 'add' ? <AddScreen initialUrl={route.initialUrl} shareEventId={route.shareEventId} returnTab={route.returnTab} navigate={setRoute} /> : null}
         {route.name === 'detail' ? <DetailScreen productId={route.id} navigate={setRoute} /> : null}
@@ -383,15 +395,15 @@ function getBackRoute(route: Route): Route | undefined {
   return undefined;
 }
 
-export function TabsScreen({ tab, navigate, discoveryOffset }: { tab: TabKey; navigate: (route: Route) => void; discoveryOffset?: number }) {
+export function TabsScreen({ tab, navigate, discoveryOffset, refreshKey = 0 }: { tab: TabKey; navigate: (route: Route) => void; discoveryOffset?: number; refreshKey?: number }) {
   const [searchOpened, setSearchOpened] = useState(tab === 'opportunities');
   useEffect(() => { if (tab === 'opportunities') { setSearchOpened(true); } }, [tab]);
   return (
     <View style={styles.app}>
-      {tab === 'watchlist' ? <WatchlistScreen navigate={navigate} /> : null}
+      {tab === 'watchlist' ? <WatchlistScreen navigate={navigate} refreshKey={refreshKey} /> : null}
       {searchOpened || tab === 'opportunities' ? <View style={tab === 'opportunities' ? styles.flex : styles.hiddenTab}><OpportunityScreen navigate={navigate} active={tab === 'opportunities'} sessionOffset={discoveryOffset} /></View> : null}
-      {tab === 'activity' ? <ActivityScreen navigate={navigate} /> : null}
-      {tab === 'settings' ? <SettingsScreen /> : null}
+      {tab === 'activity' ? <ActivityScreen navigate={navigate} refreshKey={refreshKey} /> : null}
+      {tab === 'settings' ? <SettingsScreen refreshKey={refreshKey} /> : null}
       <View style={styles.tabBar}>
         <TabButton active={tab === 'watchlist'} label="Watchlist" icon={<Bookmark fill={tab === 'watchlist' ? colors.primary : 'none'} />} onPress={() => navigate({ name: 'tabs', tab: 'watchlist' })} />
         <TabButton active={tab === 'opportunities'} label="Search" icon={<Search />} onPress={() => navigate({ name: 'tabs', tab: 'opportunities' })} />
@@ -634,7 +646,7 @@ function BulkEditSheet({ visible, folders, selectedCount, onClose, onApply }: {
   );
 }
 
-function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
+function WatchlistScreen({ navigate, refreshKey = 0 }: { navigate: (route: Route) => void; refreshKey?: number }) {
   const [products, setProducts] = useState<TrackedProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -656,7 +668,7 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
 
   useEffect(() => {
     loadProducts();
-  }, [loadProducts]);
+  }, [loadProducts, refreshKey]);
 
   async function refresh() {
     setRefreshing(true);
@@ -1926,22 +1938,27 @@ function TrackingSettingsScreen({ productId, navigate }: { productId: number; na
   );
 }
 
-function ActivityScreen({ navigate }: { navigate: (route: Route) => void }) {
+function ActivityScreen({ navigate, refreshKey = 0 }: { navigate: (route: Route) => void; refreshKey?: number }) {
   const [events, setEvents] = useState<ActivityEvent[]>([]);
   const [products, setProducts] = useState<TrackedProduct[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let active = true;
     (async () => {
       const [loadedEvents, loadedProducts] = await Promise.all([
         listActivityEvents(),
         listTrackedProducts()
       ]);
+      if (!active) {
+        return;
+      }
       setEvents(loadedEvents);
       setProducts(loadedProducts);
       setLoading(false);
     })();
-  }, []);
+    return () => { active = false; };
+  }, [refreshKey]);
 
   const existingProductIds = useMemo(() => new Set(products.map((p) => p.id)), [products]);
 
@@ -2454,7 +2471,7 @@ export function OpportunityScreen({ navigate, active = true, sessionOffset }: { 
 }
 
 
-function SettingsScreen() {
+function SettingsScreen({ refreshKey = 0 }: { refreshKey?: number }) {
   const { width, fontScale } = useWindowDimensions();
   const compact = isCompactLayout(width, fontScale);
   const [backgroundStatus, setBackgroundStatus] = useState<BackgroundStatus>();
@@ -2481,7 +2498,7 @@ function SettingsScreen() {
 
   useEffect(() => {
     loadStatus();
-  }, [loadStatus]);
+  }, [loadStatus, refreshKey]);
 
   const selectedPresetHour = backgroundStatus?.preferredHour ?? 9;
   const preferredHourLabel = formatPreferredHour(backgroundStatus?.preferredHour ?? 9);

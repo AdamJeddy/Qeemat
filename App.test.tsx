@@ -474,6 +474,24 @@ describe('Watchlist header', () => {
     await act(async () => tree!.unmount());
   });
 
+  it('reloads watchlist products when the retained tab becomes visible again', async () => {
+    const listTracked = jest.spyOn(require('./src/data/database'), 'listTrackedProducts')
+      .mockResolvedValueOnce([seiko])
+      .mockResolvedValueOnce([seiko, xiaomi]);
+    let tree: renderer.ReactTestRenderer;
+    await act(async () => { tree = renderer.create(<TabsScreen tab="watchlist" navigate={jest.fn()} refreshKey={0} />); await new Promise<void>(resolve => setImmediate(resolve)); });
+    const textBefore = tree!.root.findAllByType(AppText).map((node) => [node.props.children].flat().join('')).join(' ');
+    expect(textBefore).toContain('Seiko 5 Sports Automatic Watch');
+    expect(textBefore).not.toContain('Xiaomi Redmi Note 15 Smartphone');
+
+    await act(async () => { tree!.update(<TabsScreen tab="watchlist" navigate={jest.fn()} refreshKey={1} />); await new Promise<void>(resolve => setImmediate(resolve)); });
+    const textAfter = tree!.root.findAllByType(AppText).map((node) => [node.props.children].flat().join('')).join(' ');
+    expect(textAfter).toContain('Xiaomi Redmi Note 15 Smartphone');
+
+    await act(async () => tree!.unmount());
+    listTracked.mockRestore();
+  });
+
   it('filters tracked products from the watchlist search control', async () => {
     const listTracked = jest.spyOn(require('./src/data/database'), 'listTrackedProducts').mockResolvedValue([seiko, xiaomi]);
     let tree: renderer.ReactTestRenderer;
