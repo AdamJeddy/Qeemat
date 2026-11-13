@@ -18,6 +18,7 @@ type SortableProduct = SiteProduct & {
   title: string;
   currentPriceMinor?: number;
   previousPriceMinor?: number;
+  lastPriceChangeMinor?: number;
   targetPriceMinor?: number;
   updatedAt: string;
 };
@@ -125,11 +126,12 @@ function compareNumberDescending(left: number | undefined, right: number | undef
 }
 
 function priceDrop(product: SortableProduct): number | undefined {
-  if (product.currentPriceMinor === undefined || product.previousPriceMinor === undefined) {
+  const changedFrom = product.lastPriceChangeMinor ?? product.previousPriceMinor;
+  if (product.currentPriceMinor === undefined || changedFrom === undefined) {
     return undefined;
   }
 
-  return Math.max(0, product.previousPriceMinor - product.currentPriceMinor);
+  return Math.max(0, changedFrom - product.currentPriceMinor);
 }
 
 function targetDistance(product: SortableProduct): number | undefined {

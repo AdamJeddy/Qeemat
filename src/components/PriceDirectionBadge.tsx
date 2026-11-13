@@ -7,14 +7,19 @@ import { colors, radius } from '../theme/theme';
 type PriceDirectionBadgeProps = {
   direction: 'down' | 'up';
   text: string;
+  accessibilityLabel?: string;
 };
 
-export function PriceDirectionBadge({ direction, text }: PriceDirectionBadgeProps) {
+export function PriceDirectionBadge({ direction, text, accessibilityLabel }: PriceDirectionBadgeProps) {
   const isDown = direction === 'down';
   const Icon = isDown ? TrendingDown : TrendingUp;
 
   return (
-    <View style={[styles.badge, isDown ? styles.down : styles.up]}>
+    <View
+      accessible={Boolean(accessibilityLabel)}
+      accessibilityLabel={accessibilityLabel}
+      style={[styles.badge, isDown ? styles.down : styles.up]}
+    >
       <Icon size={13} color={isDown ? colors.green : colors.amber} />
       <AppText weight="semibold" style={[styles.label, isDown ? styles.downText : styles.upText]}>
         {text}

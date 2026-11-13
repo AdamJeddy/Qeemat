@@ -33,16 +33,14 @@ export function ProductCard({ product, onPress, onRemove, onLongPress, selected 
   const status: CheckStatus = product.lastErrorCode ?? 'ok';
   const checkFailed = status !== 'ok' && status !== 'price_changed';
 
-  // Price change indicator
-  const priceChanged = status === 'price_changed';
-  const previousPrice = product.previousPriceMinor;
+  // Price change indicator. Uses the most recent actual price change so a
+  // subsequent unchanged check does not erase it from the card.
+  const changedFrom = product.lastPriceChangeMinor;
   const currentPrice = product.currentPriceMinor;
-  const delta =
-    priceChanged && previousPrice !== undefined && currentPrice !== undefined
-      ? currentPrice - previousPrice
-      : 0;
+  const delta = !isOos && changedFrom !== undefined && currentPrice !== undefined ? currentPrice - changedFrom : 0;
   const showPriceDrop = delta < 0;
   const showPriceUp = delta > 0;
+  const changedAtLabel = product.lastPriceChangeAt ? `, changed ${formatRelativeTime(product.lastPriceChangeAt)}` : '';
 
   // Show error pill in footer only for actual errors (not ok/price_changed/OOS)
   const showErrorPill = status !== 'ok' && status !== 'price_changed' && !isOos;
@@ -72,9 +70,17 @@ export function ProductCard({ product, onPress, onRemove, onLongPress, selected 
               </AppText>
             </View>
           ) : showPriceDrop ? (
-            <PriceDirectionBadge direction="down" text={`${formatPrice(Math.abs(delta), product.currency, product.priceBasis)} lower`} />
+            <PriceDirectionBadge
+              direction="down"
+              text={`${formatPrice(Math.abs(delta), product.currency, product.priceBasis)} lower`}
+              accessibilityLabel={`${formatPrice(Math.abs(delta), product.currency, product.priceBasis)} lower${changedAtLabel}`}
+            />
           ) : showPriceUp ? (
-            <PriceDirectionBadge direction="up" text={`${formatPrice(delta, product.currency, product.priceBasis)} higher`} />
+            <PriceDirectionBadge
+              direction="up"
+              text={`${formatPrice(delta, product.currency, product.priceBasis)} higher`}
+              accessibilityLabel={`${formatPrice(delta, product.currency, product.priceBasis)} higher${changedAtLabel}`}
+            />
           ) : null}
         </View>
         <View style={styles.badge}>

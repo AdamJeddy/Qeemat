@@ -159,4 +159,13 @@ describe('sortWatchlistProducts', () => {
     expect(sortWatchlistProducts(sortable, 'name').map((product) => product.id)).toEqual([2, 3, 4, 1]);
     expect(sortable.map((product) => product.id)).toEqual([1, 2, 3, 4]);
   });
+
+  it('uses the persisted last price change for the largest-drop sort', () => {
+    const settled = [
+      { id: 1, siteKey: 'noon' as const, title: 'Dropped earlier', currentPriceMinor: 9000, previousPriceMinor: 9000, lastPriceChangeMinor: 10000, updatedAt: '2026-10-20T10:00:00.000Z' },
+      { id: 2, siteKey: 'noon' as const, title: 'Dropped recently', currentPriceMinor: 9500, previousPriceMinor: 9500, lastPriceChangeMinor: 9600, updatedAt: '2026-10-21T10:00:00.000Z' }
+    ];
+
+    expect(sortWatchlistProducts(settled, 'largest_drop').map((product) => product.id)).toEqual([1, 2]);
+  });
 });
