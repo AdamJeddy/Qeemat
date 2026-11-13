@@ -731,6 +731,7 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
   return (
     <View style={styles.app}>
       <ScrollView
+        style={styles.flex}
         contentContainerStyle={[styles.screenContent, styles.watchlistContent]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
         showsVerticalScrollIndicator={false}
@@ -855,9 +856,11 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
         <BulkActionButton label={shouldPauseSelected ? 'Pause' : 'Resume'} icon={<Pause size={20} color={colors.primary} />} onPress={() => applyBulk({ isActive: !shouldPauseSelected })} />
         <BulkActionButton label={showArchived ? 'Restore' : 'Archive'} icon={<Archive size={20} color={colors.primary} />} onPress={() => applyBulk({ isArchived: !showArchived })} />
         <BulkActionButton label="Delete" icon={<Trash2 size={20} color={colors.red} />} destructive onPress={confirmBulkDelete} />
-      </View> : <Pressable accessibilityRole="button" accessibilityLabel="Add a product" style={styles.fab} onPress={() => navigate({ name: 'add' })}>
-        <Plus size={30} color="#FFFFFF" />
-      </Pressable>}
+      </View> : <View style={styles.addProductDock}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Add a product" style={styles.fab} onPress={() => navigate({ name: 'add' })}>
+          <Plus size={30} color={colors.surface} />
+        </Pressable>
+      </View>}
       <BulkEditSheet visible={showBulkFolderPicker} folders={folders} selectedCount={selectedProductIds.size} onClose={() => setShowBulkFolderPicker(false)} onApply={applyBulk} />
     </View>
   );
@@ -2923,10 +2926,8 @@ const styles = StyleSheet.create({
   emptyButton: {
     marginTop: 18
   },
+  addProductDock: { backgroundColor: colors.surface, alignItems: 'flex-end', paddingHorizontal: 20, paddingVertical: 8 },
   fab: {
-    position: 'absolute',
-    right: 20,
-    bottom: 20,
     width: 58,
     height: 58,
     borderRadius: 29,
