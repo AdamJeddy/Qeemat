@@ -720,7 +720,6 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
 
   return (
     <View style={styles.app}>
-      <Header title="Qeemat" />
       <ScrollView
         contentContainerStyle={styles.screenContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
@@ -731,7 +730,6 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
             <AppText weight="bold" style={styles.heading}>
               Watchlist
             </AppText>
-            <AppText muted>Track supported product prices locally.</AppText>
           </View>
           <View style={styles.countPill}>
             <AppText weight="semibold" style={styles.countText}>
@@ -748,6 +746,10 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
         <Pressable accessibilityRole="button" onPress={() => { setShowArchived((value) => !value); setSelectedProductIds(new Set()); }} style={styles.archiveToggle}>
           <AppText weight="semibold" style={styles.archiveToggleText}>{showArchived ? 'Show active' : 'Archived'}</AppText>
         </Pressable>
+        {selectedProductIds.size === 0 ? <Pressable accessibilityRole="button" accessibilityLabel="Recheck all prices" accessibilityState={{ disabled: !products.length || loading || checkingAll }} disabled={!products.length || loading || checkingAll} onPress={recheckAllPrices} style={({ pressed }) => [styles.watchlistRecheck, (!products.length || loading || checkingAll) && styles.watchlistRecheckDisabled, pressed && styles.storeFilterButtonPressed]}>
+          {checkingAll ? <ActivityIndicator size="small" color={colors.primary} /> : <RefreshCcw size={18} color={colors.primary} />}
+          <AppText weight="semibold" style={styles.controlsButtonText}>{checkingAll ? 'Checking…' : 'Recheck all'}</AppText>
+        </Pressable> : null}
         </View>
         {activeControlSummary ? (
           <View style={styles.activeControlsRow}>
@@ -755,14 +757,7 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
             <Pressable accessibilityRole="button" onPress={clearControls}><AppText weight="semibold" style={styles.clearControlsText}>Clear</AppText></Pressable>
           </View>
         ) : null}
-        {selectedProductIds.size === 0 ? <PrimaryButton
-          label="Recheck all prices"
-          variant="outline"
-          onPress={recheckAllPrices}
-          loading={checkingAll}
-          disabled={!products.length || loading}
-          icon={!checkingAll ? <RefreshCcw size={18} color={colors.primary} /> : undefined}
-        /> : <View style={styles.selectionHeader}><AppText weight="bold">{selectedProductIds.size} selected</AppText><Pressable onPress={() => setSelectedProductIds(new Set())}><AppText weight="semibold" style={styles.clearControlsText}>Cancel</AppText></Pressable></View>}
+        {selectedProductIds.size > 0 ? <View style={styles.selectionHeader}><AppText weight="bold">{selectedProductIds.size} selected</AppText><Pressable accessibilityRole="button" onPress={() => setSelectedProductIds(new Set())}><AppText weight="semibold" style={styles.clearControlsText}>Cancel</AppText></Pressable></View> : null}
 
         <WatchlistControlsSheet
           visible={showControls}
@@ -782,7 +777,7 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
         {!loading && products.length === 0 ? <EmptyWatchlist onAdd={() => navigate({ name: 'add' })} /> : null}
 
         {oos.length > 0 ? (
-          <Pressable style={styles.oosSection} onPress={() => setOosExpanded((v) => !v)}>
+          <Pressable accessibilityRole="button" accessibilityState={{ expanded: oosExpanded }} style={styles.oosSection} onPress={() => setOosExpanded((v) => !v)}>
             <View style={styles.oosHeader}>
               <View style={styles.oosDot} />
               <AppText weight="semibold" style={styles.oosLabel}>
@@ -2720,9 +2715,12 @@ const styles = StyleSheet.create({
   },
   watchlistToolbar: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     gap: 10
   },
+  watchlistRecheck: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 10 },
+  watchlistRecheckDisabled: { opacity: 0.5 },
   archiveToggle: {
     paddingHorizontal: 14,
     paddingVertical: 12,
