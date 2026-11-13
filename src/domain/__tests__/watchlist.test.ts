@@ -21,12 +21,16 @@ describe('getWatchlistSites', () => {
 });
 
 describe('filterWatchlistProducts', () => {
-  it('keeps every product when all stores is selected', () => {
-    expect(filterWatchlistProducts(products, 'all')).toEqual(products);
+  it('keeps every product when no stores are selected', () => {
+    expect(filterWatchlistProducts(products, [])).toEqual(products);
   });
 
   it('keeps only products from the selected store', () => {
-    expect(filterWatchlistProducts(products, 'nike_uae')).toEqual([products[0], products[2]]);
+    expect(filterWatchlistProducts(products, ['nike_uae'])).toEqual([products[0], products[2]]);
+  });
+
+  it('supports selecting several stores at once', () => {
+    expect(filterWatchlistProducts(products, ['nike_uae', 'noon'])).toEqual([products[0], products[2], products[3]]);
   });
 
   it('combines store and folder filters', () => {
@@ -36,7 +40,8 @@ describe('filterWatchlistProducts', () => {
       { ...products[2], folder: 'Running' }
     ];
 
-    expect(filterWatchlistProducts(organized, 'nike_uae', { folder: 'Running' })).toEqual([organized[0], organized[2]]);
+    expect(filterWatchlistProducts(organized, ['nike_uae'], { folder: 'Running' })).toEqual([organized[0], organized[2]]);
+    expect(filterWatchlistProducts(organized, ['nike_uae', 'amazon_ae'], { folder: 'Tech' })).toEqual([organized[1]]);
   });
 });
 

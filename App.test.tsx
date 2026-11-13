@@ -119,6 +119,10 @@ describe('AddScreen', () => {
 
     let tree: renderer.ReactTestRenderer;
     await act(async () => { tree = renderer.create(<AddScreen initialUrl="https://www.noon.com/shoe" shareEventId={1} navigate={navigate} />); await Promise.resolve(); });
+    await act(async () => { await new Promise<void>((resolve) => setImmediate(resolve)); });
+    const addLabels = tree!.root.findAllByType(AppText).map((node) => [node.props.children].flat().join('')).join(' ');
+    expect(addLabels).toContain('Already in your watchlist');
+
     await act(async () => { await tree!.root.findByProps({ label: 'Confirm Tracking' }).props.onPress(); });
 
     expect(create).not.toHaveBeenCalled();
@@ -133,7 +137,7 @@ describe('AddScreen', () => {
     listTracked.mockRestore();
   });
 
-  it('asks before adding a different option of the same product', async () => {
+  it('shows an early notice and adds a different option as a separate tracker', async () => {
     const existingProduct = {
       id: 7,
       url: 'https://www.noon.com/shoe',
@@ -169,14 +173,15 @@ describe('AddScreen', () => {
 
     let tree: renderer.ReactTestRenderer;
     await act(async () => { tree = renderer.create(<AddScreen initialUrl="https://www.noon.com/shoe" shareEventId={1} navigate={jest.fn()} />); await Promise.resolve(); });
+    await act(async () => { await new Promise<void>((resolve) => setImmediate(resolve)); });
+    const noticeLabels = tree!.root.findAllByType(AppText).map((node) => [node.props.children].flat().join('')).join(' ');
+    expect(noticeLabels).toContain('Adding another option');
+    expect(noticeLabels).toContain('Size: 42');
+
     act(() => tree!.root.findByType(VariantSelector).props.onSelect('Size', '44'));
     await act(async () => { await tree!.root.findByProps({ label: 'Confirm Tracking' }).props.onPress(); });
 
-    expect(create).not.toHaveBeenCalled();
-    expect(alert).toHaveBeenCalledTimes(1);
-    const [title, , buttons] = alert.mock.calls[0];
-    expect(title).toBe('Track another option?');
-    await act(async () => { (buttons as { text: string; onPress?: () => void }[]).find((button) => button.text === 'Add option')?.onPress?.(); await Promise.resolve(); });
+    expect(alert).not.toHaveBeenCalled();
     expect(create).toHaveBeenCalledTimes(1);
 
     alert.mockRestore();
@@ -448,13 +453,17 @@ describe('Watchlist header', () => {
     updatedAt: '2026-11-13T09:00:00Z'
   };
 
-  it('opens Search and recent price activity from their shortcuts', async () => {
+  it('opens the watchlist search and recent price activity from the banner', async () => {
     mockListProductsWithSnapshots.mockResolvedValue([]);
     const navigate = jest.fn();
     let tree: renderer.ReactTestRenderer;
     await act(async () => { tree = renderer.create(<TabsScreen tab="watchlist" navigate={navigate} />); await new Promise<void>(resolve => setImmediate(resolve)); });
-    act(() => tree!.root.findByProps({ accessibilityLabel: 'Open Search' }).props.onPress());
-    expect(navigate).toHaveBeenCalledWith({ name: 'tabs', tab: 'opportunities' });
+
+    const searchToggle = tree!.root.findAll((node) => node.props.accessibilityLabel === 'Search watchlist' && typeof node.props.onPress === 'function')[0];
+    expect(searchToggle).toBeDefined();
+    act(() => { searchToggle.props.onPress(); });
+    expect(tree!.root.findAllByProps({ accessibilityLabel: 'Search watchlist products' }).length).toBeGreaterThan(0);
+
     act(() => tree!.root.findByProps({ accessibilityLabel: 'Open recent activity' }).props.onPress());
     expect(navigate).toHaveBeenCalledWith({ name: 'tabs', tab: 'activity' });
     const headings = tree!.root.findAllByProps({ accessibilityRole: 'header' }).map((node) => node.props.children);

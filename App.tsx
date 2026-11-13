@@ -108,7 +108,7 @@ import { calculatePriceInsights } from './src/domain/priceInsights';
 import { formatPrice, parseTargetPriceInput } from './src/domain/price';
 import { priceBasisSuffix, verifyDiscoveryTrackingBasis } from './src/domain/priceBasis';
 import { cleanUrl, detectSharedUrl, detectSupportedSite, getSiteByKey, normalizeUrl, SUPPORTED_SITES } from './src/domain/sites';
-import { ActivityEvent, AlertMode, CheckPreference, DiscoveryCategory, DiscoveryPreferences, DiscoveryProduct, ParsedProduct, PriceSnapshot, ProductWithSnapshots, TrackedProduct } from './src/domain/types';
+import { ActivityEvent, AlertMode, CheckPreference, DiscoveryCategory, DiscoveryPreferences, DiscoveryProduct, ParsedProduct, PriceSnapshot, ProductWithSnapshots, SiteKey, TrackedProduct } from './src/domain/types';
 import { colors, layoutMetrics, radius, shadow, typography } from './src/theme/theme';
 import { isCompactLayout } from './src/theme/layout';
 import {
@@ -117,10 +117,9 @@ import {
   getWatchlistSites,
   searchWatchlistProducts,
   sortWatchlistProducts,
-  WatchlistSort,
-  WatchlistStoreFilter
+  WatchlistSort
 } from './src/domain/watchlist';
-import { findTrackingMatches, trackingOptionLabel } from './src/domain/duplicates';
+import { findTrackingMatches, trackingOptionLabel, TrackingMatch } from './src/domain/duplicates';
 import { resolveSelectedVariant, toVariantSelection, updateSelectedVariantAttributes, VariantAttributes } from './src/domain/variants';
 import {
   buildDiscoverySections,
@@ -474,24 +473,24 @@ function WatchlistFilterRail({
 function WatchlistControlsSheet({
   visible,
   onClose,
-  trackedSites,
+  sites,
   folders,
-  storeFilter,
+  storeFilters,
   folderFilter,
   sort,
-  onStoreFilter,
+  onStoreFilters,
   onFolderFilter,
   onSort,
   onClear
 }: {
   visible: boolean;
   onClose: () => void;
-  trackedSites: WatchlistStoreFilter[];
+  sites: SiteKey[];
   folders: string[];
-  storeFilter: WatchlistStoreFilter;
+  storeFilters: SiteKey[];
   folderFilter?: string;
   sort: WatchlistSort;
-  onStoreFilter: (value: WatchlistStoreFilter) => void;
+  onStoreFilters: (value: SiteKey[]) => void;
   onFolderFilter: (value?: string) => void;
   onSort: (value: WatchlistSort) => void;
   onClear: () => void;
@@ -555,13 +554,36 @@ function WatchlistControlsSheet({
               selected={sort}
               onSelect={(value) => onSort((value as WatchlistSort | undefined) ?? 'recently_updated')}
             />
-            {trackedSites.length > 1 ? (
-              <WatchlistFilterRail
-                label="Store"
-                options={[{ value: 'all', label: 'All stores' }, ...trackedSites.filter((site): site is Exclude<WatchlistStoreFilter, 'all'> => site !== 'all').map((site) => ({ value: site, label: getSiteByKey(site).shortName }))]}
-                selected={storeFilter}
-                onSelect={(value) => onStoreFilter((value as WatchlistStoreFilter | undefined) ?? 'all')}
-              />
+            {sites.length > 1 ? (
+              <View style={styles.filterSection}>
+                <AppText weight="semibold" style={styles.filterLabel}>Stores</AppText>
+                <AppText muted style={styles.fieldHint}>Select any number of stores.</AppText>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.textFilterRail}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: storeFilters.length === 0 }}
+                    onPress={() => onStoreFilters([])}
+                    style={[styles.textFilterButton, storeFilters.length === 0 && styles.textFilterButtonSelected]}
+                  >
+                    <AppText weight="semibold" style={[styles.textFilterText, storeFilters.length === 0 && styles.textFilterTextSelected]}>All stores</AppText>
+                  </Pressable>
+                  {sites.map((site) => {
+                    const active = storeFilters.includes(site);
+                    return (
+                      <Pressable
+                        key={site}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Filter by ${getSiteByKey(site).shortName}`}
+                        accessibilityState={{ selected: active }}
+                        onPress={() => onStoreFilters(active ? storeFilters.filter((value) => value !== site) : [...storeFilters, site])}
+                        style={[styles.textFilterButton, active && styles.textFilterButtonSelected]}
+                      >
+                        <AppText weight="semibold" style={[styles.textFilterText, active && styles.textFilterTextSelected]}>{getSiteByKey(site).shortName}</AppText>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+              </View>
             ) : null}
             {folders.length > 0 ? (
               <WatchlistFilterRail
@@ -617,7 +639,7 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [checkingAll, setCheckingAll] = useState(false);
-  const [storeFilter, setStoreFilter] = useState<WatchlistStoreFilter>('all');
+  const [storeFilters, setStoreFilters] = useState<SiteKey[]>([]);
   const [folderFilter, setFolderFilter] = useState<string | undefined>();
   const [sort, setSort] = useState<WatchlistSort>('recently_updated');
   const [showControls, setShowControls] = useState(false);
@@ -680,10 +702,10 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
   const filteredProducts = useMemo(
     () =>
       searchWatchlistProducts(
-        sortWatchlistProducts(filterWatchlistProducts(visibleProducts, storeFilter, { folder: folderFilter }), sort),
+        sortWatchlistProducts(filterWatchlistProducts(visibleProducts, storeFilters, { folder: folderFilter }), sort),
         searchQuery
       ),
-    [visibleProducts, storeFilter, folderFilter, sort, searchQuery]
+    [visibleProducts, storeFilters, folderFilter, sort, searchQuery]
   );
   const selectedProducts = useMemo(
     () => products.filter((product) => selectedProductIds.has(product.id)),
@@ -692,16 +714,16 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
   const shouldPauseSelected = selectedProducts.length > 0 && selectedProducts.every((product) => product.isActive);
   const inStock = filteredProducts.filter((p) => p.lastAvailability !== 'out_of_stock');
   const oos = filteredProducts.filter((p) => p.lastAvailability === 'out_of_stock');
-  const activeControlCount = (storeFilter !== 'all' ? 1 : 0) + (folderFilter ? 1 : 0) + (sort !== 'recently_updated' ? 1 : 0) + (searchQuery.trim() ? 1 : 0);
+  const activeControlCount = (storeFilters.length > 0 ? 1 : 0) + (folderFilter ? 1 : 0) + (sort !== 'recently_updated' ? 1 : 0) + (searchQuery.trim() ? 1 : 0);
   const activeControlSummary = [
-    storeFilter === 'all' ? undefined : getSiteByKey(storeFilter).shortName,
+    storeFilters.length > 0 ? storeFilters.map((site) => getSiteByKey(site).shortName).join(', ') : undefined,
     folderFilter,
     sort === 'recently_updated' ? undefined : WATCHLIST_SORT_OPTIONS.find((option) => option.value === sort)?.label,
     searchQuery.trim() ? `“${searchQuery.trim()}”` : undefined
   ].filter(Boolean).join(' · ');
 
   function clearControls() {
-    setStoreFilter('all');
+    setStoreFilters([]);
     setFolderFilter(undefined);
     setSort('recently_updated');
     setSearchQuery('');
@@ -739,10 +761,11 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
   }
 
   useEffect(() => {
-    if (storeFilter !== 'all' && !trackedSites.includes(storeFilter)) {
-      setStoreFilter('all');
-    }
-  }, [storeFilter, trackedSites]);
+    setStoreFilters((current) => {
+      const next = current.filter((site) => trackedSites.includes(site));
+      return next.length === current.length ? current : next;
+    });
+  }, [trackedSites]);
 
   useEffect(() => {
     if (folderFilter && !folders.includes(folderFilter)) {
@@ -765,7 +788,20 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
               <AppText weight="bold" style={styles.watchlistBrand}>Qeemat</AppText>
             </View>
             <View style={styles.watchlistHeaderActions}>
-              <Pressable accessibilityRole="button" accessibilityLabel="Open Search" onPress={() => navigate({ name: 'tabs', tab: 'opportunities' })} style={styles.watchlistSearchButton}><Search size={23} color={colors.surface} /></Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={searchExpanded ? 'Close watchlist search' : 'Search watchlist'}
+                accessibilityState={{ expanded: searchExpanded }}
+                onPress={() => {
+                  setSearchExpanded((value) => !value);
+                  if (searchExpanded) {
+                    setSearchQuery('');
+                  }
+                }}
+                style={styles.watchlistSearchButton}
+              >
+                <Search size={23} color={colors.surface} />
+              </Pressable>
               <Pressable accessibilityRole="button" accessibilityLabel="Open recent activity" onPress={() => navigate({ name: 'tabs', tab: 'activity' })} style={styles.watchlistSearchButton}><Bell size={22} color={colors.surface} /></Pressable>
             </View>
           </View>
@@ -782,37 +818,8 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
             </AppText>
           </View>
         </View>
-        </View>
-        <View style={styles.watchlistToolbar}>
-        <Pressable accessibilityRole="button" accessibilityLabel={activeControlCount > 0 ? `Filter and sort, ${activeControlCount} active` : 'Filter and sort'} onPress={() => setShowControls(true)} style={({ pressed }) => [styles.controlsButton, pressed && styles.storeFilterButtonPressed]}>
-          <SlidersHorizontal size={18} color={colors.surface} />
-          <AppText weight="semibold" style={styles.watchlistFilterText}>Filter & sort</AppText>
-          {activeControlCount > 0 ? <View style={styles.controlsCount}><AppText weight="bold" style={styles.controlsCountText}>{activeControlCount}</AppText></View> : null}
-        </Pressable>
-        <Pressable accessibilityRole="button" accessibilityState={{ selected: showArchived }} onPress={() => { setShowArchived((value) => !value); setSelectedProductIds(new Set()); }} style={styles.archiveToggle}>
-          <AppText weight="semibold" style={styles.archiveToggleText}>{showArchived ? 'Show active' : 'Archived'}</AppText>
-        </Pressable>
-        {selectedProductIds.size === 0 ? <Pressable accessibilityRole="button" accessibilityLabel="Recheck all prices" accessibilityState={{ disabled: !products.length || loading || checkingAll }} disabled={!products.length || loading || checkingAll} onPress={recheckAllPrices} style={({ pressed }) => [styles.watchlistRecheck, (!products.length || loading || checkingAll) && styles.watchlistRecheckDisabled, pressed && styles.storeFilterButtonPressed]}>
-          {checkingAll ? <ActivityIndicator size="small" color={colors.primary} /> : <RefreshCcw size={18} color={colors.primary} />}
-          <AppText weight="semibold" style={styles.controlsButtonText}>{checkingAll ? 'Checking…' : 'Recheck all'}</AppText>
-        </Pressable> : null}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={searchExpanded ? 'Hide watchlist search' : 'Search watchlist'}
-          accessibilityState={{ expanded: searchExpanded }}
-          onPress={() => {
-            setSearchExpanded((value) => !value);
-            if (searchExpanded) {
-              setSearchQuery('');
-            }
-          }}
-          style={[styles.toolbarIconButton, searchExpanded && styles.toolbarIconButtonActive]}
-        >
-          <Search size={18} color={searchExpanded ? colors.surface : colors.primary} />
-        </Pressable>
-        </View>
         {searchExpanded ? (
-          <View style={styles.watchlistSearchRow}>
+          <View style={styles.watchlistBannerSearch}>
             <Search size={18} color={colors.textMuted} />
             <TextInput
               value={searchQuery}
@@ -833,6 +840,27 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
             ) : null}
           </View>
         ) : null}
+        </View>
+        <View style={styles.watchlistToolbar}>
+        <Pressable accessibilityRole="button" accessibilityLabel={activeControlCount > 0 ? `Filter and sort, ${activeControlCount} active` : 'Filter and sort'} onPress={() => setShowControls(true)} style={({ pressed }) => [styles.controlsButton, pressed && styles.storeFilterButtonPressed]}>
+          <SlidersHorizontal size={18} color={colors.surface} />
+          <AppText weight="semibold" style={styles.watchlistFilterText}>Filter & sort</AppText>
+          {activeControlCount > 0 ? <View style={styles.controlsCount}><AppText weight="bold" style={styles.controlsCountText}>{activeControlCount}</AppText></View> : null}
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={showArchived ? 'Show active products' : 'Show archived products'}
+          accessibilityState={{ selected: showArchived }}
+          onPress={() => { setShowArchived((value) => !value); setSelectedProductIds(new Set()); }}
+          style={[styles.toolbarIconButton, showArchived && styles.toolbarIconButtonActive]}
+        >
+          <Archive size={18} color={showArchived ? colors.surface : colors.primary} />
+        </Pressable>
+        {selectedProductIds.size === 0 ? <Pressable accessibilityRole="button" accessibilityLabel="Recheck all prices" accessibilityState={{ disabled: !products.length || loading || checkingAll }} disabled={!products.length || loading || checkingAll} onPress={recheckAllPrices} style={({ pressed }) => [styles.watchlistRecheck, (!products.length || loading || checkingAll) && styles.watchlistRecheckDisabled, pressed && styles.storeFilterButtonPressed]}>
+          {checkingAll ? <ActivityIndicator size="small" color={colors.primary} /> : <RefreshCcw size={18} color={colors.primary} />}
+          <AppText weight="semibold" style={styles.controlsButtonText}>{checkingAll ? 'Checking…' : 'Recheck all'}</AppText>
+        </Pressable> : null}
+        </View>
         {activeControlSummary ? (
           <View style={styles.activeControlsRow}>
             <AppText muted numberOfLines={1} style={styles.activeControlsSummary}>{activeControlSummary}</AppText>
@@ -844,12 +872,12 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
         <WatchlistControlsSheet
           visible={showControls}
           onClose={() => setShowControls(false)}
-          trackedSites={trackedSites}
+          sites={trackedSites}
           folders={folders}
-          storeFilter={storeFilter}
+          storeFilters={storeFilters}
           folderFilter={folderFilter}
           sort={sort}
-          onStoreFilter={setStoreFilter}
+          onStoreFilters={setStoreFilters}
           onFolderFilter={setFolderFilter}
           onSort={setSort}
           onClear={clearControls}
@@ -1047,6 +1075,7 @@ export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { i
   const [categoryEdited, setCategoryEdited] = useState(false);
   const organizationOptions = useOrganizationOptions();
   const [selectedVariantAttributes, setSelectedVariantAttributes] = useState<VariantAttributes>({});
+  const [trackingMatches, setTrackingMatches] = useState<TrackingMatch | undefined>();
   const scrollRef = useRef<ScrollView>(null);
   const shouldFocusParsedResult = useRef(false);
   const parseRequestId = useRef(0);
@@ -1117,6 +1146,29 @@ export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { i
       sku: selectedVariant.sku ?? parsedProduct.sku,
       selectedVariant: toVariantSelection(selectedVariant)
     };
+  }, [parsedProduct, selectedVariant]);
+
+  useEffect(() => {
+    let active = true;
+    if (!parsedProduct) {
+      setTrackingMatches(undefined);
+      return () => { active = false; };
+    }
+
+    const selection = selectedVariant ? toVariantSelection(selectedVariant) : undefined;
+    listTrackedProducts()
+      .then((tracked) => {
+        if (active) {
+          setTrackingMatches(findTrackingMatches({ ...parsedProduct, selectedVariant: selection }, tracked));
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setTrackingMatches(undefined);
+        }
+      });
+
+    return () => { active = false; };
   }, [parsedProduct, selectedVariant]);
 
   const siteKeyForPrefs = parsedProduct?.siteKey ?? detectedSite?.key;
@@ -1205,29 +1257,6 @@ export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { i
       return;
     }
 
-    if (matches.sameProduct.length > 0) {
-      setSaving(false);
-      const existingOptions = matches.sameProduct.map((item) => trackingOptionLabel(item)).join(', ');
-      Alert.alert(
-        'Track another option?',
-        `You already track ${existingOptions} of this product. Add ${trackingOptionLabel(productToSave)} as a separate tracker?`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Add option',
-            onPress: () => {
-              setSaving(true);
-              persistTracking(productToSave).catch(() => {
-                setSaving(false);
-                setError('Could not save this product. Please try again.');
-              });
-            }
-          }
-        ]
-      );
-      return;
-    }
-
     await persistTracking(productToSave).catch(() => {
       setSaving(false);
       setError('Could not save this product. Please try again.');
@@ -1305,6 +1334,36 @@ export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { i
               siteKey={parsedProduct.siteKey}
               awaitingVariantSelection={variants.length > 0 && !selectedVariant}
             />
+            {trackingMatches?.exact ? (
+              <View style={styles.trackingNoticeWarning}>
+                <CircleAlert size={18} color={colors.amber} />
+                <View style={styles.flex}>
+                  <AppText weight="semibold">Already in your watchlist</AppText>
+                  <AppText muted style={styles.fieldHint}>
+                    {trackingMatches.exact.variant?.label ? `You already track ${trackingMatches.exact.variant.label}.` : 'This product is already tracked at page level.'}
+                    {' '}Open it instead of adding a duplicate.
+                  </AppText>
+                </View>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Open existing tracker"
+                  hitSlop={8}
+                  onPress={() => navigate({ name: 'detail', id: trackingMatches.exact!.id })}
+                >
+                  <AppText weight="semibold" style={styles.discoveryLink}>Open</AppText>
+                </Pressable>
+              </View>
+            ) : trackingMatches?.sameProduct.length ? (
+              <View style={styles.trackingNoticeInfo}>
+                <Check size={18} color={colors.primary} />
+                <View style={styles.flex}>
+                  <AppText weight="semibold">Adding another option</AppText>
+                  <AppText muted style={styles.fieldHint}>
+                    You already track {trackingMatches.sameProduct.map((item) => trackingOptionLabel(item)).join(', ')}. Each option is tracked as a separate item.
+                  </AppText>
+                </View>
+              </View>
+            ) : null}
             {variants.length > 0 ? (
               <View style={styles.variantSection}>
                 <AppText weight="semibold" style={styles.formLabel}>
@@ -1377,7 +1436,7 @@ export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { i
               label="Confirm Tracking"
               onPress={saveProduct}
               loading={saving}
-              disabled={(alertMode === 'target_price' && !targetPriceMinor) || (variants.length > 0 && !selectedVariant)}
+              disabled={(alertMode === 'target_price' && !targetPriceMinor) || (variants.length > 0 && !selectedVariant) || Boolean(trackingMatches?.exact)}
             />
           </View>
         ) : null}
@@ -2955,16 +3014,13 @@ const styles = StyleSheet.create({
   toolbarIconButtonActive: {
     backgroundColor: colors.primary
   },
-  watchlistSearchRow: {
+  watchlistBannerSearch: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    minHeight: 52,
-    marginTop: -6,
+    minHeight: 44,
     paddingHorizontal: 12,
     borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
     backgroundColor: colors.surface
   },
   watchlistSearchInput: {
@@ -2976,16 +3032,6 @@ const styles = StyleSheet.create({
   },
   watchlistRecheck: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 10 },
   watchlistRecheckDisabled: { opacity: 0.5 },
-  archiveToggle: {
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: radius.md,
-    backgroundColor: colors.surfaceMuted
-  },
-  archiveToggleText: {
-    color: colors.textMuted,
-    fontSize: 13
-  },
   selectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -3326,6 +3372,26 @@ const styles = StyleSheet.create({
   },
   previewCardCompact: {
     flexDirection: 'column'
+  },
+  trackingNoticeWarning: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 12,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.amber,
+    backgroundColor: colors.amberSoft
+  },
+  trackingNoticeInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 12,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.blueSoft
   },
   previewImageWrap: {
     width: 118,

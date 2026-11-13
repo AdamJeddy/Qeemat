@@ -8,7 +8,6 @@ export type WatchlistCollectionFilter = {
   folder?: string;
   query?: string;
 };
-
 type SiteProduct = { siteKey: SiteKey };
 type OrganizableProduct = SiteProduct & { folder?: string };
 type SearchableProduct = OrganizableProduct & {
@@ -33,11 +32,11 @@ export function getWatchlistFolders(products: OrganizableProduct[]): string[] {
 
 export function filterWatchlistProducts<T extends OrganizableProduct>(
   products: T[],
-  storeFilter: WatchlistStoreFilter,
+  storeFilters: SiteKey[] = [],
   collectionFilter: WatchlistCollectionFilter = {}
 ): T[] {
   return products.filter((product) => {
-    const matchesStore = storeFilter === 'all' || product.siteKey === storeFilter;
+    const matchesStore = storeFilters.length === 0 || storeFilters.includes(product.siteKey);
     const matchesFolder = !collectionFilter.folder || product.folder === collectionFilter.folder;
     return matchesStore && matchesFolder;
   });
