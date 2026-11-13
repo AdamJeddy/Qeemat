@@ -1155,6 +1155,7 @@ export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { i
             </View>
           ) : null}
         </View>
+        <PrimaryButton label="Find product" onPress={() => parseUrl(url)} disabled={!url.trim() || loading} loading={loading} />
         {!detectedSite ? (
           <View style={styles.chips}>
             {SUPPORTED_SITES.filter(s => s.status === 'supported').map((site) => (
@@ -1167,7 +1168,6 @@ export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { i
             ))}
           </View>
         ) : null}
-        <PrimaryButton label="Find product" onPress={() => parseUrl(url)} disabled={!url.trim() || loading} loading={loading} />
         {error ? (
           <View style={styles.errorBox}>
             <CircleAlert size={18} color={colors.red} />
