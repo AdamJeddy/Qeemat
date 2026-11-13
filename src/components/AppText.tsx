@@ -1,7 +1,8 @@
-import { ReactNode } from 'react';
+import { ReactNode, useContext } from 'react';
 import { StyleProp, StyleSheet, Text, TextProps, TextStyle } from 'react-native';
 
 import { colors } from '../theme/theme';
+import { FontScaleContext } from '../theme/FontScaleContext';
 
 type AppTextProps = TextProps & {
   children: ReactNode;
@@ -11,8 +12,11 @@ type AppTextProps = TextProps & {
 };
 
 export function AppText({ children, style, muted, weight = 'regular', ...textProps }: AppTextProps) {
+  const fontScale = useContext(FontScaleContext);
+  const textStyle = StyleSheet.flatten([styles.base, muted && styles.muted, styles[weight], style]) as TextStyle;
+  const scale = textProps.allowFontScaling === false ? 1 : Math.min(fontScale, 1.3);
   return (
-    <Text {...textProps} maxFontSizeMultiplier={1.3} style={[styles.base, muted && styles.muted, styles[weight], style]}>
+    <Text {...textProps} allowFontScaling={false} style={[textStyle, { fontSize: (textStyle.fontSize ?? 15) * scale, lineHeight: textStyle.lineHeight === undefined ? undefined : textStyle.lineHeight * scale }]}>
       {children}
     </Text>
   );

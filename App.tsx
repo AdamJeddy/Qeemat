@@ -51,6 +51,7 @@ import {
 } from 'lucide-react-native';
 
 import { AppText } from './src/components/AppText';
+import { FontScaleContext } from './src/theme/FontScaleContext';
 import { OptionGroup } from './src/components/OptionGroup';
 import { SiteIcon } from './src/components/SiteIcon';
 import { PriceChart } from './src/components/PriceChart';
@@ -167,6 +168,7 @@ const BACKGROUND_TIME_PRESETS = [
 ];
 
 export default function App() {
+  const { fontScale } = useWindowDimensions();
   const [route, setRoute] = useState<Route>({ name: 'tabs', tab: 'watchlist' });
   const [discoveryOffset, setDiscoveryOffset] = useState(0);
   const [ready, setReady] = useState(false);
@@ -252,6 +254,7 @@ export default function App() {
   }
 
   return (
+    <FontScaleContext.Provider value={fontScale}>
     <SafeAreaProvider>
       <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
       <SafeAreaView style={styles.app}>
@@ -263,6 +266,7 @@ export default function App() {
         {showOnboarding ? <OnboardingOverlay onClose={() => setShowOnboarding(false)} /> : null}
       </SafeAreaView>
     </SafeAreaProvider>
+    </FontScaleContext.Provider>
   );
 }
 
