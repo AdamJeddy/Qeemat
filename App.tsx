@@ -1247,11 +1247,11 @@ export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { i
     if (matches.exact) {
       setSaving(false);
       Alert.alert(
-        'Already tracking this product',
+        'Duplicate product',
         `"${productToSave.title}" is already in your watchlist${matches.exact.variant?.label ? ` (${matches.exact.variant.label})` : ''}.`,
         [
-          { text: 'Open tracker', onPress: () => navigate({ name: 'detail', id: matches.exact!.id }) },
-          { text: 'OK', style: 'cancel' }
+          { text: 'Open product', onPress: () => navigate({ name: 'detail', id: matches.exact!.id }) },
+          { text: 'Cancel', style: 'cancel' }
         ]
       );
       return;
@@ -1336,21 +1336,21 @@ export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { i
             />
             {trackingMatches?.exact ? (
               <View style={styles.trackingNoticeWarning}>
-                <CircleAlert size={18} color={colors.amber} />
+                <CircleAlert size={20} color={colors.amber} />
                 <View style={styles.flex}>
-                  <AppText weight="semibold">Already in your watchlist</AppText>
-                  <AppText muted style={styles.fieldHint}>
-                    {trackingMatches.exact.variant?.label ? `You already track ${trackingMatches.exact.variant.label}.` : 'This product is already tracked at page level.'}
-                    {' '}Open it instead of adding a duplicate.
+                  <AppText weight="bold">Duplicate product</AppText>
+                  <AppText style={styles.trackingWarningCopy}>
+                    This product is already in your watchlist{trackingMatches.exact.variant?.label ? ` (${trackingMatches.exact.variant.label})` : ' at page level'}. Adding it again would create a duplicate.
                   </AppText>
                 </View>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="Open existing tracker"
-                  hitSlop={8}
+                  accessibilityLabel="Open tracked product"
+                  hitSlop={6}
                   onPress={() => navigate({ name: 'detail', id: trackingMatches.exact!.id })}
+                  style={({ pressed }) => [styles.noticeActionButton, pressed && styles.storeFilterButtonPressed]}
                 >
-                  <AppText weight="semibold" style={styles.discoveryLink}>Open</AppText>
+                  <AppText weight="semibold" style={styles.noticeActionText}>Open product</AppText>
                 </Pressable>
               </View>
             ) : trackingMatches?.sameProduct.length ? (
@@ -3392,6 +3392,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.amber,
     backgroundColor: colors.amberSoft
+  },
+  trackingWarningCopy: {
+    color: colors.text,
+    marginTop: 2
+  },
+  noticeActionButton: {
+    minHeight: 40,
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    borderRadius: radius.sm,
+    backgroundColor: colors.primary
+  },
+  noticeActionText: {
+    color: colors.surface
   },
   trackingNoticeInfo: {
     flexDirection: 'row',

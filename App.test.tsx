@@ -121,15 +121,17 @@ describe('AddScreen', () => {
     await act(async () => { tree = renderer.create(<AddScreen initialUrl="https://www.noon.com/shoe" shareEventId={1} navigate={navigate} />); await Promise.resolve(); });
     await act(async () => { await new Promise<void>((resolve) => setImmediate(resolve)); });
     const addLabels = tree!.root.findAllByType(AppText).map((node) => [node.props.children].flat().join('')).join(' ');
-    expect(addLabels).toContain('Already in your watchlist');
+    expect(addLabels).toContain('Duplicate product');
+    expect(addLabels).toContain('Adding it again would create a duplicate');
+    expect(addLabels).toContain('Open product');
 
     await act(async () => { await tree!.root.findByProps({ label: 'Confirm Tracking' }).props.onPress(); });
 
     expect(create).not.toHaveBeenCalled();
     expect(alert).toHaveBeenCalledTimes(1);
     const [title, , buttons] = alert.mock.calls[0];
-    expect(title).toBe('Already tracking this product');
-    act(() => { (buttons as { text: string; onPress?: () => void }[]).find((button) => button.text === 'Open tracker')?.onPress?.(); });
+    expect(title).toBe('Duplicate product');
+    act(() => { (buttons as { text: string; onPress?: () => void }[]).find((button) => button.text === 'Open product')?.onPress?.(); });
     expect(navigate).toHaveBeenCalledWith({ name: 'detail', id: 7 });
 
     alert.mockRestore();
