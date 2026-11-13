@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronRight, EyeOff, ImageOff, Plus, Sparkles, X } from 'lucide-react-native';
 
 import { AppText } from './AppText';
+import { PriceDirectionBadge } from './PriceDirectionBadge';
 import { PrimaryButton } from './PrimaryButton';
 import { formatRelativeTime } from '../domain/dates';
 import { DISCOVERY_CATEGORY_LABELS, preferredDiscoveryBrands, uniqueDiscoveryBrands } from '../domain/discovery';
@@ -24,12 +25,14 @@ import { colors, radius } from '../theme/theme';
 import { DISCOVERY_CATEGORY_GROUPS } from '../domain/discoveryCategories';
 import { DiscoveryObservation, getDiscoveryHistory } from '../data/discoveryHistory';
 
-function listingPriceChange(product: DiscoveryProduct): string | undefined {
+function listingPriceDelta(product: DiscoveryProduct): { direction: 'down' | 'up'; text: string } | undefined {
   if (product.previousPriceMinor === undefined || product.priceMinor === undefined) { return undefined; }
   const difference = product.priceMinor - product.previousPriceMinor;
   if (difference === 0) { return undefined; }
-  const prefix = product.hasPriceRange ? 'Starting price ' : 'Price ';
-  return `${prefix}${difference < 0 ? 'down' : 'up'} ${formatPrice(Math.abs(difference), product.currency, product.priceBasis)} · was ${formatPrice(product.previousPriceMinor, product.currency, product.priceBasis)}`;
+  return {
+    direction: difference < 0 ? 'down' : 'up',
+    text: `${formatPrice(Math.abs(difference), product.currency, product.priceBasis)} ${difference < 0 ? 'lower' : 'higher'}`
+  };
 }
 
 export function DiscoverySetupCard({ onPress, onDismiss }: { onPress: () => void; onDismiss: () => void }) {
@@ -106,12 +109,14 @@ export function DiscoveryProductGrid({
   if (!products.length) {
     return <AppText muted style={styles.emptyFilter}>No products match these filters yet.</AppText>;
   }
+  const previewDelta = preview ? listingPriceDelta(preview) : undefined;
 
   return (
     <View style={styles.grid}>
       {products.map((product) => {
         const tracked = trackedProducts.find((item) => cleanUrl(item.canonicalUrl || item.url) === cleanUrl(product.url));
         const tracking = trackingProductId === product.id;
+        const delta = listingPriceDelta(product);
         return (
           <View key={product.id} style={styles.productCard}>
             <Pressable accessibilityRole="button" accessibilityLabel={`View ${product.title}`} onPress={() => setPreview(product)} style={styles.productImageWrap}>
@@ -131,8 +136,10 @@ export function DiscoveryProductGrid({
             <View style={styles.productBody}>
               <AppText muted numberOfLines={1} style={styles.productSource}>{product.brand === 'Other brands' || product.brand === getSiteByKey(product.siteKey).shortName ? getSiteByKey(product.siteKey).shortName : `${product.brand} · ${getSiteByKey(product.siteKey).shortName}`}</AppText>
               <AppText weight="semibold" numberOfLines={2} style={styles.productTitle}>{product.title}</AppText>
-              <AppText weight="bold" style={styles.productPrice}>{product.priceMinor === undefined ? 'Price unavailable' : `${product.hasPriceRange ? 'From ' : ''}${formatPrice(product.priceMinor, product.currency, product.priceBasis)}`}</AppText>
-              {listingPriceChange(product) ? <AppText muted style={styles.productObserved}>{listingPriceChange(product)}</AppText> : null}
+              <View style={styles.listingPriceRow}>
+                <AppText weight="bold" style={styles.productPrice}>{product.priceMinor === undefined ? 'Price unavailable' : `${product.hasPriceRange ? 'From ' : ''}${formatPrice(product.priceMinor, product.currency, product.priceBasis)}`}</AppText>
+                {delta ? <PriceDirectionBadge direction={delta.direction} text={delta.text} /> : null}
+              </View>
               <AppText muted style={styles.productObserved}>Observed {formatRelativeTime(product.observedAt)}</AppText>
               <Pressable accessibilityRole="button" accessibilityLabel={`${tracked ? 'Tracking' : 'Track price'}: ${product.title}`} accessibilityState={{ selected: Boolean(tracked) }} onPress={() => onTrack(product)} style={({ pressed }) => [styles.trackButton, tracked && styles.trackedButton, pressed && styles.pressed]} disabled={tracking}>
                 {tracking ? <ActivityIndicator size="small" color={colors.primary} /> : <><Plus size={15} color={colors.primary} /><AppText weight="semibold" style={styles.trackButtonText}>{tracked ? 'Tracking' : 'Track price'}</AppText></>}
@@ -154,8 +161,10 @@ export function DiscoveryProductGrid({
             )}
             <AppText muted>{preview.brand === 'Other brands' || preview.brand === getSiteByKey(preview.siteKey).shortName ? getSiteByKey(preview.siteKey).shortName : `${preview.brand} · ${getSiteByKey(preview.siteKey).shortName}`}</AppText>
             <AppText weight="bold" style={styles.emptyTitle}>{preview.title}</AppText>
-            <AppText weight="bold">{preview.hasPriceRange ? 'From ' : ''}{formatPrice(preview.priceMinor, preview.currency, preview.priceBasis)}</AppText>
-            {listingPriceChange(preview) ? <AppText muted>{listingPriceChange(preview)}</AppText> : null}
+            <View style={styles.listingPriceRow}>
+              <AppText weight="bold">{preview.hasPriceRange ? 'From ' : ''}{formatPrice(preview.priceMinor, preview.currency, preview.priceBasis)}</AppText>
+              {previewDelta ? <PriceDirectionBadge direction={previewDelta.direction} text={previewDelta.text} /> : null}
+            </View>
             <AppText muted>Price observed {formatRelativeTime(preview.observedAt)}. Current details are verified when you track.</AppText>
             {history.length > 1 ? <View><AppText weight="semibold">Listing price history</AppText>{history.slice(-5).reverse().map((observation) => <AppText key={observation.observedAt} muted>{formatRelativeTime(observation.observedAt)} · {observation.priceMinor === undefined ? 'Price unavailable' : `${observation.hasPriceRange ? 'From ' : ''}${formatPrice(observation.priceMinor, observation.currency, observation.priceBasis)}`}</AppText>)}</View> : null}
             {preview.priceBasis === 'kg' ? <AppText muted>Price per kilogram. Delivery location and final delivered weight can change the checkout total.</AppText> : null}
@@ -273,6 +282,7 @@ const styles = StyleSheet.create({
   productSource: { fontSize: 11 },
   productTitle: { fontSize: 14, lineHeight: 19, minHeight: 38 },
   productPrice: { fontSize: 16 },
+  listingPriceRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
   productObserved: { fontSize: 11 },
   trackButton: { minHeight: 44, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.primary, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, marginTop: 2, paddingHorizontal: 8 },
   trackedButton: { backgroundColor: colors.blueSoft, borderColor: colors.blueSoft },
