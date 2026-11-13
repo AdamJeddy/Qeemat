@@ -54,7 +54,7 @@ export function ProductCard({ product, onPress, onRemove, onLongPress, selected 
       </View>
       <View style={styles.content}>
         <View style={styles.titleRow}>
-          <AppText weight="semibold" numberOfLines={2} style={styles.title}>
+          <AppText weight="semibold" numberOfLines={2} style={[styles.title, selected && styles.titleSelected]}>
             {product.title}
           </AppText>
         </View>
@@ -128,10 +128,9 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.borderStrong,
+    paddingVertical: 12,
     gap: 12
   },
   cardCompact: {
@@ -185,15 +184,19 @@ const styles = StyleSheet.create({
   title: {
     flex: 1
   },
+  titleSelected: {
+    paddingRight: 28
+  },
   badge: {
     alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    marginTop: 8
+    marginTop: 6
   },
   badgeText: {
-    fontSize: 12
+    fontSize: 12,
+    lineHeight: 17
   },
   metadataRow: {
     flexDirection: 'row',
@@ -206,10 +209,11 @@ const styles = StyleSheet.create({
   },
   variantLabel: {
     fontSize: 12,
-    marginTop: 6
+    lineHeight: 17,
+    marginTop: 3
   },
   priceRow: {
-    marginTop: 9,
+    marginTop: 5,
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'center',
@@ -266,11 +270,12 @@ const styles = StyleSheet.create({
     opacity: 0.6
   },
   footer: {
-    marginTop: 9,
+    marginTop: 4,
     gap: 8
   },
   caption: {
-    fontSize: 12
+    fontSize: 12,
+    lineHeight: 17
   },
   errorBadge: {
     flexDirection: 'row',

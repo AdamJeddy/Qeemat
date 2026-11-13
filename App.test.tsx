@@ -303,6 +303,20 @@ describe('DetailScreen', () => {
   });
 });
 
+describe('Watchlist header', () => {
+  it('opens Search and recent price activity from their shortcuts', async () => {
+    mockListProductsWithSnapshots.mockResolvedValue([]);
+    const navigate = jest.fn();
+    let tree: renderer.ReactTestRenderer;
+    await act(async () => { tree = renderer.create(<TabsScreen tab="watchlist" navigate={navigate} />); await new Promise<void>(resolve => setImmediate(resolve)); });
+    act(() => tree!.root.findByProps({ accessibilityLabel: 'Open Search' }).props.onPress());
+    expect(navigate).toHaveBeenCalledWith({ name: 'tabs', tab: 'opportunities' });
+    act(() => tree!.root.findByProps({ accessibilityLabel: 'Open recent activity' }).props.onPress());
+    expect(navigate).toHaveBeenCalledWith({ name: 'tabs', tab: 'activity' });
+    await act(async () => tree!.unmount());
+  });
+});
+
 describe('OpportunityScreen', () => {
   it('keeps the search screen mounted when switching tabs', async () => {
     mockListProductsWithSnapshots.mockResolvedValue([]);

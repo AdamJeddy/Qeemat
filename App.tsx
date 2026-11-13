@@ -27,6 +27,7 @@ import {
   Archive,
   ArrowLeft,
   Bell,
+  Bookmark,
   Check,
   ChevronDown,
   ChevronUp,
@@ -42,7 +43,6 @@ import {
   Search,
   Settings as SettingsIcon,
   SlidersHorizontal,
-  SquareStack,
   Store,
   Trash2,
   TrendingDown,
@@ -372,7 +372,7 @@ export function TabsScreen({ tab, navigate, discoveryOffset }: { tab: TabKey; na
       {tab === 'activity' ? <ActivityScreen navigate={navigate} /> : null}
       {tab === 'settings' ? <SettingsScreen /> : null}
       <View style={styles.tabBar}>
-        <TabButton active={tab === 'watchlist'} label="Watchlist" icon={<SquareStack />} onPress={() => navigate({ name: 'tabs', tab: 'watchlist' })} />
+        <TabButton active={tab === 'watchlist'} label="Watchlist" icon={<Bookmark fill={tab === 'watchlist' ? colors.primary : 'none'} />} onPress={() => navigate({ name: 'tabs', tab: 'watchlist' })} />
         <TabButton active={tab === 'opportunities'} label="Search" icon={<Search />} onPress={() => navigate({ name: 'tabs', tab: 'opportunities' })} />
         <TabButton active={tab === 'activity'} label="Activity" icon={<Clock />} onPress={() => navigate({ name: 'tabs', tab: 'activity' })} />
         <TabButton active={tab === 'settings'} label="Settings" icon={<SettingsIcon />} onPress={() => navigate({ name: 'tabs', tab: 'settings' })} />
@@ -383,7 +383,8 @@ export function TabsScreen({ tab, navigate, discoveryOffset }: { tab: TabKey; na
 
 function TabButton({ active, label, icon, onPress }: { active: boolean; label: string; icon: React.ReactElement; onPress: () => void }) {
   return (
-    <Pressable style={styles.tabButton} onPress={onPress}>
+    <Pressable accessibilityRole="tab" accessibilityLabel={label} accessibilityState={{ selected: active }} style={styles.tabButton} onPress={onPress}>
+      <View style={[styles.tabButtonContent, active && styles.tabButtonActive]}>
       {React.cloneElement(icon as React.ReactElement<{ size: number; color: string }>, {
         size: 22,
         color: active ? colors.primary : colors.textMuted
@@ -391,6 +392,7 @@ function TabButton({ active, label, icon, onPress }: { active: boolean; label: s
       <AppText weight="semibold" style={[styles.tabLabel, active && styles.tabLabelActive]}>
         {label}
       </AppText>
+      </View>
     </Pressable>
   );
 }
@@ -721,26 +723,39 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
   return (
     <View style={styles.app}>
       <ScrollView
-        contentContainerStyle={styles.screenContent}
+        contentContainerStyle={[styles.screenContent, styles.watchlistContent]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
         showsVerticalScrollIndicator={false}
       >
+        <View style={styles.watchlistBanner}>
+          <View style={styles.watchlistBrandRow}>
+            <View style={styles.watchlistBrandLockup}>
+              <Image source={require('./assets/app-icon/qeemat-q-tag.png')} style={styles.watchlistBrandIcon} />
+              <AppText weight="bold" style={styles.watchlistBrand}>Qeemat</AppText>
+            </View>
+            <View style={styles.watchlistHeaderActions}>
+              <Pressable accessibilityRole="button" accessibilityLabel="Open Search" onPress={() => navigate({ name: 'tabs', tab: 'opportunities' })} style={styles.watchlistSearchButton}><Search size={23} color={colors.surface} /></Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel="Open recent activity" onPress={() => navigate({ name: 'tabs', tab: 'activity' })} style={styles.watchlistSearchButton}><Bell size={22} color={colors.surface} /></Pressable>
+            </View>
+          </View>
         <View style={styles.titleRow}>
           <View style={styles.flex}>
-            <AppText weight="bold" style={styles.heading}>
+            <AppText weight="bold" style={styles.watchlistBannerTitle}>
               Watchlist
             </AppText>
           </View>
-          <View style={styles.countPill}>
-            <AppText weight="semibold" style={styles.countText}>
+          <View style={styles.watchlistBannerCount}>
+            <Bookmark size={14} color={colors.surface} />
+            <AppText weight="semibold" style={styles.watchlistBannerCountText}>
             {showArchived ? 'Archived' : `${filteredProducts.length} ${filteredProducts.length === 1 ? 'item' : 'items'}`}
             </AppText>
           </View>
         </View>
+        </View>
         <View style={styles.watchlistToolbar}>
         <Pressable accessibilityRole="button" onPress={() => setShowControls(true)} style={({ pressed }) => [styles.controlsButton, pressed && styles.storeFilterButtonPressed]}>
-          <SlidersHorizontal size={18} color={colors.primary} />
-          <AppText weight="semibold" style={styles.controlsButtonText}>Filter & sort</AppText>
+          <SlidersHorizontal size={18} color={colors.surface} />
+          <AppText weight="semibold" style={styles.watchlistFilterText}>Filter & sort</AppText>
           {activeControlCount > 0 ? <View style={styles.controlsCount}><AppText weight="bold" style={styles.controlsCountText}>{activeControlCount}</AppText></View> : null}
         </Pressable>
         <Pressable accessibilityRole="button" onPress={() => { setShowArchived((value) => !value); setSelectedProductIds(new Set()); }} style={styles.archiveToggle}>
@@ -808,7 +823,7 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
         ) : null}
 
         {oos.length > 0 && oosExpanded ? (
-          <View style={styles.cardList}>
+          <View style={styles.watchlistCardList}>
             {oos.map((product) => (
               <ProductCard
                 key={product.id}
@@ -821,7 +836,7 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
           </View>
         ) : null}
 
-        <View style={styles.cardList}>
+        <View style={styles.watchlistCardList}>
           {inStock.map((product) => (
             <ProductCard key={product.id} product={product} onPress={() => selectedProductIds.size ? toggleSelection(product.id) : navigate({ name: 'detail', id: product.id })} onLongPress={() => startSelection(product.id)} selected={selectedProductIds.has(product.id)} />
           ))}
@@ -832,7 +847,7 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
         <BulkActionButton label={shouldPauseSelected ? 'Pause' : 'Resume'} icon={<Pause size={20} color={colors.primary} />} onPress={() => applyBulk({ isActive: !shouldPauseSelected })} />
         <BulkActionButton label={showArchived ? 'Restore' : 'Archive'} icon={<Archive size={20} color={colors.primary} />} onPress={() => applyBulk({ isArchived: !showArchived })} />
         <BulkActionButton label="Delete" icon={<Trash2 size={20} color={colors.red} />} destructive onPress={confirmBulkDelete} />
-      </View> : <Pressable style={styles.fab} onPress={() => navigate({ name: 'add' })}>
+      </View> : <Pressable accessibilityRole="button" accessibilityLabel="Add a product" style={styles.fab} onPress={() => navigate({ name: 'add' })}>
         <Plus size={30} color="#FFFFFF" />
       </Pressable>}
       <BulkEditSheet visible={showBulkFolderPicker} folders={folders} selectedCount={selectedProductIds.size} onClose={() => setShowBulkFolderPicker(false)} onApply={applyBulk} />
@@ -2596,6 +2611,18 @@ const styles = StyleSheet.create({
     gap: 16
   },
   discoveryScreenContent: { padding: 16, gap: 10 },
+  watchlistContent: { backgroundColor: colors.surface, paddingTop: 0 },
+  watchlistBanner: { backgroundColor: colors.primary, marginHorizontal: -20, paddingHorizontal: 20, paddingTop: 14, paddingBottom: 18, gap: 12 },
+  watchlistBrandRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  watchlistBrandLockup: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 },
+  watchlistBrandIcon: { width: 30, height: 30, borderRadius: 7 },
+  watchlistHeaderActions: { flexDirection: 'row', alignItems: 'center' },
+  watchlistBrand: { color: colors.surface, fontSize: 20, lineHeight: 26 },
+  watchlistSearchButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  watchlistBannerTitle: { color: colors.surface, fontSize: 28, lineHeight: 34 },
+  watchlistBannerCount: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#FFFFFF33', borderRadius: radius.lg, paddingHorizontal: 12, paddingVertical: 7 },
+  watchlistBannerCountText: { color: colors.surface, fontSize: 12 },
+  watchlistFilterText: { color: colors.surface, fontSize: 14 },
   addScreenContent: {
     paddingTop: 28,
     gap: 18
@@ -2638,7 +2665,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: colors.primary,
-    backgroundColor: colors.blueSoft,
+    backgroundColor: colors.primary,
     paddingHorizontal: 12,
     paddingVertical: 10
   },
@@ -2652,10 +2679,10 @@ const styles = StyleSheet.create({
     borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.primary
+    backgroundColor: colors.surface
   },
   controlsCountText: {
-    color: colors.surface,
+    color: colors.primary,
     fontSize: 11
   },
   activeControlsRow: {
@@ -2820,11 +2847,11 @@ const styles = StyleSheet.create({
   cardList: {
     gap: 12
   },
+  watchlistCardList: { gap: 0 },
   oosSection: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.blueSoft,
     borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderWidth: 0,
     padding: 12,
     marginBottom: 4
   },
@@ -2896,22 +2923,22 @@ const styles = StyleSheet.create({
     borderRadius: 29,
     backgroundColor: colors.primary,
     alignItems: 'center',
-    justifyContent: 'center',
-    ...shadow
+    justifyContent: 'center'
   },
   tabBar: {
     height: 74,
     flexDirection: 'row',
-    borderTopColor: colors.border,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    backgroundColor: colors.surface
+    backgroundColor: colors.surfaceMuted,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20
   },
   tabButton: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4
+    justifyContent: 'center'
   },
+  tabButtonContent: { alignItems: 'center', justifyContent: 'center', gap: 2, paddingHorizontal: 10, paddingVertical: 5 },
+  tabButtonActive: { backgroundColor: colors.blueSoft, borderRadius: radius.lg },
   tabLabel: {
     color: colors.textMuted,
     fontSize: 12
