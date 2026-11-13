@@ -1,9 +1,11 @@
 import React from 'react';
 import renderer, { act } from 'react-test-renderer';
+import { Circle } from 'react-native-svg';
 
 import { AppText } from '../AppText';
 import { PriceChart } from '../PriceChart';
 import { PriceSnapshot } from '../../domain/types';
+import { colors } from '../../theme/theme';
 
 const snapshots: PriceSnapshot[] = [
   {
@@ -95,7 +97,22 @@ describe('PriceChart', () => {
       tree = renderer.create(<PriceChart snapshots={snapshots} currency="AED" />);
     });
 
-    expect(renderedText(tree!)).toContain('Tap a point to view its date and price. Green marks a drop; orange marks an increase.');
+    expect(renderedText(tree!)).toContain('Tap a point to view its date and price. Green marks a drop; amber marks an increase.');
+  });
+
+  it('uses the shared direction colors for chart points', () => {
+    let tree: renderer.ReactTestRenderer;
+    act(() => { tree = renderer.create(<PriceChart snapshots={snapshots} currency="AED" />); });
+
+    const chart = tree!.root.findByProps({ accessibilityLabel: 'Price history chart' });
+    act(() => { chart.props.onLayout({ nativeEvent: { layout: { width: 320, height: 172 } } }); });
+    act(() => { chart.props.onPress({ nativeEvent: { locationX: 18 } }); });
+
+    const fills = tree!.root.findAllByType(Circle).map((circle) => circle.props.fill);
+    // Sorted oldest → newest: 100, 90 (drop) and 105 (increase); the oldest point is selected (white fill).
+    expect(fills).toContain(colors.green);
+    expect(fills).toContain(colors.amber);
+    expect(fills).not.toContain(colors.red);
   });
 
   it('maps a tap on the first visible point correctly in a wide layout', () => {

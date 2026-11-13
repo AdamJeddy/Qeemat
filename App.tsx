@@ -839,7 +839,7 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
               <AppText weight="semibold" style={styles.oosLabel}>
                 Out of Stock
               </AppText>
-              <AppText muted style={styles.oosCount}>
+              <AppText style={styles.oosCount}>
                 {oos.length} {oos.length === 1 ? 'item' : 'items'}
               </AppText>
               <View style={styles.oosThumbnails}>
@@ -967,7 +967,7 @@ function FolderPicker({ value, folders, onChange }: { value: string; folders: st
         </ScrollView>
       ) : null}
       <View style={styles.inputWrap}>
-        <TextInput value={value} onChangeText={onChange} placeholder="e.g. Running" placeholderTextColor={colors.textSoft} maxFontSizeMultiplier={1.3} style={styles.input} />
+        <TextInput value={value} onChangeText={onChange} placeholder="e.g. Running" placeholderTextColor={colors.textMuted} maxFontSizeMultiplier={1.3} style={styles.input} />
       </View>
     </View>
   );
@@ -1163,7 +1163,7 @@ export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { i
               autoCorrect={false}
               keyboardType="url"
               placeholder="https://www.noon.com/..."
-              placeholderTextColor={colors.textSoft}
+              placeholderTextColor={colors.textMuted}
               maxFontSizeMultiplier={1.3}
               style={styles.input}
             />
@@ -1236,7 +1236,7 @@ export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { i
                   onChangeText={setTargetPrice}
                   keyboardType="decimal-pad"
                   placeholder="250"
-                  placeholderTextColor={colors.textSoft}
+                  placeholderTextColor={colors.textMuted}
                   maxFontSizeMultiplier={1.3}
                   style={styles.input}
                 />
@@ -1253,7 +1253,7 @@ export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { i
                     onChangeText={setMinimumPriceDrop}
                     keyboardType="decimal-pad"
                     placeholder="Any drop"
-                    placeholderTextColor={colors.textSoft}
+                    placeholderTextColor={colors.textMuted}
                     maxFontSizeMultiplier={1.3}
                     style={styles.input}
                   />
@@ -1735,7 +1735,7 @@ function TrackingSettingsScreen({ productId, navigate }: { productId: number; na
             <AppText muted style={styles.fieldHint}>Only notify when the price drops by at least this amount.</AppText>
             <View style={styles.inputWrap}>
               <AppText weight="semibold" muted>{product?.currency ?? 'AED'}{priceBasisSuffix(product?.priceBasis)}</AppText>
-              <TextInput value={minimumPriceDrop} onChangeText={setMinimumPriceDrop} keyboardType="decimal-pad" placeholder="Any drop" placeholderTextColor={colors.textSoft} maxFontSizeMultiplier={1.3} style={styles.input} />
+              <TextInput value={minimumPriceDrop} onChangeText={setMinimumPriceDrop} keyboardType="decimal-pad" placeholder="Any drop" placeholderTextColor={colors.textMuted} maxFontSizeMultiplier={1.3} style={styles.input} />
             </View>
           </View>
         ) : null}
@@ -2261,7 +2261,7 @@ export function OpportunityScreen({ navigate, active = true, sessionOffset }: { 
                 <DiscoveryFilterChip label="Any brand" selected={!brand} onPress={() => setBrand(undefined)} />
                 {brands.map((item) => <DiscoveryFilterChip key={item} label={item} selected={brand === item} onPress={() => setBrand(brand === item ? undefined : item)} />)}
               </ScrollView>
-              <TextInput accessibilityLabel="Maximum discovery price in AED" value={maximumPrice} onChangeText={setMaximumPrice} keyboardType="decimal-pad" placeholder="Maximum price (AED)" placeholderTextColor={colors.textSoft} maxFontSizeMultiplier={1.3} style={styles.listingPriceInput} />
+              <TextInput accessibilityLabel="Maximum discovery price in AED" value={maximumPrice} onChangeText={setMaximumPrice} keyboardType="decimal-pad" placeholder="Maximum price (AED)" placeholderTextColor={colors.textMuted} maxFontSizeMultiplier={1.3} style={styles.listingPriceInput} />
             </View> : null}
             {activeFilter ? <View style={styles.titleRow}><AppText muted>{[category && DISCOVERY_CATEGORY_LABELS[category], brand, retailer && getSiteByKey(retailer).shortName, maximumPrice && `Under AED ${maximumPrice}`].filter(Boolean).join(' · ')}</AppText><Pressable accessibilityRole="button" accessibilityLabel="Clear discovery filters" onPress={() => { resetBrowse(); setBrowseAll(true); }}><AppText style={styles.discoveryLink}>Clear filters</AppText></Pressable></View> : null}
             {!filteredProducts.length ? <View style={styles.discoverySection}><AppText muted>{catalogBusy ? 'Loading products for this selection…' : 'No products match your interests, budgets, and filters right now.'}</AppText>{!catalogBusy ? <PrimaryButton label="Explore all products" variant="outline" onPress={() => { resetBrowse(); setBrowseAll(true); }} /> : null}</View> : null}
@@ -2715,7 +2715,7 @@ const styles = StyleSheet.create({
   watchlistBrand: { color: colors.surface, fontSize: 20, lineHeight: 26 },
   watchlistSearchButton: { width: layoutMetrics.touchTarget, height: layoutMetrics.touchTarget, alignItems: 'center', justifyContent: 'center' },
   watchlistBannerTitle: { color: colors.surface, ...typography.screenTitle },
-  watchlistBannerCount: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#FFFFFF33', borderRadius: radius.lg, paddingHorizontal: 12, paddingVertical: 7 },
+  watchlistBannerCount: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.primaryDark, borderRadius: radius.lg, paddingHorizontal: 12, paddingVertical: 7 },
   watchlistBannerCountText: { color: colors.surface, fontSize: 12 },
   watchlistFilterText: { color: colors.surface, fontSize: 14 },
   addScreenContent: {
@@ -2986,8 +2986,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     padding: 22,
-    alignItems: 'center',
-    ...shadow
+    alignItems: 'center'
   },
   emptyIcon: {
     width: 52,
@@ -3022,7 +3021,7 @@ const styles = StyleSheet.create({
   tabBar: {
     height: 74,
     flexDirection: 'row',
-    backgroundColor: colors.surfaceMuted,
+    backgroundColor: colors.background,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20
   },
@@ -3189,8 +3188,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: colors.surface,
-    ...shadow
+    backgroundColor: colors.surface
   },
   previewCardCompact: {
     flexDirection: 'column'
@@ -3780,8 +3778,7 @@ const onboardingStyles = StyleSheet.create({
     paddingHorizontal: 28,
     alignItems: 'center',
     gap: 14,
-    width: '100%',
-    ...shadow
+    width: '100%'
   },
   iconCircle: {
     width: 64,

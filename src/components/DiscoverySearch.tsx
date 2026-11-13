@@ -38,7 +38,7 @@ export function DiscoverySearch({ query, result, products, busy, retailer, onRet
   }
   return <View style={styles.container}>
     <View style={styles.inputRow}>
-      <TextInput accessibilityLabel="Search products across stores" value={input} onChangeText={setInput} onSubmitEditing={submit} returnKeyType="search" maxLength={120} maxFontSizeMultiplier={1.3} placeholder={`Search ${STORES.length} stores`} placeholderTextColor={colors.textSoft} style={styles.input} />
+      <TextInput accessibilityLabel="Search products across stores" value={input} onChangeText={setInput} onSubmitEditing={submit} returnKeyType="search" maxLength={120} maxFontSizeMultiplier={1.3} placeholder={`Search ${STORES.length} stores`} placeholderTextColor={colors.textMuted} style={styles.input} />
       <Pressable accessibilityRole="button" accessibilityLabel="Search products" onPress={submit} style={styles.action}><Search size={21} color={colors.primary} /></Pressable>
       {query ? <Pressable accessibilityRole="button" accessibilityLabel="Clear product search" onPress={() => { setInput(''); setError(''); onClear(); }} style={styles.action}><X size={21} color={colors.textMuted} /></Pressable> : null}
     </View>
