@@ -15,7 +15,7 @@ test('opens on the watchlist when onboarding is complete', async () => {
   let tree: renderer.ReactTestRenderer;
   await act(async () => { tree = renderer.create(<App />); await new Promise<void>(resolve => setImmediate(resolve)); });
   const labels = tree!.root.findAllByType(AppText).map(node => node.props.children);
-  expect(labels).toContain('Track supported product prices locally.');
+  expect(labels).toContain('Track your first product');
   expect(labels).not.toContain('Discover it. Track the price.');
   await act(async () => tree!.unmount());
 });

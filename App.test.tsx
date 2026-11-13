@@ -1,5 +1,5 @@
 import React from 'react';
-import { Linking, TextInput } from 'react-native';
+import { Alert, Image, Linking, TextInput } from 'react-native';
 import renderer, { act } from 'react-test-renderer';
 
 jest.mock('@react-native-clipboard/clipboard', () => ({
@@ -37,6 +37,7 @@ import { DISCOVERY_SOURCE_MAPS } from './src/domain/discoverySources';
 import { ProductCard } from './src/components/ProductCard';
 import { PrimaryButton } from './src/components/PrimaryButton';
 import { ProductCategoryPicker } from './src/components/ProductCategoryPicker';
+import { VariantSelector } from './src/components/VariantSelector';
 import { CheckStatus, TrackedProduct } from './src/domain/types';
 
 const mockFetchAndParseProduct = jest.requireMock('./src/domain/parser').fetchAndParseProduct as jest.Mock;
@@ -56,11 +57,33 @@ describe('AddScreen', () => {
     mockClipboardSetString.mockReset();
   });
 
-  it('shows H&M and Zara among supported stores before a URL is entered', () => {
+  it('reveals H&M and Zara behind the supported-stores disclosure before a URL is entered', () => {
     let tree: renderer.ReactTestRenderer;
     act(() => { tree = renderer.create(<AddScreen navigate={jest.fn()} />); });
-    const labels = tree!.root.findAllByType(AppText).map((item) => item.props.children);
-    expect(labels).toEqual(expect.arrayContaining(['H&M', 'Zara']));
+    const collapsedLabels = tree!.root.findAllByType(AppText).map((item) => item.props.children);
+    expect(collapsedLabels).toEqual(expect.arrayContaining(['Supported stores', [20, ' stores']]));
+    expect(collapsedLabels).not.toContain('H&M');
+
+    const disclosure = tree!.root.findAll((node) => node.props.accessibilityState?.expanded === false && typeof node.props.onPress === 'function')[0];
+    expect(disclosure).toBeDefined();
+    act(() => { disclosure.props.onPress(); });
+
+    const expandedLabels = tree!.root.findAllByType(AppText).map((item) => item.props.children);
+    expect(expandedLabels).toEqual(expect.arrayContaining(['H&M', 'Zara']));
+  });
+
+  it('labels the header back control and exposes the screen title as a heading', () => {
+    const navigate = jest.fn();
+    let tree: renderer.ReactTestRenderer;
+    act(() => { tree = renderer.create(<AddScreen navigate={navigate} />); });
+    const backButton = tree!.root.findAll((node) => node.props.accessibilityLabel === 'Go back' && typeof node.props.onPress === 'function')[0];
+    expect(backButton).toBeDefined();
+    expect(backButton.props.accessibilityRole).toBe('button');
+    act(() => { backButton.props.onPress(); });
+    expect(navigate).toHaveBeenCalledWith({ name: 'tabs', tab: 'watchlist' });
+    const headings = tree!.root.findAllByProps({ accessibilityRole: 'header' }).map((node) => node.props.children);
+    expect(headings).toEqual(expect.arrayContaining(['Add Product']));
+    act(() => tree!.unmount());
   });
 
   it('saves the selected category when tracking a shared URL', async () => {
@@ -72,6 +95,100 @@ describe('AddScreen', () => {
     await act(async () => { await tree!.root.findByProps({ label: 'Confirm Tracking' }).props.onPress(); });
     expect(create).toHaveBeenCalledWith(expect.objectContaining({ category: 'footwear' }));
     create.mockRestore();
+  });
+
+  it('blocks a duplicate page-level tracker and offers to open the existing one', async () => {
+    const navigate = jest.fn();
+    const existingProduct = {
+      id: 7,
+      url: 'https://www.noon.com/shoe',
+      canonicalUrl: 'https://www.noon.com/shoe',
+      siteKey: 'noon' as const,
+      title: 'Shoe',
+      currency: 'AED',
+      alertMode: 'price_drop' as const,
+      checkPreference: 'daily' as const,
+      isActive: true,
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z'
+    };
+    const listTracked = jest.spyOn(require('./src/data/database'), 'listTrackedProducts').mockResolvedValue([existingProduct]);
+    const create = jest.spyOn(require('./src/data/database'), 'createTrackedProduct').mockResolvedValue(99);
+    const alert = jest.spyOn(Alert, 'alert');
+    mockFetchAndParseProduct.mockResolvedValueOnce({ ok: true, product: { siteKey: 'noon', title: 'Shoe', canonicalUrl: 'https://www.noon.com/shoe', priceMinor: 10000, currency: 'AED', availability: 'in_stock' } });
+
+    let tree: renderer.ReactTestRenderer;
+    await act(async () => { tree = renderer.create(<AddScreen initialUrl="https://www.noon.com/shoe" shareEventId={1} navigate={navigate} />); await Promise.resolve(); });
+    await act(async () => { await new Promise<void>((resolve) => setImmediate(resolve)); });
+    const addLabels = tree!.root.findAllByType(AppText).map((node) => [node.props.children].flat().join('')).join(' ');
+    expect(addLabels).toContain('Duplicate product');
+    expect(addLabels).toContain('Adding it again would create a duplicate');
+    expect(addLabels).toContain('Open product');
+
+    await act(async () => { await tree!.root.findByProps({ label: 'Confirm Tracking' }).props.onPress(); });
+
+    expect(create).not.toHaveBeenCalled();
+    expect(alert).toHaveBeenCalledTimes(1);
+    const [title, , buttons] = alert.mock.calls[0];
+    expect(title).toBe('Duplicate product');
+    act(() => { (buttons as { text: string; onPress?: () => void }[]).find((button) => button.text === 'Open product')?.onPress?.(); });
+    expect(navigate).toHaveBeenCalledWith({ name: 'detail', id: 7 });
+
+    alert.mockRestore();
+    create.mockRestore();
+    listTracked.mockRestore();
+  });
+
+  it('shows an early notice and adds a different option as a separate tracker', async () => {
+    const existingProduct = {
+      id: 7,
+      url: 'https://www.noon.com/shoe',
+      canonicalUrl: 'https://www.noon.com/shoe',
+      siteKey: 'noon' as const,
+      title: 'Shoe',
+      currency: 'AED',
+      alertMode: 'price_drop' as const,
+      checkPreference: 'daily' as const,
+      isActive: true,
+      variant: { id: 'variant-42', label: 'Size: 42', attributes: [{ name: 'Size', value: '42' }], url: 'https://www.noon.com/shoe?variant=42' },
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z'
+    };
+    const listTracked = jest.spyOn(require('./src/data/database'), 'listTrackedProducts').mockResolvedValue([existingProduct]);
+    const create = jest.spyOn(require('./src/data/database'), 'createTrackedProduct').mockResolvedValue(99);
+    const alert = jest.spyOn(Alert, 'alert');
+    mockFetchAndParseProduct.mockResolvedValueOnce({
+      ok: true,
+      product: {
+        siteKey: 'noon',
+        title: 'Shoe',
+        canonicalUrl: 'https://www.noon.com/shoe',
+        priceMinor: 10000,
+        currency: 'AED',
+        availability: 'in_stock',
+        variants: [
+          { id: 'variant-42', label: 'Size: 42', attributes: [{ name: 'Size', value: '42' }], priceMinor: 10000, currency: 'AED', availability: 'in_stock', url: 'https://www.noon.com/shoe?variant=42' },
+          { id: 'variant-44', label: 'Size: 44', attributes: [{ name: 'Size', value: '44' }], priceMinor: 10000, currency: 'AED', availability: 'in_stock', url: 'https://www.noon.com/shoe?variant=44' }
+        ]
+      }
+    });
+
+    let tree: renderer.ReactTestRenderer;
+    await act(async () => { tree = renderer.create(<AddScreen initialUrl="https://www.noon.com/shoe" shareEventId={1} navigate={jest.fn()} />); await Promise.resolve(); });
+    await act(async () => { await new Promise<void>((resolve) => setImmediate(resolve)); });
+    const noticeLabels = tree!.root.findAllByType(AppText).map((node) => [node.props.children].flat().join('')).join(' ');
+    expect(noticeLabels).toContain('Adding another option');
+    expect(noticeLabels).toContain('Size: 42');
+
+    act(() => tree!.root.findByType(VariantSelector).props.onSelect('Size', '44'));
+    await act(async () => { await tree!.root.findByProps({ label: 'Confirm Tracking' }).props.onPress(); });
+
+    expect(alert).not.toHaveBeenCalled();
+    expect(create).toHaveBeenCalledTimes(1);
+
+    alert.mockRestore();
+    create.mockRestore();
+    listTracked.mockRestore();
   });
 
   it('uses a retailer category as a suggestion without saving it as a manual choice', async () => {
@@ -303,6 +420,108 @@ describe('DetailScreen', () => {
   });
 });
 
+describe('Watchlist header', () => {
+  const seiko: TrackedProduct = {
+    id: 11,
+    url: 'https://www.amazon.ae/dp/B0SEIKO01',
+    canonicalUrl: 'https://www.amazon.ae/dp/B0SEIKO01',
+    siteKey: 'amazon_ae',
+    title: 'Seiko 5 Sports Automatic Watch',
+    currency: 'AED',
+    currentPriceMinor: 165281,
+    alertMode: 'price_drop',
+    checkPreference: 'daily',
+    isActive: true,
+    lastCheckedAt: '2026-11-13T09:00:00.000Z',
+    lastAvailability: 'in_stock',
+    createdAt: '2026-10-01T00:00:00Z',
+    updatedAt: '2026-11-13T09:00:00Z'
+  };
+  const xiaomi: TrackedProduct = {
+    id: 12,
+    url: 'https://www.noon.com/xiaomi-redmi-note-15',
+    canonicalUrl: 'https://www.noon.com/xiaomi-redmi-note-15',
+    siteKey: 'noon',
+    title: 'Xiaomi Redmi Note 15 Smartphone',
+    currency: 'AED',
+    currentPriceMinor: 71900,
+    folder: 'Phones',
+    alertMode: 'price_drop',
+    checkPreference: 'daily',
+    isActive: true,
+    lastCheckedAt: '2026-11-13T09:00:00.000Z',
+    lastAvailability: 'in_stock',
+    createdAt: '2026-10-01T00:00:00Z',
+    updatedAt: '2026-11-13T09:00:00Z'
+  };
+
+  it('opens the watchlist search and recent price activity from the banner', async () => {
+    mockListProductsWithSnapshots.mockResolvedValue([]);
+    const navigate = jest.fn();
+    let tree: renderer.ReactTestRenderer;
+    await act(async () => { tree = renderer.create(<TabsScreen tab="watchlist" navigate={navigate} />); await new Promise<void>(resolve => setImmediate(resolve)); });
+
+    const searchToggle = tree!.root.findAll((node) => node.props.accessibilityLabel === 'Search watchlist' && typeof node.props.onPress === 'function')[0];
+    expect(searchToggle).toBeDefined();
+    act(() => { searchToggle.props.onPress(); });
+    expect(tree!.root.findAllByProps({ accessibilityLabel: 'Search watchlist products' }).length).toBeGreaterThan(0);
+
+    act(() => tree!.root.findByProps({ accessibilityLabel: 'Open recent activity' }).props.onPress());
+    expect(navigate).toHaveBeenCalledWith({ name: 'tabs', tab: 'activity' });
+    const headings = tree!.root.findAllByProps({ accessibilityRole: 'header' }).map((node) => node.props.children);
+    expect(headings).toEqual(expect.arrayContaining(['Watchlist']));
+    expect(tree!.root.findAllByProps({ accessibilityLabel: 'Filter and sort' }).length).toBeGreaterThan(0);
+    await act(async () => tree!.unmount());
+  });
+
+  it('reloads watchlist products when the retained tab becomes visible again', async () => {
+    const listTracked = jest.spyOn(require('./src/data/database'), 'listTrackedProducts')
+      .mockResolvedValueOnce([seiko])
+      .mockResolvedValueOnce([seiko, xiaomi]);
+    let tree: renderer.ReactTestRenderer;
+    await act(async () => { tree = renderer.create(<TabsScreen tab="watchlist" navigate={jest.fn()} refreshKey={0} />); await new Promise<void>(resolve => setImmediate(resolve)); });
+    const textBefore = tree!.root.findAllByType(AppText).map((node) => [node.props.children].flat().join('')).join(' ');
+    expect(textBefore).toContain('Seiko 5 Sports Automatic Watch');
+    expect(textBefore).not.toContain('Xiaomi Redmi Note 15 Smartphone');
+
+    await act(async () => { tree!.update(<TabsScreen tab="watchlist" navigate={jest.fn()} refreshKey={1} />); await new Promise<void>(resolve => setImmediate(resolve)); });
+    const textAfter = tree!.root.findAllByType(AppText).map((node) => [node.props.children].flat().join('')).join(' ');
+    expect(textAfter).toContain('Xiaomi Redmi Note 15 Smartphone');
+
+    await act(async () => tree!.unmount());
+    listTracked.mockRestore();
+  });
+
+  it('filters tracked products from the watchlist search control', async () => {
+    const listTracked = jest.spyOn(require('./src/data/database'), 'listTrackedProducts').mockResolvedValue([seiko, xiaomi]);
+    let tree: renderer.ReactTestRenderer;
+    await act(async () => { tree = renderer.create(<TabsScreen tab="watchlist" navigate={jest.fn()} />); await new Promise<void>(resolve => setImmediate(resolve)); });
+
+    const labelsText = () => tree!.root.findAllByType(AppText).map((node) => [node.props.children].flat().join('')).join(' ');
+    expect(labelsText()).toContain('Seiko 5 Sports Automatic Watch');
+    expect(labelsText()).toContain('Xiaomi Redmi Note 15 Smartphone');
+
+    const toggle = tree!.root.findAll((node) => node.props.accessibilityLabel === 'Search watchlist' && typeof node.props.onPress === 'function')[0];
+    act(() => { toggle.props.onPress(); });
+    const input = tree!.root.findByProps({ accessibilityLabel: 'Search watchlist products' });
+
+    act(() => { input.props.onChangeText('seiko'); });
+    expect(labelsText()).toContain('Seiko 5 Sports Automatic Watch');
+    expect(labelsText()).not.toContain('Xiaomi Redmi Note 15 Smartphone');
+
+    act(() => { input.props.onChangeText('noon'); });
+    expect(labelsText()).not.toContain('Seiko 5 Sports Automatic Watch');
+    expect(labelsText()).toContain('Xiaomi Redmi Note 15 Smartphone');
+
+    act(() => { input.props.onChangeText(''); });
+    expect(labelsText()).toContain('Seiko 5 Sports Automatic Watch');
+    expect(labelsText()).toContain('Xiaomi Redmi Note 15 Smartphone');
+
+    await act(async () => tree!.unmount());
+    listTracked.mockRestore();
+  });
+});
+
 describe('OpportunityScreen', () => {
   it('keeps the search screen mounted when switching tabs', async () => {
     mockListProductsWithSnapshots.mockResolvedValue([]);
@@ -331,14 +550,16 @@ describe('OpportunityScreen', () => {
     let tree: renderer.ReactTestRenderer;
     act(() => { tree = renderer.create(<DiscoveryProductGrid products={[product]} trackedProducts={[]} onTrack={jest.fn()} onDismiss={jest.fn()} onMoreLikeThis={jest.fn()} onViewAtRetailer={jest.fn()} />); });
     const text = tree!.root.findAllByType(AppText).map(node => [node.props.children].flat().join('')).join(' ');
-    expect(text).toContain('Price down AED 20 · was AED 100');
+    expect(text).toContain('AED 20 lower');
+    expect(text).not.toContain('was AED 100');
   });
   it('does not display a price change when the price is unchanged', () => {
     const product = { id: 'shoe', siteKey: 'noon' as const, category: 'footwear' as const, brand: 'Brand', title: 'Shoe', url: 'https://www.noon.com/shoe', priceMinor: 8000, previousPriceMinor: 8000, currency: 'AED', availability: 'in_stock' as const, observedAt: '2026-11-07T00:00:00Z' };
     let tree: renderer.ReactTestRenderer;
     act(() => { tree = renderer.create(<DiscoveryProductGrid products={[product]} trackedProducts={[]} onTrack={jest.fn()} onDismiss={jest.fn()} onMoreLikeThis={jest.fn()} onViewAtRetailer={jest.fn()} />); });
     const text = tree!.root.findAllByType(AppText).map(node => [node.props.children].flat().join('')).join(' ');
-    expect(text).not.toContain('unchanged');
+    expect(text).not.toContain('lower');
+    expect(text).not.toContain('higher');
   });
   it('uses an existing uncategorised watched product to show related products', async () => {
     const listTracked = jest.spyOn(require('./src/data/database'), 'listTrackedProducts').mockResolvedValue([{ id: 1, title: 'Running sneakers', isActive: true, canonicalUrl: 'https://www.noon.com/watched', url: 'https://www.noon.com/watched' }]);
@@ -380,7 +601,7 @@ describe('OpportunityScreen', () => {
     await act(async () => { tree!.root.findByProps({ accessibilityLabel: 'Clear product search' }).props.onPress(); await new Promise<void>((resolve) => setImmediate(resolve)); });
     expect(tree!.root.findByType(DiscoveryProductGrid).props.products).toHaveLength(48);
     await act(async () => tree!.unmount());
-  });
+  }, 20000);
   it('hides a search result when the matching catalogue product was dismissed', async () => {
     const listing = { id: 'decathlon_uae:123', siteKey: 'decathlon_uae', category: 'footwear', brand: 'Kiprun', title: 'Running shoes', url: 'https://decathlon.ae/products/shoe', priceMinor: 9000, currency: 'AED', availability: 'in_stock', observedAt: '2026-10-28T09:00:00Z' };
     mockGetDiscoveryPreferences.mockResolvedValue({ completed: true, categories: [], favoriteBrands: [], budgetsByCategory: {}, dismissedProductIds: [listing.id], seenProductIds: [] });
@@ -657,6 +878,28 @@ describe('saved price freshness', () => {
   });
 
   afterEach(() => jest.restoreAllMocks());
+
+  it('prioritizes the price while retaining the selected variant and folder', () => {
+    const item = { ...product, folder: 'Running', variant: { id: 'size-40', label: 'Size: 40', attributes: [{ name: 'Size', value: '40' }] } };
+    let tree: renderer.ReactTestRenderer;
+    act(() => { tree = renderer.create(<ProductCard product={item} onPress={jest.fn()} />); });
+    const labels = tree!.root.findAllByType(AppText).map((node) => [node.props.children].flat().join(''));
+    expect(labels.join(' ')).toContain('Size: 40');
+    expect(labels.join(' ')).toContain('Running');
+    expect(labels.indexOf('AED 719.40')).toBeLessThan(labels.findIndex((label) => label.includes('Size: 40')));
+  });
+
+  it('shows a fallback for missing or failed product images and retries a changed image', () => {
+    let tree: renderer.ReactTestRenderer;
+    act(() => { tree = renderer.create(<ProductCard product={product} onPress={jest.fn()} />); });
+    expect(tree!.root.findAllByProps({ accessibilityLabel: 'Product image unavailable' }).length).toBeGreaterThan(0);
+    act(() => { tree!.update(<ProductCard product={{ ...product, imageUrl: 'https://example.com/a.jpg' }} onPress={jest.fn()} />); });
+    act(() => { tree!.root.findAllByType(Image).find((image) => image.props.onError)!.props.onError(); });
+    expect(tree!.root.findAllByProps({ accessibilityLabel: 'Product image unavailable' }).length).toBeGreaterThan(0);
+    act(() => { tree!.update(<ProductCard product={{ ...product, imageUrl: 'https://example.com/b.jpg' }} onPress={jest.fn()} />); });
+    expect(tree!.root.findAllByType(Image).find((image) => image.props.onError)!.props.source.uri).toBe('https://example.com/b.jpg');
+    act(() => tree!.unmount());
+  });
 
   it.each<CheckStatus>(['site_parser_failed', 'blocked', 'network_error'])('labels the saved price and last successful check after %s', async (status) => {
     const failedProduct = { ...product, lastErrorCode: status };

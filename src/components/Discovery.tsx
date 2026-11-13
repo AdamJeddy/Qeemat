@@ -10,9 +10,10 @@ import {
   View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ChevronRight, EyeOff, Plus, Sparkles, X } from 'lucide-react-native';
+import { ChevronRight, EyeOff, ImageOff, Plus, Sparkles, X } from 'lucide-react-native';
 
 import { AppText } from './AppText';
+import { PriceDirectionBadge } from './PriceDirectionBadge';
 import { PrimaryButton } from './PrimaryButton';
 import { formatRelativeTime } from '../domain/dates';
 import { DISCOVERY_CATEGORY_LABELS, preferredDiscoveryBrands, uniqueDiscoveryBrands } from '../domain/discovery';
@@ -24,12 +25,14 @@ import { colors, radius } from '../theme/theme';
 import { DISCOVERY_CATEGORY_GROUPS } from '../domain/discoveryCategories';
 import { DiscoveryObservation, getDiscoveryHistory } from '../data/discoveryHistory';
 
-function listingPriceChange(product: DiscoveryProduct): string | undefined {
+function listingPriceDelta(product: DiscoveryProduct): { direction: 'down' | 'up'; text: string } | undefined {
   if (product.previousPriceMinor === undefined || product.priceMinor === undefined) { return undefined; }
   const difference = product.priceMinor - product.previousPriceMinor;
   if (difference === 0) { return undefined; }
-  const prefix = product.hasPriceRange ? 'Starting price ' : 'Price ';
-  return `${prefix}${difference < 0 ? 'down' : 'up'} ${formatPrice(Math.abs(difference), product.currency, product.priceBasis)} · was ${formatPrice(product.previousPriceMinor, product.currency, product.priceBasis)}`;
+  return {
+    direction: difference < 0 ? 'down' : 'up',
+    text: `${formatPrice(Math.abs(difference), product.currency, product.priceBasis)} ${difference < 0 ? 'lower' : 'higher'}`
+  };
 }
 
 export function DiscoverySetupCard({ onPress, onDismiss }: { onPress: () => void; onDismiss: () => void }) {
@@ -92,34 +95,54 @@ export function DiscoveryProductGrid({
 }) {
   const [preview, setPreview] = useState<DiscoveryProduct>();
   const [history, setHistory] = useState<DiscoveryObservation[]>([]);
+  const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
+  const [previewImageFailed, setPreviewImageFailed] = useState(false);
   useEffect(() => {
     let cancelled = false;
     setHistory([]);
     if (preview) { getDiscoveryHistory(preview).then((items) => { if (!cancelled) { setHistory(items); } }).catch(() => {}); }
     return () => { cancelled = true; };
   }, [preview]);
+  useEffect(() => {
+    setPreviewImageFailed(false);
+  }, [preview?.imageUrl]);
   if (!products.length) {
     return <AppText muted style={styles.emptyFilter}>No products match these filters yet.</AppText>;
   }
+  const previewDelta = preview ? listingPriceDelta(preview) : undefined;
 
   return (
     <View style={styles.grid}>
       {products.map((product) => {
         const tracked = trackedProducts.find((item) => cleanUrl(item.canonicalUrl || item.url) === cleanUrl(product.url));
         const tracking = trackingProductId === product.id;
+        const delta = listingPriceDelta(product);
         return (
           <View key={product.id} style={styles.productCard}>
             <Pressable accessibilityRole="button" accessibilityLabel={`View ${product.title}`} onPress={() => setPreview(product)} style={styles.productImageWrap}>
-              {product.imageUrl ? <Image source={{ uri: product.imageUrl }} style={styles.productImage} resizeMode="contain" /> : <Sparkles size={24} color={colors.textMuted} />}
+              {product.imageUrl && !failedImages.has(`${product.id}:${product.imageUrl}`) ? (
+                <Image
+                  source={{ uri: product.imageUrl }}
+                  style={styles.productImage}
+                  resizeMode="contain"
+                  onError={() => setFailedImages((current) => new Set(current).add(`${product.id}:${product.imageUrl}`))}
+                />
+              ) : (
+                <View accessible accessibilityLabel="Product image unavailable">
+                  <ImageOff size={24} color={colors.textMuted} />
+                </View>
+              )}
             </Pressable>
             <View style={styles.productBody}>
               <AppText muted numberOfLines={1} style={styles.productSource}>{product.brand === 'Other brands' || product.brand === getSiteByKey(product.siteKey).shortName ? getSiteByKey(product.siteKey).shortName : `${product.brand} · ${getSiteByKey(product.siteKey).shortName}`}</AppText>
               <AppText weight="semibold" numberOfLines={2} style={styles.productTitle}>{product.title}</AppText>
-              <AppText weight="bold" style={styles.productPrice}>{product.priceMinor === undefined ? 'Price unavailable' : `${product.hasPriceRange ? 'From ' : ''}${formatPrice(product.priceMinor, product.currency, product.priceBasis)}`}</AppText>
-              {listingPriceChange(product) ? <AppText muted style={styles.productObserved}>{listingPriceChange(product)}</AppText> : null}
+              <View style={styles.listingPriceRow}>
+                <AppText weight="bold" style={styles.productPrice}>{product.priceMinor === undefined ? 'Price unavailable' : `${product.hasPriceRange ? 'From ' : ''}${formatPrice(product.priceMinor, product.currency, product.priceBasis)}`}</AppText>
+                {delta ? <PriceDirectionBadge direction={delta.direction} text={delta.text} /> : null}
+              </View>
               <AppText muted style={styles.productObserved}>Observed {formatRelativeTime(product.observedAt)}</AppText>
-              <Pressable accessibilityRole="button" onPress={() => onTrack(product)} style={({ pressed }) => [styles.trackButton, tracked && styles.trackedButton, pressed && styles.pressed]} disabled={tracking}>
-                {tracking ? <ActivityIndicator size="small" color={colors.surface} /> : <><Plus size={15} color={tracked ? colors.primary : colors.surface} /><AppText weight="semibold" style={[styles.trackButtonText, tracked && styles.trackedButtonText]}>{tracked ? 'Tracking' : 'Track price'}</AppText></>}
+              <Pressable accessibilityRole="button" accessibilityLabel={`${tracked ? 'Tracking' : 'Track price'}: ${product.title}`} accessibilityState={{ selected: Boolean(tracked) }} onPress={() => onTrack(product)} style={({ pressed }) => [styles.trackButton, tracked && styles.trackedButton, pressed && styles.pressed]} disabled={tracking}>
+                {tracking ? <ActivityIndicator size="small" color={colors.primary} /> : <><Plus size={15} color={colors.primary} /><AppText weight="semibold" style={styles.trackButtonText}>{tracked ? 'Tracking' : 'Track price'}</AppText></>}
               </Pressable>
             </View>
           </View>
@@ -129,11 +152,19 @@ export function DiscoveryProductGrid({
         <SafeAreaView style={styles.sheet}>
           <View style={styles.sheetHeader}><Pressable accessibilityRole="button" accessibilityLabel="Close product" onPress={() => setPreview(undefined)} style={styles.iconButton}><X size={22} color={colors.text} /></Pressable><AppText weight="bold">Product details</AppText></View>
           {preview ? <ScrollView contentContainerStyle={styles.sheetContent}>
-            {preview.imageUrl ? <Image source={{ uri: preview.imageUrl }} resizeMode="contain" style={styles.previewImage} /> : null}
+            {preview.imageUrl && !previewImageFailed ? (
+              <Image source={{ uri: preview.imageUrl }} resizeMode="contain" style={styles.previewImage} onError={() => setPreviewImageFailed(true)} />
+            ) : (
+              <View accessible accessibilityLabel="Product image unavailable" style={styles.previewImageFallback}>
+                <ImageOff size={28} color={colors.textMuted} />
+              </View>
+            )}
             <AppText muted>{preview.brand === 'Other brands' || preview.brand === getSiteByKey(preview.siteKey).shortName ? getSiteByKey(preview.siteKey).shortName : `${preview.brand} · ${getSiteByKey(preview.siteKey).shortName}`}</AppText>
             <AppText weight="bold" style={styles.emptyTitle}>{preview.title}</AppText>
-            <AppText weight="bold">{preview.hasPriceRange ? 'From ' : ''}{formatPrice(preview.priceMinor, preview.currency, preview.priceBasis)}</AppText>
-            {listingPriceChange(preview) ? <AppText muted>{listingPriceChange(preview)}</AppText> : null}
+            <View style={styles.listingPriceRow}>
+              <AppText weight="bold">{preview.hasPriceRange ? 'From ' : ''}{formatPrice(preview.priceMinor, preview.currency, preview.priceBasis)}</AppText>
+              {previewDelta ? <PriceDirectionBadge direction={previewDelta.direction} text={previewDelta.text} /> : null}
+            </View>
             <AppText muted>Price observed {formatRelativeTime(preview.observedAt)}. Current details are verified when you track.</AppText>
             {history.length > 1 ? <View><AppText weight="semibold">Listing price history</AppText>{history.slice(-5).reverse().map((observation) => <AppText key={observation.observedAt} muted>{formatRelativeTime(observation.observedAt)} · {observation.priceMinor === undefined ? 'Price unavailable' : `${observation.hasPriceRange ? 'From ' : ''}${formatPrice(observation.priceMinor, observation.currency, observation.priceBasis)}`}</AppText>)}</View> : null}
             {preview.priceBasis === 'kg' ? <AppText muted>Price per kilogram. Delivery location and final delivered weight can change the checkout total.</AppText> : null}
@@ -209,8 +240,8 @@ export function DiscoveryPreferencesSheet({
           <AppText muted style={styles.sheetCopy}>{copy}</AppText>
           {error ? <AppText>{error}</AppText> : null}
           {step === 0 ? DISCOVERY_CATEGORY_GROUPS.map((group) => <View key={group.id} style={styles.budgetList}><AppText weight="semibold">{group.label}</AppText><View style={styles.choiceWrap}>{group.categories.map((category) => <DiscoveryFilterChip key={category} label={DISCOVERY_CATEGORY_LABELS[category]} selected={categories.includes(category)} onPress={() => setCategories((current) => current.includes(category) ? current.filter((item) => item !== category) : [...current, category])} />)}</View></View>) : null}
-          {step === 1 ? <><TextInput accessibilityLabel="Search preferred brands" value={brandQuery} onChangeText={setBrandQuery} placeholder="Search brands…" placeholderTextColor={colors.textSoft} style={styles.brandSearch} /><View style={styles.choiceWrap}><DiscoveryFilterChip label="No preference" selected={!brands.length} onPress={() => setBrands([])} />{brandChoices.length ? brandChoices.filter((brand) => brand.toLowerCase().includes(brandQuery.toLowerCase())).slice(0, 60).map((brand) => <DiscoveryFilterChip key={brand} label={brand} selected={brands.includes(brand)} onPress={() => setBrands((current) => current.includes(brand) ? current.filter((item) => item !== brand) : [...current, brand])} />) : <AppText muted>Select an interest first, or continue without brand preferences.</AppText>}</View>{brandChoices.length > 60 ? <AppText muted>Search to find more brands.</AppText> : null}</> : null}
-          {step === 2 ? <View style={styles.budgetList}>{categories.length ? categories.map((category) => <View key={category} style={styles.budgetRow}><AppText weight="semibold" style={styles.flex}>{DISCOVERY_CATEGORY_LABELS[category]}</AppText><View style={styles.budgetInput}><AppText muted>AED</AppText><TextInput value={budgets[category] ?? ''} onChangeText={(value) => setBudgets((current) => ({ ...current, [category]: value }))} keyboardType="decimal-pad" placeholder="Any" placeholderTextColor={colors.textSoft} style={styles.budgetTextInput} /></View></View>) : <AppText muted>Continue without a spending preference to see the live catalogue.</AppText>}</View> : null}
+          {step === 1 ? <><TextInput accessibilityLabel="Search preferred brands" value={brandQuery} onChangeText={setBrandQuery} placeholder="Search brands…" placeholderTextColor={colors.textMuted} maxFontSizeMultiplier={1.3} style={styles.brandSearch} /><View style={styles.choiceWrap}><DiscoveryFilterChip label="No preference" selected={!brands.length} onPress={() => setBrands([])} />{brandChoices.length ? brandChoices.filter((brand) => brand.toLowerCase().includes(brandQuery.toLowerCase())).slice(0, 60).map((brand) => <DiscoveryFilterChip key={brand} label={brand} selected={brands.includes(brand)} onPress={() => setBrands((current) => current.includes(brand) ? current.filter((item) => item !== brand) : [...current, brand])} />) : <AppText muted>Select an interest first, or continue without brand preferences.</AppText>}</View>{brandChoices.length > 60 ? <AppText muted>Search to find more brands.</AppText> : null}</> : null}
+          {step === 2 ? <View style={styles.budgetList}>{categories.length ? categories.map((category) => <View key={category} style={styles.budgetRow}><AppText weight="semibold" style={styles.flex}>{DISCOVERY_CATEGORY_LABELS[category]}</AppText><View style={styles.budgetInput}><AppText muted>AED</AppText><TextInput value={budgets[category] ?? ''} onChangeText={(value) => setBudgets((current) => ({ ...current, [category]: value }))} keyboardType="decimal-pad" placeholder="Any" placeholderTextColor={colors.textMuted} maxFontSizeMultiplier={1.3} style={styles.budgetTextInput} /></View></View>) : <AppText muted>Continue without a spending preference to see the live catalogue.</AppText>}</View> : null}
         </ScrollView>
         <View style={styles.sheetActions}>
           <PrimaryButton label="Skip" variant="outline" onPress={() => { if (step === 0) { setCategories([]); } else if (step === 1) { setBrands([]); } else { setBudgets({}); } if (step < 2) { setStep((current) => current + 1); } else { onSave({ completed: true, categories, favoriteBrands: brands, budgetsByCategory: {} }).catch(() => setError('Could not save preferences.')); } }} disabled={saving} style={styles.sheetBack} />
@@ -245,23 +276,24 @@ const styles = StyleSheet.create({
   productCard: { width: '48%', flexGrow: 1, flexBasis: '46%', borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, overflow: 'hidden' },
   productImageWrap: { height: 120, backgroundColor: colors.surfaceMuted, alignItems: 'center', justifyContent: 'center' },
   previewImage: { width: '100%', height: 220 },
+  previewImageFallback: { width: '100%', height: 220, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceMuted },
   productImage: { width: '100%', height: '100%' },
   productBody: { gap: 6, padding: 10 },
   productSource: { fontSize: 11 },
   productTitle: { fontSize: 14, lineHeight: 19, minHeight: 38 },
   productPrice: { fontSize: 16 },
+  listingPriceRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
   productObserved: { fontSize: 11 },
-  trackButton: { minHeight: 44, borderRadius: radius.sm, backgroundColor: colors.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, marginTop: 2, paddingHorizontal: 8 },
-  trackedButton: { backgroundColor: colors.blueSoft },
-  trackButtonText: { color: colors.surface, fontSize: 12 },
-  trackedButtonText: { color: colors.primary },
+  trackButton: { minHeight: 44, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.primary, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, marginTop: 2, paddingHorizontal: 8 },
+  trackedButton: { backgroundColor: colors.blueSoft, borderColor: colors.blueSoft },
+  trackButtonText: { color: colors.primary, fontSize: 12 },
   feedbackRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
   dismissButton: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   feedbackLink: { fontSize: 10, color: colors.textMuted },
   emptyFilter: { paddingVertical: 14, textAlign: 'center' },
   sheet: { flex: 1, backgroundColor: colors.background },
   sheetHeader: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
-  iconButton: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
+  iconButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   sheetHeaderTitle: { flex: 1, fontSize: 16, textAlign: 'center' },
   sheetStep: { fontSize: 12, minWidth: 36, textAlign: 'right' },
   sheetContent: { padding: 20, gap: 14 },

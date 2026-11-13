@@ -142,6 +142,10 @@ export type TrackedProduct = {
   currentPriceMinor?: number;
   /** Previous price from the check before the most recent one. Used to compute price direction on cards. */
   previousPriceMinor?: number;
+  /** Price before the most recent actual price change; preserved across later unchanged checks. */
+  lastPriceChangeMinor?: number;
+  /** When the most recent actual price change was detected. */
+  lastPriceChangeAt?: string;
   targetPriceMinor?: number;
   /** Minimum AED amount a price must drop before a price-drop alert is sent. */
   minimumPriceDropMinor?: number;

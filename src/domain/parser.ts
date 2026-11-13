@@ -99,9 +99,11 @@ export async function fetchAndParseProduct(rawUrl: string, selectedVariant?: Var
   let fetchResult = await fetchAndParseWithFetch(normalizedUrl, site.key, selectedVariant);
 
   // Sephora's CDN can reject one request and accept the same product URL on
-  // the next attempt. Retry the exact URL once before using the WebView path.
+  // the next attempt. Amazon and Decathlon also reset the React Native client
+  // intermittently while the same URL loads in a browser. Retry the exact URL
+  // once before using the WebView path.
   if (
-    site.key === 'sephora_uae' &&
+    (site.key === 'sephora_uae' || site.key === 'amazon_ae' || site.key === 'decathlon_uae') &&
     !fetchResult.ok &&
     (fetchResult.code === 'blocked' || fetchResult.code === 'network_error')
   ) {
@@ -111,11 +113,16 @@ export async function fetchAndParseProduct(rawUrl: string, selectedVariant?: Var
   // Sephora, Faces, Salomon, and The Deal can reject the React Native networking client
   // even though the device browser can load their storefront. Their WebView
   // path handles the first-page navigation with Android's browser engine.
+  // Amazon and Decathlon sometimes return a partial challenge page or a page
+  // that has not rendered its product data; the WebView loads the same URL
+  // with Android's browser engine and retries the parse on that HTML.
   if (fetchResult.ok) {
     return fetchResult;
   }
 
   const shouldUseWebViewFallback = fetchResult.code === 'blocked' ||
+    (site.key === 'amazon_ae' && (fetchResult.code === 'network_error' || fetchResult.code === 'site_parser_failed')) ||
+    (site.key === 'decathlon_uae' && (fetchResult.code === 'network_error' || fetchResult.code === 'site_parser_failed')) ||
     (site.key === 'hm_uae' && (fetchResult.code === 'network_error' || fetchResult.code === 'site_parser_failed' || fetchResult.code === 'price_not_found')) ||
     (site.key === 'zara_uae' && (fetchResult.code === 'network_error' || fetchResult.code === 'site_parser_failed' || fetchResult.code === 'price_not_found')) ||
     (site.key === 'brands_for_less' && (fetchResult.code === 'network_error' || fetchResult.code === 'site_parser_failed' || fetchResult.code === 'price_not_found')) ||
@@ -2654,15 +2661,22 @@ function isBlockedHtml(html: string): boolean {
 function isProduct404Page(html: string): boolean {
   const normalized = html.toLowerCase();
 
+  // Shopify product pages embed their product payload. Storefront theme
+  // scripts also contain phrases like "Product section not found" and image
+  // srcsets can contain a width of 404, so never treat those pages as 404s.
+  if (/<script\b[^>]*\bid=["']ProductJson["']/i.test(html)) {
+    return false;
+  }
+
   // Sun & Sand Sports 404 page pattern
   if (normalized.includes('data-gtm-event-action="404') && normalized.includes('class="error__image"')) {
     return true;
   }
 
   // Generic 404 page indicators (use sparingly to avoid false positives)
-  const has404Image = /<img[^>]+404[^>]*>/i.test(html);
+  const has404Image = /<img[^>]*(?:alt|class|id|title)=["'][^"']*\b404\b[^"']*["'][^>]*>/i.test(html);
   const has404Heading = /<h[1-3][^>]*>\s*404\b/i.test(html);
-  const hasProductNotFound = /product.{0,15}not\s*found/i.test(normalized);
+  const hasProductNotFound = /product\s+not\s+found/i.test(normalized);
 
   if (has404Image && (has404Heading || hasProductNotFound)) {
     return true;

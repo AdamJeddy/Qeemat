@@ -1,5 +1,5 @@
 import { StyleSheet, View } from 'react-native';
-import { CheckCircle2, CircleAlert, Clock3, TrendingDown } from 'lucide-react-native';
+import { CheckCircle2, CircleAlert, Clock3 } from 'lucide-react-native';
 
 import { AppText } from './AppText';
 import { Availability, CheckStatus } from '../domain/types';
@@ -24,15 +24,16 @@ export function StatusPill({ status = 'ok', label, availability }: StatusPillPro
     );
   }
 
-  const tone = status === 'ok' || status === 'price_changed' ? 'green' : status === 'network_error' ? 'amber' : 'red';
-  const Icon = status === 'price_changed' ? TrendingDown : status === 'ok' ? CheckCircle2 : status === 'network_error' ? Clock3 : CircleAlert;
+  // A successful check is neutral information, not a success/price-drop signal.
+  const tone = status === 'price_changed' || status === 'ok' ? 'blue' : status === 'network_error' ? 'amber' : 'red';
+  const Icon = status === 'price_changed' || status === 'ok' ? CheckCircle2 : status === 'network_error' ? Clock3 : CircleAlert;
 
   return (
     <View style={[styles.base, styles[tone]]}>
-      <Icon size={14} color={tone === 'green' ? colors.green : tone === 'amber' ? colors.amber : colors.red} />
+      <Icon size={14} color={tone === 'blue' ? colors.primary : tone === 'amber' ? colors.amber : colors.red} />
       <AppText
         weight="medium"
-        style={[styles.label, tone === 'green' && styles.greenText, tone === 'amber' && styles.amberText, tone === 'red' && styles.redText]}
+        style={[styles.label, tone === 'blue' && styles.blueText, tone === 'amber' && styles.amberText, tone === 'red' && styles.redText]}
       >
         {label ?? labelForStatus(status)}
       </AppText>
@@ -72,8 +73,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 5
   },
-  green: {
-    backgroundColor: colors.greenSoft
+  blue: {
+    backgroundColor: colors.blueSoft
   },
   amber: {
     backgroundColor: colors.amberSoft
@@ -84,8 +85,8 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 12
   },
-  greenText: {
-    color: colors.green
+  blueText: {
+    color: colors.primary
   },
   amberText: {
     color: colors.amber

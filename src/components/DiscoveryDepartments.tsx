@@ -41,7 +41,7 @@ const styles = StyleSheet.create({
   browse: { minHeight: 44, justifyContent: 'center' },
   link: { color: colors.primary, fontSize: 13 },
   grid: { flexDirection: 'row', gap: 8 },
-  tile: { minHeight: 42, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14, paddingVertical: 8, backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg },
+  tile: { minHeight: 44, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14, paddingVertical: 8, backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg },
   selected: { backgroundColor: colors.blueSoft, borderColor: colors.primary },
   pressed: { opacity: 0.8 },
   label: { textAlign: 'center', fontSize: 13 }
