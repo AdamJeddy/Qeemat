@@ -35,6 +35,12 @@ Watchlist checks were failing for Decathlon and Amazon products. Investigated on
 - **Amazon failures were intermittent network resets and partial pages** ("Could not reach the product page", "Qeemat could not find product details on this page"). Amazon now retries the exact URL once, then uses the Android WebView fallback for network and parser failures, the same recovery path used by other browser-only storefronts. The watchlist recheck completed with the Amazon items checked successfully this run; challenge pages can still return `blocked` and are reported honestly.
 - Regression tests cover the Decathlon 404 false positive, genuine 404 detection, Amazon partial-page and network-error fallbacks, and the Decathlon missing-ProductJson fallback.
 
+## Watchlist search and duplicate adds (13 November)
+
+- **Watchlist search** — the watchlist toolbar now has a search control that expands to an inline field. It filters tracked products by product name, retailer, folder and selected option (multi-word queries must all match), combines with the existing store/folder/sort filters and supports an empty state with **Clear search**. The blue-banner search shortcut still opens discovery Search. [evidence](docs/assets/design-2026-11-13/watchlist-search.png)
+- **Duplicate detection with variants** — adding a link that is already tracked shows **Already tracking this product** with **Open tracker** / **OK** and does not create a duplicate. Adding a different option of the same product (for example a different size) asks **Track another option?** and allows a separate tracker after confirmation, because several options of one product can legitimately be monitored. Options are matched by variant id; page-level trackers are matched by the normalized product URL. The same prompt is used when a page-level and an option-level tracker would overlap. [evidence](docs/assets/design-2026-11-13/duplicate-tracker-alert.png)
+- Domain tests cover page-level duplicates, same-variant duplicates, different options of one product, different products and URL normalization.
+
 ## User correction: floating add button
 
 The user explicitly rejected the white dock added during the follow-up below. The add button has been restored as a floating overlay; covering content is an accepted tradeoff (commit `12aaa66`; device evidence `%TEMP%/q-handover.png`). Bottom scroll padding is kept so the last product can be scrolled clear. Do not reintroduce the dock to address the historical overlap finding. See `docs/design-handover.md` for the current direction and verification.
