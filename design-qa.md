@@ -1,5 +1,9 @@
 # Qeemat design review
 
+## User correction: floating add button
+
+The user explicitly rejected the white dock added during the follow-up below. The add button has been restored as a floating overlay; covering content is an accepted tradeoff. Do not reintroduce the dock to address the historical overlap finding. See `docs/design-handover.md` for the current direction and verification.
+
 ## Follow-up: 13 November
 
 The updated Android release was installed and checked on the Samsung SM-S928B. Watchlist now extends its blue header behind the status bar, with white system icons (`%TEMP%/q-system.png`); other screens retain a light status bar. The add button occupies a dedicated area rather than covering prices. The Watchlist was also checked while changing the system font scale from 0.9 to 1.3 with the app open (`%TEMP%/q-scale-final.png`): header, controls and navigation reflowed without the earlier clipping. The original font scale was restored.
