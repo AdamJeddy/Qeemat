@@ -2322,33 +2322,8 @@ function SettingsScreen() {
         Settings
       </AppText>
       <AppText muted style={styles.settingsIntro}>
-        Control local alerts, daily background timing, and the stores Qeemat can track in this MVP.
+        Manage notifications and when Qeemat checks prices.
       </AppText>
-      <View style={styles.settingsCard}>
-        <View style={styles.settingsStack}>
-          <View style={styles.settingsHeaderRow}>
-            <AppText weight="bold">Supported stores</AppText>
-            <View style={styles.settingsBadge}>
-              <AppText weight="semibold" style={styles.settingsBadgeText}>
-                {SUPPORTED_SITES.filter(s => s.status === 'supported').length} live
-              </AppText>
-            </View>
-          </View>
-          <AppText muted style={styles.settingsBodyText}>
-            Product links are currently supported for these stores. Amazon support is kept intentionally lightweight for the MVP across selected regional domains.
-          </AppText>
-          <View style={styles.settingsChipWrap}>
-            {SUPPORTED_SITES.filter(s => s.status === 'supported').map((site) => (
-              <View key={site.key} style={styles.settingsChip}>
-                <SiteIcon siteKey={site.key} size={14} />
-                <AppText weight="medium" style={styles.settingsChipText}>
-                  {site.shortName}
-                </AppText>
-              </View>
-            ))}
-          </View>
-        </View>
-      </View>
       <View style={styles.settingsCard}>
         <View style={styles.settingsStack}>
           <View style={styles.settingsHeaderRow}>
@@ -2441,6 +2416,31 @@ function SettingsScreen() {
             Best-effort — enable battery exemption above for reliability.
           </AppText>
           <PrimaryButton label="Queue background check once" variant="outline" onPress={queueBackgroundCheck} loading={queueingCheck} />
+        </View>
+      </View>
+      <View style={styles.settingsCard}>
+        <View style={styles.settingsStack}>
+          <View style={styles.settingsHeaderRow}>
+            <AppText weight="bold">Supported stores</AppText>
+            <View style={styles.settingsBadge}>
+              <AppText weight="semibold" style={styles.settingsBadgeText}>
+                {SUPPORTED_SITES.filter(s => s.status === 'supported').length} live
+              </AppText>
+            </View>
+          </View>
+          <AppText muted style={styles.settingsBodyText}>
+            Track product links from these stores, including selected Amazon regions.
+          </AppText>
+          <View style={styles.settingsChipWrap}>
+            {SUPPORTED_SITES.filter(s => s.status === 'supported').map((site) => (
+              <View key={site.key} style={styles.settingsChip}>
+                <SiteIcon siteKey={site.key} size={14} />
+                <AppText weight="medium" style={styles.settingsChipText}>
+                  {site.shortName}
+                </AppText>
+              </View>
+            ))}
+          </View>
         </View>
       </View>
       <PrimaryButton
@@ -3567,8 +3567,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: colors.surface,
-    ...shadow
+    backgroundColor: colors.surface
   },
   settingsHeaderRow: {
     flexDirection: 'row',
