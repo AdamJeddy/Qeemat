@@ -1,5 +1,16 @@
 # Qeemat design review
 
+## Status and type tokens: device verification 13 November
+
+The semantic type/layout tokens and shared status primitives were installed on the Samsung SM-S928B release and checked:
+
+- Watchlist price rises now render amber instead of red; drops stay green, so green is reserved for price movement. [Watchlist evidence](docs/assets/design-2026-11-13/watchlist-status-colors.png)
+- Product detail shows a neutral blue "Checked" status pill, and the snapshot list renders provenance ("Background", "Recheck all") as muted text instead of colored badges. [Detail evidence](docs/assets/design-2026-11-13/detail-neutral-check.png), [snapshot list](docs/assets/design-2026-11-13/detail-snapshot-provenance.png)
+- Activity renders "Back in stock" in neutral blue, price rises in amber and drops in green, with muted provenance. [Activity evidence](docs/assets/design-2026-11-13/activity-status-colors.png)
+- Device accessibility labels were present for the header and icon controls ("Go back", "Copy product link", "Tracking settings").
+
+Remaining for the next passes: product-detail titles clamp to three lines and the larger `detailTitle` role now truncates longer names (a product-detail hierarchy decision is needed); the snapshot list still tints `price_changed` rows green regardless of direction, pending full status unification.
+
 ## User correction: floating add button
 
 The user explicitly rejected the white dock added during the follow-up below. The add button has been restored as a floating overlay; covering content is an accepted tradeoff (commit `12aaa66`; device evidence `%TEMP%/q-handover.png`). Bottom scroll padding is kept so the last product can be scrolled clear. Do not reintroduce the dock to address the historical overlap finding. See `docs/design-handover.md` for the current direction and verification.
