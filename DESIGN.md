@@ -95,8 +95,8 @@ Use the 4/8/12/16/24/32 `spacing` scale in React Native density-independent unit
 
 Page background is `colors.background` (#F8FAFC); inline cards are flat white (`colors.surface`) with a 1px `colors.border` border; muted insets use `colors.surfaceMuted` (#F1F5F9). Radii come from the `radius` scale (sm 6, md 8, lg 12; pills use 999). Overlay sheets keep the shared `shadow` (8 vertical offset, 0.08 opacity, 18 radius, Android elevation 3); inline cards carry no shadow.
 
-- **Shipped:** flat Watchlist rows and Settings cards; the `shadow` token remains for overlays.
-- **Intended:** removing the remaining inline shadows (product-detail stat cards, the empty-state card and the Add-product preview card); the Search and product-detail passes that apply this treatment are still intended.
+- **Shipped:** flat Watchlist rows, Settings cards and product-detail insight cards; the `shadow` token remains for overlays.
+- **Intended:** removing the remaining inline shadows (the empty-state cards, the Add-product preview card, the bulk action bar and the onboarding card); the Search and product-detail passes that apply this treatment are still intended.
 
 ## Actions
 
@@ -123,8 +123,8 @@ Treat check freshness, price direction, availability and failure as separate sig
 - **Error:** red.
 - **Provenance:** muted text, never green.
 
-- **Shipped:** the status primitives use the agreed colors: `StatusPill` renders `ok` and `price_changed` as a neutral blue check, out-of-stock as amber and failures as red; `PriceDirectionBadge` renders a drop green and a rise amber; `SourceLabel` (backed by `snapshotSourceLabel` in `src/domain/snapshotSource.ts`) renders provenance as muted text with no colored badge; `ProductCard` and the product-detail snapshot list use these primitives.
-- **Intended:** one shared status treatment applied consistently across every surface. `StatusPill` remains product-detail only, and some local treatments remain (for example, the product-detail snapshot list still colors a `price_changed` row green regardless of direction). Do not treat full unification as shipped.
+- **Shipped:** the status primitives use the agreed colors: `StatusPill` renders `ok` and `price_changed` as a neutral blue check, out-of-stock as amber and failures as red; `PriceDirectionBadge` renders a drop green and a rise amber; `SourceLabel` (backed by `snapshotSourceLabel` in `src/domain/snapshotSource.ts`) renders provenance as muted text with no colored badge; `ProductCard`, the product-detail snapshot list and Activity use the shared colors and primitives. Snapshot prices on product detail are tinted by direction (green lower, amber higher) rather than every `price_changed` row being green.
+- **Intended:** one shared status treatment applied consistently across every surface. `StatusPill` remains product-detail only, and the price-history chart keeps its own change indicator. Do not treat full unification as shipped.
 
 ## Components
 
@@ -134,8 +134,9 @@ Treat check freshness, price direction, availability and failure as separate sig
 - **Tracked-product cards:** `ProductCard` presents the product, retailer, selected variant, current or last-known price, price change and check state where available. **Shipped:** compact, flat divided rows without the shared shadow. Improve density without hiding variant or failure context.
 - **Floating add button:** **Shipped:** Watchlist uses a circular add button floating over the list (`12aaa66`). The user explicitly chose it over a separate white dock; it can cover list content, and that overlap is an accepted tradeoff, not a defect to fix by restoring a dock. Keep enough bottom scroll padding for the final product to be scrolled clear.
 - **Navigation:** the app has a manual Android tab and route stack. Preserve established navigation and Android back behavior.
-- **Search cards:** listing cards serve discovery, while Watchlist cards serve monitoring. Share underlying visual principles without forcing identical layouts. **Shipped (13 November 2026):** discovery cards use a compact outline Track action instead of a solid primary button on every card, so the card content leads. A fuller Search hierarchy pass remains **intended**.
-- **Product detail:** still gives average price the strongest treatment; applying the hierarchy of primary task, price, supporting facts and secondary controls is **intended**, not shipped.
+- **Search cards:** listing cards serve discovery, while Watchlist cards serve monitoring. Share underlying visual principles without forcing identical layouts. **Shipped (13 November 2026):** discovery cards use a compact outline Track action instead of a solid primary button on every card, so the card content leads, and missing or failed listing images fall back to a neutral placeholder. A fuller Search hierarchy pass remains **intended**.
+- **Task-first flows:** **Shipped (13 November 2026):** Add keeps **Find product** directly after the URL field and collapses the supported-store list behind a disclosure; Settings keeps notifications, battery and background time first and collapses run diagnostics and the supported-store list; tracking settings exposes a per-product **Active** switch, and the tab stack stays mounted so Watchlist and Search keep their state after opening a product or the Add flow.
+- **Product detail:** **Shipped (13 November 2026):** the product title spans the full width without a line clamp, the image and price/status block sit below it, insight cards are flat and equal-weight (no emphasized average price), and snapshots color a lower price green and a higher price amber. Further insight/chart hierarchy refinement is **intended**.
 
 ## Do's and Don'ts
 
