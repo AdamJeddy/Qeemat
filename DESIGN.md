@@ -102,7 +102,7 @@ Page background is `colors.background` (#F8FAFC); inline cards are flat white (`
 
 - **Primary:** 58 high, `colors.primary` fill, white label, radius 8.
 - **Secondary:** 58 high, white fill, 1px `colors.primary` border, primary label.
-- **Compact:** 44-high pill.
+- **Compact:** 44-high rounded control (chips and card actions).
 - **Icon:** 44×44 minimum target.
 - **Link-row:** 44 minimum height for tappable rows.
 
@@ -134,7 +134,7 @@ Treat check freshness, price direction, availability and failure as separate sig
 - **Tracked-product cards:** `ProductCard` presents the product, retailer, selected variant, current or last-known price, price change and check state where available. **Shipped:** compact, flat divided rows without the shared shadow. Improve density without hiding variant or failure context.
 - **Floating add button:** **Shipped:** Watchlist uses a circular add button floating over the list (`12aaa66`). The user explicitly chose it over a separate white dock; it can cover list content, and that overlap is an accepted tradeoff, not a defect to fix by restoring a dock. Keep enough bottom scroll padding for the final product to be scrolled clear.
 - **Navigation:** the app has a manual Android tab and route stack. Preserve established navigation and Android back behavior.
-- **Search cards:** listing cards serve discovery, while Watchlist cards serve monitoring. Share underlying visual principles without forcing identical layouts. A dedicated Search pass is still **intended**; it still repeats a strong blue track action on every discovery card.
+- **Search cards:** listing cards serve discovery, while Watchlist cards serve monitoring. Share underlying visual principles without forcing identical layouts. **Shipped (13 November 2026):** discovery cards use a compact outline Track action instead of a solid primary button on every card, so the card content leads. A fuller Search hierarchy pass remains **intended**.
 - **Product detail:** still gives average price the strongest treatment; applying the hierarchy of primary task, price, supporting facts and secondary controls is **intended**, not shipped.
 
 ## Do's and Don'ts

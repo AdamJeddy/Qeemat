@@ -118,8 +118,8 @@ export function DiscoveryProductGrid({
               <AppText weight="bold" style={styles.productPrice}>{product.priceMinor === undefined ? 'Price unavailable' : `${product.hasPriceRange ? 'From ' : ''}${formatPrice(product.priceMinor, product.currency, product.priceBasis)}`}</AppText>
               {listingPriceChange(product) ? <AppText muted style={styles.productObserved}>{listingPriceChange(product)}</AppText> : null}
               <AppText muted style={styles.productObserved}>Observed {formatRelativeTime(product.observedAt)}</AppText>
-              <Pressable accessibilityRole="button" onPress={() => onTrack(product)} style={({ pressed }) => [styles.trackButton, tracked && styles.trackedButton, pressed && styles.pressed]} disabled={tracking}>
-                {tracking ? <ActivityIndicator size="small" color={colors.surface} /> : <><Plus size={15} color={tracked ? colors.primary : colors.surface} /><AppText weight="semibold" style={[styles.trackButtonText, tracked && styles.trackedButtonText]}>{tracked ? 'Tracking' : 'Track price'}</AppText></>}
+              <Pressable accessibilityRole="button" accessibilityLabel={`${tracked ? 'Tracking' : 'Track price'}: ${product.title}`} accessibilityState={{ selected: Boolean(tracked) }} onPress={() => onTrack(product)} style={({ pressed }) => [styles.trackButton, tracked && styles.trackedButton, pressed && styles.pressed]} disabled={tracking}>
+                {tracking ? <ActivityIndicator size="small" color={colors.primary} /> : <><Plus size={15} color={colors.primary} /><AppText weight="semibold" style={styles.trackButtonText}>{tracked ? 'Tracking' : 'Track price'}</AppText></>}
               </Pressable>
             </View>
           </View>
@@ -251,10 +251,9 @@ const styles = StyleSheet.create({
   productTitle: { fontSize: 14, lineHeight: 19, minHeight: 38 },
   productPrice: { fontSize: 16 },
   productObserved: { fontSize: 11 },
-  trackButton: { minHeight: 44, borderRadius: radius.sm, backgroundColor: colors.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, marginTop: 2, paddingHorizontal: 8 },
-  trackedButton: { backgroundColor: colors.blueSoft },
-  trackButtonText: { color: colors.surface, fontSize: 12 },
-  trackedButtonText: { color: colors.primary },
+  trackButton: { minHeight: 44, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.primary, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, marginTop: 2, paddingHorizontal: 8 },
+  trackedButton: { backgroundColor: colors.blueSoft, borderColor: colors.blueSoft },
+  trackButtonText: { color: colors.primary, fontSize: 12 },
   feedbackRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
   dismissButton: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   feedbackLink: { fontSize: 10, color: colors.textMuted },

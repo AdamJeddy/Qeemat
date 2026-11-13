@@ -7,6 +7,7 @@ The semantic type/layout tokens and shared status primitives were installed on t
 - Watchlist price rises now render amber instead of red; drops stay green, so green is reserved for price movement. [Watchlist evidence](docs/assets/design-2026-11-13/watchlist-status-colors.png)
 - Product detail shows a neutral blue "Checked" status pill, and the snapshot list renders provenance ("Background", "Recheck all") as muted text instead of colored badges. [Detail evidence](docs/assets/design-2026-11-13/detail-neutral-check.png), [snapshot list](docs/assets/design-2026-11-13/detail-snapshot-provenance.png)
 - Activity renders "Back in stock" in neutral blue, price rises in amber and drops in green, with muted provenance. [Activity evidence](docs/assets/design-2026-11-13/activity-status-colors.png)
+- Search discovery cards use a compact outline Track action instead of a solid primary button on every card, so card content leads. [Search evidence](docs/assets/design-2026-11-13/search-after-pass.png)
 - Device accessibility labels were present for the header and icon controls ("Go back", "Copy product link", "Tracking settings").
 
 Remaining for the next passes: product-detail titles clamp to three lines and the larger `detailTitle` role now truncates longer names (a product-detail hierarchy decision is needed); the snapshot list still tints `price_changed` rows green regardless of direction, pending full status unification.
