@@ -727,7 +727,7 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.titleRow}>
-          <View>
+          <View style={styles.flex}>
             <AppText weight="bold" style={styles.heading}>
               Watchlist
             </AppText>
