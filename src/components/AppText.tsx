@@ -1,7 +1,7 @@
 import { ReactNode, useContext } from 'react';
 import { StyleProp, StyleSheet, Text, TextProps, TextStyle } from 'react-native';
 
-import { colors } from '../theme/theme';
+import { colors, typography } from '../theme/theme';
 import { FontScaleContext } from '../theme/FontScaleContext';
 
 type AppTextProps = TextProps & {
@@ -24,9 +24,8 @@ export function AppText({ children, style, muted, weight = 'regular', ...textPro
 
 const styles = StyleSheet.create({
   base: {
-    color: colors.text,
-    fontSize: 15,
-    lineHeight: 21
+    ...typography.body,
+    color: colors.text
   },
   muted: {
     color: colors.textMuted

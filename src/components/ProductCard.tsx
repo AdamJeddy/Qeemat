@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Image, Pressable, StyleSheet, TouchableOpacity, useWindowDimensions, View } from 'react-native';
-import { CheckCircle2, CircleAlert, Clock3, ImageOff, PackageX, TrendingDown, TrendingUp, X } from 'lucide-react-native';
+import { CheckCircle2, CircleAlert, Clock3, ImageOff, PackageX, X } from 'lucide-react-native';
 
 import { AppText } from './AppText';
+import { PriceDirectionBadge } from './PriceDirectionBadge';
 import { SiteIcon } from './SiteIcon';
 import { formatRelativeTime } from '../domain/dates';
 import { formatPrice } from '../domain/price';
@@ -71,19 +72,9 @@ export function ProductCard({ product, onPress, onRemove, onLongPress, selected 
               </AppText>
             </View>
           ) : showPriceDrop ? (
-            <View style={styles.priceDropBadge}>
-              <TrendingDown size={13} color={colors.green} />
-              <AppText weight="semibold" style={styles.priceDropText}>
-                {formatPrice(Math.abs(delta), product.currency, product.priceBasis)} lower
-              </AppText>
-            </View>
+            <PriceDirectionBadge direction="down" text={`${formatPrice(Math.abs(delta), product.currency, product.priceBasis)} lower`} />
           ) : showPriceUp ? (
-            <View style={styles.priceUpBadge}>
-              <TrendingUp size={13} color={colors.red} />
-              <AppText weight="semibold" style={styles.priceUpText}>
-                {formatPrice(delta, product.currency, product.priceBasis)} higher
-              </AppText>
-            </View>
+            <PriceDirectionBadge direction="up" text={`${formatPrice(delta, product.currency, product.priceBasis)} higher`} />
           ) : null}
         </View>
         <View style={styles.badge}>
@@ -222,32 +213,6 @@ const styles = StyleSheet.create({
   },
   price: {
     fontSize: 18
-  },
-  priceDropBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: colors.greenSoft,
-    borderRadius: radius.sm,
-    paddingHorizontal: 8,
-    paddingVertical: 5
-  },
-  priceDropText: {
-    color: colors.green,
-    fontSize: 12
-  },
-  priceUpBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: colors.redSoft,
-    borderRadius: radius.sm,
-    paddingHorizontal: 8,
-    paddingVertical: 5
-  },
-  priceUpText: {
-    color: colors.red,
-    fontSize: 12
   },
   oosBadge: {
     flexDirection: 'row',
