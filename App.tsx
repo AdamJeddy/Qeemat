@@ -842,6 +842,10 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
         ) : null}
         </View>
         <View style={styles.watchlistToolbar}>
+        {selectedProductIds.size === 0 ? <Pressable accessibilityRole="button" accessibilityLabel="Recheck all prices" accessibilityState={{ disabled: !products.length || loading || checkingAll }} disabled={!products.length || loading || checkingAll} onPress={recheckAllPrices} style={({ pressed }) => [styles.watchlistRecheck, (!products.length || loading || checkingAll) && styles.watchlistRecheckDisabled, pressed && styles.storeFilterButtonPressed]}>
+          {checkingAll ? <ActivityIndicator size="small" color={colors.primary} /> : <RefreshCcw size={18} color={colors.primary} />}
+          <AppText weight="semibold" style={styles.controlsButtonText}>{checkingAll ? 'Checking…' : 'Recheck all'}</AppText>
+        </Pressable> : null}
         <Pressable accessibilityRole="button" accessibilityLabel={activeControlCount > 0 ? `Filter and sort, ${activeControlCount} active` : 'Filter and sort'} onPress={() => setShowControls(true)} style={({ pressed }) => [styles.controlsButton, pressed && styles.storeFilterButtonPressed]}>
           <SlidersHorizontal size={18} color={colors.surface} />
           <AppText weight="semibold" style={styles.watchlistFilterText}>Filter & sort</AppText>
@@ -856,10 +860,6 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
         >
           <Archive size={18} color={showArchived ? colors.surface : colors.primary} />
         </Pressable>
-        {selectedProductIds.size === 0 ? <Pressable accessibilityRole="button" accessibilityLabel="Recheck all prices" accessibilityState={{ disabled: !products.length || loading || checkingAll }} disabled={!products.length || loading || checkingAll} onPress={recheckAllPrices} style={({ pressed }) => [styles.watchlistRecheck, (!products.length || loading || checkingAll) && styles.watchlistRecheckDisabled, pressed && styles.storeFilterButtonPressed]}>
-          {checkingAll ? <ActivityIndicator size="small" color={colors.primary} /> : <RefreshCcw size={18} color={colors.primary} />}
-          <AppText weight="semibold" style={styles.controlsButtonText}>{checkingAll ? 'Checking…' : 'Recheck all'}</AppText>
-        </Pressable> : null}
         </View>
         {activeControlSummary ? (
           <View style={styles.activeControlsRow}>
@@ -3030,7 +3030,17 @@ const styles = StyleSheet.create({
     color: colors.text,
     paddingVertical: 8
   },
-  watchlistRecheck: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 10 },
+  watchlistRecheck: {
+    minHeight: layoutMetrics.touchTarget,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    backgroundColor: colors.surface
+  },
   watchlistRecheckDisabled: { opacity: 0.5 },
   selectionHeader: {
     flexDirection: 'row',
