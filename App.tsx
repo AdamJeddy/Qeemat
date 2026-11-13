@@ -253,17 +253,21 @@ export default function App() {
     );
   }
 
+  const blueStatusBar = route.name === 'tabs' && route.tab === 'watchlist' && !showOnboarding;
+
   return (
     <FontScaleContext.Provider value={fontScale}>
     <SafeAreaProvider>
-      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
-      <SafeAreaView style={styles.app}>
+      <StatusBar barStyle={blueStatusBar ? 'light-content' : 'dark-content'} backgroundColor={blueStatusBar ? colors.primary : colors.background} />
+      <SafeAreaView edges={['top']} style={[styles.app, blueStatusBar && styles.watchlistSystemBar]}>
+      <SafeAreaView edges={['bottom', 'left', 'right']} style={styles.app}>
         <UpdateNotice visible={route.name === 'tabs' && route.tab !== 'activity'} />
         {route.name === 'tabs' ? <TabsScreen tab={route.tab} navigate={setRoute} discoveryOffset={discoveryOffset} /> : null}
         {route.name === 'add' ? <AddScreen initialUrl={route.initialUrl} shareEventId={route.shareEventId} returnTab={route.returnTab} navigate={setRoute} /> : null}
         {route.name === 'detail' ? <DetailScreen productId={route.id} navigate={setRoute} /> : null}
         {route.name === 'trackingSettings' ? <TrackingSettingsScreen productId={route.id} navigate={setRoute} /> : null}
         {showOnboarding ? <OnboardingOverlay onClose={() => setShowOnboarding(false)} /> : null}
+      </SafeAreaView>
       </SafeAreaView>
     </SafeAreaProvider>
     </FontScaleContext.Provider>
@@ -2615,7 +2619,8 @@ const styles = StyleSheet.create({
     gap: 16
   },
   discoveryScreenContent: { padding: 16, gap: 10 },
-  watchlistContent: { backgroundColor: colors.surface, paddingTop: 0 },
+  watchlistContent: { backgroundColor: colors.surface, paddingTop: 0, paddingBottom: 20 },
+  watchlistSystemBar: { backgroundColor: colors.primary },
   watchlistBanner: { backgroundColor: colors.primary, marginHorizontal: -20, paddingHorizontal: 20, paddingTop: 14, paddingBottom: 18, gap: 12 },
   watchlistBrandRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   watchlistBrandLockup: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 },
