@@ -35,6 +35,7 @@ import {
   Clock,
   Copy,
   FolderInput,
+  ImageOff,
   Link2,
   PackageX,
   Pause,
@@ -172,6 +173,7 @@ export default function App() {
   const { fontScale } = useWindowDimensions();
   const [route, setRoute] = useState<Route>({ name: 'tabs', tab: 'watchlist' });
   const [discoveryOffset, setDiscoveryOffset] = useState(0);
+  const [lastTab, setLastTab] = useState<TabKey>('watchlist');
   const [ready, setReady] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const shareEventId = useRef(0);
@@ -226,6 +228,12 @@ export default function App() {
   }, [route]);
 
   useEffect(() => {
+    if (route.name === 'tabs') {
+      setLastTab(route.tab);
+    }
+  }, [route]);
+
+  useEffect(() => {
     const shareModule = NativeModules.QeematShare;
     if (!shareModule) {
       return;
@@ -255,6 +263,7 @@ export default function App() {
   }
 
   const blueStatusBar = route.name === 'tabs' && route.tab === 'watchlist' && !showOnboarding;
+  const activeTab: TabKey = route.name === 'tabs' ? route.tab : lastTab;
 
   return (
     <FontScaleContext.Provider value={fontScale}>
@@ -263,7 +272,9 @@ export default function App() {
       <SafeAreaView edges={['top']} style={[styles.app, blueStatusBar && styles.watchlistSystemBar]}>
       <SafeAreaView edges={['bottom', 'left', 'right']} style={styles.app}>
         <UpdateNotice visible={route.name === 'tabs' && route.tab !== 'activity'} />
-        {route.name === 'tabs' ? <TabsScreen tab={route.tab} navigate={setRoute} discoveryOffset={discoveryOffset} /> : null}
+        <View style={route.name === 'tabs' ? styles.flex : styles.hiddenTab}>
+          <TabsScreen tab={activeTab} navigate={setRoute} discoveryOffset={discoveryOffset} />
+        </View>
         {route.name === 'add' ? <AddScreen initialUrl={route.initialUrl} shareEventId={route.shareEventId} returnTab={route.returnTab} navigate={setRoute} /> : null}
         {route.name === 'detail' ? <DetailScreen productId={route.id} navigate={setRoute} /> : null}
         {route.name === 'trackingSettings' ? <TrackingSettingsScreen productId={route.id} navigate={setRoute} /> : null}
@@ -800,6 +811,26 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
 
         {loading ? <ActivityIndicator color={colors.primary} /> : null}
         {!loading && products.length === 0 ? <EmptyWatchlist onAdd={() => navigate({ name: 'add' })} /> : null}
+        {!loading && products.length > 0 && showArchived && visibleProducts.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <View style={styles.emptyIcon}>
+              <Archive size={24} color={colors.primary} />
+            </View>
+            <AppText weight="bold" style={styles.emptyTitle}>Nothing archived yet</AppText>
+            <AppText muted style={styles.emptyCopy}>Archived products keep their price history and appear here.</AppText>
+            <PrimaryButton label="Show active products" variant="outline" onPress={() => setShowArchived(false)} style={styles.emptyButton} />
+          </View>
+        ) : null}
+        {!loading && visibleProducts.length > 0 && filteredProducts.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <View style={styles.emptyIcon}>
+              <SlidersHorizontal size={24} color={colors.primary} />
+            </View>
+            <AppText weight="bold" style={styles.emptyTitle}>No products match these filters</AppText>
+            <AppText muted style={styles.emptyCopy}>Change or clear the store, folder and sort controls to see your products.</AppText>
+            <PrimaryButton label="Clear filters" variant="outline" onPress={clearControls} style={styles.emptyButton} />
+          </View>
+        ) : null}
 
         {oos.length > 0 ? (
           <Pressable accessibilityRole="button" accessibilityState={{ expanded: oosExpanded }} style={styles.oosSection} onPress={() => setOosExpanded((v) => !v)}>
@@ -1155,18 +1186,7 @@ export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { i
           ) : null}
         </View>
         <PrimaryButton label="Find product" onPress={() => parseUrl(url)} disabled={!url.trim() || loading} loading={loading} />
-        {!detectedSite ? (
-          <View style={styles.chips}>
-            {SUPPORTED_SITES.filter(s => s.status === 'supported').map((site) => (
-              <View key={site.key} style={styles.chip}>
-                <SiteIcon siteKey={site.key} size={14} />
-                <AppText weight="medium" style={styles.chipText}>
-                  {site.shortName}
-                </AppText>
-              </View>
-            ))}
-          </View>
-        ) : null}
+        {!detectedSite ? <AddSupportedStores /> : null}
         {error ? (
           <View style={styles.errorBox}>
             <CircleAlert size={18} color={colors.red} />
@@ -1262,6 +1282,42 @@ export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { i
   );
 }
 
+function AddSupportedStores() {
+  const [expanded, setExpanded] = useState(false);
+  const stores = SUPPORTED_SITES.filter((site) => site.status === 'supported');
+
+  return (
+    <View style={styles.supportedStoresSection}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded }}
+        onPress={() => setExpanded((value) => !value)}
+        style={styles.disclosureRow}
+      >
+        <AppText weight="semibold" style={styles.flex}>
+          Supported stores
+        </AppText>
+        <AppText muted style={styles.caption}>
+          {stores.length} stores
+        </AppText>
+        {expanded ? <ChevronUp size={16} color={colors.textMuted} /> : <ChevronDown size={16} color={colors.textMuted} />}
+      </Pressable>
+      {expanded ? (
+        <View style={styles.chips}>
+          {stores.map((site) => (
+            <View key={site.key} style={styles.chip}>
+              <SiteIcon siteKey={site.key} size={14} />
+              <AppText weight="medium" style={styles.chipText}>
+                {site.shortName}
+              </AppText>
+            </View>
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 function ProductPreview({
   product,
   storeName,
@@ -1275,11 +1331,21 @@ function ProductPreview({
 }) {
   const { width, fontScale } = useWindowDimensions();
   const compact = isCompactLayout(width, fontScale);
+  const [imageFailed, setImageFailed] = useState(false);
+  useEffect(() => {
+    setImageFailed(false);
+  }, [product.imageUrl]);
 
   return (
     <View style={[styles.previewCard, compact && styles.previewCardCompact]}>
       <View style={[styles.previewImageWrap, compact && styles.previewImageWrapCompact]}>
-        {product.imageUrl ? <Image source={{ uri: product.imageUrl }} style={styles.previewImage} resizeMode="contain" /> : null}
+        {product.imageUrl && !imageFailed ? (
+          <Image source={{ uri: product.imageUrl }} style={styles.previewImage} resizeMode="contain" onError={() => setImageFailed(true)} />
+        ) : (
+          <View accessible accessibilityLabel="Product image unavailable">
+            <ImageOff size={28} color={colors.textMuted} />
+          </View>
+        )}
       </View>
       <View style={styles.previewCopy}>
         <AppText weight="bold" numberOfLines={2} style={styles.previewTitle}>
@@ -1312,11 +1378,15 @@ export function DetailScreen({ productId, navigate }: { productId: number; navig
   const compact = isCompactLayout(width, fontScale);
   const [data, setData] = useState<ProductWithSnapshots | undefined>();
   const [checking, setChecking] = useState(false);
+  const [imageFailed, setImageFailed] = useState(false);
 
   const load = useCallback(async () => setData(await getProductWithSnapshots(productId)), [productId]);
   useEffect(() => {
     load();
   }, [load]);
+  useEffect(() => {
+    setImageFailed(false);
+  }, [data?.product.imageUrl]);
 
   async function checkNow() {
     setChecking(true);
@@ -1352,37 +1422,43 @@ export function DetailScreen({ productId, navigate }: { productId: number; navig
     <View style={styles.app}>
       <Header title="Qeemat" onBack={() => navigate({ name: 'tabs', tab: 'watchlist' })} />
       <ScrollView contentContainerStyle={styles.screenContent} showsVerticalScrollIndicator={false}>
+        <AppText weight="bold" accessibilityRole="header" style={styles.detailTitle}>
+          {product.title}
+        </AppText>
+        <View style={styles.detailMetaRow}>
+          {product.variant ? <AppText muted style={[styles.caption, styles.flex]}>Tracking {product.variant.label}</AppText> : <View style={styles.flex} />}
+          <View style={styles.detailHeaderActions}>
+            <Pressable
+              accessibilityLabel="Copy product link"
+              accessibilityRole="button"
+              hitSlop={5}
+              style={styles.iconButton}
+              onPress={copyProductLink}
+            >
+              <Copy size={20} color={colors.text} />
+            </Pressable>
+            <Pressable
+              accessibilityLabel="Tracking settings"
+              accessibilityRole="button"
+              hitSlop={5}
+              style={styles.iconButton}
+              onPress={() => navigate({ name: 'trackingSettings', id: product.id })}
+            >
+              <SettingsIcon size={20} color={colors.text} />
+            </Pressable>
+          </View>
+        </View>
         <View style={[styles.detailHero, compact && styles.detailHeroCompact]}>
           <View style={[styles.detailImageWrap, compact && styles.detailImageWrapCompact]}>
-            {product.imageUrl ? <Image source={{ uri: product.imageUrl }} style={styles.detailImage} resizeMode="contain" /> : null}
-          </View>
-          <View style={styles.detailCopy}>
-            <View style={styles.titleRow}>
-              <AppText weight="bold" accessibilityRole="header" style={styles.detailTitle} numberOfLines={3}>
-                {product.title}
-              </AppText>
-              <View style={styles.detailHeaderActions}>
-                <Pressable
-                  accessibilityLabel="Copy product link"
-                  accessibilityRole="button"
-                  hitSlop={5}
-                  style={styles.iconButton}
-                  onPress={copyProductLink}
-                >
-                  <Copy size={20} color={colors.text} />
-                </Pressable>
-                <Pressable
-                  accessibilityLabel="Tracking settings"
-                  accessibilityRole="button"
-                  hitSlop={5}
-                  style={styles.iconButton}
-                  onPress={() => navigate({ name: 'trackingSettings', id: product.id })}
-                >
-                  <SettingsIcon size={20} color={colors.text} />
-                </Pressable>
+            {product.imageUrl && !imageFailed ? (
+              <Image source={{ uri: product.imageUrl }} style={styles.detailImage} resizeMode="contain" onError={() => setImageFailed(true)} />
+            ) : (
+              <View accessible accessibilityLabel="Product image unavailable">
+                <ImageOff size={28} color={colors.textMuted} />
               </View>
-            </View>
-            {product.variant ? <AppText muted style={styles.caption}>Tracking {product.variant.label}</AppText> : null}
+            )}
+          </View>
+          <View style={styles.detailPriceBlock}>
             <AppText muted style={styles.caption}>
               {checkFailed || isOos ? 'Last known price' : 'Current price'}
             </AppText>
@@ -1419,7 +1495,7 @@ export function DetailScreen({ productId, navigate }: { productId: number; navig
           <StatCard label="Lowest price" price={insights.lowestPriceMinor} currency={product.currency} priceBasis={product.priceBasis} tone="green" />
           <StatCard label="Highest price" price={insights.highestPriceMinor} currency={product.currency} priceBasis={product.priceBasis} tone="red" />
         </View>
-        <StatCard label="Average price" price={insights.averagePriceMinor} currency={product.currency} priceBasis={product.priceBasis} tone="neutral" emphasized />
+        <StatCard label="Average price" price={insights.averagePriceMinor} currency={product.currency} priceBasis={product.priceBasis} tone="neutral" />
         <AppText muted style={styles.insightCaption}>{insights.observations} {insights.observations === 1 ? 'priced check' : 'priced checks'} recorded locally.</AppText>
         <SectionTitle title="Price History" />
         {product.priceBasis ? <AppText muted>Prices, chart and targets use{priceBasisSuffix(product.priceBasis)}. Weighted grocery totals depend on the final delivered weight.</AppText> : null}
@@ -1486,14 +1562,21 @@ function SnapshotList({ snapshots, currency }: { snapshots: PriceSnapshot[]; cur
 
   return (
     <View style={styles.snapshotList}>
-      {groups.map((group) => {
+      {groups.map((group, index) => {
         const first = group.snapshots[0];
         const rest = group.snapshots.slice(1);
         const isExpanded = expandedKeys.has(group.key);
+        const older = groups[index + 1]?.snapshots[0];
+        const direction =
+          first.priceMinor !== undefined && older?.priceMinor !== undefined && first.priceMinor !== older.priceMinor
+            ? first.priceMinor < older.priceMinor
+              ? 'down'
+              : 'up'
+            : undefined;
 
         return (
           <View key={group.key}>
-            <SnapshotRow snapshot={first} currency={currency} />
+            <SnapshotRow snapshot={first} currency={currency} direction={direction} />
             {rest.length > 0 && !isExpanded && (
               <Pressable style={styles.snapshotCollapsed} onPress={() => toggle(group.key)}>
                 <AppText muted style={styles.snapshotCollapsedText}>
@@ -1524,10 +1607,12 @@ function SnapshotRow({
   snapshot,
   currency,
   subtle,
+  direction,
 }: {
   snapshot: PriceSnapshot;
   currency: string;
   subtle?: boolean;
+  direction?: 'up' | 'down';
 }) {
   return (
     <View style={[styles.snapshotRow, subtle && styles.snapshotRowSubtle]}>
@@ -1541,7 +1626,14 @@ function SnapshotRow({
         {snapshot.errorCode ? <AppText muted>{snapshot.rawPriceText?.slice(0, 400) ?? snapshot.errorCode}</AppText> : null}
       </View>
       <View style={styles.snapshotPriceBlock}>
-        <AppText weight="bold" muted={subtle} style={snapshot.status === 'price_changed' && !subtle && styles.changedPrice}>
+        <AppText
+          weight="bold"
+          muted={subtle}
+          style={[
+            !subtle && direction === 'down' && styles.snapshotPriceDown,
+            !subtle && direction === 'up' && styles.snapshotPriceUp
+          ]}
+        >
           {snapshot.priceMinor !== undefined
             ? formatPrice(snapshot.priceMinor, snapshot.currency ?? currency, snapshot.priceBasis)
             : snapshot.availability === 'out_of_stock' ? 'Out of stock' : 'Failed'}
@@ -1561,6 +1653,7 @@ function TrackingSettingsScreen({ productId, navigate }: { productId: number; na
   const [targetPrice, setTargetPrice] = useState('');
   const [minimumPriceDrop, setMinimumPriceDrop] = useState('');
   const [restockAlertEnabled, setRestockAlertEnabled] = useState(true);
+  const [isActive, setIsActive] = useState(true);
   const [folder, setFolder] = useState('');
   const [productCategory, setProductCategory] = useState<ShoppingCategory>();
   const [categoryEdited, setCategoryEdited] = useState(false);
@@ -1582,6 +1675,7 @@ function TrackingSettingsScreen({ productId, navigate }: { productId: number; na
       setTargetPrice(row.targetPriceMinor ? String(row.targetPriceMinor / 100) : '');
       setMinimumPriceDrop(row.minimumPriceDropMinor ? String(row.minimumPriceDropMinor / 100) : '');
       setRestockAlertEnabled(row.restockAlertEnabled ?? true);
+      setIsActive(row.isActive);
       setFolder(row.folder ?? '');
       setProductCategory(inferWatchlistCategory(row));
       setCategoryEdited(false);
@@ -1597,7 +1691,7 @@ function TrackingSettingsScreen({ productId, navigate }: { productId: number; na
       restockAlertEnabled,
       folder,
       category: categoryEdited ? productCategory ?? null : undefined,
-      isActive: product?.isActive ?? true
+      isActive
     });
     navigate({ name: 'detail', id: productId });
   }
@@ -1651,6 +1745,13 @@ function TrackingSettingsScreen({ productId, navigate }: { productId: number; na
             <AppText muted style={styles.fieldHint}>Notify when this unavailable product returns.</AppText>
           </View>
           <Switch value={restockAlertEnabled} onValueChange={setRestockAlertEnabled} trackColor={{ true: colors.primary }} />
+        </View>
+        <View style={styles.settingToggleRow}>
+          <View style={styles.flex}>
+            <AppText weight="semibold">Active</AppText>
+            <AppText muted style={styles.fieldHint}>Paused products stay in the watchlist but are skipped by price checks.</AppText>
+          </View>
+          <Switch value={isActive} onValueChange={setIsActive} trackColor={{ true: colors.primary }} />
         </View>
         <FolderPicker value={folder} folders={organizationOptions.folders} onChange={setFolder} />
         <ProductCategoryPicker value={productCategory} onChange={(value) => { setProductCategory(value); setCategoryEdited(true); }} />
@@ -2160,7 +2261,7 @@ export function OpportunityScreen({ navigate, active = true, sessionOffset }: { 
                 <DiscoveryFilterChip label="Any brand" selected={!brand} onPress={() => setBrand(undefined)} />
                 {brands.map((item) => <DiscoveryFilterChip key={item} label={item} selected={brand === item} onPress={() => setBrand(brand === item ? undefined : item)} />)}
               </ScrollView>
-              <TextInput accessibilityLabel="Maximum discovery price in AED" value={maximumPrice} onChangeText={setMaximumPrice} keyboardType="decimal-pad" placeholder="Maximum price (AED)" placeholderTextColor={colors.textSoft} style={styles.listingPriceInput} />
+              <TextInput accessibilityLabel="Maximum discovery price in AED" value={maximumPrice} onChangeText={setMaximumPrice} keyboardType="decimal-pad" placeholder="Maximum price (AED)" placeholderTextColor={colors.textSoft} maxFontSizeMultiplier={1.3} style={styles.listingPriceInput} />
             </View> : null}
             {activeFilter ? <View style={styles.titleRow}><AppText muted>{[category && DISCOVERY_CATEGORY_LABELS[category], brand, retailer && getSiteByKey(retailer).shortName, maximumPrice && `Under AED ${maximumPrice}`].filter(Boolean).join(' · ')}</AppText><Pressable accessibilityRole="button" accessibilityLabel="Clear discovery filters" onPress={() => { resetBrowse(); setBrowseAll(true); }}><AppText style={styles.discoveryLink}>Clear filters</AppText></Pressable></View> : null}
             {!filteredProducts.length ? <View style={styles.discoverySection}><AppText muted>{catalogBusy ? 'Loading products for this selection…' : 'No products match your interests, budgets, and filters right now.'}</AppText>{!catalogBusy ? <PrimaryButton label="Explore all products" variant="outline" onPress={() => { resetBrowse(); setBrowseAll(true); }} /> : null}</View> : null}
@@ -2199,6 +2300,8 @@ function SettingsScreen() {
   const [requestingNotifications, setRequestingNotifications] = useState(false);
   const [batteryExempt, setBatteryExempt] = useState<boolean>();
   const [requestingBattery, setRequestingBattery] = useState(false);
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
+  const [showStores, setShowStores] = useState(false);
 
   const loadStatus = useCallback(async () => {
     const [status, notificationsAllowed, batteryOptExempt] = await Promise.all([
@@ -2398,21 +2501,39 @@ function SettingsScreen() {
               );
             })}
           </View>
-          <View style={styles.settingsMetaCard}>
-            <InfoRow label="Target" value={preferredHourLabel} />
-            <InfoRow label="Scheduled" value={formatStatusTime(backgroundStatus?.lastScheduledAt)} />
-            <InfoRow label="Started" value={formatStatusTime(backgroundStatus?.lastStartedAt)} />
-            <InfoRow label="Completed" value={formatStatusTime(backgroundStatus?.lastCompletedAt)} />
-            <InfoRow
-              label="Source"
-              value={backgroundStatus?.lastSource ? formatRunSource(backgroundStatus.lastSource, backgroundStatus.lastForceRun) : 'No background run yet'}
-            />
-            {backgroundStatus?.lastRunError ? <AppText style={styles.errorText}>Last run error: {backgroundStatus.lastRunError}</AppText> : null}
-          </View>
-          <AppText muted style={styles.settingsHint}>
-            Best-effort — enable battery exemption above for reliability.
-          </AppText>
-          <PrimaryButton label="Queue background check once" variant="outline" onPress={queueBackgroundCheck} loading={queueingCheck} />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ expanded: showDiagnostics }}
+            onPress={() => setShowDiagnostics((value) => !value)}
+            style={styles.disclosureRow}
+          >
+            <View style={styles.flex}>
+              <AppText weight="semibold">Run diagnostics</AppText>
+              <AppText muted style={styles.settingsBodyText}>
+                Last completed: {backgroundStatus?.lastCompletedAt ? formatRelativeTime(backgroundStatus.lastCompletedAt) : 'never'}
+              </AppText>
+            </View>
+            {showDiagnostics ? <ChevronUp size={16} color={colors.textMuted} /> : <ChevronDown size={16} color={colors.textMuted} />}
+          </Pressable>
+          {showDiagnostics ? (
+            <>
+              <View style={styles.settingsMetaCard}>
+                <InfoRow label="Target" value={preferredHourLabel} />
+                <InfoRow label="Scheduled" value={formatStatusTime(backgroundStatus?.lastScheduledAt)} />
+                <InfoRow label="Started" value={formatStatusTime(backgroundStatus?.lastStartedAt)} />
+                <InfoRow label="Completed" value={formatStatusTime(backgroundStatus?.lastCompletedAt)} />
+                <InfoRow
+                  label="Source"
+                  value={backgroundStatus?.lastSource ? formatRunSource(backgroundStatus.lastSource, backgroundStatus.lastForceRun) : 'No background run yet'}
+                />
+                {backgroundStatus?.lastRunError ? <AppText style={styles.errorText}>Last run error: {backgroundStatus.lastRunError}</AppText> : null}
+              </View>
+              <AppText muted style={styles.settingsHint}>
+                Best-effort — enable battery exemption above for reliability.
+              </AppText>
+              <PrimaryButton label="Queue background check once" variant="outline" onPress={queueBackgroundCheck} loading={queueingCheck} />
+            </>
+          ) : null}
         </View>
       </View>
       <View style={styles.settingsCard}>
@@ -2428,16 +2549,29 @@ function SettingsScreen() {
           <AppText muted style={styles.settingsBodyText}>
             Track product links from these stores, including selected Amazon regions.
           </AppText>
-          <View style={styles.settingsChipWrap}>
-            {SUPPORTED_SITES.filter(s => s.status === 'supported').map((site) => (
-              <View key={site.key} style={styles.settingsChip}>
-                <SiteIcon siteKey={site.key} size={14} />
-                <AppText weight="medium" style={styles.settingsChipText}>
-                  {site.shortName}
-                </AppText>
-              </View>
-            ))}
-          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ expanded: showStores }}
+            onPress={() => setShowStores((value) => !value)}
+            style={styles.disclosureRow}
+          >
+            <AppText weight="semibold" style={styles.flex}>
+              {showStores ? 'Hide stores' : 'View supported stores'}
+            </AppText>
+            {showStores ? <ChevronUp size={16} color={colors.textMuted} /> : <ChevronDown size={16} color={colors.textMuted} />}
+          </Pressable>
+          {showStores ? (
+            <View style={styles.settingsChipWrap}>
+              {SUPPORTED_SITES.filter(s => s.status === 'supported').map((site) => (
+                <View key={site.key} style={styles.settingsChip}>
+                  <SiteIcon siteKey={site.key} size={14} />
+                  <AppText weight="medium" style={styles.settingsChipText}>
+                    {site.shortName}
+                  </AppText>
+                </View>
+              ))}
+            </View>
+          ) : null}
         </View>
       </View>
       <PrimaryButton
@@ -2473,11 +2607,11 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function StatCard({ label, price, currency, priceBasis, tone, emphasized = false }: { label: string; price?: number; currency: string; priceBasis?: import('./src/domain/priceBasis').PriceBasis; tone: 'green' | 'red' | 'neutral'; emphasized?: boolean }) {
+function StatCard({ label, price, currency, priceBasis, tone }: { label: string; price?: number; currency: string; priceBasis?: import('./src/domain/priceBasis').PriceBasis; tone: 'green' | 'red' | 'neutral' }) {
   return (
-    <View style={[styles.statCard, emphasized && styles.statCardEmphasized]}>
+    <View style={styles.statCard}>
       <AppText muted>{label}</AppText>
-      <AppText weight="bold" style={[styles.statPrice, emphasized && styles.statPriceEmphasized, tone === 'green' ? styles.greenText : tone === 'red' ? styles.redText : undefined]}>
+      <AppText weight="bold" style={[styles.statPrice, tone === 'green' ? styles.greenText : tone === 'red' ? styles.redText : undefined]}>
         {formatPrice(price, currency, priceBasis)}
       </AppText>
     </View>
@@ -3013,6 +3147,16 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 10
   },
+  supportedStoresSection: {
+    gap: 10
+  },
+  disclosureRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    minHeight: layoutMetrics.touchTarget,
+    paddingHorizontal: 2
+  },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -3123,17 +3267,22 @@ const styles = StyleSheet.create({
     width: 104,
     height: 134
   },
-  detailCopy: {
+  detailPriceBlock: {
     flex: 1,
     minWidth: 0,
     gap: 6
+  },
+  detailMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 2
   },
   detailHeaderActions: {
     flexDirection: 'row',
     gap: 4
   },
   detailTitle: {
-    flex: 1,
     ...typography.detailTitle
   },
   iconButton: {
@@ -3205,20 +3354,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.md,
-    padding: 14,
-    ...shadow
-  },
-  statCardEmphasized: {
-    backgroundColor: colors.blueSoft,
-    borderColor: colors.primary
+    padding: layoutMetrics.cardPadding
   },
   statPrice: {
     marginTop: 4,
-    fontSize: 20
-  },
-  statPriceEmphasized: {
-    color: colors.primary,
-    fontSize: 24
+    ...typography.priceSmall
   },
   greenText: {
     color: colors.green
@@ -3226,22 +3366,15 @@ const styles = StyleSheet.create({
   redText: {
     color: colors.red
   },
-  changedPrice: {
+  snapshotPriceDown: {
     color: colors.green
+  },
+  snapshotPriceUp: {
+    color: colors.amber
   },
   restockActivityLabel: {
     color: colors.primary,
     fontSize: 14
-  },
-  restockActivityBadge: {
-    backgroundColor: colors.greenSoft,
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 4
-  },
-  restockActivityBadgeText: {
-    color: colors.green,
-    fontSize: 11
   },
   snapshotList: {
     backgroundColor: colors.surface,
@@ -3495,16 +3628,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.amber,
     flex: 1
-  },
-  oosActivityBadge: {
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    backgroundColor: colors.amberSoft
-  },
-  oosActivityBadgeText: {
-    fontSize: 11,
-    color: colors.amber
   },
   settingsCard: {
     padding: 20,

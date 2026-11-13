@@ -56,11 +56,19 @@ describe('AddScreen', () => {
     mockClipboardSetString.mockReset();
   });
 
-  it('shows H&M and Zara among supported stores before a URL is entered', () => {
+  it('reveals H&M and Zara behind the supported-stores disclosure before a URL is entered', () => {
     let tree: renderer.ReactTestRenderer;
     act(() => { tree = renderer.create(<AddScreen navigate={jest.fn()} />); });
-    const labels = tree!.root.findAllByType(AppText).map((item) => item.props.children);
-    expect(labels).toEqual(expect.arrayContaining(['H&M', 'Zara']));
+    const collapsedLabels = tree!.root.findAllByType(AppText).map((item) => item.props.children);
+    expect(collapsedLabels).toEqual(expect.arrayContaining(['Supported stores', [20, ' stores']]));
+    expect(collapsedLabels).not.toContain('H&M');
+
+    const disclosure = tree!.root.findAll((node) => node.props.accessibilityState?.expanded === false && typeof node.props.onPress === 'function')[0];
+    expect(disclosure).toBeDefined();
+    act(() => { disclosure.props.onPress(); });
+
+    const expandedLabels = tree!.root.findAllByType(AppText).map((item) => item.props.children);
+    expect(expandedLabels).toEqual(expect.arrayContaining(['H&M', 'Zara']));
   });
 
   it('labels the header back control and exposes the screen title as a heading', () => {
