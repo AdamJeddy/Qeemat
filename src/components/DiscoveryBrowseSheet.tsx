@@ -68,7 +68,7 @@ export function DiscoveryBrowseSheet({ visible, sources, onClose, onCategory, on
 
       <View style={styles.searchWrap}>
         <Search size={19} color={colors.textMuted} />
-        <TextInput accessibilityLabel={mode === 'departments' ? 'Search departments' : mode === 'stores' ? 'Search stores' : 'Search store categories'} placeholder={mode === 'departments' ? 'Search departments' : mode === 'stores' ? 'Search stores' : 'Search store categories'} placeholderTextColor={colors.textSoft} value={query} onChangeText={setQuery} style={styles.search} />
+        <TextInput accessibilityLabel={mode === 'departments' ? 'Search departments' : mode === 'stores' ? 'Search stores' : 'Search store categories'} placeholder={mode === 'departments' ? 'Search departments' : mode === 'stores' ? 'Search stores' : 'Search store categories'} placeholderTextColor={colors.textSoft} value={query} onChangeText={setQuery} maxFontSizeMultiplier={1.3} style={styles.search} />
         {query ? <Pressable accessibilityRole="button" accessibilityLabel="Clear search" onPress={() => setQuery('')} style={styles.clear}><X size={18} color={colors.textMuted} /></Pressable> : null}
       </View>
 
