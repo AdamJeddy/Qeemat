@@ -856,11 +856,9 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
         <BulkActionButton label={shouldPauseSelected ? 'Pause' : 'Resume'} icon={<Pause size={20} color={colors.primary} />} onPress={() => applyBulk({ isActive: !shouldPauseSelected })} />
         <BulkActionButton label={showArchived ? 'Restore' : 'Archive'} icon={<Archive size={20} color={colors.primary} />} onPress={() => applyBulk({ isArchived: !showArchived })} />
         <BulkActionButton label="Delete" icon={<Trash2 size={20} color={colors.red} />} destructive onPress={confirmBulkDelete} />
-      </View> : <View style={styles.addProductDock}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Add a product" style={styles.fab} onPress={() => navigate({ name: 'add' })}>
-          <Plus size={30} color={colors.surface} />
-        </Pressable>
-      </View>}
+      </View> : <Pressable accessibilityRole="button" accessibilityLabel="Add a product" style={styles.fab} onPress={() => navigate({ name: 'add' })}>
+        <Plus size={30} color={colors.surface} />
+      </Pressable>}
       <BulkEditSheet visible={showBulkFolderPicker} folders={folders} selectedCount={selectedProductIds.size} onClose={() => setShowBulkFolderPicker(false)} onApply={applyBulk} />
     </View>
   );
@@ -2606,7 +2604,7 @@ const styles = StyleSheet.create({
     gap: 16
   },
   discoveryScreenContent: { padding: 16, gap: 10 },
-  watchlistContent: { backgroundColor: colors.surface, paddingTop: 0, paddingBottom: 20 },
+  watchlistContent: { backgroundColor: colors.surface, paddingTop: 0, paddingBottom: 110 },
   watchlistSystemBar: { backgroundColor: colors.primary },
   watchlistBanner: { backgroundColor: colors.primary, marginHorizontal: -20, paddingHorizontal: 20, paddingTop: 14, paddingBottom: 18, gap: 12 },
   watchlistBrandRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -2910,8 +2908,10 @@ const styles = StyleSheet.create({
   emptyButton: {
     marginTop: 18
   },
-  addProductDock: { backgroundColor: colors.surface, alignItems: 'flex-end', paddingHorizontal: 20, paddingVertical: 8 },
   fab: {
+    position: 'absolute',
+    right: 20,
+    bottom: 20,
     width: 58,
     height: 58,
     borderRadius: 29,
