@@ -32,11 +32,13 @@ const otherOption = {
 } as TrackedProduct;
 
 const parsedPageLevel = {
+  siteKey: 'noon' as const,
   title: 'Running shoes',
   canonicalUrl: 'https://www.noon.com/shoe/?utm_source=share'
 };
 
 const parsedVariant = (id: string, label: string) => ({
+  siteKey: 'noon' as const,
   title: 'Running shoes',
   canonicalUrl: 'https://www.noon.com/shoe',
   selectedVariant: {
@@ -53,9 +55,49 @@ it('matches a page-level parsed product to an existing page-level tracker', () =
   expect(match.sameProduct).toHaveLength(1);
 });
 
-it('matches the same variant id even when the product URL changed', () => {
-  const match = findTrackingMatches(parsedVariant('variant-42', 'Size: 42'), [sizeOption]);
+it('matches the same variant id when the product URL changed by tracking parameters', () => {
+  const match = findTrackingMatches({ ...parsedVariant('variant-42', 'Size: 42'), canonicalUrl: 'https://www.noon.com/shoe/?utm_source=share' }, [sizeOption]);
   expect(match.exact).toBe(sizeOption);
+});
+
+it('does not treat a variant id from a different product as a duplicate', () => {
+  const differentProduct = {
+    ...pageLevel,
+    id: 4,
+    title: 'Different shoes',
+    url: 'https://www.noon.com/other-shoe',
+    canonicalUrl: 'https://www.noon.com/other-shoe',
+    variant: {
+      id: 'variant-42',
+      label: 'Size: 42',
+      attributes: [{ name: 'Size', value: '42' }],
+      url: 'https://www.noon.com/other-shoe?variant=42'
+    }
+  } as TrackedProduct;
+
+  const match = findTrackingMatches(parsedVariant('variant-42', 'Size: 42'), [differentProduct]);
+  expect(match.exact).toBeUndefined();
+  expect(match.sameProduct).toEqual([]);
+});
+
+it('does not treat a variant id from another retailer as a duplicate', () => {
+  const otherRetailer = {
+    ...pageLevel,
+    id: 5,
+    siteKey: 'adidas',
+    url: 'https://www.adidas.ae/shoe',
+    canonicalUrl: 'https://www.adidas.ae/shoe',
+    variant: {
+      id: 'variant-42',
+      label: 'Size: 42',
+      attributes: [{ name: 'Size', value: '42' }],
+      url: 'https://www.adidas.ae/shoe?variant=42'
+    }
+  } as TrackedProduct;
+
+  const match = findTrackingMatches(parsedVariant('variant-42', 'Size: 42'), [otherRetailer]);
+  expect(match.exact).toBeUndefined();
+  expect(match.sameProduct).toEqual([]);
 });
 
 it('reports other options of the same product without treating them as duplicates', () => {
@@ -73,7 +115,7 @@ it('keeps page-level tracking and variant tracking as separate matches', () => {
 
 it('returns no matches for a different product', () => {
   const match = findTrackingMatches(
-    { title: 'Different product', canonicalUrl: 'https://www.noon.com/other' },
+    { siteKey: 'noon', title: 'Different product', canonicalUrl: 'https://www.noon.com/other' },
     [pageLevel, sizeOption]
   );
   expect(match.exact).toBeUndefined();

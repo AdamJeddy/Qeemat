@@ -8,7 +8,7 @@ export type TrackingMatch = {
   sameProduct: TrackedProduct[];
 };
 
-type ParsedIdentity = Pick<ParsedProduct, 'canonicalUrl' | 'title'> & { selectedVariant?: VariantSelection };
+type ParsedIdentity = Pick<ParsedProduct, 'canonicalUrl' | 'title' | 'siteKey'> & { selectedVariant?: VariantSelection };
 
 function normalizedProductUrl(value: string | undefined): string {
   if (!value) {
@@ -21,28 +21,26 @@ function normalizedProductUrl(value: string | undefined): string {
 /**
  * Find existing trackers for the parsed product.
  *
- * - A tracker with the same variant id is always the same option, even when the
- *   retailer exposes each option through its own URL.
- * - Two trackers without a selected variant are duplicates when they point at
- *   the same normalized product URL (page-level tracking).
- * - Other trackers that share the product page are returned as `sameProduct`:
- *   the user may legitimately track several sizes/colours of one product.
+ * Variant ids are only unique inside one product (some retailers use size
+ * values or option identifiers as the id), so a variant match also requires the
+ * same retailer and the same normalized product URL. That keeps two different
+ * products that happen to share an option id from being treated as duplicates,
+ * while a different option of the same product is reported through
+ * `sameProduct` so the user can add it as a separate tracker.
  */
 export function findTrackingMatches(parsed: ParsedIdentity, tracked: TrackedProduct[]): TrackingMatch {
   const productUrl = normalizedProductUrl(parsed.canonicalUrl);
   const variantId = parsed.selectedVariant?.id;
 
+  const sameProduct = tracked.filter(
+    (item) =>
+      item.siteKey === parsed.siteKey &&
+      normalizedProductUrl(item.canonicalUrl || item.url) === productUrl
+  );
+
   const exact = variantId
-    ? tracked.find((item) => item.variant?.id === variantId)
-    : tracked.find((item) => !item.variant && normalizedProductUrl(item.canonicalUrl || item.url) === productUrl);
-
-  const sameProduct = tracked.filter((item) => {
-    if (variantId && item.variant?.id === variantId) {
-      return true;
-    }
-
-    return normalizedProductUrl(item.canonicalUrl || item.url) === productUrl;
-  });
+    ? sameProduct.find((item) => item.variant?.id === variantId)
+    : sameProduct.find((item) => !item.variant);
 
   return { exact, sameProduct };
 }
