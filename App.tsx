@@ -1794,23 +1794,7 @@ function ActivityScreen({ navigate }: { navigate: (route: Route) => void }) {
                           </AppText>
                         </View>
                       ) : null}
-                      {event.availability === 'out_of_stock' ? (
-                        <View style={styles.oosActivityBadge}>
-                          <AppText weight="semibold" style={styles.oosActivityBadgeText}>
-                            Out of stock
-                          </AppText>
-                        </View>
-                      ) : null}
-                      {event.availability === 'in_stock' ? (
-                        <View style={styles.restockActivityBadge}>
-                          <AppText weight="semibold" style={styles.restockActivityBadgeText}>Back in stock</AppText>
-                        </View>
-                      ) : null}
-                      <View style={[styles.sourceBadge, snapshotSourceBadgeStyle(event.source)]}>
-                        <AppText weight="semibold" style={styles.sourceBadgeText}>
-                          {snapshotSourceLabel(event.source)}
-                        </AppText>
-                      </View>
+                      <AppText muted style={styles.sourceBadgeText}>{snapshotSourceLabel(event.source)}</AppText>
                     </View>
                   </View>
                 </View>
