@@ -1,5 +1,13 @@
 # Qeemat design review
 
+## Follow-up: 13 November
+
+The updated Android release was installed and checked on the Samsung SM-S928B. Watchlist now extends its blue header behind the status bar, with white system icons (`%TEMP%/q-system.png`); other screens retain a light status bar. The add button occupies a dedicated area rather than covering prices. The Watchlist was also checked while changing the system font scale from 0.9 to 1.3 with the app open (`%TEMP%/q-scale-final.png`): header, controls and navigation reflowed without the earlier clipping. The original font scale was restored.
+
+Add Product now shows Find product immediately after the URL field (`%TEMP%/q-add-new.png`). Settings places notifications and scheduling before supported stores and uses flatter surfaces (`%TEMP%/q-set-final.png`). Activity no longer duplicates availability badges or presents the check source as a green status. These are targeted improvements, not a complete redesign of Search, product details or every app state. Narrow screens, keyboard/input behavior during font-scale changes, and the empty, error and selection states still need a dedicated device pass.
+
+The findings below preserve the initial review and its evidence; the floating-button, live Watchlist font-size, Add/Settings priority, and Activity-label findings have been addressed in this follow-up.
+
 ## Scope and evidence
 
 - Selected Watchlist reference: `C:\Users\Main\.codex\generated_images\01a1b16e-d8bd-7e13-bc0e-a05297fb8d9b\exec-e47a4ab7-a4f9-4ec9-b37a-c12961eef8d1.png` (852 × 1846).
