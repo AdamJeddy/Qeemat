@@ -13,7 +13,7 @@ colors:
   text-muted: "#64748B"
   text-soft: "#94A3B8"
   green: "#16833A"
-  green-soft: "#DDF8E5"
+  green-soft: "#ECFDF3"
   red: "#C2410C"
   red-soft: "#FFEDD5"
   amber: "#B45309"
@@ -61,6 +61,8 @@ This document records the agreed system and its implementation. Semantic type an
 
 Use the existing blue for primary actions, selection and links. Light neutrals separate the page, surfaces and borders. Green, orange-red and amber communicate price or check states; pair colors with descriptive text or icons. The palette ships as `colors` and defines a light appearance only; a dark theme has not been specified or validated.
 
+Foreground/background pairs are checked for WCAG AA contrast: body and muted text on page/surface, primary on white and blue-soft, green/amber/red text on their soft tints, and placeholders use `textMuted` rather than `textSoft`. The Watchlist count pill uses `primaryDark` behind white text (8.5:1) instead of a translucent overlay.
+
 ## Typography
 
 Use the platform system font through `AppText` in regular (400), medium (500), semibold (600) and bold (700). Titles identify the product; prices and price changes carry the strongest emphasis in tracking views. The roles below ship as `typography` in `src/theme/theme.ts` and are spread into `StyleSheet.create` styles.
@@ -95,8 +97,8 @@ Use the 4/8/12/16/24/32 `spacing` scale in React Native density-independent unit
 
 Page background is `colors.background` (#F8FAFC); inline cards are flat white (`colors.surface`) with a 1px `colors.border` border; muted insets use `colors.surfaceMuted` (#F1F5F9). Radii come from the `radius` scale (sm 6, md 8, lg 12; pills use 999). Overlay sheets keep the shared `shadow` (8 vertical offset, 0.08 opacity, 18 radius, Android elevation 3); inline cards carry no shadow.
 
-- **Shipped:** flat Watchlist rows, Settings cards and product-detail insight cards; the `shadow` token remains for overlays.
-- **Intended:** removing the remaining inline shadows (the empty-state cards, the Add-product preview card, the bulk action bar and the onboarding card); the Search and product-detail passes that apply this treatment are still intended.
+- **Shipped:** flat Watchlist rows, Settings cards, product-detail insight cards, empty-state cards, the Add-product preview card and the onboarding card; overlay sheets and the floating bulk action bar keep the `shadow` token for genuine layering.
+- **Intended:** no further inline shadows; future elevated elements should be limited to floating layers.
 
 ## Actions
 
@@ -123,8 +125,8 @@ Treat check freshness, price direction, availability and failure as separate sig
 - **Error:** red.
 - **Provenance:** muted text, never green.
 
-- **Shipped:** the status primitives use the agreed colors: `StatusPill` renders `ok` and `price_changed` as a neutral blue check, out-of-stock as amber and failures as red; `PriceDirectionBadge` renders a drop green and a rise amber; `SourceLabel` (backed by `snapshotSourceLabel` in `src/domain/snapshotSource.ts`) renders provenance as muted text with no colored badge; `ProductCard`, the product-detail snapshot list and Activity use the shared colors and primitives. Snapshot prices on product detail are tinted by direction (green lower, amber higher) rather than every `price_changed` row being green.
-- **Intended:** one shared status treatment applied consistently across every surface. `StatusPill` remains product-detail only, and the price-history chart keeps its own change indicator. Do not treat full unification as shipped.
+- **Shipped:** the status primitives use the agreed colors: `StatusPill` renders `ok` and `price_changed` as a neutral blue check, out-of-stock as amber and failures as red; `PriceDirectionBadge` renders a drop green and a rise amber; `SourceLabel` (backed by `snapshotSourceLabel` in `src/domain/snapshotSource.ts`) renders provenance as muted text with no colored badge; `ProductCard`, the product-detail snapshot list, Activity and the price-history chart use the same direction colors (green drop, amber rise). Snapshot prices on product detail are tinted by direction rather than every `price_changed` row being green.
+- **Intended:** one shared status treatment applied consistently across every surface. `StatusPill` remains product-detail only, and the price-history chart keeps its own change indicator styling. Do not treat full unification as shipped.
 
 ## Components
 
@@ -137,6 +139,13 @@ Treat check freshness, price direction, availability and failure as separate sig
 - **Search cards:** listing cards serve discovery, while Watchlist cards serve monitoring. Share underlying visual principles without forcing identical layouts. **Shipped (13 November 2026):** discovery cards use a compact outline Track action instead of a solid primary button on every card, so the card content leads, and missing or failed listing images fall back to a neutral placeholder. A fuller Search hierarchy pass remains **intended**.
 - **Task-first flows:** **Shipped (13 November 2026):** Add keeps **Find product** directly after the URL field and collapses the supported-store list behind a disclosure; Settings keeps notifications, battery and background time first and collapses run diagnostics and the supported-store list; tracking settings exposes a per-product **Active** switch, and the tab stack stays mounted so Watchlist and Search keep their state after opening a product or the Add flow.
 - **Product detail:** **Shipped (13 November 2026):** the product title spans the full width without a line clamp, the image and price/status block sit below it, insight cards are flat and equal-weight (no emphasized average price), and snapshots color a lower price green and a higher price amber. Further insight/chart hierarchy refinement is **intended**.
+
+## Accessibility
+
+- **Text scaling:** `AppText` applies `min(system font scale, 1.3)` to font size and line height, and text inputs cap at 1.3. On the Samsung SM-S928B the 1.3 and 1.5 layouts are identical, confirming the cap; changing the system scale on Android 17 restarted the activity, and the app reopened reflowed at Watchlist rather than remeasuring the current screen in place.
+- **Contrast:** body text is 17:1; muted text is 4.5:1+ on page/surface; primary on white and blue-soft is 4.7:1+; direction text on its soft tint is 4.5:1+ after the green-soft adjustment; the count pill is 8.5:1. Placeholders use muted text.
+- **Touch targets:** header, dialog close, tab, filter, card actions and primary/secondary buttons are at least 44; the small detail icon buttons keep a 34 visual size with extra hit slop (44 effective).
+- **Verification limits:** TalkBack order/labels, scales above 1.3 elsewhere, dark mode and landscape have not been verified. Heading roles are set in code, but Android heading semantics could not be confirmed through UI Automator dumps.
 
 ## Do's and Don'ts
 

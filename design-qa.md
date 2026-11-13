@@ -13,6 +13,20 @@ The semantic type/layout tokens and shared status primitives were installed on t
 
 Remaining for later passes: the filtered (non-archived) empty state is implemented but not yet device-checked; the price-history chart keeps its own change indicator; fuller Search/detail/Add/Settings hierarchy and the accessibility matrix (TalkBack, contrast, scales above 1.3, narrow widths, Android 16 edge-to-edge) remain open.
 
+## Accessibility and device matrix: 13 November
+
+Checked on the Samsung SM-S928B, Android 17 / SDK 37, 1440 × 3120 at override density 560 with font scale 0.9 restored:
+
+- **Edge-to-edge:** the blue Watchlist status bar renders with white system icons on the enforced edge-to-edge build (target SDK 36), and other tabs keep the light bar. No Android 16/17 status-bar regression was observed.
+- **Font scale:** 1.3 and 1.5 produce identical layouts, confirming the 1.3 cap; at 1.3 the Watchlist toolbar wraps "Recheck all" to its own row without clipping. [1.3](docs/assets/design-2026-11-13/font-scale-1-3-watchlist.png), [1.5](docs/assets/design-2026-11-13/font-scale-1-5-cap.png). Changing the system scale restarted the activity on this device; the app reopened at Watchlist with the larger layout instead of remeasuring the current screen in place — a platform behaviour to re-check on other devices.
+- **Narrow width:** at 343dp effective width the Watchlist uses the compact single-column card layout, the toolbar wraps, the out-of-stock section expands, and product detail stacks cleanly. [Watchlist](docs/assets/design-2026-11-13/narrow-343dp-watchlist.png), [detail](docs/assets/design-2026-11-13/narrow-343dp-detail.png).
+- **Keyboard:** with the Add URL field focused, the intro, field and Find product stay visible above the keyboard. [screenshot](docs/assets/design-2026-11-13/add-keyboard-open.png)
+- **Contrast (WCAG AA):** body 17.1:1; muted text 4.55:1 on page and 4.76:1 on white; primary on white 5.77:1 and on blue-soft 4.73:1; green on green-soft 4.59:1 after lightening the tint; amber on amber-soft 4.51:1; red on red-soft 4.52:1; placeholders now use muted text; the banner count pill uses primary-dark (8.5:1). Green-soft also backs the drop badge, so the direction text stays AA.
+- **Accessibility tree:** UI Automator showed labels for "Go back", "Find product" and the supported-store disclosure. Android heading flags are not exposed in the dump, so TalkBack heading navigation still needs a manual pass.
+- **Empty and error checks:** the filtered-to-nothing state now has its own explanation and recovery action [screenshot](docs/assets/design-2026-11-13/filtered-empty-state.png); the price-history chart's legend now matches the shared direction colors [screenshot](docs/assets/design-2026-11-13/chart-direction-legend.png).
+
+Remaining: TalkBack order and heading announcement, landscape, dark mode, scales above 1.3 with a text input focused, other Android versions/devices, and a manual pass over every loading/error/selection state.
+
 ## User correction: floating add button
 
 The user explicitly rejected the white dock added during the follow-up below. The add button has been restored as a floating overlay; covering content is an accepted tradeoff (commit `12aaa66`; device evidence `%TEMP%/q-handover.png`). Bottom scroll padding is kept so the last product can be scrolled clear. Do not reintroduce the dock to address the historical overlap finding. See `docs/design-handover.md` for the current direction and verification.
