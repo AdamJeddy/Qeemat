@@ -1,5 +1,5 @@
 import React from 'react';
-import { Image, Linking, TextInput } from 'react-native';
+import { Alert, Image, Linking, TextInput } from 'react-native';
 import renderer, { act } from 'react-test-renderer';
 
 jest.mock('@react-native-clipboard/clipboard', () => ({
@@ -37,6 +37,7 @@ import { DISCOVERY_SOURCE_MAPS } from './src/domain/discoverySources';
 import { ProductCard } from './src/components/ProductCard';
 import { PrimaryButton } from './src/components/PrimaryButton';
 import { ProductCategoryPicker } from './src/components/ProductCategoryPicker';
+import { VariantSelector } from './src/components/VariantSelector';
 import { CheckStatus, TrackedProduct } from './src/domain/types';
 
 const mockFetchAndParseProduct = jest.requireMock('./src/domain/parser').fetchAndParseProduct as jest.Mock;
@@ -94,6 +95,93 @@ describe('AddScreen', () => {
     await act(async () => { await tree!.root.findByProps({ label: 'Confirm Tracking' }).props.onPress(); });
     expect(create).toHaveBeenCalledWith(expect.objectContaining({ category: 'footwear' }));
     create.mockRestore();
+  });
+
+  it('blocks a duplicate page-level tracker and offers to open the existing one', async () => {
+    const navigate = jest.fn();
+    const existingProduct = {
+      id: 7,
+      url: 'https://www.noon.com/shoe',
+      canonicalUrl: 'https://www.noon.com/shoe',
+      siteKey: 'noon' as const,
+      title: 'Shoe',
+      currency: 'AED',
+      alertMode: 'price_drop' as const,
+      checkPreference: 'daily' as const,
+      isActive: true,
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z'
+    };
+    const listTracked = jest.spyOn(require('./src/data/database'), 'listTrackedProducts').mockResolvedValue([existingProduct]);
+    const create = jest.spyOn(require('./src/data/database'), 'createTrackedProduct').mockResolvedValue(99);
+    const alert = jest.spyOn(Alert, 'alert');
+    mockFetchAndParseProduct.mockResolvedValueOnce({ ok: true, product: { siteKey: 'noon', title: 'Shoe', canonicalUrl: 'https://www.noon.com/shoe', priceMinor: 10000, currency: 'AED', availability: 'in_stock' } });
+
+    let tree: renderer.ReactTestRenderer;
+    await act(async () => { tree = renderer.create(<AddScreen initialUrl="https://www.noon.com/shoe" shareEventId={1} navigate={navigate} />); await Promise.resolve(); });
+    await act(async () => { await tree!.root.findByProps({ label: 'Confirm Tracking' }).props.onPress(); });
+
+    expect(create).not.toHaveBeenCalled();
+    expect(alert).toHaveBeenCalledTimes(1);
+    const [title, , buttons] = alert.mock.calls[0];
+    expect(title).toBe('Already tracking this product');
+    act(() => { (buttons as { text: string; onPress?: () => void }[]).find((button) => button.text === 'Open tracker')?.onPress?.(); });
+    expect(navigate).toHaveBeenCalledWith({ name: 'detail', id: 7 });
+
+    alert.mockRestore();
+    create.mockRestore();
+    listTracked.mockRestore();
+  });
+
+  it('asks before adding a different option of the same product', async () => {
+    const existingProduct = {
+      id: 7,
+      url: 'https://www.noon.com/shoe',
+      canonicalUrl: 'https://www.noon.com/shoe',
+      siteKey: 'noon' as const,
+      title: 'Shoe',
+      currency: 'AED',
+      alertMode: 'price_drop' as const,
+      checkPreference: 'daily' as const,
+      isActive: true,
+      variant: { id: 'variant-42', label: 'Size: 42', attributes: [{ name: 'Size', value: '42' }], url: 'https://www.noon.com/shoe?variant=42' },
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z'
+    };
+    const listTracked = jest.spyOn(require('./src/data/database'), 'listTrackedProducts').mockResolvedValue([existingProduct]);
+    const create = jest.spyOn(require('./src/data/database'), 'createTrackedProduct').mockResolvedValue(99);
+    const alert = jest.spyOn(Alert, 'alert');
+    mockFetchAndParseProduct.mockResolvedValueOnce({
+      ok: true,
+      product: {
+        siteKey: 'noon',
+        title: 'Shoe',
+        canonicalUrl: 'https://www.noon.com/shoe',
+        priceMinor: 10000,
+        currency: 'AED',
+        availability: 'in_stock',
+        variants: [
+          { id: 'variant-42', label: 'Size: 42', attributes: [{ name: 'Size', value: '42' }], priceMinor: 10000, currency: 'AED', availability: 'in_stock', url: 'https://www.noon.com/shoe?variant=42' },
+          { id: 'variant-44', label: 'Size: 44', attributes: [{ name: 'Size', value: '44' }], priceMinor: 10000, currency: 'AED', availability: 'in_stock', url: 'https://www.noon.com/shoe?variant=44' }
+        ]
+      }
+    });
+
+    let tree: renderer.ReactTestRenderer;
+    await act(async () => { tree = renderer.create(<AddScreen initialUrl="https://www.noon.com/shoe" shareEventId={1} navigate={jest.fn()} />); await Promise.resolve(); });
+    act(() => tree!.root.findByType(VariantSelector).props.onSelect('Size', '44'));
+    await act(async () => { await tree!.root.findByProps({ label: 'Confirm Tracking' }).props.onPress(); });
+
+    expect(create).not.toHaveBeenCalled();
+    expect(alert).toHaveBeenCalledTimes(1);
+    const [title, , buttons] = alert.mock.calls[0];
+    expect(title).toBe('Track another option?');
+    await act(async () => { (buttons as { text: string; onPress?: () => void }[]).find((button) => button.text === 'Add option')?.onPress?.(); await Promise.resolve(); });
+    expect(create).toHaveBeenCalledTimes(1);
+
+    alert.mockRestore();
+    create.mockRestore();
+    listTracked.mockRestore();
   });
 
   it('uses a retailer category as a suggestion without saving it as a manual choice', async () => {
@@ -326,6 +414,40 @@ describe('DetailScreen', () => {
 });
 
 describe('Watchlist header', () => {
+  const seiko: TrackedProduct = {
+    id: 11,
+    url: 'https://www.amazon.ae/dp/B0SEIKO01',
+    canonicalUrl: 'https://www.amazon.ae/dp/B0SEIKO01',
+    siteKey: 'amazon_ae',
+    title: 'Seiko 5 Sports Automatic Watch',
+    currency: 'AED',
+    currentPriceMinor: 165281,
+    alertMode: 'price_drop',
+    checkPreference: 'daily',
+    isActive: true,
+    lastCheckedAt: '2026-11-13T09:00:00.000Z',
+    lastAvailability: 'in_stock',
+    createdAt: '2026-10-01T00:00:00Z',
+    updatedAt: '2026-11-13T09:00:00Z'
+  };
+  const xiaomi: TrackedProduct = {
+    id: 12,
+    url: 'https://www.noon.com/xiaomi-redmi-note-15',
+    canonicalUrl: 'https://www.noon.com/xiaomi-redmi-note-15',
+    siteKey: 'noon',
+    title: 'Xiaomi Redmi Note 15 Smartphone',
+    currency: 'AED',
+    currentPriceMinor: 71900,
+    folder: 'Phones',
+    alertMode: 'price_drop',
+    checkPreference: 'daily',
+    isActive: true,
+    lastCheckedAt: '2026-11-13T09:00:00.000Z',
+    lastAvailability: 'in_stock',
+    createdAt: '2026-10-01T00:00:00Z',
+    updatedAt: '2026-11-13T09:00:00Z'
+  };
+
   it('opens Search and recent price activity from their shortcuts', async () => {
     mockListProductsWithSnapshots.mockResolvedValue([]);
     const navigate = jest.fn();
@@ -339,6 +461,35 @@ describe('Watchlist header', () => {
     expect(headings).toEqual(expect.arrayContaining(['Watchlist']));
     expect(tree!.root.findAllByProps({ accessibilityLabel: 'Filter and sort' }).length).toBeGreaterThan(0);
     await act(async () => tree!.unmount());
+  });
+
+  it('filters tracked products from the watchlist search control', async () => {
+    const listTracked = jest.spyOn(require('./src/data/database'), 'listTrackedProducts').mockResolvedValue([seiko, xiaomi]);
+    let tree: renderer.ReactTestRenderer;
+    await act(async () => { tree = renderer.create(<TabsScreen tab="watchlist" navigate={jest.fn()} />); await new Promise<void>(resolve => setImmediate(resolve)); });
+
+    const labelsText = () => tree!.root.findAllByType(AppText).map((node) => [node.props.children].flat().join('')).join(' ');
+    expect(labelsText()).toContain('Seiko 5 Sports Automatic Watch');
+    expect(labelsText()).toContain('Xiaomi Redmi Note 15 Smartphone');
+
+    const toggle = tree!.root.findAll((node) => node.props.accessibilityLabel === 'Search watchlist' && typeof node.props.onPress === 'function')[0];
+    act(() => { toggle.props.onPress(); });
+    const input = tree!.root.findByProps({ accessibilityLabel: 'Search watchlist products' });
+
+    act(() => { input.props.onChangeText('seiko'); });
+    expect(labelsText()).toContain('Seiko 5 Sports Automatic Watch');
+    expect(labelsText()).not.toContain('Xiaomi Redmi Note 15 Smartphone');
+
+    act(() => { input.props.onChangeText('noon'); });
+    expect(labelsText()).not.toContain('Seiko 5 Sports Automatic Watch');
+    expect(labelsText()).toContain('Xiaomi Redmi Note 15 Smartphone');
+
+    act(() => { input.props.onChangeText(''); });
+    expect(labelsText()).toContain('Seiko 5 Sports Automatic Watch');
+    expect(labelsText()).toContain('Xiaomi Redmi Note 15 Smartphone');
+
+    await act(async () => tree!.unmount());
+    listTracked.mockRestore();
   });
 });
 

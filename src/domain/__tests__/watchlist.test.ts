@@ -2,6 +2,8 @@ import {
   filterWatchlistProducts,
   getWatchlistFolders,
   getWatchlistSites,
+  matchesWatchlistSearch,
+  searchWatchlistProducts,
   sortWatchlistProducts
 } from '../watchlist';
 
@@ -35,6 +37,62 @@ describe('filterWatchlistProducts', () => {
     ];
 
     expect(filterWatchlistProducts(organized, 'nike_uae', { folder: 'Running' })).toEqual([organized[0], organized[2]]);
+  });
+});
+
+describe('searchWatchlistProducts', () => {
+  const searchable = [
+    {
+      id: 1,
+      siteKey: 'amazon_ae' as const,
+      title: 'Seiko 5 Sports Automatic Watch',
+      folder: 'Watches',
+      variant: { label: 'Color: Green' }
+    },
+    {
+      id: 2,
+      siteKey: 'noon' as const,
+      title: 'Xiaomi Redmi Note 15 Smartphone',
+      folder: 'Phones',
+      variant: { label: 'Color: Black' }
+    },
+    {
+      id: 3,
+      siteKey: 'decathlon_uae' as const,
+      title: 'Germany 26 Home Replica Jersey',
+      folder: 'Running',
+      variant: { label: 'Size: UK XL / FR 48' }
+    }
+  ];
+
+  it('returns every product for an empty query', () => {
+    expect(searchWatchlistProducts(searchable, '   ')).toEqual(searchable);
+  });
+
+  it('matches product titles case-insensitively', () => {
+    expect(searchWatchlistProducts(searchable, 'seiko').map((product) => product.id)).toEqual([1]);
+    expect(searchWatchlistProducts(searchable, 'JERSEY').map((product) => product.id)).toEqual([3]);
+  });
+
+  it('matches retailer names, folders and selected options', () => {
+    expect(searchWatchlistProducts(searchable, 'noon').map((product) => product.id)).toEqual([2]);
+    expect(searchWatchlistProducts(searchable, 'watches').map((product) => product.id)).toEqual([1]);
+    expect(searchWatchlistProducts(searchable, 'uk xl').map((product) => product.id)).toEqual([3]);
+  });
+
+  it('requires every word of a multi-word query to match', () => {
+    expect(searchWatchlistProducts(searchable, 'xiaomi black').map((product) => product.id)).toEqual([2]);
+    expect(searchWatchlistProducts(searchable, 'xiaomi green')).toEqual([]);
+  });
+
+  it('reports no match without mutating the source', () => {
+    expect(searchWatchlistProducts(searchable, 'nonexistent')).toEqual([]);
+    expect(searchable.map((product) => product.id)).toEqual([1, 2, 3]);
+  });
+
+  it('exposes the per-product predicate for combined filters', () => {
+    expect(matchesWatchlistSearch(searchable[0], 'amazon green')).toBe(true);
+    expect(matchesWatchlistSearch(searchable[0], 'amazon black')).toBe(false);
   });
 });
 

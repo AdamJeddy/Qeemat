@@ -115,10 +115,12 @@ import {
   filterWatchlistProducts,
   getWatchlistFolders,
   getWatchlistSites,
+  searchWatchlistProducts,
   sortWatchlistProducts,
   WatchlistSort,
   WatchlistStoreFilter
 } from './src/domain/watchlist';
+import { findTrackingMatches, trackingOptionLabel } from './src/domain/duplicates';
 import { resolveSelectedVariant, toVariantSelection, updateSelectedVariantAttributes, VariantAttributes } from './src/domain/variants';
 import {
   buildDiscoverySections,
@@ -622,6 +624,8 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
   const [showArchived, setShowArchived] = useState(false);
   const [selectedProductIds, setSelectedProductIds] = useState<Set<number>>(new Set());
   const [showBulkFolderPicker, setShowBulkFolderPicker] = useState(false);
+  const [searchExpanded, setSearchExpanded] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const loadProducts = useCallback(async () => {
     setProducts(await listTrackedProducts());
@@ -674,8 +678,12 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
   const trackedSites = useMemo(() => getWatchlistSites(visibleProducts), [visibleProducts]);
   const folders = useMemo(() => getWatchlistFolders(products), [products]);
   const filteredProducts = useMemo(
-    () => sortWatchlistProducts(filterWatchlistProducts(visibleProducts, storeFilter, { folder: folderFilter }), sort),
-    [visibleProducts, storeFilter, folderFilter, sort]
+    () =>
+      searchWatchlistProducts(
+        sortWatchlistProducts(filterWatchlistProducts(visibleProducts, storeFilter, { folder: folderFilter }), sort),
+        searchQuery
+      ),
+    [visibleProducts, storeFilter, folderFilter, sort, searchQuery]
   );
   const selectedProducts = useMemo(
     () => products.filter((product) => selectedProductIds.has(product.id)),
@@ -684,17 +692,19 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
   const shouldPauseSelected = selectedProducts.length > 0 && selectedProducts.every((product) => product.isActive);
   const inStock = filteredProducts.filter((p) => p.lastAvailability !== 'out_of_stock');
   const oos = filteredProducts.filter((p) => p.lastAvailability === 'out_of_stock');
-  const activeControlCount = (storeFilter !== 'all' ? 1 : 0) + (folderFilter ? 1 : 0) + (sort !== 'recently_updated' ? 1 : 0);
+  const activeControlCount = (storeFilter !== 'all' ? 1 : 0) + (folderFilter ? 1 : 0) + (sort !== 'recently_updated' ? 1 : 0) + (searchQuery.trim() ? 1 : 0);
   const activeControlSummary = [
     storeFilter === 'all' ? undefined : getSiteByKey(storeFilter).shortName,
     folderFilter,
-    sort === 'recently_updated' ? undefined : WATCHLIST_SORT_OPTIONS.find((option) => option.value === sort)?.label
+    sort === 'recently_updated' ? undefined : WATCHLIST_SORT_OPTIONS.find((option) => option.value === sort)?.label,
+    searchQuery.trim() ? `“${searchQuery.trim()}”` : undefined
   ].filter(Boolean).join(' · ');
 
   function clearControls() {
     setStoreFilter('all');
     setFolderFilter(undefined);
     setSort('recently_updated');
+    setSearchQuery('');
   }
 
   function toggleSelection(id: number) {
@@ -786,7 +796,43 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
           {checkingAll ? <ActivityIndicator size="small" color={colors.primary} /> : <RefreshCcw size={18} color={colors.primary} />}
           <AppText weight="semibold" style={styles.controlsButtonText}>{checkingAll ? 'Checking…' : 'Recheck all'}</AppText>
         </Pressable> : null}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={searchExpanded ? 'Hide watchlist search' : 'Search watchlist'}
+          accessibilityState={{ expanded: searchExpanded }}
+          onPress={() => {
+            setSearchExpanded((value) => !value);
+            if (searchExpanded) {
+              setSearchQuery('');
+            }
+          }}
+          style={[styles.toolbarIconButton, searchExpanded && styles.toolbarIconButtonActive]}
+        >
+          <Search size={18} color={searchExpanded ? colors.surface : colors.primary} />
+        </Pressable>
         </View>
+        {searchExpanded ? (
+          <View style={styles.watchlistSearchRow}>
+            <Search size={18} color={colors.textMuted} />
+            <TextInput
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="Search watchlist by product, store or folder"
+              placeholderTextColor={colors.textMuted}
+              autoFocus
+              autoCorrect={false}
+              maxFontSizeMultiplier={1.3}
+              accessibilityLabel="Search watchlist products"
+              returnKeyType="search"
+              style={styles.watchlistSearchInput}
+            />
+            {searchQuery ? (
+              <Pressable accessibilityRole="button" accessibilityLabel="Clear watchlist search" hitSlop={8} onPress={() => setSearchQuery('')}>
+                <X size={18} color={colors.textMuted} />
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
         {activeControlSummary ? (
           <View style={styles.activeControlsRow}>
             <AppText muted numberOfLines={1} style={styles.activeControlsSummary}>{activeControlSummary}</AppText>
@@ -824,11 +870,22 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
         {!loading && visibleProducts.length > 0 && filteredProducts.length === 0 ? (
           <View style={styles.emptyCard}>
             <View style={styles.emptyIcon}>
-              <SlidersHorizontal size={24} color={colors.primary} />
+              {searchQuery.trim() ? <Search size={24} color={colors.primary} /> : <SlidersHorizontal size={24} color={colors.primary} />}
             </View>
-            <AppText weight="bold" style={styles.emptyTitle}>No products match these filters</AppText>
-            <AppText muted style={styles.emptyCopy}>Change or clear the store, folder and sort controls to see your products.</AppText>
-            <PrimaryButton label="Clear filters" variant="outline" onPress={clearControls} style={styles.emptyButton} />
+            <AppText weight="bold" style={styles.emptyTitle}>
+              {searchQuery.trim() ? 'No products match your search' : 'No products match these filters'}
+            </AppText>
+            <AppText muted style={styles.emptyCopy}>
+              {searchQuery.trim()
+                ? `No tracked product matches “${searchQuery.trim()}”. Try a product name, store or folder.`
+                : 'Change or clear the store, folder and sort controls to see your products.'}
+            </AppText>
+            <PrimaryButton
+              label={searchQuery.trim() ? 'Clear search' : 'Clear filters'}
+              variant="outline"
+              onPress={searchQuery.trim() ? () => setSearchQuery('') : clearControls}
+              style={styles.emptyButton}
+            />
           </View>
         ) : null}
 
@@ -1087,21 +1144,7 @@ export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { i
     });
   }, []);
 
-  async function saveProduct() {
-    if (!parsedProduct) {
-      return;
-    }
-    setSaving(true);
-    let productToSave = previewProduct ?? parsedProduct;
-    if (parsedProduct.siteKey === 'the_deal' && selectedVariant) {
-      const result = await fetchTheDealVariantForSaving(parsedProduct, toVariantSelection(selectedVariant));
-      if (!result.ok) {
-        setError(result.message);
-        setSaving(false);
-        return;
-      }
-      productToSave = { ...result.product, sourceMetadata: mergeProductMetadata(parsedProduct.sourceMetadata, result.product.sourceMetadata) };
-    }
+  async function persistTracking(productToSave: ParsedProduct) {
     const id = await createTrackedProduct({
       parsed: productToSave,
       sourceUrl: normalizedUrl,
@@ -1128,6 +1171,67 @@ export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { i
       return;
     }
     navigate({ name: 'detail', id });
+  }
+
+  async function saveProduct() {
+    if (!parsedProduct) {
+      return;
+    }
+    setSaving(true);
+    let productToSave = previewProduct ?? parsedProduct;
+    if (parsedProduct.siteKey === 'the_deal' && selectedVariant) {
+      const result = await fetchTheDealVariantForSaving(parsedProduct, toVariantSelection(selectedVariant));
+      if (!result.ok) {
+        setError(result.message);
+        setSaving(false);
+        return;
+      }
+      productToSave = { ...result.product, sourceMetadata: mergeProductMetadata(parsedProduct.sourceMetadata, result.product.sourceMetadata) };
+    }
+
+    const tracked = await listTrackedProducts();
+    const matches = findTrackingMatches(productToSave, tracked);
+
+    if (matches.exact) {
+      setSaving(false);
+      Alert.alert(
+        'Already tracking this product',
+        `"${productToSave.title}" is already in your watchlist${matches.exact.variant?.label ? ` (${matches.exact.variant.label})` : ''}.`,
+        [
+          { text: 'Open tracker', onPress: () => navigate({ name: 'detail', id: matches.exact!.id }) },
+          { text: 'OK', style: 'cancel' }
+        ]
+      );
+      return;
+    }
+
+    if (matches.sameProduct.length > 0) {
+      setSaving(false);
+      const existingOptions = matches.sameProduct.map((item) => trackingOptionLabel(item)).join(', ');
+      Alert.alert(
+        'Track another option?',
+        `You already track ${existingOptions} of this product. Add ${trackingOptionLabel(productToSave)} as a separate tracker?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Add option',
+            onPress: () => {
+              setSaving(true);
+              persistTracking(productToSave).catch(() => {
+                setSaving(false);
+                setError('Could not save this product. Please try again.');
+              });
+            }
+          }
+        ]
+      );
+      return;
+    }
+
+    await persistTracking(productToSave).catch(() => {
+      setSaving(false);
+      setError('Could not save this product. Please try again.');
+    });
   }
 
   return (
@@ -2839,6 +2943,36 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     alignItems: 'center',
     gap: 10
+  },
+  toolbarIconButton: {
+    minWidth: layoutMetrics.touchTarget,
+    minHeight: layoutMetrics.touchTarget,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceMuted
+  },
+  toolbarIconButtonActive: {
+    backgroundColor: colors.primary
+  },
+  watchlistSearchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    minHeight: 52,
+    marginTop: -6,
+    paddingHorizontal: 12,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface
+  },
+  watchlistSearchInput: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 15,
+    color: colors.text,
+    paddingVertical: 8
   },
   watchlistRecheck: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 10 },
   watchlistRecheckDisabled: { opacity: 0.5 },

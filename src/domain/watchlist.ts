@@ -1,14 +1,20 @@
 import { SiteKey } from './types';
+import { getSiteByKey } from './sites';
 import { uniqueOrganizationNames } from './organization';
 
 export type WatchlistStoreFilter = 'all' | SiteKey;
 export type WatchlistSort = 'recently_updated' | 'lowest_price' | 'largest_drop' | 'closest_to_target' | 'name';
 export type WatchlistCollectionFilter = {
   folder?: string;
+  query?: string;
 };
 
 type SiteProduct = { siteKey: SiteKey };
 type OrganizableProduct = SiteProduct & { folder?: string };
+type SearchableProduct = OrganizableProduct & {
+  title: string;
+  variant?: { label?: string };
+};
 type SortableProduct = SiteProduct & {
   title: string;
   currentPriceMinor?: number;
@@ -35,6 +41,30 @@ export function filterWatchlistProducts<T extends OrganizableProduct>(
     const matchesFolder = !collectionFilter.folder || product.folder === collectionFilter.folder;
     return matchesStore && matchesFolder;
   });
+}
+
+/**
+ * Case-insensitive, multi-term (AND) search over the fields a shopper can see
+ * on a watchlist row: product title, retailer name, folder and selected option.
+ */
+export function matchesWatchlistSearch(product: SearchableProduct, query: string): boolean {
+  const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (!terms.length) {
+    return true;
+  }
+
+  const site = getSiteByKey(product.siteKey);
+  const haystack = [product.title, product.folder, product.variant?.label, site.shortName, site.displayName]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+
+  return terms.every((term) => haystack.includes(term));
+}
+
+export function searchWatchlistProducts<T extends SearchableProduct>(products: T[], query: string): T[] {
+  const normalizedQuery = query.trim();
+  return normalizedQuery ? products.filter((product) => matchesWatchlistSearch(product, normalizedQuery)) : products;
 }
 
 export function sortWatchlistProducts<T extends SortableProduct>(products: T[], sort: WatchlistSort): T[] {
