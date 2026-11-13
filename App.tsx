@@ -321,7 +321,7 @@ function OnboardingOverlay({ onClose }: { onClose: () => void }) {
         <View style={onboardingStyles.iconCircle}>
           {step === 0 ? <Bell size={28} color={colors.primary} /> : <SettingsIcon size={28} color={colors.primary} />}
         </View>
-        <AppText weight="bold" style={onboardingStyles.title}>
+        <AppText weight="bold" accessibilityRole="header" style={onboardingStyles.title}>
           {step === 0 ? 'Stay on top of prices' : 'Run checks in background'}
         </AppText>
         <AppText muted style={onboardingStyles.body}>
@@ -409,13 +409,13 @@ function Header({ title, onBack }: { title: string; onBack?: () => void }) {
   return (
     <View style={styles.headerBar}>
       {onBack ? (
-        <Pressable onPress={onBack} style={styles.headerButton}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Go back" onPress={onBack} style={styles.headerButton}>
           <ArrowLeft size={22} color={colors.text} />
         </Pressable>
       ) : (
         <View style={styles.headerButton} />
       )}
-      <AppText weight="bold" style={styles.headerTitle} numberOfLines={1}>
+      <AppText weight="bold" accessibilityRole="header" style={styles.headerTitle} numberOfLines={1}>
         {title}
       </AppText>
       <View style={styles.headerButton} />
@@ -527,7 +527,7 @@ function WatchlistControlsSheet({
         <Animated.View style={[styles.controlSheet, { transform: [{ translateY: sheetTranslateY }] }]}>
           <View style={styles.controlSheetHeader}>
             <View>
-              <AppText weight="bold" style={styles.controlSheetTitle}>Filter & sort</AppText>
+              <AppText weight="bold" accessibilityRole="header" style={styles.controlSheetTitle}>Filter & sort</AppText>
               <AppText muted style={styles.fieldHint}>Choose what you want to see.</AppText>
             </View>
             <Pressable accessibilityRole="button" accessibilityLabel="Close filters" onPress={onClose} style={styles.controlSheetClose}>
@@ -583,11 +583,11 @@ function BulkEditSheet({ visible, folders, selectedCount, onClose, onApply }: {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
       <View style={styles.controlSheetOverlay}>
-        <Pressable style={styles.controlSheetBackdrop} onPress={onClose} />
+        <Pressable accessibilityRole="button" accessibilityLabel="Close move products" style={styles.controlSheetBackdrop} onPress={onClose} />
         <View style={styles.controlSheet}>
           <View style={styles.controlSheetHeader}>
-            <View><AppText weight="bold" style={styles.controlSheetTitle}>Move products</AppText><AppText muted style={styles.fieldHint}>{selectedCount} selected</AppText></View>
-            <Pressable onPress={onClose} style={styles.controlSheetClose}><X size={20} color={colors.text} /></Pressable>
+            <View><AppText weight="bold" accessibilityRole="header" style={styles.controlSheetTitle}>Move products</AppText><AppText muted style={styles.fieldHint}>{selectedCount} selected</AppText></View>
+            <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} style={styles.controlSheetClose}><X size={20} color={colors.text} /></Pressable>
           </View>
           <FolderPicker value={folder} folders={folders} onChange={setFolder} />
           <Pressable onPress={() => onApply({ clearFolder: true })} style={styles.bulkClearFolder}><AppText weight="semibold" style={styles.clearControlsText}>Remove from folder</AppText></Pressable>
@@ -749,7 +749,7 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
           </View>
         <View style={styles.titleRow}>
           <View style={styles.flex}>
-            <AppText weight="bold" style={styles.watchlistBannerTitle}>
+            <AppText weight="bold" accessibilityRole="header" style={styles.watchlistBannerTitle}>
               Watchlist
             </AppText>
           </View>
@@ -762,12 +762,12 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
         </View>
         </View>
         <View style={styles.watchlistToolbar}>
-        <Pressable accessibilityRole="button" onPress={() => setShowControls(true)} style={({ pressed }) => [styles.controlsButton, pressed && styles.storeFilterButtonPressed]}>
+        <Pressable accessibilityRole="button" accessibilityLabel={activeControlCount > 0 ? `Filter and sort, ${activeControlCount} active` : 'Filter and sort'} onPress={() => setShowControls(true)} style={({ pressed }) => [styles.controlsButton, pressed && styles.storeFilterButtonPressed]}>
           <SlidersHorizontal size={18} color={colors.surface} />
           <AppText weight="semibold" style={styles.watchlistFilterText}>Filter & sort</AppText>
           {activeControlCount > 0 ? <View style={styles.controlsCount}><AppText weight="bold" style={styles.controlsCountText}>{activeControlCount}</AppText></View> : null}
         </Pressable>
-        <Pressable accessibilityRole="button" onPress={() => { setShowArchived((value) => !value); setSelectedProductIds(new Set()); }} style={styles.archiveToggle}>
+        <Pressable accessibilityRole="button" accessibilityState={{ selected: showArchived }} onPress={() => { setShowArchived((value) => !value); setSelectedProductIds(new Set()); }} style={styles.archiveToggle}>
           <AppText weight="semibold" style={styles.archiveToggleText}>{showArchived ? 'Show active' : 'Archived'}</AppText>
         </Pressable>
         {selectedProductIds.size === 0 ? <Pressable accessibilityRole="button" accessibilityLabel="Recheck all prices" accessibilityState={{ disabled: !products.length || loading || checkingAll }} disabled={!products.length || loading || checkingAll} onPress={recheckAllPrices} style={({ pressed }) => [styles.watchlistRecheck, (!products.length || loading || checkingAll) && styles.watchlistRecheckDisabled, pressed && styles.storeFilterButtonPressed]}>
@@ -1357,13 +1357,14 @@ export function DetailScreen({ productId, navigate }: { productId: number; navig
           </View>
           <View style={styles.detailCopy}>
             <View style={styles.titleRow}>
-              <AppText weight="bold" style={styles.detailTitle} numberOfLines={3}>
+              <AppText weight="bold" accessibilityRole="header" style={styles.detailTitle} numberOfLines={3}>
                 {product.title}
               </AppText>
               <View style={styles.detailHeaderActions}>
                 <Pressable
                   accessibilityLabel="Copy product link"
                   accessibilityRole="button"
+                  hitSlop={5}
                   style={styles.iconButton}
                   onPress={copyProductLink}
                 >
@@ -1372,6 +1373,7 @@ export function DetailScreen({ productId, navigate }: { productId: number; navig
                 <Pressable
                   accessibilityLabel="Tracking settings"
                   accessibilityRole="button"
+                  hitSlop={5}
                   style={styles.iconButton}
                   onPress={() => navigate({ name: 'trackingSettings', id: product.id })}
                 >
@@ -1621,7 +1623,7 @@ function TrackingSettingsScreen({ productId, navigate }: { productId: number; na
     <View style={styles.app}>
       <Header title="Tracking Settings" onBack={() => navigate({ name: 'detail', id: productId })} />
       <ScrollView contentContainerStyle={styles.screenContent} showsVerticalScrollIndicator={false}>
-        <AppText weight="bold" style={styles.detailTitle} numberOfLines={2}>
+        <AppText weight="bold" accessibilityRole="header" style={styles.detailTitle} numberOfLines={2}>
           {product?.title ?? 'Product'}
         </AppText>
         <AppText weight="semibold">Check preference</AppText>
@@ -1705,7 +1707,7 @@ function ActivityScreen({ navigate }: { navigate: (route: Route) => void }) {
 
   return (
     <ScrollView contentContainerStyle={styles.screenContent} showsVerticalScrollIndicator={false}>
-      <AppText weight="bold" style={styles.heading}>
+      <AppText weight="bold" accessibilityRole="header" style={styles.heading}>
         Activity
       </AppText>
       <AppText muted>Recent price changes across all tracked products.</AppText>
@@ -2120,7 +2122,7 @@ export function OpportunityScreen({ navigate, active = true, sessionOffset }: { 
     >
       <View style={styles.discoveryHeader}>
         <View style={styles.flex}>
-          <AppText weight="bold" style={styles.heading}>Search</AppText>
+          <AppText weight="bold" accessibilityRole="header" style={styles.heading}>Search</AppText>
           <AppText muted>Discover it. Track the price.</AppText>
         </View>
       </View>
@@ -2132,7 +2134,7 @@ export function OpportunityScreen({ navigate, active = true, sessionOffset }: { 
       {notice ? <View accessibilityLiveRegion="polite" style={styles.discoveryNotice}><AppText style={styles.flex}>{notice.message}</AppText>{notice.trackedId ? <Pressable accessibilityRole="button" onPress={() => navigate({ name: 'trackingSettings', id: notice.trackedId! })}><AppText style={styles.discoveryLink}>Set target price</AppText></Pressable> : null}<Pressable accessibilityRole="button" accessibilityLabel="Dismiss message" onPress={() => setNotice(undefined)}><X size={18} color={colors.textMuted} /></Pressable></View> : null}
 
       {searchQuery ? <View style={styles.discoverySection}>
-        <AppText weight="bold" style={styles.discoverySectionTitle}>Results for “{searchQuery}”</AppText>
+        <AppText weight="bold" accessibilityRole="header" style={styles.discoverySectionTitle}>Results for “{searchQuery}”</AppText>
         <AppText muted>{filteredProducts.length} title and brand {filteredProducts.length === 1 ? 'match' : 'matches'} · {resultRetailerCount} {resultRetailerCount === 1 ? 'retailer' : 'retailers'}</AppText>
         {!filteredProducts.length ? <AppText muted>{searchBusy ? 'Searching stores. Matches appear as each store responds.' : 'No matching product names in the returned results. Try a brand, model, or fewer words; check Coverage for unavailable stores.'}</AppText> : null}
         <DiscoveryProductGrid products={visibleProducts} trackedProducts={trackedProducts} trackingProductId={trackingProductId} onTrack={handleTrack} onDismiss={handleDismiss} onMoreLikeThis={openBrandListing} onViewAtRetailer={handleViewAtRetailer} />
@@ -2142,7 +2144,7 @@ export function OpportunityScreen({ navigate, active = true, sessionOffset }: { 
       </View> : discoveryProducts.length > 0 || category || retailer || collectionId ? (
         <>
           <View style={styles.discoverySection}>
-            <View style={styles.titleRow}><AppText weight="bold" style={styles.discoverySectionTitle}>{category ? DISCOVERY_CATEGORY_LABELS[category] : 'Explore products'}</AppText><Pressable accessibilityRole="button" onPress={() => { resetBrowse(); setBrowseAll(!browseAll && !category); }} style={styles.discoveryToolbarAction}><AppText style={styles.discoveryLink}>{category || browseAll ? 'Watchlist picks' : 'All products'}</AppText></Pressable></View>
+            <View style={styles.titleRow}><AppText weight="bold" accessibilityRole="header" style={styles.discoverySectionTitle}>{category ? DISCOVERY_CATEGORY_LABELS[category] : 'Explore products'}</AppText><Pressable accessibilityRole="button" onPress={() => { resetBrowse(); setBrowseAll(!browseAll && !category); }} style={styles.discoveryToolbarAction}><AppText style={styles.discoveryLink}>{category || browseAll ? 'Watchlist picks' : 'All products'}</AppText></Pressable></View>
             {!browseAll && !category && !retailer && !collectionId && watchedCategories.length ? <AppText muted style={styles.watchlistReason}>Based on your watchlist · {watchedCategories.map((item) => SHOPPING_CATEGORY_LABELS[item]).join(', ')}</AppText> : null}
             {!browseAll && !category && !retailer && !collectionId && !watchedCategories.length ? <AppText muted>Track products to see related finds here.</AppText> : null}
             <View style={styles.discoveryToolbar}>
@@ -2178,7 +2180,7 @@ export function OpportunityScreen({ navigate, active = true, sessionOffset }: { 
       <DiscoveryBrowseSheet visible={showSources} sources={catalog?.sources} onClose={() => setShowSources(false)} onCategory={(selected) => { resetBrowse(); setCategory(selected); setBrowseAll(false); setShowSources(false); }} onRetailer={(selected) => { resetBrowse(); setRetailer(selected); setBrowseAll(true); setShowSources(false); }} onCollection={(source) => { resetBrowse(); setCollectionId(source.id); setRetailer(source.siteKey); setBrowseAll(true); setShowSources(false); }} />
       <Modal visible={Boolean(pendingProduct)} transparent animationType="slide" onRequestClose={() => !savingVariant && setPendingProduct(undefined)}>
         <View style={styles.discoveryModalBackdrop}><SafeAreaView edges={['bottom']} style={styles.discoveryOptionSheet}><Header title="Choose your option" onBack={() => !savingVariant && setPendingProduct(undefined)} /><ScrollView contentContainerStyle={styles.screenContent}>
-          <AppText weight="bold" style={styles.discoverySectionTitle}>{pendingProduct?.parsed.title}</AppText>
+          <AppText weight="bold" accessibilityRole="header" style={styles.discoverySectionTitle}>{pendingProduct?.parsed.title}</AppText>
           <VariantSelector variants={variantChoices} selectedAttributes={variantAttributes} onSelect={(name, value) => setVariantAttributes((current) => updateSelectedVariantAttributes(variantChoices, current, name, value))} />
           <AppText muted>{selectedVariant ? `${selectedChoice?.attributes.map((attribute) => attribute.value).join(' · ')} · ${formatPrice(selectedVariant.priceMinor, selectedVariant.currency ?? pendingProduct?.parsed.currency ?? 'AED', selectedVariant.priceBasis ?? pendingProduct?.parsed.priceBasis)}` : 'Choose an available option to track its exact price and stock.'}</AppText>
           {variantError ? <AppText accessibilityLiveRegion="polite">{variantError}</AppText> : null}
@@ -2316,7 +2318,7 @@ function SettingsScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.screenContent} showsVerticalScrollIndicator={false}>
-      <AppText weight="bold" style={styles.heading}>
+      <AppText weight="bold" accessibilityRole="header" style={styles.heading}>
         Settings
       </AppText>
       <AppText muted style={styles.settingsIntro}>
@@ -2587,8 +2589,8 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border
   },
   headerButton: {
-    width: 38,
-    height: 38,
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center'
   },
@@ -2724,11 +2726,11 @@ const styles = StyleSheet.create({
     fontSize: 20
   },
   controlSheetClose: {
-    width: 36,
-    height: 36,
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 18,
+    borderRadius: 22,
     backgroundColor: colors.surfaceMuted
   },
   controlSheetContent: {

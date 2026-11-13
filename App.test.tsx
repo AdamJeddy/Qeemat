@@ -63,6 +63,20 @@ describe('AddScreen', () => {
     expect(labels).toEqual(expect.arrayContaining(['H&M', 'Zara']));
   });
 
+  it('labels the header back control and exposes the screen title as a heading', () => {
+    const navigate = jest.fn();
+    let tree: renderer.ReactTestRenderer;
+    act(() => { tree = renderer.create(<AddScreen navigate={navigate} />); });
+    const backButton = tree!.root.findAll((node) => node.props.accessibilityLabel === 'Go back' && typeof node.props.onPress === 'function')[0];
+    expect(backButton).toBeDefined();
+    expect(backButton.props.accessibilityRole).toBe('button');
+    act(() => { backButton.props.onPress(); });
+    expect(navigate).toHaveBeenCalledWith({ name: 'tabs', tab: 'watchlist' });
+    const headings = tree!.root.findAllByProps({ accessibilityRole: 'header' }).map((node) => node.props.children);
+    expect(headings).toEqual(expect.arrayContaining(['Add Product']));
+    act(() => tree!.unmount());
+  });
+
   it('saves the selected category when tracking a shared URL', async () => {
     const create = jest.spyOn(require('./src/data/database'), 'createTrackedProduct').mockResolvedValue(22);
     mockFetchAndParseProduct.mockResolvedValueOnce({ ok: true, product: { siteKey: 'noon', title: 'Shoe', canonicalUrl: 'https://www.noon.com/shoe', priceMinor: 10000, currency: 'AED', availability: 'in_stock' } });
@@ -313,6 +327,9 @@ describe('Watchlist header', () => {
     expect(navigate).toHaveBeenCalledWith({ name: 'tabs', tab: 'opportunities' });
     act(() => tree!.root.findByProps({ accessibilityLabel: 'Open recent activity' }).props.onPress());
     expect(navigate).toHaveBeenCalledWith({ name: 'tabs', tab: 'activity' });
+    const headings = tree!.root.findAllByProps({ accessibilityRole: 'header' }).map((node) => node.props.children);
+    expect(headings).toEqual(expect.arrayContaining(['Watchlist']));
+    expect(tree!.root.findAllByProps({ accessibilityLabel: 'Filter and sort' }).length).toBeGreaterThan(0);
     await act(async () => tree!.unmount());
   });
 });

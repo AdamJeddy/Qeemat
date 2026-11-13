@@ -261,7 +261,7 @@ const styles = StyleSheet.create({
   emptyFilter: { paddingVertical: 14, textAlign: 'center' },
   sheet: { flex: 1, backgroundColor: colors.background },
   sheetHeader: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
-  iconButton: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
+  iconButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   sheetHeaderTitle: { flex: 1, fontSize: 16, textAlign: 'center' },
   sheetStep: { fontSize: 12, minWidth: 36, textAlign: 'right' },
   sheetContent: { padding: 20, gap: 14 },
