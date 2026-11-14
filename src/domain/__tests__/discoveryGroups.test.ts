@@ -160,9 +160,11 @@ describe('cross-retailer product grouping', () => {
     expect(groups).toHaveLength(3);
     expect(groups[0].id).toBe('group:unknown:other:card-holder-leather-minimalist');
     expect(groups[0].offers).toHaveLength(2);
-    expect(groups[1].id).toBe('group:unknown:wallet:leather-wallet');
+    expect(groups[1].id).toContain('group:unknown:wallet:leather-wallet:');
     expect(groups[1].offers).toHaveLength(1);
+    expect(groups[2].id).toContain('group:unknown:wallet:leather-wallet:');
     expect(groups[2].offers).toHaveLength(1);
+    expect(new Set([groups[1].id, groups[2].id]).size).toBe(2);
   });
 
   it('never uses an out-of-stock offer as the best offer', () => {
@@ -429,6 +431,57 @@ describe('group identity and ordering', () => {
     ]);
 
     expect(groups).toHaveLength(4);
+  });
+
+  it('keeps distinguishing model qualifiers apart', () => {
+    const groups = groupDiscoveryProducts([
+      product('noon-16-pro', 'noon', 'Apple iPhone 16 Pro 128GB', 450000, { brand: 'Apple', category: 'phones' }),
+      product('amazon-16-pro-max', 'amazon_ae', 'Apple iPhone 16 Pro Max 128GB', 500000, { brand: 'Apple', category: 'phones' }),
+      product('amazon-s25', 'amazon_ae', 'Samsung Galaxy S25 256GB', 300000, { brand: 'Samsung', category: 'phones' }),
+      product('noon-s25-ultra', 'noon', 'Samsung Galaxy S25 Ultra 256GB', 400000, { brand: 'Samsung', category: 'phones' })
+    ]);
+
+    expect(groups).toHaveLength(4);
+  });
+
+  it('still clubs the same model when one listing only adds store wording', () => {
+    const groups = groupDiscoveryProducts([
+      product('noon-16-pro', 'noon', 'Apple iPhone 16 Pro 128GB', 450000, { brand: 'Apple', category: 'phones' }),
+      product('amazon-16-pro', 'amazon_ae', 'New Apple iPhone 16 Pro 128 GB', 470000, { brand: 'Apple', category: 'phones' })
+    ]);
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0].offers).toHaveLength(2);
+  });
+
+  it('does not club different decimal quantities or fragrance concentrations', () => {
+    const serumGroups = groupDiscoveryProducts([
+      product('noon-serum-small', 'noon', 'Acme Hydrating Face Serum 1.5 ml', 4900, { brand: 'Acme', category: 'beauty' }),
+      product('amazon-serum-large', 'amazon_ae', 'Acme Hydrating Face Serum 2.5 ml', 6900, { brand: 'Acme', category: 'beauty' })
+    ]);
+    expect(serumGroups).toHaveLength(2);
+
+    const fragranceGroups = groupDiscoveryProducts([
+      product('noon-edp', 'noon', 'Dior Sauvage Eau de Parfum 100ml', 50000, { brand: 'Dior', category: 'beauty' }),
+      product('amazon-edt', 'amazon_ae', 'Dior Sauvage EDT 100ml', 40000, { brand: 'Dior', category: 'beauty' })
+    ]);
+    expect(fragranceGroups).toHaveLength(2);
+  });
+
+  it('gives separately retained groups with the same short signature distinct stable ids', () => {
+    const groups = groupDiscoveryProducts([
+      product('noon-running', 'noon', 'Nike Running Shoes', 20000),
+      product('amazon-running-men', 'amazon_ae', 'Nike Running Shoes for Men', 22000)
+    ]);
+    expect(groups).toHaveLength(2);
+    const ids = groups.map((group) => group.id);
+    expect(new Set(ids).size).toBe(2);
+
+    const reversed = groupDiscoveryProducts([
+      product('amazon-running-men', 'amazon_ae', 'Nike Running Shoes for Men', 22000),
+      product('noon-running', 'noon', 'Nike Running Shoes', 20000)
+    ]);
+    expect(new Set(reversed.map((group) => group.id))).toEqual(new Set(ids));
   });
 
   it('falls back to the retailer listing identity when an unknown brand has no signature', () => {

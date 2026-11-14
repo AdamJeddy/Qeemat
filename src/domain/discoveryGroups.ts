@@ -50,6 +50,8 @@ type ListingIdentity = {
   numericModel: string[];
   /** Alphanumeric model codes such as 1000xm5 or h2. */
   codeModel: string[];
+  /** Distinguishing model qualifiers such as max, plus, ultra, pro or mini. */
+  qualifiers: string[];
   /** First normalized title words, used to infer a missing brand conservatively. */
   leading: string[];
 };
@@ -75,6 +77,11 @@ type ComparableBasis = {
 const UNKNOWN_BUCKET = '\u0000unknown';
 const UNKNOWN_GROUP_BRAND = 'unknown';
 const CANONICAL_TYPE_TOKEN = 'other';
+/**
+ * These words distinguish products that otherwise share a model number
+ * ("iPhone 16 Pro" vs "iPhone 16 Pro Max"). Both sides must agree.
+ */
+const MODEL_QUALIFIER_TOKENS = new Set(['max', 'plus', 'ultra', 'mini', 'lite', 'pro', 'air', 'fe', 'se', 'fold', 'flip']);
 /** An accessory title mentioning a brand is not that brand's product. */
 const ACCESSORY_TOKENS = new Set([
   'case', 'cases', 'cover', 'covers', 'protector', 'protectors', 'charger', 'chargers', 'cable', 'cables',
@@ -95,7 +102,20 @@ export function groupDiscoveryProducts(
   if (listings.length === 0) {
     return [];
   }
-  return bucketListings(listings).map((group) => buildGroup(group, options?.trackedProducts));
+  const groups = bucketListings(listings).map((group) => buildGroup(group, options?.trackedProducts));
+  // Deliberately separate groups can share a short signature (for example
+  // "Nike Running Shoes" vs "Nike Running Shoes for Men"). Give every member of
+  // such a collision a stable listing discriminator so the compare sheet can
+  // resolve the row that was tapped instead of the first group with that id.
+  const idCounts = new Map<string, number>();
+  for (const group of groups) { idCounts.set(group.id, (idCounts.get(group.id) ?? 0) + 1); }
+  return groups.map((group) => {
+    if ((idCounts.get(group.id) ?? 0) < 2) { return group; }
+    const discriminator = group.offers
+      .map((offer) => `${offer.product.siteKey}:${offer.product.id}`)
+      .sort()[0];
+    return { ...group, id: `${group.id}:${encodeURIComponent(discriminator)}` };
+  });
 }
 
 /* -------------------------------------------------------------------------- */
@@ -255,6 +275,7 @@ function buildIdentity(title: string, brand?: string): ListingIdentity {
     variant,
     numericModel: hard.filter((token) => /^\d+$/.test(token) && !variantSet.has(token)),
     codeModel: hard.filter((token) => /[a-z]/.test(token) && !variantSet.has(token)),
+    qualifiers: signature.filter((token) => MODEL_QUALIFIER_TOKENS.has(token)),
     leading: ordered.slice(0, 3)
   };
 }
@@ -342,6 +363,10 @@ function identitiesMatch(left: ListingIdentity, right: ListingIdentity): boolean
   const bothUntyped = left.typeKey === CANONICAL_TYPE_TOKEN && right.typeKey === CANONICAL_TYPE_TOKEN;
   // Different capacities or pack sizes are different products.
   if (!sameTokens(left.variant, right.variant)) {
+    return false;
+  }
+  // "Pro" and "Pro Max" (or base vs "Ultra") are different products.
+  if (!sameTokens(left.qualifiers, right.qualifiers)) {
     return false;
   }
   const modelMatch = strongestModelMatch(left, right);
