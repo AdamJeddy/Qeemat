@@ -116,7 +116,7 @@ class QeematNotificationsModule(private val reactContext: ReactApplicationContex
       val notification = NotificationCompat.Builder(reactContext, UPDATE_CHANNEL_ID)
           .setSmallIcon(R.mipmap.ic_launcher)
           .setContentTitle("Qeemat update available")
-          .setContentText("Version $version is ready. Open Qeemat to view the release.")
+          .setContentText("Version $version is ready. Open Qeemat to download and install it.")
           .setAutoCancel(true)
           .setPriority(NotificationCompat.PRIORITY_DEFAULT)
           .setContentIntent(pendingIntent)
