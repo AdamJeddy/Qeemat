@@ -55,6 +55,7 @@ import {
 
 import { AppText } from './src/components/AppText';
 import { AppTextInput } from './src/components/AppTextInput';
+import { Surface } from './src/components/Surface';
 import { FontScaleContext } from './src/theme/FontScaleContext';
 import { OptionGroup } from './src/components/OptionGroup';
 import { SiteIcon } from './src/components/SiteIcon';
@@ -969,17 +970,17 @@ function WatchlistScreen({ navigate, refreshKey = 0, showUpdateDot = false }: { 
         {loading ? <ActivityIndicator color={colors.primary} /> : null}
         {!loading && products.length === 0 ? <EmptyWatchlist onAdd={() => navigate({ name: 'add' })} /> : null}
         {!loading && products.length > 0 && showArchived && visibleProducts.length === 0 ? (
-          <View style={styles.emptyCard}>
+          <Surface padding="lg" style={styles.emptyCard}>
             <View style={styles.emptyIcon}>
               <Archive size={24} color={colors.primary} />
             </View>
             <AppText weight="bold" style={styles.emptyTitle}>Nothing archived yet</AppText>
             <AppText muted style={styles.emptyCopy}>Archived products keep their price history and appear here.</AppText>
             <PrimaryButton label="Show active products" variant="outline" onPress={() => setShowArchived(false)} style={styles.emptyButton} />
-          </View>
+          </Surface>
         ) : null}
         {!loading && visibleProducts.length > 0 && filteredProducts.length === 0 ? (
-          <View style={styles.emptyCard}>
+          <Surface padding="lg" style={styles.emptyCard}>
             <View style={styles.emptyIcon}>
               {searchQuery.trim() ? <Search size={24} color={colors.primary} /> : <SlidersHorizontal size={24} color={colors.primary} />}
             </View>
@@ -997,7 +998,7 @@ function WatchlistScreen({ navigate, refreshKey = 0, showUpdateDot = false }: { 
               onPress={searchQuery.trim() ? () => setSearchQuery('') : clearControls}
               style={styles.emptyButton}
             />
-          </View>
+          </Surface>
         ) : null}
 
         {oos.length > 0 ? (
@@ -1075,7 +1076,7 @@ function BulkActionButton({ label, icon, destructive, onPress }: { label: string
 
 function EmptyWatchlist({ onAdd }: { onAdd: () => void }) {
   return (
-    <View style={styles.emptyCard}>
+    <Surface padding="lg" style={styles.emptyCard}>
       <View style={styles.emptyIcon}>
         <Bell size={24} color={colors.primary} />
       </View>
@@ -1086,7 +1087,7 @@ function EmptyWatchlist({ onAdd }: { onAdd: () => void }) {
         Paste a supported product link to start a local price history.
       </AppText>
       <PrimaryButton label="Add product" onPress={onAdd} style={styles.emptyButton} />
-    </View>
+    </Surface>
   );
 }
 
@@ -2196,7 +2197,7 @@ function ActivityScreen({
 
 function EmptyActivity() {
   return (
-    <View style={styles.emptyCard}>
+    <Surface padding="lg" style={styles.emptyCard}>
       <View style={styles.emptyIcon}>
         <Clock size={24} color={colors.primary} />
       </View>
@@ -2206,7 +2207,7 @@ function EmptyActivity() {
       <AppText muted style={styles.emptyCopy}>
         Tracked product prices will appear here when they change.
       </AppText>
-    </View>
+    </Surface>
   );
 }
 
@@ -2880,12 +2881,12 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 
 function StatCard({ label, price, currency, priceBasis, tone }: { label: string; price?: number; currency: string; priceBasis?: import('./src/domain/priceBasis').PriceBasis; tone: 'green' | 'red' | 'neutral' }) {
   return (
-    <View style={styles.statCard}>
+    <Surface padding="md" style={styles.statCard}>
       <AppText muted>{label}</AppText>
       <AppText weight="bold" style={[styles.statPrice, tone === 'green' ? styles.greenText : tone === 'red' ? styles.redText : undefined]}>
         {formatPrice(price, currency, priceBasis)}
       </AppText>
-    </View>
+    </Surface>
   );
 }
 
@@ -3278,11 +3279,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceMuted
   },
   emptyCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 22,
     alignItems: 'center'
   },
   emptyIcon: {
@@ -3663,12 +3659,7 @@ const styles = StyleSheet.create({
     lineHeight: 20
   },
   statCard: {
-    flex: 1,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    padding: layoutMetrics.cardPadding
+    flex: 1
   },
   statPrice: {
     marginTop: 4,

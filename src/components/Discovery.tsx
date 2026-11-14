@@ -15,6 +15,7 @@ import { AppText } from './AppText';
 import { AppTextInput } from './AppTextInput';
 import { PriceDirectionBadge } from './PriceDirectionBadge';
 import { PrimaryButton } from './PrimaryButton';
+import { Surface } from './Surface';
 import { formatRelativeTime } from '../domain/dates';
 import { DISCOVERY_CATEGORY_LABELS, preferredDiscoveryBrands, uniqueDiscoveryBrands } from '../domain/discovery';
 import { cleanUrl, getSiteByKey } from '../domain/sites';
@@ -37,7 +38,7 @@ function listingPriceDelta(product: DiscoveryProduct): { direction: 'down' | 'up
 
 export function DiscoverySetupCard({ onPress, onDismiss }: { onPress: () => void; onDismiss: () => void }) {
   return (
-    <View style={styles.setupCard}>
+    <Surface padding="sm" style={styles.setupCard}>
       <View style={styles.setupIcon}>
         <Sparkles size={22} color={colors.primary} />
       </View>
@@ -51,20 +52,20 @@ export function DiscoverySetupCard({ onPress, onDismiss }: { onPress: () => void
       <Pressable accessibilityRole="button" accessibilityLabel="Dismiss personalized discovery" onPress={onDismiss} style={styles.setupDismiss}>
         <X size={18} color={colors.textMuted} />
       </Pressable>
-    </View>
+    </Surface>
   );
 }
 
 export function EmptyDiscovery({ onPreferences }: { onPreferences: () => void }) {
   return (
-    <View style={styles.emptyCard}>
+    <Surface padding="lg" style={styles.emptyCard}>
       <View style={styles.emptyIcon}>
         <Sparkles size={24} color={colors.primary} />
       </View>
       <AppText weight="bold" style={styles.emptyTitle}>Fresh finds are on the way</AppText>
       <AppText muted style={styles.emptyCopy}>Pull to refresh. If a retailer is temporarily unavailable, Qeemat keeps the last products saved on this device.</AppText>
       <PrimaryButton label="Browse categories" variant="outline" onPress={onPreferences} style={styles.emptyButton} />
-    </View>
+    </Surface>
   );
 }
 
@@ -118,7 +119,7 @@ export function DiscoveryProductGrid({
         const tracking = trackingProductId === product.id;
         const delta = listingPriceDelta(product);
         return (
-          <View key={product.id} style={styles.productCard}>
+          <Surface key={product.id} padding="none" style={styles.productCard}>
             <Pressable accessibilityRole="button" accessibilityLabel={`View ${product.title}`} onPress={() => setPreview(product)} style={styles.productImageWrap}>
               {product.imageUrl && !failedImages.has(`${product.id}:${product.imageUrl}`) ? (
                 <Image
@@ -145,7 +146,7 @@ export function DiscoveryProductGrid({
                 {tracking ? <ActivityIndicator size="small" color={colors.primary} /> : <><Plus size={15} color={colors.primary} /><AppText weight="semibold" style={styles.trackButtonText}>{tracked ? 'Tracking' : 'Track price'}</AppText></>}
               </Pressable>
             </View>
-          </View>
+          </Surface>
         );
       })}
       <Modal visible={Boolean(preview)} animationType="slide" onRequestClose={() => setPreview(undefined)}>
@@ -256,13 +257,13 @@ export function DiscoveryPreferencesSheet({
 const styles = StyleSheet.create({
   flex: { flex: 1, minWidth: 0 },
   pressed: { opacity: 0.82 },
-  setupCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+  setupCard: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   setupIcon: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.blueSoft, alignItems: 'center', justifyContent: 'center' },
   setupTitle: { fontSize: 16 },
   setupCopy: { marginTop: 2, fontSize: 13, lineHeight: 18 },
   setupAction: { padding: 6 },
   setupDismiss: { padding: 6, marginLeft: -10 },
-  emptyCard: { alignItems: 'center', padding: 24, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+  emptyCard: { alignItems: 'center' },
   emptyIcon: { width: 52, height: 52, borderRadius: 26, backgroundColor: colors.blueSoft, alignItems: 'center', justifyContent: 'center', marginBottom: 14 },
   emptyTitle: { fontSize: 20 },
   emptyCopy: { textAlign: 'center', marginTop: 8 },
@@ -272,7 +273,7 @@ const styles = StyleSheet.create({
   filterChipText: { fontSize: 13 },
   filterChipTextSelected: { color: colors.primary },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  productCard: { width: '48%', flexGrow: 1, flexBasis: '46%', borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, overflow: 'hidden' },
+  productCard: { width: '48%', flexGrow: 1, flexBasis: '46%', overflow: 'hidden' },
   productImageWrap: { height: 120, backgroundColor: colors.surfaceMuted, alignItems: 'center', justifyContent: 'center' },
   previewImage: { width: '100%', height: 220 },
   previewImageFallback: { width: '100%', height: 220, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceMuted },
