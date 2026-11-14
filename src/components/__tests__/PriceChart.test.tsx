@@ -90,6 +90,14 @@ describe('PriceChart', () => {
     expect(renderedText(tree!)).toContain('↓ AED 10 drop');
   });
 
+  it('exposes a horizontal scrub responder without blocking page scroll', () => {
+    let tree: renderer.ReactTestRenderer;
+    act(() => { tree = renderer.create(<PriceChart snapshots={snapshots} currency="AED" />); });
+
+    const canvas = tree!.root.findByProps({ testID: 'price-chart-canvas' });
+    expect(typeof canvas.props.onResponderGrant).toBe('function');
+    expect(typeof canvas.props.onResponderMove).toBe('function');
+  });
   it('explains how price changes are encoded on the chart', () => {
     let tree: renderer.ReactTestRenderer;
 
@@ -97,7 +105,7 @@ describe('PriceChart', () => {
       tree = renderer.create(<PriceChart snapshots={snapshots} currency="AED" />);
     });
 
-    expect(renderedText(tree!)).toContain('Tap a point to view its date and price. Green marks a drop; red marks an increase.');
+    expect(renderedText(tree!)).toContain('Drag across the chart to scrub through prices; tap a point to inspect it. Green marks a drop; red marks an increase.');
   });
 
   it('uses the shared direction colors for chart points', () => {

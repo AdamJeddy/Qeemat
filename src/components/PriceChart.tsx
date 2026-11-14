@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { PanResponder, Pressable, StyleSheet, View } from 'react-native';
 import Svg, { Circle, Defs, Line, LinearGradient, Path, Stop } from 'react-native-svg';
 
 import { formatPrice } from '../domain/price';
@@ -26,6 +26,16 @@ const width = 320;
 const height = 154;
 const padding = 18;
 
+function selectedPointIndexAt(locationX: number, chartSize: { width: number; height: number }, pointCount: number): number {
+  const scale = Math.min(chartSize.width / width, chartSize.height / height);
+  const renderedWidth = width * scale;
+  const horizontalOffset = (chartSize.width - renderedWidth) / 2;
+  const horizontalPadding = padding * scale;
+  const usableWidth = Math.max(1, renderedWidth - horizontalPadding * 2);
+  const offset = Math.max(0, Math.min(usableWidth, locationX - horizontalOffset - horizontalPadding));
+  return Math.round((offset / usableWidth) * (pointCount - 1));
+}
+
 export function PriceChart({ snapshots, currency }: PriceChartProps) {
   const points = useMemo(
     () => snapshots
@@ -41,6 +51,24 @@ export function PriceChart({ snapshots, currency }: PriceChartProps) {
   useEffect(() => {
     setSelectedId(points[points.length - 1]?.id);
   }, [points]);
+
+  // Horizontal drags scrub the selected point without blocking vertical page scroll.
+  const panResponder = useMemo(() => {
+    const selectAt = (locationX: number) => {
+      if (chartSize.width <= 0 || points.length < 2) {
+        return;
+      }
+      const index = selectedPointIndexAt(locationX, chartSize, points.length);
+      setSelectedId(points[index].id);
+    };
+    return PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_event, gesture) => Math.abs(gesture.dx) > 6 && Math.abs(gesture.dx) > Math.abs(gesture.dy),
+      onPanResponderGrant: (event) => selectAt(event.nativeEvent.locationX),
+      onPanResponderMove: (event) => selectAt(event.nativeEvent.locationX),
+      onPanResponderTerminationRequest: () => false
+    });
+  }, [chartSize, points]);
 
   if (points.length < 2) {
     return (
@@ -65,14 +93,7 @@ export function PriceChart({ snapshots, currency }: PriceChartProps) {
   const areaPath = `${linePath} L ${coords[coords.length - 1].x} ${height - padding} L ${coords[0].x} ${height - padding} Z`;
   const selectedCoord = coords[selectedIndex];
   const selectPointAt = (locationX: number) => {
-    const scale = Math.min(chartSize.width / width, chartSize.height / height);
-    const renderedWidth = width * scale;
-    const horizontalOffset = (chartSize.width - renderedWidth) / 2;
-    const horizontalPadding = padding * scale;
-    const usableWidth = Math.max(1, renderedWidth - horizontalPadding * 2);
-    const offset = Math.max(0, Math.min(usableWidth, locationX - horizontalOffset - horizontalPadding));
-    const index = Math.round((offset / usableWidth) * (points.length - 1));
-
+    const index = selectedPointIndexAt(locationX, chartSize, points.length);
     setSelectedId(points[index].id);
   };
 
@@ -90,15 +111,16 @@ export function PriceChart({ snapshots, currency }: PriceChartProps) {
         </View>
       </View>
 
-      <Pressable
-        accessible
-        accessibilityRole="button"
-        accessibilityLabel="Price history chart"
-        accessibilityHint="Tap a point to view its price and date"
-        onLayout={(event) => setChartSize(event.nativeEvent.layout)}
-        onPress={(event) => selectPointAt(event.nativeEvent.locationX)}
-        style={styles.canvas}
-      >
+      <View testID="price-chart-canvas" {...panResponder.panHandlers}>
+        <Pressable
+          accessible
+          accessibilityRole="button"
+          accessibilityLabel="Price history chart"
+          accessibilityHint="Drag across the chart to scrub through prices, or tap a point to view its price and date"
+          onLayout={(event) => setChartSize(event.nativeEvent.layout)}
+          onPress={(event) => selectPointAt(event.nativeEvent.locationX)}
+          style={styles.canvas}
+        >
         <Svg pointerEvents="none" viewBox={`0 0 ${width} ${height}`} width="100%" height="100%">
           <Defs>
             <LinearGradient id="priceFill" x1="0" y1="0" x2="0" y2="1">
@@ -145,14 +167,15 @@ export function PriceChart({ snapshots, currency }: PriceChartProps) {
               />
             );
           })}
-        </Svg>
-      </Pressable>
+          </Svg>
+        </Pressable>
+      </View>
 
       <View style={styles.axis}>
         <AppText muted style={styles.axisLabel}>{formatAxisDate(points[0].checkedAt)}</AppText>
         <AppText muted style={styles.axisLabel}>{formatAxisDate(points[points.length - 1].checkedAt)}</AppText>
       </View>
-      <AppText muted style={styles.hint}>Tap a point to view its date and price. Green marks a drop; red marks an increase.</AppText>
+      <AppText muted style={styles.hint}>Drag across the chart to scrub through prices; tap a point to inspect it. Green marks a drop; red marks an increase.</AppText>
     </View>
   );
 }

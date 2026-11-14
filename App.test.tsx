@@ -370,6 +370,46 @@ describe('DetailScreen', () => {
     expect(expandedLabels).toContain('Material Mesh');
     await act(async () => tree!.unmount());
   });
+  it('groups consecutive failed checks behind one collapsed row', async () => {
+    mockGetProductWithSnapshots.mockResolvedValueOnce({
+      product: {
+        id: 99,
+        url: 'https://www.noon.com/failed',
+        canonicalUrl: 'https://www.noon.com/failed',
+        siteKey: 'noon',
+        title: 'Failed product',
+        currency: 'AED',
+        currentPriceMinor: 10000,
+        alertMode: 'price_drop',
+        checkPreference: 'daily',
+        isActive: true,
+        lastErrorCode: 'price_not_found',
+        lastCheckedAt: '2026-11-14T12:00:00.000Z',
+        createdAt: '2026-01-01T00:00:00Z',
+        updatedAt: '2026-11-14T12:00:00.000Z'
+      },
+      snapshots: [
+        { id: 3, trackedProductId: 99, status: 'price_not_found', errorCode: 'price_not_found', availability: 'unknown', source: 'manual_batch', rawPriceText: 'Qeemat found the product but could not find a current price.', checkedAt: '2026-11-14T12:00:00.000Z' },
+        { id: 2, trackedProductId: 99, status: 'price_not_found', errorCode: 'price_not_found', availability: 'unknown', source: 'background', rawPriceText: 'Qeemat found the product but could not find a current price.', checkedAt: '2026-11-14T10:00:00.000Z' },
+        { id: 1, trackedProductId: 99, status: 'price_not_found', errorCode: 'price_not_found', availability: 'unknown', source: 'manual_single', rawPriceText: 'Qeemat found the product but could not find a current price.', checkedAt: '2026-11-14T08:00:00.000Z' }
+      ]
+    });
+    let tree: renderer.ReactTestRenderer;
+    await act(async () => { tree = renderer.create(<DetailScreen productId={99} navigate={jest.fn()} />); await Promise.resolve(); });
+
+    const collapsedText = tree!.root.findAllByType(AppText).map((node) => [node.props.children].flat().join('')).join(' ');
+    expect(collapsedText).toContain('+2 earlier failed checks');
+    expect((collapsedText.match(/could not find a current price/g) ?? []).length).toBe(1);
+
+    act(() => {
+      tree!.root.findAllByProps({ accessibilityLabel: 'Show 2 earlier failed checks' })[0].props.onPress();
+    });
+    const expandedText = tree!.root.findAllByType(AppText).map((node) => [node.props.children].flat().join('')).join(' ');
+    expect(expandedText).toContain('Collapse');
+    expect((expandedText.match(/could not find a current price/g) ?? []).length).toBe(3);
+    await act(async () => tree!.unmount());
+  });
+
   it('uses The Deal storefront URLs for customer-facing variant links', () => {
     const storefrontUrl = 'https://www.thedealoutlet.com/ae-en/serve-slide-1.0-fabric/0188147CMA0025.html?dwvar_0188147CMA0025_color=blue';
     const variationEndpoint = 'https://www.thedealoutlet.com/on/demandware.store/Sites-TheDealOutlet_AE-Site/en_AE/Product-Variation?pid=0188147CMA0025';

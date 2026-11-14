@@ -1854,14 +1854,23 @@ function SnapshotList({ snapshots, currency }: { snapshots: PriceSnapshot[]; cur
               ? 'down'
               : 'up'
             : undefined;
+        const failedGroup = Boolean(first.errorCode);
 
         return (
           <View key={group.key}>
             <SnapshotRow snapshot={first} currency={currency} direction={direction} />
             {rest.length > 0 && !isExpanded && (
-              <Pressable style={styles.snapshotCollapsed} onPress={() => toggle(group.key)}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={failedGroup ? `Show ${rest.length} earlier failed checks` : `Show ${rest.length} earlier checks, no change`}
+                accessibilityState={{ expanded: false }}
+                style={styles.snapshotCollapsed}
+                onPress={() => toggle(group.key)}
+              >
                 <AppText muted style={styles.snapshotCollapsedText}>
-                  +{rest.length} earlier {rest.length === 1 ? 'check' : 'checks'}, no change
+                  {failedGroup
+                    ? `+${rest.length} earlier failed ${rest.length === 1 ? 'check' : 'checks'}`
+                    : `+${rest.length} earlier ${rest.length === 1 ? 'check' : 'checks'}, no change`}
                 </AppText>
               </Pressable>
             )}
@@ -1870,7 +1879,13 @@ function SnapshotList({ snapshots, currency }: { snapshots: PriceSnapshot[]; cur
                 {rest.map((s) => (
                   <SnapshotRow key={s.id} snapshot={s} currency={currency} subtle />
                 ))}
-                <Pressable style={styles.snapshotCollapsed} onPress={() => toggle(group.key)}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Collapse earlier checks"
+                  accessibilityState={{ expanded: true }}
+                  style={styles.snapshotCollapsed}
+                  onPress={() => toggle(group.key)}
+                >
                   <AppText muted style={styles.snapshotCollapsedText}>
                     Collapse
                   </AppText>
@@ -2843,13 +2858,15 @@ function groupSnapshots(snapshots: PriceSnapshot[]): SnapshotGroup[] {
   const groups: SnapshotGroup[] = [];
   for (const s of snapshots) {
     const prev = groups.length > 0 ? groups[groups.length - 1].snapshots[0] : undefined;
-    const same =
+    const sameFailure = Boolean(prev?.errorCode && s.errorCode && prev.errorCode === s.errorCode);
+    const sameSuccess =
       prev &&
+      !prev.errorCode &&
+      !s.errorCode &&
       prev.priceMinor === s.priceMinor &&
       prev.availability === s.availability &&
-      prev.source === s.source &&
-      !prev.errorCode &&
-      !s.errorCode;
+      prev.source === s.source;
+    const same = sameFailure || Boolean(sameSuccess);
     if (same) {
       groups[groups.length - 1].snapshots.push(s);
     } else {
