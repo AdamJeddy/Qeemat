@@ -1046,6 +1046,25 @@ describe('OpportunityScreen', () => {
     await act(async () => tree!.unmount());
   });
 
+  it('continues loading more collections inside a selected department', async () => {
+    mockLoadDiscoveryCatalog.mockResolvedValue({ products: [], stale: false });
+    let tree: renderer.ReactTestRenderer;
+    await act(async () => { tree = renderer.create(<OpportunityScreen navigate={jest.fn()} />); await new Promise<void>((resolve) => setImmediate(resolve)); });
+    await act(async () => { tree!.root.findByProps({ accessibilityLabel: 'Browse Footwear' }).props.onPress(); await new Promise<void>((resolve) => setImmediate(resolve)); });
+    const callsBeforeScroll = mockLoadDiscoveryCatalog.mock.calls.length;
+    await act(async () => {
+      tree!.root.findAllByType(ScrollView)[0].props.onScroll({
+        nativeEvent: { contentOffset: { y: 900 }, contentSize: { height: 1800 }, layoutMeasurement: { height: 800 } }
+      });
+      await new Promise<void>((resolve) => setImmediate(resolve));
+    });
+    expect(mockLoadDiscoveryCatalog.mock.calls.length).toBeGreaterThan(callsBeforeScroll);
+    expect(mockLoadDiscoveryCatalog).toHaveBeenLastCalledWith(undefined, expect.objectContaining({
+      scope: expect.objectContaining({ categories: ['footwear'], limit: 48 })
+    }));
+    await act(async () => tree!.unmount());
+  });
+
   it('does not render tracked price opportunities in the discovery feed', async () => {
     mockListProductsWithSnapshots.mockResolvedValueOnce([{
       product: {

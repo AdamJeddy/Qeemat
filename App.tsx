@@ -2522,9 +2522,11 @@ export function OpportunityScreen({ navigate, active = true, sessionOffset }: { 
       setDiscoveryVisibleCount((count) => count + 12);
       return;
     }
-    // A filtered feed should not automatically fetch retailer batches that do
-    // not match the active filters; the user can change or clear them.
-    if (activeFilterSummary) { return; }
+    // Brand and maximum-price filters are applied locally after fetching, so
+    // fetching more retailer batches would not necessarily add matches. The
+    // other filters (department, store, collection) are part of the fetch scope
+    // itself, so continuing to fetch more of that scope is correct.
+    if (brand || maximumPrice.trim()) { return; }
     if (hasMoreListings) {
       autoLoadLock.current = true;
       setBatchLimit((current) => current + 24);
