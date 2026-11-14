@@ -26,6 +26,17 @@ Remaining for later passes: the price-history chart keeps its own change indicat
 
 Remaining after this pass: Search card/chip containers and the compact discovery budget rows still use local surface treatments; a shared surface primitive is still intended.
 
+## Shared surface primitive: device verification 14 November
+
+`src/components/Surface.tsx` now provides the shared flat-surface role:
+
+- Variants: `card` (white, 1px `colors.border`, radius md), `muted` (surfaceMuted inset), `accent` (blueSoft) and `plain`; token-based padding (`none`/`sm`/`md`/`lg`) and radius (`sm`/`md`/`lg`). Layout styles such as flex direction, width and margins still come from the caller.
+- Adopted by Search (discovery setup card, empty discovery card and discovery product cards), Watchlist and Activity empty states, and product-detail insight cards. Their rendered layout is unchanged because the component reproduces the previous visual treatment from shared tokens.
+- Checked on the Samsung SM-S928B release build: [Search discovery cards](docs/assets/design-2026-11-14/search-cards-surface.png) and [product-detail insight cards](docs/assets/design-2026-11-14/detail-insight-surface.png) render the same flat bordered surfaces as before.
+- `src/components/Surface.test.tsx` covers the default card role, muted/accent/plain variants, padding/radius token mapping and forwarded view props/layout overrides.
+
+Remaining after this pass: Search filter chips and the still-local card styles (Settings/Activity rows, Add preview, update pin) already match the role; consolidating them onto `Surface` and defining a shared chip primitive are the next surface steps.
+
 ## Accessibility and device matrix: 13 November
 
 Checked on the Samsung SM-S928B, Android 17 / SDK 37, 1440 × 3120 at override density 560 with font scale 0.9 restored:
