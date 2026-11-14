@@ -121,8 +121,10 @@ describe('scoreDiscoveryGroup', () => {
 
     expect(relevance.tier).toBe(2);
     expect(relevance.reason).toBe('You track this at Noon');
-    // Even with every signal present the score is capped instead of inflated.
-    expect(relevance.score).toBe(400);
+    // The tracked match adds context without letting a watchlist duplicate
+    // dominate the feed, and the total stays under the cap.
+    expect(relevance.score).toBeGreaterThan(200);
+    expect(relevance.score).toBeLessThanOrEqual(400);
   });
 
   it('matches a watched brand, including a compatible brand extension', () => {

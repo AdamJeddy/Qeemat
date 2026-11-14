@@ -2330,13 +2330,13 @@ export function OpportunityScreen({ navigate, active = true, sessionOffset }: { 
     finally { if (!isCancelled()) { setSearchBusy(false); } }
   }
 
-  function submitSearch() {
-    const value = normalizeSearchQuery(searchInput);
-    if (!buildSearchRequests(value).length) {
+  function submitSearch(value = searchInput) {
+    const normalized = normalizeSearchQuery(value);
+    if (!buildSearchRequests(normalized).length) {
       setSearchError('Enter at least two letters or numbers.');
       return;
     }
-    runProductSearch(value).catch(() => undefined);
+    runProductSearch(normalized).catch(() => undefined);
   }
 
   function clearProductSearch() {
@@ -2601,7 +2601,7 @@ export function OpportunityScreen({ navigate, active = true, sessionOffset }: { 
               bare
               value={searchInput}
               onChangeText={(value) => { setSearchInput(value); if (searchError) { setSearchError(undefined); } }}
-              onSubmitEditing={submitSearch}
+              onSubmitEditing={(event) => submitSearch(event?.nativeEvent?.text ?? searchInput)}
               returnKeyType="search"
               maxLength={120}
               autoCorrect={false}
@@ -2650,7 +2650,7 @@ export function OpportunityScreen({ navigate, active = true, sessionOffset }: { 
               {!visibleGroups.length ? <AppText muted>{searchBusy ? 'Searching stores. Product matches appear as each store responds.' : 'No matching product names in the returned results. Try a brand, model, or fewer words; check Coverage for unavailable stores.'}</AppText> : null}
               {visibleGroups.length ? (
                 <View style={styles.searchRowList}>
-                  {visibleGroups.map((group) => <SearchProductRow key={`${group.id}:${group.offers[0]?.product.id ?? ''}`} group={group} onPress={() => setCompareGroupId(group.id)} onTrack={() => handleTrackOffer(group)} tracking={Boolean(trackingProductId && group.offers.some((offer) => offer.product.id === trackingProductId))} />)}
+                  {visibleGroups.map((group) => <SearchProductRow key={`${group.id}:${group.offers[0]?.product.id ?? ''}`} group={group} onPress={() => setCompareGroupId(group.id)} onTrack={() => handleTrackOffer(group)} onOpenTracker={group.trackedProduct ? () => navigate({ name: 'detail', id: group.trackedProduct!.id }) : undefined} tracking={Boolean(trackingProductId && group.offers.some((offer) => offer.product.id === trackingProductId))} />)}
                 </View>
               ) : null}
               {displayGroups.length > visibleCount ? <PrimaryButton label={`Show more (${displayGroups.length - visibleCount} remaining)`} variant="outline" onPress={() => setSearchVisibleCount((count) => count + 12)} /> : null}
@@ -2697,7 +2697,7 @@ export function OpportunityScreen({ navigate, active = true, sessionOffset }: { 
 
                 {visibleGroups.length ? (
                   <View style={styles.searchRowList}>
-                    {visibleGroups.map((group) => <SearchProductRow key={`${group.id}:${group.offers[0]?.product.id ?? ''}`} group={group} onPress={() => setCompareGroupId(group.id)} onTrack={() => handleTrackOffer(group)} tracking={Boolean(trackingProductId && group.offers.some((offer) => offer.product.id === trackingProductId))} />)}
+                    {visibleGroups.map((group) => <SearchProductRow key={`${group.id}:${group.offers[0]?.product.id ?? ''}`} group={group} onPress={() => setCompareGroupId(group.id)} onTrack={() => handleTrackOffer(group)} onOpenTracker={group.trackedProduct ? () => navigate({ name: 'detail', id: group.trackedProduct!.id }) : undefined} tracking={Boolean(trackingProductId && group.offers.some((offer) => offer.product.id === trackingProductId))} />)}
                   </View>
                 ) : null}
 

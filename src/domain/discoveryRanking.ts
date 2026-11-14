@@ -23,7 +23,9 @@ const MAX_GROUPS_PER_CATEGORY_IN_WINDOW = 6;
 const MAX_KEYWORDS = 60;
 const MAX_SCORE = 400;
 
-const TRACKED_MATCH_SCORE = 220;
+// A tracked match is useful context but must not turn the first screen into a
+// copy of the watchlist; similar products should be able to outrank it.
+const TRACKED_MATCH_SCORE = 40;
 const BRAND_MATCH_SCORE = 120;
 const BRAND_OCCURRENCE_SCORE = 10;
 const BRAND_OCCURRENCE_CAP = 30;
