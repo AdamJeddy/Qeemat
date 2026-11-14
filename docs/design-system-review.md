@@ -23,7 +23,7 @@ Reviewed 13 November 2026 against the current React Native code and Watchlist, S
 | # | Status | Evidence and remaining work |
 | --- | --- | --- |
 | 1 | Mostly shipped | `StatusPill` renders a neutral blue check (`16019c1`), `PriceDirectionBadge` renders green drops and amber rises, and `SourceLabel` renders provenance as muted text instead of a coloured badge (`6794cec`); snapshot prices are tinted by direction. Full unification is still intended: `StatusPill` remains product-detail only and the price-history chart keeps its own change indicator. |
-| 2 | Partial | Settings, Watchlist rows, product-detail insight cards and the update surfaces use flat bordered surfaces. Search keeps its own discovery card, chip and button treatments, and there is still no shared input or surface primitive (`DESIGN.md` marks this **intended**). |
+| 2 | Partial | Settings, Watchlist rows, product-detail insight cards and the update surfaces use flat bordered surfaces. Form fields now share the 52-high `AppTextInput` role with focus/error states. Search keeps its own discovery card, chip and button treatments, and there is still no shared surface primitive (`DESIGN.md` marks this **intended**). |
 | 3 | Mostly shipped | Add puts **Find product** after the URL field and collapses supported stores; Settings is task-first; Search discovery cards use a compact outline Track action plus direction badges; product detail has the full title, image/price/status block and equal-weight flat insight cards. A fuller Search hierarchy and further detail insight/chart refinement remain **intended**. |
 | 4 | Tokens shipped, adoption partial | Semantic `typography` and `layoutMetrics` roles ship in `src/theme/theme.ts`, and `AppText` renders on the body role. Screens still set many local font sizes and spacing values, so app-wide adoption is incomplete. |
 | 5 | Partial | Font scaling caps at 1.3 for `AppText` and every current `TextInput`; the live font-scale remeasure is fixed (`bb1883f`); contrast was measured against WCAG AA and 1.3/1.5 layouts match. TalkBack order/heading announcement, landscape, other Android versions/devices and some loading/error/selection states remain unverified. |
@@ -33,7 +33,7 @@ Reviewed 13 November 2026 against the current React Native code and Watchlist, S
 
 1. Define status semantics and fix the misleading direction indicator. **Done.**
 2. Establish type, spacing, surface and action roles, using real examples from all four screens. **Tokens done; screen adoption partial.**
-3. Build a small set of shared primitives and state examples, including large-text and error cases. **Status primitives done; input and surface primitives still intended.**
+3. Build a small set of shared primitives and state examples, including large-text and error cases. **Status and input primitives done; surface primitive still intended.**
 4. Apply them screen by screen, beginning with Watchlist and product detail, followed by Search and Settings; validate on device. **Watchlist, product detail, Add and Settings done; Activity and Search passes still open.**
 
 ## Scope of verification

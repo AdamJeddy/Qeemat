@@ -13,6 +13,17 @@ The semantic type/layout tokens and shared status primitives were installed on t
 
 Remaining for later passes: the price-history chart keeps its own change indicator; a fuller Search hierarchy and an Activity layout pass are still open, while the product-detail, Add and Settings passes are recorded below. The accessibility matrix still needs TalkBack order/heading announcement, landscape, larger scales with inputs, other devices and a loading/error/selection sweep; contrast, narrow widths and Android 16/17 edge-to-edge were checked.
 
+## Shared input primitive: device verification 14 November
+
+`src/components/AppTextInput.tsx` now implements the agreed input role and replaces the raw `TextInput`s across the app:
+
+- 52-high bordered field, radius 8, body-role text with the same manual 1.3 cap as `AppText`, primary border while focused, red border plus an announced message for validation errors, optional label/hint and leading/trailing accessories. The `bare` variant keeps an input inside a custom search row while still sharing typography, placeholder colour and scaling.
+- Migrated screens: Add Product (URL, folder name, target price, minimum drop), tracking settings (target price, minimum drop), Watchlist banner search, discovery search, discovery filters maximum price, the browse sheet search and the discovery brand/budget fields. No screen renders a raw `TextInput` any more.
+- Checked on the Samsung SM-S928B in the release build: [Add Product URL field](docs/assets/design-2026-11-14/add-product-url-field.png), [Watchlist banner search](docs/assets/design-2026-11-14/watchlist-search-field.png), [discovery maximum price](docs/assets/design-2026-11-14/discovery-max-price-field.png) and [browse sheet search](docs/assets/design-2026-11-14/browse-sheet-search-field.png). The 52-high fields fit the existing scroll content without overlap; the blue-banner search keeps its compact white container.
+- `src/components/AppTextInput.test.tsx` covers label/hint accessibility, the 1.3 cap, focus and error borders and messages, accessories and bare mode.
+
+Remaining after this pass: Search card/chip containers and the compact discovery budget rows still use local surface treatments; a shared surface primitive is still intended.
+
 ## Accessibility and device matrix: 13 November
 
 Checked on the Samsung SM-S928B, Android 17 / SDK 37, 1440 × 3120 at override density 560 with font scale 0.9 restored:
