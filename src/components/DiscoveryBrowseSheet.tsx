@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { FlatList, Linking, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { FlatList, Linking, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, BookOpen, ChevronDown, ChevronRight, Dumbbell, ExternalLink, Heart, House, Search, Shirt, ShoppingBasket, Smartphone, Sparkles, X } from 'lucide-react-native';
 import { AppText } from './AppText';
+import { AppTextInput } from './AppTextInput';
 import { SiteIcon } from './SiteIcon';
 import { DiscoveryCollection, DISCOVERY_CATEGORY_LABELS, discoveryCollectionPageUrl, discoverySourceUrl } from '../domain/discovery';
 import { DISCOVERY_CATEGORY_GROUPS } from '../domain/discoveryCategories';
@@ -66,11 +67,15 @@ export function DiscoveryBrowseSheet({ visible, sources, onClose, onCategory, on
         {(['departments', 'stores'] as const).map((tab) => <Pressable key={tab} accessibilityRole="tab" accessibilityLabel={tab === 'departments' ? 'Departments' : 'Stores'} accessibilityState={{ selected: mode === tab }} onPress={() => switchMode(tab)} style={[styles.tab, mode === tab && styles.tabSelected]}><AppText weight="semibold" style={mode === tab ? styles.tabTextSelected : undefined}>{tab === 'departments' ? 'Departments' : 'Stores'}</AppText></Pressable>)}
       </View> : null}
 
-      <View style={styles.searchWrap}>
-        <Search size={19} color={colors.textMuted} />
-        <TextInput accessibilityLabel={mode === 'departments' ? 'Search departments' : mode === 'stores' ? 'Search stores' : 'Search store categories'} placeholder={mode === 'departments' ? 'Search departments' : mode === 'stores' ? 'Search stores' : 'Search store categories'} placeholderTextColor={colors.textMuted} value={query} onChangeText={setQuery} maxFontSizeMultiplier={1.3} style={styles.search} />
-        {query ? <Pressable accessibilityRole="button" accessibilityLabel="Clear search" onPress={() => setQuery('')} style={styles.clear}><X size={18} color={colors.textMuted} /></Pressable> : null}
-      </View>
+      <AppTextInput
+        accessibilityLabel={mode === 'departments' ? 'Search departments' : mode === 'stores' ? 'Search stores' : 'Search store categories'}
+        placeholder={mode === 'departments' ? 'Search departments' : mode === 'stores' ? 'Search stores' : 'Search store categories'}
+        value={query}
+        onChangeText={setQuery}
+        leading={<Search size={19} color={colors.textMuted} />}
+        trailing={query ? <Pressable accessibilityRole="button" accessibilityLabel="Clear search" onPress={() => setQuery('')} style={styles.clear}><X size={18} color={colors.textMuted} /></Pressable> : undefined}
+        containerStyle={styles.searchField}
+      />
 
       {mode === 'departments' ? <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {!group && !search ? <>
@@ -124,8 +129,7 @@ const styles = StyleSheet.create({
   tab: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm },
   tabSelected: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
   tabTextSelected: { color: colors.primary },
-  searchWrap: { marginHorizontal: 16, marginTop: 12, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, backgroundColor: colors.surface },
-  search: { flex: 1, minHeight: 48, paddingVertical: 8, color: colors.text },
+  searchField: { marginHorizontal: 16, marginTop: 12, borderColor: colors.border },
   clear: { minWidth: 36, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   content: { padding: 16, paddingBottom: 32, gap: 12 },
   intro: { fontSize: 13, lineHeight: 19 },

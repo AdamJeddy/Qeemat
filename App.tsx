@@ -18,7 +18,6 @@ import {
   StatusBar,
   StyleSheet,
   Switch,
-  TextInput,
   useWindowDimensions,
   View
 } from 'react-native';
@@ -55,6 +54,7 @@ import {
 } from 'lucide-react-native';
 
 import { AppText } from './src/components/AppText';
+import { AppTextInput } from './src/components/AppTextInput';
 import { FontScaleContext } from './src/theme/FontScaleContext';
 import { OptionGroup } from './src/components/OptionGroup';
 import { SiteIcon } from './src/components/SiteIcon';
@@ -904,17 +904,16 @@ function WatchlistScreen({ navigate, refreshKey = 0, showUpdateDot = false }: { 
         {searchExpanded ? (
           <View style={styles.watchlistBannerSearch}>
             <Search size={18} color={colors.textMuted} />
-            <TextInput
+            <AppTextInput
+              bare
               value={searchQuery}
               onChangeText={setSearchQuery}
               placeholder="Search watchlist by product, store or folder"
-              placeholderTextColor={colors.textMuted}
               autoFocus
               autoCorrect={false}
-              maxFontSizeMultiplier={1.3}
               accessibilityLabel="Search watchlist products"
               returnKeyType="search"
-              style={styles.watchlistSearchInput}
+              inputStyle={styles.watchlistSearchInput}
             />
             {searchQuery ? (
               <Pressable accessibilityRole="button" accessibilityLabel="Clear watchlist search" hitSlop={8} onPress={() => setSearchQuery('')}>
@@ -1135,9 +1134,7 @@ function FolderPicker({ value, folders, onChange }: { value: string; folders: st
           })}
         </ScrollView>
       ) : null}
-      <View style={styles.inputWrap}>
-        <TextInput value={value} onChangeText={onChange} placeholder="e.g. Running" placeholderTextColor={colors.textMuted} maxFontSizeMultiplier={1.3} style={styles.input} />
-      </View>
+      <AppTextInput value={value} onChangeText={onChange} placeholder="e.g. Running" accessibilityLabel="Folder name" />
     </View>
   );
 }
@@ -1363,28 +1360,24 @@ export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { i
           <AppText weight="semibold" style={styles.formLabel}>
             Product URL
           </AppText>
-          <View style={[styles.inputWrap, detectedSite && styles.inputDetected]}>
-            <Link2 size={18} color={colors.textMuted} />
-            <TextInput
-              value={url}
-              onChangeText={(value) => {
-                parseRequestId.current += 1;
-                setUrl(value);
-                setParsedProduct(undefined);
-                setSelectedVariantAttributes({});
-                shouldFocusParsedResult.current = false;
-                setError(undefined);
-                setLoading(false);
-              }}
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="url"
-              placeholder="https://www.noon.com/..."
-              placeholderTextColor={colors.textMuted}
-              maxFontSizeMultiplier={1.3}
-              style={styles.input}
-            />
-          </View>
+          <AppTextInput
+            leading={<Link2 size={18} color={colors.textMuted} />}
+            value={url}
+            onChangeText={(value) => {
+              parseRequestId.current += 1;
+              setUrl(value);
+              setParsedProduct(undefined);
+              setSelectedVariantAttributes({});
+              shouldFocusParsedResult.current = false;
+              setError(undefined);
+              setLoading(false);
+            }}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="url"
+            placeholder="https://www.noon.com/..."
+            containerStyle={detectedSite ? styles.inputDetected : undefined}
+          />
           {detectedSite ? (
             <View style={styles.detectedSource}>
               <View style={styles.detectedSourceIcon}>
@@ -1474,37 +1467,29 @@ export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { i
             </AppText>
             <OptionGroup value={alertMode} options={ALERT_OPTIONS} onChange={setAlertMode} />
             {alertMode === 'target_price' ? (
-              <View style={styles.inputWrap}>
-                <AppText weight="semibold" muted>
-                  {selectedCurrency}{priceBasisSuffix(previewProduct?.priceBasis)}
-                </AppText>
-                <TextInput
-                  value={targetPrice}
-                  onChangeText={setTargetPrice}
-                  keyboardType="decimal-pad"
-                  placeholder="250"
-                  placeholderTextColor={colors.textMuted}
-                  maxFontSizeMultiplier={1.3}
-                  style={styles.input}
-                />
-              </View>
+              <AppTextInput
+                leading={
+                  <AppText weight="semibold" muted>
+                    {selectedCurrency}{priceBasisSuffix(previewProduct?.priceBasis)}
+                  </AppText>
+                }
+                value={targetPrice}
+                onChangeText={setTargetPrice}
+                keyboardType="decimal-pad"
+                placeholder="250"
+              />
             ) : null}
             {alertMode === 'price_drop' ? (
               <View style={styles.fieldGroup}>
                 <AppText weight="semibold">Minimum price drop alert</AppText>
                 <AppText muted style={styles.fieldHint}>Only notify when the price drops by at least this amount.</AppText>
-                <View style={styles.inputWrap}>
-                  <AppText weight="semibold" muted>{selectedCurrency}</AppText>
-                  <TextInput
-                    value={minimumPriceDrop}
-                    onChangeText={setMinimumPriceDrop}
-                    keyboardType="decimal-pad"
-                    placeholder="Any drop"
-                    placeholderTextColor={colors.textMuted}
-                    maxFontSizeMultiplier={1.3}
-                    style={styles.input}
-                  />
-                </View>
+                <AppTextInput
+                  leading={<AppText weight="semibold" muted>{selectedCurrency}</AppText>}
+                  value={minimumPriceDrop}
+                  onChangeText={setMinimumPriceDrop}
+                  keyboardType="decimal-pad"
+                  placeholder="Any drop"
+                />
               </View>
             ) : null}
             <View style={styles.settingToggleRow}>
@@ -1969,21 +1954,28 @@ function TrackingSettingsScreen({ productId, navigate }: { productId: number; na
         <AppText weight="semibold">Alert mode</AppText>
         <OptionGroup value={alertMode} options={ALERT_OPTIONS} onChange={setAlertMode} />
         {alertMode === 'target_price' ? (
-          <View style={styles.inputWrap}>
-            <AppText weight="semibold" muted>
-              {product?.currency ?? 'AED'}{priceBasisSuffix(product?.priceBasis)}
-            </AppText>
-            <TextInput value={targetPrice} onChangeText={setTargetPrice} keyboardType="decimal-pad" maxFontSizeMultiplier={1.3} style={styles.input} />
-          </View>
+          <AppTextInput
+            leading={
+              <AppText weight="semibold" muted>
+                {product?.currency ?? 'AED'}{priceBasisSuffix(product?.priceBasis)}
+              </AppText>
+            }
+            value={targetPrice}
+            onChangeText={setTargetPrice}
+            keyboardType="decimal-pad"
+          />
         ) : null}
         {alertMode === 'price_drop' ? (
           <View style={styles.fieldGroup}>
             <AppText weight="semibold">Minimum price drop alert</AppText>
             <AppText muted style={styles.fieldHint}>Only notify when the price drops by at least this amount.</AppText>
-            <View style={styles.inputWrap}>
-              <AppText weight="semibold" muted>{product?.currency ?? 'AED'}{priceBasisSuffix(product?.priceBasis)}</AppText>
-              <TextInput value={minimumPriceDrop} onChangeText={setMinimumPriceDrop} keyboardType="decimal-pad" placeholder="Any drop" placeholderTextColor={colors.textMuted} maxFontSizeMultiplier={1.3} style={styles.input} />
-            </View>
+            <AppTextInput
+              leading={<AppText weight="semibold" muted>{product?.currency ?? 'AED'}{priceBasisSuffix(product?.priceBasis)}</AppText>}
+              value={minimumPriceDrop}
+              onChangeText={setMinimumPriceDrop}
+              keyboardType="decimal-pad"
+              placeholder="Any drop"
+            />
           </View>
         ) : null}
         <View style={styles.settingToggleRow}>
@@ -2540,7 +2532,7 @@ export function OpportunityScreen({ navigate, active = true, sessionOffset }: { 
                 <DiscoveryFilterChip label="Any brand" selected={!brand} onPress={() => setBrand(undefined)} />
                 {brands.map((item) => <DiscoveryFilterChip key={item} label={item} selected={brand === item} onPress={() => setBrand(brand === item ? undefined : item)} />)}
               </ScrollView>
-              <TextInput accessibilityLabel="Maximum discovery price in AED" value={maximumPrice} onChangeText={setMaximumPrice} keyboardType="decimal-pad" placeholder="Maximum price (AED)" placeholderTextColor={colors.textMuted} maxFontSizeMultiplier={1.3} style={styles.listingPriceInput} />
+              <AppTextInput accessibilityLabel="Maximum discovery price in AED" value={maximumPrice} onChangeText={setMaximumPrice} keyboardType="decimal-pad" placeholder="Maximum price (AED)" />
             </View> : null}
             {activeFilter ? <View style={styles.titleRow}><AppText muted>{[category && DISCOVERY_CATEGORY_LABELS[category], brand, retailer && getSiteByKey(retailer).shortName, maximumPrice && `Under AED ${maximumPrice}`].filter(Boolean).join(' · ')}</AppText><Pressable accessibilityRole="button" accessibilityLabel="Clear discovery filters" onPress={() => { resetBrowse(); setBrowseAll(true); }}><AppText style={styles.discoveryLink}>Clear filters</AppText></Pressable></View> : null}
             {!filteredProducts.length ? <View style={styles.discoverySection}><AppText muted>{catalogBusy ? 'Loading products for this selection…' : 'No products match your interests, budgets, and filters right now.'}</AppText>{!catalogBusy ? <PrimaryButton label="Explore all products" variant="outline" onPress={() => { resetBrowse(); setBrowseAll(true); }} /> : null}</View> : null}
@@ -3143,8 +3135,6 @@ const styles = StyleSheet.create({
   watchlistSearchInput: {
     flex: 1,
     minWidth: 0,
-    fontSize: 15,
-    color: colors.text,
     paddingVertical: 8
   },
   watchlistRecheck: {
@@ -3404,25 +3394,8 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.surface
   },
-  inputWrap: {
-    minHeight: 68,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
-    backgroundColor: colors.surface,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 16
-  },
   inputDetected: {
     borderColor: colors.green
-  },
-  input: {
-    flex: 1,
-    minWidth: 0,
-    fontSize: 16,
-    color: colors.text
   },
   detectedSource: {
     flexDirection: 'row',
@@ -3848,30 +3821,6 @@ const styles = StyleSheet.create({
   listingFilterLabel: {
     fontSize: 14,
     marginTop: 4
-  },
-  listingPriceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginTop: 4
-  },
-  listingPriceInputWrap: {
-    flex: 1,
-    minWidth: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.sm,
-    backgroundColor: colors.surface
-  },
-  listingPriceInput: {
-    flex: 1,
-    minWidth: 0,
-    color: colors.text,
-    paddingVertical: 10
   },
   listingCount: {
     fontSize: 13,

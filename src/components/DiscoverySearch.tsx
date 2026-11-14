@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { FlatList, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { FlatList, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Search, X } from 'lucide-react-native';
 import { AppText } from './AppText';
+import { AppTextInput } from './AppTextInput';
 import { DiscoveryFilterChip } from './Discovery';
 import { buildSearchRequests, normalizeSearchQuery } from '../domain/discoverySearch';
 import type { ProductSearchResult } from '../domain/discoverySearchCatalog';
@@ -38,7 +39,7 @@ export function DiscoverySearch({ query, result, products, busy, retailer, onRet
   }
   return <View style={styles.container}>
     <View style={styles.inputRow}>
-      <TextInput accessibilityLabel="Search products across stores" value={input} onChangeText={setInput} onSubmitEditing={submit} returnKeyType="search" maxLength={120} maxFontSizeMultiplier={1.3} placeholder={`Search ${STORES.length} stores`} placeholderTextColor={colors.textMuted} style={styles.input} />
+      <AppTextInput bare accessibilityLabel="Search products across stores" value={input} onChangeText={setInput} onSubmitEditing={submit} returnKeyType="search" maxLength={120} placeholder={`Search ${STORES.length} stores`} inputStyle={styles.input} />
       <Pressable accessibilityRole="button" accessibilityLabel="Search products" onPress={submit} style={styles.action}><Search size={21} color={colors.primary} /></Pressable>
       {query ? <Pressable accessibilityRole="button" accessibilityLabel="Clear product search" onPress={() => { setInput(''); setError(''); onClear(); }} style={styles.action}><X size={21} color={colors.textMuted} /></Pressable> : null}
     </View>
@@ -70,7 +71,7 @@ export function DiscoverySearch({ query, result, products, busy, retailer, onRet
 
 const styles = StyleSheet.create({
   container: { gap: 8 }, inputRow: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.surface },
-  input: { flex: 1, minHeight: 48, paddingHorizontal: 12, color: colors.text, fontSize: 15 }, action: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
+  input: { flex: 1, minHeight: 48, paddingHorizontal: 12, paddingVertical: 0 }, action: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: 8 }, flex: { flex: 1 }, link: { color: colors.primary }, rail: { gap: 8 },
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: colors.scrim }, sheet: { backgroundColor: colors.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, maxHeight: '85%', padding: 16, gap: 12 },
   source: { paddingVertical: 12, gap: 4, borderBottomWidth: 1, borderColor: colors.border }
