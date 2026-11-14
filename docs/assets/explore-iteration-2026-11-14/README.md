@@ -1,6 +1,6 @@
 # Explore iteration screenshots — 14 November 2026
 
-Captured on the connected Samsung SM-S928B (1440 × 3120) from the arm64 release on branch `feat/search-tab-redesign`, installed over the existing app (existing watchlist/cache preserved). These are device screenshots, not mockups.
+Captured on the connected Samsung SM-S928B (1440 × 3120) from the arm64 build of `feat/search-tab-redesign` (shipped in v0.6.5-alpha), installed over the existing app (existing watchlist/cache preserved). These are device screenshots, not mockups.
 
 | Image | What it shows |
 | --- | --- |

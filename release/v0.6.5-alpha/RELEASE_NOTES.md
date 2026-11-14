@@ -1,8 +1,8 @@
 # Qeemat v0.6.5-alpha — Explore, sharper search and a faster app
 
-**Release notes draft** · 14 November 2026
+**Release notes** · 14 November 2026 · [Published as v0.6.5-alpha](https://github.com/AdamJeddy/Qeemat/releases/tag/v0.6.5-alpha)
 
-**Scope:** changes merged into `dev` through commit `92b2894` since the [v0.6.0-alpha release](https://github.com/AdamJeddy/Qeemat/releases/tag/v0.6.0-alpha). The planned release is v0.6.5-alpha. [Compare changes](https://github.com/AdamJeddy/Qeemat/compare/v0.6.0-alpha...dev).
+**Scope:** changes merged into `dev` through commit `92b2894` since the [v0.6.0-alpha release](https://github.com/AdamJeddy/Qeemat/releases/tag/v0.6.0-alpha). [Compare v0.6.0-alpha...v0.6.5-alpha](https://github.com/AdamJeddy/Qeemat/compare/v0.6.0-alpha...v0.6.5-alpha).
 
 Qeemat now has a proper place to discover products: **Explore**, a watchlist-aware, cross-store comparison feed. Search is faster and more transparent, product details and Activity are easier to scan, and Qeemat can download and install its own updates. Everything still stays on your device.
 

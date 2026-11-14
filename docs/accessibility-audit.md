@@ -1,6 +1,6 @@
 # Accessibility audit (14 November 2026)
 
-Audit of the release build on the Samsung SM-S928B (Android 17 / API 37, 1440 × 3120, 560 dpi, font scale 0.9) after the shared input and surface work merged into `dev`. This is an accessibility-tree, text-scale and orientation pass, not a substitute for a TalkBack speech walkthrough.
+Audit of the release build on the Samsung SM-S928B (Android 17 / API 37, 1440 × 3120, 560 dpi, font scale 0.9) after the shared input and surface work merged into `dev`; the fixes shipped in [v0.6.5-alpha](https://github.com/AdamJeddy/Qeemat/releases/tag/v0.6.5-alpha). This is an accessibility-tree, text-scale and orientation pass, not a substitute for a TalkBack speech walkthrough.
 
 ## Method
 

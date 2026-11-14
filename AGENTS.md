@@ -17,14 +17,16 @@ Node ≥ 20 required.
 ## Project Layout
 
 ```
-src/components/   — reusable UI (AppText, ProductCard, SiteIcon, etc.)
-src/data/         — AsyncStorage persistence (database.ts)
-src/domain/       — business logic (parser, checker, sites, dates, price, types)
-  __tests__/      — Jest tests, parser fixtures only so far
-src/theme/        — colors, radius, shadow tokens
+src/components/   — reusable UI (AppText, AppTextInput, Surface, ProductCard, SiteIcon, etc.)
+src/data/         — AsyncStorage persistence and discovery cache (database.ts, discovery.ts)
+src/domain/       — business logic (parser, checker, sites, discovery grouping/search/ranking, updates)
+  __tests__/      — domain and parser tests
+src/theme/        — colors, radius, spacing, typography and layout tokens
 App.tsx           — all screens in one file (no React Navigation)
-android/          — Kotlin native modules (WorkManager, notifications)
+android/          — Kotlin native modules (WorkManager, notifications, updater, WebView fetch)
 assets/site-icons/— per-store favicon PNGs
+release/          — versioned release notes and screenshots
+docs/             — current state, audits, evidence and design history
 ```
 
 ## Conventions
@@ -36,12 +38,14 @@ assets/site-icons/— per-store favicon PNGs
 - **Styles** use React Native `StyleSheet.create` at the bottom of each file.
 - **Icons** come from `lucide-react-native`.
 - **Storage** is AsyncStorage (flat key-value). Each entity type has its own key namespace managed through `src/data/database.ts`.
-- **Tests** are parser-focused (`src/domain/__tests__/parser.test.ts` — 20 tests) and OOS-fixture-focused (`src/domain/__tests__/oos-parser.test.ts` — 9 fixture-driven tests). Use `--runInBand` to avoid parallel AsyncStorage conflicts.
+- **Tests** live beside domain logic and components: parser and OOS-fixture suites, domain logic, component renders and full `App.test.tsx` flows. Use `--runInBand` to avoid parallel AsyncStorage conflicts. The release gate is typecheck + lint + the full Jest suite; do not quote outdated suite/test counts from older docs.
+- **Docs:** `docs/current-state.md` is the source of truth for shipped behavior and limitations. Dated review/QA documents are evidence records; mark them as historical when their decisions are superseded instead of silently rewriting history.
 - **Snapshots** carry a `source` field: `manual_single`, `manual_batch`, `background`, or `unknown`.
 - **Tracked products** carry `lastAvailability` (from most recent successful check), used by UI components to render OOS state. Defaults to `'unknown'` for legacy data.
 - **OOS detection** is handled per-site in `src/domain/parser.ts`. When a product is OOS with no price, `fetchAndParseProduct` still succeeds — the last known price is preserved on the product record. OOS test fixtures live in `src/domain/__tests__/fixtures/oos/` (gitignored).
 - **Commit messages** follow conventional commits. When work corresponds to a GitHub issue, append `(#N)` — e.g. `feat: add adidas store (#18)`. Standalone or trivial changes (docs tweaks, formatting, tooling) don't require an issue number.
 - **Pull requests:** talk to the repo owner (`AdamJeddy`) and always add them as an **assignee** on every PR, in addition to any review request.
+- **Releases:** release prep is committed directly on `dev`, then promoted with a `dev` → `main` PR. Bump `package.json`, `package-lock.json` and `android/app/build.gradle` together (`versionName`, `versionCode`), add `release/vX.Y.Z-alpha/RELEASE_NOTES.md` plus 1440-wide `screenshots/`, and build the APK separately (do not commit it). Release-note images use fixed-width HTML (`<img width="300" ...>`) so they do not render at full article width. Tag and publish the GitHub release only after the PR is merged.
 
 ## Adding a New Store
 

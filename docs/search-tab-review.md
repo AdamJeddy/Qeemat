@@ -1,12 +1,13 @@
-# Search tab review and redesign
+# Search tab review and Explore redesign
+
+**Status:** shipped as **Explore** in [v0.6.5-alpha](https://github.com/AdamJeddy/Qeemat/releases/tag/v0.6.5-alpha). The `feat/search-tab-redesign` branch was merged into `dev` and released; this document preserves the review, decisions and verification evidence. For current behavior and limits, read [current-state.md](current-state.md).
 
 **Date:** 14 November 2026
-**Branch:** `feat/search-tab-redesign`
-**Scope:** the Search tab (`OpportunityScreen` in `App.tsx`, `src/components/Discovery*.tsx`, `src/domain/discovery*.ts`, `src/data/discovery*.ts`) compared with the Watchlist tab, plus the proposed cross-retailer comparison behaviour and UI upgrade. Source review, tests and the existing design/QA docs were used; device evidence is recorded in `design-qa.md` after verification.
+**Scope:** the former Search tab (`OpportunityScreen` in `App.tsx`, `src/components/Discovery*.tsx`, `src/domain/discovery*.ts`, `src/data/discovery*.ts`) compared with the Watchlist tab, the implemented cross-retailer comparison behaviour and UI upgrade, and the follow-up Explore iteration. Source review, tests and the existing design/QA docs were used; device evidence is recorded in `design-qa.md`.
 
-## 1. What the tab is today
+## 1. What the tab was at review time
 
-The tab is labelled **Search**, but it has two different jobs bolted together:
+At review time the tab was labelled **Search** and had two different jobs bolted together:
 
 1. **A discovery feed (default).** On open, `OpportunityScreen` loads cached retailer listings through `loadDiscoveryCatalog`, scopes the fetch to source collections that match the categories inferred from active watchlist products, then renders a 2-column grid of listing cards under **Explore products**.
 2. **A product-name search (secondary).** Submitting a query calls `loadProductSearch`, which queries 18 retailer search endpoints with three HTTP workers plus a native-browser fallback, streams per-store results, and replaces the grid with ranked matches and per-retailer filter chips.
@@ -144,7 +145,7 @@ A bottom sheet matching the Watchlist **Filter & sort** interaction: departments
 
 ## 7. Verification
 
-1. `npm run typecheck` clean; `npm run lint` 0 errors (the known out-of-stock thumbnail inline-style warning remains); Jest 58 suites / 541 passed / 1 skipped.
+1. Final release gate: `npm run typecheck` clean; `npm run lint` 0 errors (the known inline-style warning remains); Jest 61 suites / 579 passed / 1 skipped. Earlier passes in this document quote their own historical counts.
 2. The arm64 release was installed over the existing app on the connected Samsung SM-S928B (1440 × 3120) with the existing 28-item watchlist and cache preserved. The Search feed, grouped cross-store search, compare sheet and filter sheet were inspected:
    - [Search feed](assets/search-redesign-2026-11-14/search-feed.png) — blue banner, 790 grouped products, watchlist relevance line, tracked-group annotation and saving.
    - [Grouped search results](assets/search-redesign-2026-11-14/search-grouped-results.png) — `airpods pro 2` across 20 stores, first item grouped across Noon and Carrefour, `Lowest at Noon · 2 stores`, `Save AED 150`.
