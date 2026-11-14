@@ -63,7 +63,7 @@ const TYPE_SYNONYMS: Record<string, string> = {
   suitcase: 'suitcase', wallet: 'wallet', wallets: 'wallet',
   watch: 'watch', watches: 'watch', smartwatch: 'smartwatch', smartwatches: 'smartwatch',
   perfume: 'fragrance', perfumes: 'fragrance', fragrance: 'fragrance', fragrances: 'fragrance',
-  parfum: 'fragrance', cologne: 'fragrance', edp: 'fragrance', edt: 'fragrance',
+  parfum: 'parfum', parfums: 'parfum', edp: 'edp', edt: 'edt', edc: 'edc', cologne: 'fragrance',
   lipstick: 'lipstick', mascara: 'mascara', foundation: 'foundation', concealer: 'concealer',
   blush: 'blush', eyeliner: 'eyeliner', eyeshadow: 'eyeshadow', lipgloss: 'lipgloss', highlighter: 'highlighter',
   bronzer: 'bronzer', primer: 'primer',
@@ -95,7 +95,13 @@ const TYPE_SYNONYMS: Record<string, string> = {
 
 const CANONICAL_TYPE_TOKENS = new Set(Object.values(TYPE_SYNONYMS));
 
-const NUMBER_UNIT_PATTERN = /(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)\s*(ml|cl|l|litres?|liters?|ltr|kg|kgs|g|gm|gms|mg|oz)\b/gi;
+const NUMBER_UNIT_PATTERN = /(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)\s*(ml|cl|l|litres?|liters?|ltr|kg|kgs|g|gm|gms|mg|oz|gb|tb|mb)\b/gi;
+const DECIMAL_QUANTITY_PATTERN = /(\d+)\.(\d+)\s*(ml|cl|l|litres?|liters?|ltr|kg|kgs|g|gm|gms|mg|oz|gb|tb|mb)\b/gi;
+const CONCENTRATION_PATTERNS: [RegExp, string][] = [
+  [/\beau\s+de\s+toilette\b/gi, 'edt'],
+  [/\beau\s+de\s+parfum\b/gi, 'edp'],
+  [/\beau\s+de\s+cologne\b/gi, 'edc']
+];
 
 export function tokenizeProductTitle(value: string | undefined): string[] {
   if (!value) {
@@ -121,11 +127,22 @@ export function tokenizeProductTitle(value: string | undefined): string[] {
 /**
  * Tokens with units and multipliers normalized: `1 L` -> `1l`,
  * `3 x 500 ml` -> `3x500ml`, `Pack of 3` stays `pack`, `3`.
+ * Concentration spellings are canonicalised (`Eau de Parfum` -> `edp`) so
+ * EDT/EDP remain different products even when the retailer omits "eau de".
+ * Decimal quantities keep a `p` for the decimal point (`1.5 ml` -> `1p5ml`)
+ * so 1.5 ml and 2.5 ml cannot collapse into the same signature.
  */
 export function normalizeProductTokens(value: string | undefined): string[] {
-  const prepared = (value ?? '')
+  let prepared = (value ?? '')
     .replace(NUMBER_UNIT_PATTERN, (_match, first: string, second: string, unit: string) =>
       `${first}x${second}${UNIT_ALIASES[unit.toLowerCase()] ?? unit.toLowerCase()}`
+    );
+  for (const [pattern, replacement] of CONCENTRATION_PATTERNS) {
+    prepared = prepared.replace(pattern, replacement);
+  }
+  prepared = prepared
+    .replace(DECIMAL_QUANTITY_PATTERN, (_match, whole: string, fraction: string, unit: string) =>
+      `${whole}p${fraction}${UNIT_ALIASES[unit.toLowerCase()] ?? unit.toLowerCase()}`
     )
     // A standalone decimal is specification copy (Bluetooth 5.3, 2.4 GHz), not
     // a model number; capacities like "1.5 L" were protected above.

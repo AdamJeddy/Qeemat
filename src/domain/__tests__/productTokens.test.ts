@@ -24,6 +24,21 @@ describe('product title tokens', () => {
     expect(normalizeProductTokens('iPhone 16 Pro 128 GB')).toEqual(['iphone', '16', 'pro', '128gb']);
   });
 
+  it('keeps decimal quantities as distinct tokens', () => {
+    expect(normalizeProductTokens('Acme Hydrating Face Serum 1.5 ml')).toEqual(['acme', 'hydrating', 'face', 'serum', '1p5ml']);
+    expect(productSignatureTokens('Acme Hydrating Face Serum 1.5 ml', 'Acme')).not.toEqual(
+      productSignatureTokens('Acme Hydrating Face Serum 2.5 ml', 'Acme')
+    );
+  });
+
+  it('keeps fragrance concentrations distinct while canonicalising spellings', () => {
+    expect(productSignatureTokens('Dior Sauvage Eau de Parfum 100ml', 'Dior')).toEqual(['100ml', 'edp', 'sauvage']);
+    expect(productSignatureTokens('Dior Sauvage EDP 100ml', 'Dior')).toEqual(['100ml', 'edp', 'sauvage']);
+    expect(productSignatureTokens('Dior Sauvage EDT 100ml', 'Dior')).toEqual(['100ml', 'edt', 'sauvage']);
+    expect(productTypeKey(productSignatureTokens('Dior Sauvage EDP 100ml', 'Dior'))).toBe('edp');
+    expect(productTypeKey(productSignatureTokens('Dior Sauvage EDT 100ml', 'Dior'))).toBe('edt');
+  });
+
   it('removes brand, gender, colour and filler words from the signature', () => {
     expect(productSignatureTokens("Nike Air Force 1 '07 Men's Shoes", 'Nike')).toEqual(['1', '7', 'air', 'force', 'shoes']);
     expect(productSignatureTokens('Nike Air Force 1 07 Shoes - White', 'Nike')).toEqual(['1', '7', 'air', 'force', 'shoes']);
@@ -31,7 +46,7 @@ describe('product title tokens', () => {
 
   it('canonicalizes product-type synonyms', () => {
     expect(productSignatureTokens('Women Running Sneakers', 'Brand')).toEqual(['running', 'shoes']);
-    expect(productSignatureTokens('Eau de Parfum Spray', 'Brand')).toEqual(['fragrance', 'spray']);
+    expect(productSignatureTokens('Eau de Parfum Spray', 'Brand')).toEqual(['edp', 'spray']);
     expect(productTypeKey(productSignatureTokens('Running Shoes', 'Nike'))).toBe('shoes');
   });
 
