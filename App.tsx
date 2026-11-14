@@ -617,7 +617,7 @@ function WatchlistControlsSheet({
     <Modal visible transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
       <View style={styles.controlSheetOverlay}>
         <Animated.View pointerEvents="none" style={[styles.controlSheetScrim, { opacity: backdropOpacity }]} />
-        <Pressable accessibilityRole="button" accessibilityLabel="Close filters" style={styles.controlSheetBackdrop} onPress={onClose} />
+        <Pressable accessible={false} importantForAccessibility="no" style={styles.controlSheetBackdrop} onPress={onClose} />
         <Animated.View style={[styles.controlSheet, { transform: [{ translateY: sheetTranslateY }] }]}>
           <View style={styles.controlSheetHeader}>
             <View>
@@ -700,7 +700,7 @@ function BulkEditSheet({ visible, folders, selectedCount, onClose, onApply }: {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
       <View style={styles.controlSheetOverlay}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Close move products" style={styles.controlSheetBackdrop} onPress={onClose} />
+        <Pressable accessible={false} importantForAccessibility="no" style={styles.controlSheetBackdrop} onPress={onClose} />
         <View style={styles.controlSheet}>
           <View style={styles.controlSheetHeader}>
             <View><AppText weight="bold" accessibilityRole="header" style={styles.controlSheetTitle}>Move products</AppText><AppText muted style={styles.fieldHint}>{selectedCount} selected</AppText></View>
@@ -3029,6 +3029,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    minHeight: layoutMetrics.touchTarget,
+    justifyContent: 'center',
     borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: colors.primary,
@@ -3202,6 +3204,8 @@ const styles = StyleSheet.create({
     paddingVertical: 2
   },
   textFilterButton: {
+    minHeight: layoutMetrics.touchTarget,
+    justifyContent: 'center',
     borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: colors.border,
@@ -3363,6 +3367,8 @@ const styles = StyleSheet.create({
     paddingVertical: 2
   },
   collectionPickerChip: {
+    minHeight: layoutMetrics.touchTarget,
+    justifyContent: 'center',
     borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: colors.border,
@@ -3596,9 +3602,9 @@ const styles = StyleSheet.create({
     ...typography.detailTitle
   },
   iconButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: layoutMetrics.touchTarget,
+    height: layoutMetrics.touchTarget,
+    borderRadius: layoutMetrics.touchTarget / 2,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.surface
