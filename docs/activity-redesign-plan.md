@@ -1,6 +1,6 @@
 # Activity redesign — proposal and implementation
 
-**Status:** implemented on 14 November 2026 (Direction A). The plan below is the approved design record; final refinements during implementation: flat rows inside one `Surface` per day, compact delta badges (`+AED 39` / `−AED 250`), stock rows use their state text without duplicate badges, the meta line wraps instead of truncating at large font scales, and `ActivityList` renders deleted products as a non-tappable row with a “Product removed” note. Device-verified on the Samsung SM-S928B (populated, 1.3 font scale and landscape).
+**Status:** implemented on 14 November 2026 (Direction A). The plan below is the approved design record; final refinements during implementation: flat rows inside one `Surface` per day, new price first with the previous price struck through, compact delta badges (`+AED 39` / `−AED 250`), price rises render red (palette updated app-wide), stock rows use their state text without duplicate badges, the meta line wraps instead of truncating at large font scales, and `ActivityList` renders deleted products as a non-tappable row with a “Product removed” note. Device-verified on the Samsung SM-S928B (populated, 1.3 font scale and landscape).
 
 ![Before](assets/activity-redesign/current-activity.png)
 ![After](assets/activity-redesign/activity-after.png)
@@ -60,7 +60,7 @@ The handover says Activity is a **history of price/availability events**, not a 
 
 ### Tokens/components
 
-- `Surface` (`card` per day, `accent` for update pin), `AppText` roles, `colors.green/amber/blueSoft`, `radius`, `spacing`, hairline dividers.
+- `Surface` (`card` per day, `accent` for update pin), `AppText` roles, `colors.green/red/blueSoft` (amber stays for out-of-stock warnings), `radius`, `spacing`, hairline dividers.
 - Reuse the direction colors/badge treatment from `PriceDirectionBadge`; extract a shared delta-badge helper if the styling repeats in Watchlist and Activity.
 
 ### Accessibility
