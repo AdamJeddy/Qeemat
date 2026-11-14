@@ -348,16 +348,26 @@ describe('AddScreen', () => {
 });
 
 describe('DetailScreen', () => {
-  it('shows the retailer category, product type, and attributes when available', async () => {
+  it('collapses product fields behind About this item and expands them on demand', async () => {
     mockGetProductWithSnapshots.mockResolvedValueOnce({ product: { id: 80, url: 'https://www.nike.ae/en/example.html', canonicalUrl: 'https://www.nike.ae/en/example.html', siteKey: 'nike_uae', title: 'Example', currency: 'AED', currentPriceMinor: 10000, alertMode: 'price_drop', checkPreference: 'daily', isActive: true, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z', sourceMetadata: { categoryPath: ['Women', 'Shoes'], productType: 'Running shoes', attributes: { material: 'Mesh' } } }, snapshots: [] });
     let tree: renderer.ReactTestRenderer;
     await act(async () => { tree = renderer.create(<DetailScreen productId={80} navigate={jest.fn()} />); await Promise.resolve(); });
-    const labels = tree!.root.findAllByType(AppText).map((node) => [node.props.children].flat().join('')).join(' ');
-    expect(labels).toContain('About this item');
-    expect(labels).toContain('Store category Women  ›  Shoes');
-    expect(labels).toContain('Product type Running shoes');
-    expect(labels).toContain('Material Mesh');
-    expect(labels.indexOf('Price History')).toBeLessThan(labels.indexOf('About this item'));
+
+    const collapsedLabels = tree!.root.findAllByType(AppText).map((node) => [node.props.children].flat().join('')).join(' ');
+    expect(collapsedLabels).toContain('About this item');
+    expect(collapsedLabels).toContain('Product type: Running shoes');
+    expect(collapsedLabels).not.toContain('Material Mesh');
+    expect(collapsedLabels.indexOf('Price History')).toBeLessThan(collapsedLabels.indexOf('About this item'));
+
+    const disclosure = tree!.root.findAllByProps({ accessibilityRole: 'button' }).find((node) =>
+      typeof node.props.accessibilityLabel === 'string' && node.props.accessibilityLabel.startsWith('About this item')
+    );
+    act(() => disclosure!.props.onPress());
+
+    const expandedLabels = tree!.root.findAllByType(AppText).map((node) => [node.props.children].flat().join('')).join(' ');
+    expect(expandedLabels).toContain('Store category Women  ›  Shoes');
+    expect(expandedLabels).toContain('Product type Running shoes');
+    expect(expandedLabels).toContain('Material Mesh');
     await act(async () => tree!.unmount());
   });
   it('uses The Deal storefront URLs for customer-facing variant links', () => {

@@ -57,6 +57,7 @@ import { FontScaleContext } from './src/theme/FontScaleContext';
 import { OptionGroup } from './src/components/OptionGroup';
 import { SiteIcon } from './src/components/SiteIcon';
 import { PriceChart } from './src/components/PriceChart';
+import { PriceDirectionBadge } from './src/components/PriceDirectionBadge';
 import { PrimaryButton } from './src/components/PrimaryButton';
 import { ProductCard } from './src/components/ProductCard';
 import { ProductCategoryPicker } from './src/components/ProductCategoryPicker';
@@ -314,7 +315,7 @@ export default function App() {
     );
   }
 
-  const blueStatusBar = route.name === 'tabs' && route.tab === 'watchlist' && !showOnboarding;
+  const blueStatusBar = ((route.name === 'tabs' && route.tab === 'watchlist') || route.name === 'detail') && !showOnboarding;
   const activeTab: TabKey = route.name === 'tabs' ? route.tab : lastTab;
 
   return (
@@ -1604,8 +1605,6 @@ export function getTrackedProductLink(product: Pick<TrackedProduct, 'url' | 'can
 }
 
 export function DetailScreen({ productId, navigate }: { productId: number; navigate: (route: Route) => void }) {
-  const { width, fontScale } = useWindowDimensions();
-  const compact = isCompactLayout(width, fontScale);
   const [data, setData] = useState<ProductWithSnapshots | undefined>();
   const [checking, setChecking] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
@@ -1648,93 +1647,122 @@ export function DetailScreen({ productId, navigate }: { productId: number; navig
     Alert.alert('Link copied', 'The product link is ready to paste.');
   }
 
+  const site = getSiteByKey(product.siteKey);
+  const currentPrice = product.currentPriceMinor;
+  const changedFrom = product.lastPriceChangeMinor;
+  const delta = !isOos && changedFrom !== undefined && currentPrice !== undefined ? currentPrice - changedFrom : 0;
+  const summaryMeta = [product.variant?.label, product.folder].filter(Boolean).join(' · ');
+
   return (
     <View style={styles.app}>
-      <Header title="Qeemat" onBack={() => navigate({ name: 'tabs', tab: 'watchlist' })} />
-      <ScrollView contentContainerStyle={styles.screenContent} showsVerticalScrollIndicator={false}>
-        <AppText weight="bold" accessibilityRole="header" style={styles.detailTitle}>
-          {product.title}
-        </AppText>
-        <View style={styles.detailMetaRow}>
-          {product.variant ? <AppText muted style={[styles.caption, styles.flex]}>Tracking {product.variant.label}</AppText> : <View style={styles.flex} />}
-          <View style={styles.detailHeaderActions}>
+      <ScrollView contentContainerStyle={[styles.screenContent, styles.detailContent]} showsVerticalScrollIndicator={false}>
+        <View style={styles.detailBanner}>
+          <View style={styles.detailBannerRow}>
             <Pressable
-              accessibilityLabel="Copy product link"
               accessibilityRole="button"
-              hitSlop={5}
-              style={styles.iconButton}
-              onPress={copyProductLink}
+              accessibilityLabel="Go back"
+              onPress={() => navigate({ name: 'tabs', tab: 'watchlist' })}
+              style={styles.detailBannerButton}
             >
-              <Copy size={20} color={colors.text} />
+              <ArrowLeft size={22} color={colors.surface} />
             </Pressable>
-            <Pressable
-              accessibilityLabel="Tracking settings"
-              accessibilityRole="button"
-              hitSlop={5}
-              style={styles.iconButton}
-              onPress={() => navigate({ name: 'trackingSettings', id: product.id })}
-            >
-              <SettingsIcon size={20} color={colors.text} />
-            </Pressable>
+            <View style={styles.detailBannerBrand}>
+              <Image source={require('./assets/app-icon/qeemat-q-tag.png')} style={styles.detailBannerLogo} />
+              <AppText weight="bold" style={styles.detailBannerWordmark}>Qeemat</AppText>
+            </View>
+            <View style={styles.detailBannerActions}>
+              <Pressable accessibilityLabel="Copy product link" accessibilityRole="button" hitSlop={5} style={styles.detailBannerButton} onPress={copyProductLink}>
+                <Copy size={20} color={colors.surface} />
+              </Pressable>
+              <Pressable accessibilityLabel="Tracking settings" accessibilityRole="button" hitSlop={5} style={styles.detailBannerButton} onPress={() => navigate({ name: 'trackingSettings', id: product.id })}>
+                <SettingsIcon size={20} color={colors.surface} />
+              </Pressable>
+            </View>
           </View>
         </View>
-        <View style={[styles.detailHero, compact && styles.detailHeroCompact]}>
-          <View style={[styles.detailImageWrap, compact && styles.detailImageWrapCompact]}>
-            {product.imageUrl && !imageFailed ? (
-              <Image source={{ uri: product.imageUrl }} style={styles.detailImage} resizeMode="contain" onError={() => setImageFailed(true)} />
-            ) : (
-              <View accessible accessibilityLabel="Product image unavailable">
-                <ImageOff size={28} color={colors.textMuted} />
-              </View>
-            )}
-          </View>
-          <View style={styles.detailPriceBlock}>
-            <AppText muted style={styles.caption}>
-              {checkFailed || isOos ? 'Last known price' : 'Current price'}
-            </AppText>
-            <AppText weight="bold" style={styles.currentPrice}>
-              {formatPrice(product.currentPriceMinor, product.currency, product.priceBasis)}
-            </AppText>
-            {product.targetPriceMinor ? (
-              <AppText weight="semibold">Target {formatPrice(product.targetPriceMinor, product.currency, product.priceBasis)}</AppText>
-            ) : null}
-            <StatusPill
-              status={status}
-              label={status === 'variant_not_found' ? 'Variant unavailable' : `${checkFailed ? 'Check failed' : 'Checked'} ${formatRelativeTime(product.lastCheckedAt)}`}
-              availability={checkFailed ? 'unknown' : product.lastAvailability}
-            />
-            {checkFailed ? (
-              <AppText muted style={styles.caption}>
-                {product.lastSuccessAt ? `Last successful check: ${formatRelativeTime(product.lastSuccessAt)}` : 'No successful check recorded'}
+
+        <Surface padding="md" style={styles.detailSummary}>
+          <View style={styles.detailSummaryRow}>
+            <View style={styles.detailSummaryImageWrap}>
+              {product.imageUrl && !imageFailed ? (
+                <Image source={{ uri: product.imageUrl }} style={styles.detailSummaryImage} resizeMode="contain" onError={() => setImageFailed(true)} />
+              ) : (
+                <View accessible accessibilityLabel="Product image unavailable">
+                  <ImageOff size={28} color={colors.textMuted} />
+                </View>
+              )}
+            </View>
+            <View style={styles.detailSummaryBody}>
+              <AppText weight="semibold" numberOfLines={2} style={styles.detailSummaryTitle}>
+                {product.title}
               </AppText>
-            ) : null}
+              <AppText muted style={styles.detailSummaryCaption}>
+                {checkFailed || isOos ? 'Last known price' : 'Current price'}
+              </AppText>
+              <View style={styles.detailSummaryPriceRow}>
+                <AppText weight="bold" style={styles.detailSummaryPrice}>
+                  {formatPrice(currentPrice, product.currency, product.priceBasis)}
+                </AppText>
+                {!isOos && delta < 0 ? (
+                  <PriceDirectionBadge direction="down" text={`${formatPrice(Math.abs(delta), product.currency, product.priceBasis)} lower`} />
+                ) : null}
+                {!isOos && delta > 0 ? (
+                  <PriceDirectionBadge direction="up" text={`${formatPrice(delta, product.currency, product.priceBasis)} higher`} />
+                ) : null}
+              </View>
+              <View style={styles.detailSummaryRetailer}>
+                <SiteIcon siteKey={product.siteKey} size={14} />
+                <AppText muted style={styles.detailSummaryCaption}>{site.shortName}</AppText>
+              </View>
+              {summaryMeta ? (
+                <AppText muted numberOfLines={2} style={styles.detailSummaryCaption}>{summaryMeta}</AppText>
+              ) : null}
+              <View style={styles.detailSummaryFooter}>
+                <StatusPill
+                  status={status}
+                  label={status === 'variant_not_found' ? 'Variant unavailable' : `${checkFailed ? 'Check failed' : 'Checked'} ${formatRelativeTime(product.lastCheckedAt)}`}
+                  availability={checkFailed ? 'unknown' : product.lastAvailability}
+                />
+                {product.targetPriceMinor ? (
+                  <AppText muted style={styles.detailSummaryCaption}>Target {formatPrice(product.targetPriceMinor, product.currency, product.priceBasis)}</AppText>
+                ) : null}
+              </View>
+              {checkFailed ? (
+                <AppText muted style={styles.detailSummaryCaption}>
+                  {product.lastSuccessAt ? `Last successful check: ${formatRelativeTime(product.lastSuccessAt)}` : 'No successful check recorded'}
+                </AppText>
+              ) : null}
+            </View>
           </View>
-        </View>
-        {product.lastAvailability === 'out_of_stock' ? (
-          <View style={styles.oosBanner}>
-            <CircleAlert size={16} color={colors.amber} />
-            <AppText weight="medium" style={styles.oosBannerText}>
-              {product.currentPriceMinor !== undefined
-                ? 'Out of stock — last known price shown'
-                : 'Out of stock — no price recorded'}
-            </AppText>
+          {isOos ? (
+            <View style={styles.detailSummaryNote}>
+              <CircleAlert size={16} color={colors.amber} />
+              <AppText weight="medium" style={styles.detailSummaryNoteText}>
+                {product.currentPriceMinor !== undefined ? 'Out of stock — last known price shown' : 'Out of stock — no price recorded'}
+              </AppText>
+            </View>
+          ) : null}
+        </Surface>
+
+        <Surface padding="none" style={styles.detailCard}>
+          <View style={styles.detailCardHeader}>
+            <AppText weight="bold" style={styles.detailCardTitle}>Price insights</AppText>
+            <AppText muted style={styles.detailSummaryCaption}>{insights.observations} {insights.observations === 1 ? 'priced check' : 'priced checks'}</AppText>
           </View>
-        ) : null}
-        <SectionTitle title="Price insights" />
-        <View style={styles.statsRow}>
-          <StatCard label="Lowest price" price={insights.lowestPriceMinor} currency={product.currency} priceBasis={product.priceBasis} tone="green" />
-          <StatCard label="Highest price" price={insights.highestPriceMinor} currency={product.currency} priceBasis={product.priceBasis} tone="red" />
-        </View>
-        <StatCard label="Average price" price={insights.averagePriceMinor} currency={product.currency} priceBasis={product.priceBasis} tone="neutral" />
-        <AppText muted style={styles.insightCaption}>{insights.observations} {insights.observations === 1 ? 'priced check' : 'priced checks'} recorded locally.</AppText>
+          <DetailInsightRow label="Lowest price" price={insights.lowestPriceMinor} currency={product.currency} priceBasis={product.priceBasis} tone="green" />
+          <View style={styles.detailDivider} />
+          <DetailInsightRow label="Highest price" price={insights.highestPriceMinor} currency={product.currency} priceBasis={product.priceBasis} tone="red" />
+          <View style={styles.detailDivider} />
+          <DetailInsightRow label="Average price" price={insights.averagePriceMinor} currency={product.currency} priceBasis={product.priceBasis} tone="neutral" />
+        </Surface>
+
         <SectionTitle title="Price History" />
         {product.priceBasis ? <AppText muted>Prices, chart and targets use{priceBasisSuffix(product.priceBasis)}. Weighted grocery totals depend on the final delivered weight.</AppText> : null}
         <PriceChart snapshots={snapshots} currency={product.currency} />
         <ProductInformation product={product} />
         <SectionTitle title="Price Snapshots" />
         <SnapshotList snapshots={snapshots} currency={product.currency} />
-      </ScrollView>
-      <View style={styles.bottomActionRow}>
+      </ScrollView>      <View style={styles.bottomActionRow}>
         <PrimaryButton label="Check now" variant="outline" onPress={checkNow} loading={checking} style={styles.bottomActionHalf}
           icon={!checking ? <RefreshCcw size={18} color={colors.primary} /> : undefined} />
         <PrimaryButton label="Open link" variant="outline" onPress={() => Linking.openURL(productLink)} style={styles.bottomActionHalf}
@@ -1745,6 +1773,7 @@ export function DetailScreen({ productId, navigate }: { productId: number; navig
 }
 
 function ProductInformation({ product }: { product: TrackedProduct }) {
+  const [expanded, setExpanded] = useState(false);
   const metadata = product.sourceMetadata;
   if (!metadata) { return null; }
   const selectedAttributes = new Set(product.variant?.attributes.map((attribute) => attribute.name.toLowerCase().replace('colour', 'color')) ?? []);
@@ -1762,24 +1791,46 @@ function ProductInformation({ product }: { product: TrackedProduct }) {
     ...(metadata.categoryPath?.length ? [{ label: 'Store category', value: metadata.categoryPath.join('  ›  ') }] : [])
   ];
   if (!rows.length) { return null; }
+  const summary = rows.slice(0, 2).map((row) => `${row.label}: ${row.value}`).join(' · ');
+  const remaining = rows.length - Math.min(rows.length, 2);
+
   return (
-    <>
-      <SectionTitle title="About this item" />
-      <View style={styles.productInformation}>
-        {rows.map((row, index) => (
-          <View key={row.label} style={[styles.productInformationRow, index > 0 && styles.productInformationDivider]}>
-            <AppText muted style={styles.productInformationLabel}>{row.label}</AppText>
-            <AppText weight="medium" style={styles.productInformationValue}>{row.value}</AppText>
-          </View>
-        ))}
-      </View>
-    </>
+    <View style={styles.productInformationCard}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`About this item, ${expanded ? 'expanded' : 'collapsed'}`}
+        accessibilityState={{ expanded }}
+        onPress={() => setExpanded((value) => !value)}
+        style={styles.productInformationHeader}
+      >
+        <View style={styles.flex}>
+          <AppText weight="semibold" style={styles.productInformationTitle}>About this item</AppText>
+          {!expanded ? (
+            <AppText muted numberOfLines={1} style={styles.productInformationSummary}>
+              {summary}{remaining > 0 ? ` · +${remaining} more` : ''}
+            </AppText>
+          ) : null}
+        </View>
+        {expanded ? <ChevronUp size={18} color={colors.textMuted} /> : <ChevronDown size={18} color={colors.textMuted} />}
+      </Pressable>
+      {expanded ? (
+        <View style={styles.productInformationRows}>
+          {rows.map((row, index) => (
+            <View key={row.label} style={[styles.productInformationRow, index > 0 && styles.productInformationDivider]}>
+              <AppText muted style={styles.productInformationLabel}>{row.label}</AppText>
+              <AppText weight="medium" style={styles.productInformationValue}>{row.value}</AppText>
+            </View>
+          ))}
+        </View>
+      ) : null}
+    </View>
   );
 }
-
 function SnapshotList({ snapshots, currency }: { snapshots: PriceSnapshot[]; currency: string }) {
   const groups = useMemo(() => groupSnapshots(snapshots.slice(0, 30)), [snapshots]);
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set());
+  const [showAll, setShowAll] = useState(false);
+  const visibleGroups = showAll ? groups : groups.slice(0, 3);
 
   function toggle(key: string) {
     setExpandedKeys((prev) => {
@@ -1792,7 +1843,7 @@ function SnapshotList({ snapshots, currency }: { snapshots: PriceSnapshot[]; cur
 
   return (
     <View style={styles.snapshotList}>
-      {groups.map((group, index) => {
+      {visibleGroups.map((group, index) => {
         const first = group.snapshots[0];
         const rest = group.snapshots.slice(1);
         const isExpanded = expandedKeys.has(group.key);
@@ -1829,6 +1880,18 @@ function SnapshotList({ snapshots, currency }: { snapshots: PriceSnapshot[]; cur
           </View>
         );
       })}
+      {groups.length > 3 ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ expanded: showAll }}
+          onPress={() => setShowAll((value) => !value)}
+          style={styles.snapshotShowAll}
+        >
+          <AppText weight="semibold" style={styles.snapshotShowAllText}>
+            {showAll ? 'Show fewer snapshots' : `Show all ${groups.length} price groups`}
+          </AppText>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -2740,6 +2803,17 @@ function SettingsScreen({ refreshKey = 0 }: { refreshKey?: number }) {
   );
 }
 
+function DetailInsightRow({ label, price, currency, priceBasis, tone }: { label: string; price?: number; currency: string; priceBasis?: import('./src/domain/priceBasis').PriceBasis; tone: 'green' | 'red' | 'neutral' }) {
+  return (
+    <View style={styles.detailInsightRow}>
+      <AppText muted>{label}</AppText>
+      <AppText weight="semibold" style={[styles.detailInsightValue, tone === 'green' ? styles.greenText : tone === 'red' ? styles.redText : undefined]}>
+        {formatPrice(price, currency, priceBasis)}
+      </AppText>
+    </View>
+  );
+}
+
 function SectionTitle({ title }: { title: string }) {
   return (
     <AppText weight="bold" style={styles.sectionTitle}>
@@ -2756,17 +2830,6 @@ function InfoRow({ label, value }: { label: string; value: string }) {
         {value}
       </AppText>
     </View>
-  );
-}
-
-function StatCard({ label, price, currency, priceBasis, tone }: { label: string; price?: number; currency: string; priceBasis?: import('./src/domain/priceBasis').PriceBasis; tone: 'green' | 'red' | 'neutral' }) {
-  return (
-    <Surface padding="md" style={styles.statCard}>
-      <AppText muted>{label}</AppText>
-      <AppText weight="bold" style={[styles.statPrice, tone === 'green' ? styles.greenText : tone === 'red' ? styles.redText : undefined]}>
-        {formatPrice(price, currency, priceBasis)}
-      </AppText>
-    </Surface>
   );
 }
 
@@ -3434,93 +3497,11 @@ const styles = StyleSheet.create({
     fontSize: 26,
     lineHeight: 32
   },
-  detailHero: {
-    flexDirection: 'row',
-    gap: 16,
-    paddingBottom: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border
-  },
-  detailHeroCompact: {
-    flexDirection: 'column'
-  },
-  detailImageWrap: {
-    width: 112,
-    height: 142,
-    backgroundColor: colors.surfaceMuted,
-    borderRadius: radius.md,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  detailImageWrapCompact: {
-    width: '100%',
-    height: 180
-  },
-  detailImage: {
-    width: 104,
-    height: 134
-  },
-  detailPriceBlock: {
-    flex: 1,
-    minWidth: 0,
-    gap: 6
-  },
-  detailMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginTop: 2
-  },
-  detailHeaderActions: {
-    flexDirection: 'row',
-    gap: 4
-  },
   detailTitle: {
     ...typography.detailTitle
   },
-  iconButton: {
-    width: layoutMetrics.touchTarget,
-    height: layoutMetrics.touchTarget,
-    borderRadius: layoutMetrics.touchTarget / 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surface
-  },
-  currentPrice: {
-    ...typography.price
-  },
-  oosBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: colors.amberSoft,
-    borderRadius: radius.md,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    marginBottom: 8
-  },
-  oosBannerText: {
-    color: colors.amber,
-    fontSize: 13,
-    flex: 1
-  },
   sectionTitle: {
     ...typography.sectionTitle
-  },
-  statsRow: {
-    flexDirection: 'row',
-    gap: 12
-  },
-  insightCaption: {
-    fontSize: 12,
-    marginTop: -8
-  },
-  productInformation: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingHorizontal: 16
   },
   productInformationRow: {
     flexDirection: 'row',
@@ -3541,13 +3522,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20
   },
-  statCard: {
-    flex: 1
-  },
-  statPrice: {
-    marginTop: 4,
-    ...typography.priceSmall
-  },
   greenText: {
     color: colors.green
   },
@@ -3560,7 +3534,86 @@ const styles = StyleSheet.create({
   snapshotPriceUp: {
     color: colors.red
   },
-  snapshotList: {
+  detailContent: {
+    paddingTop: 0,
+    gap: 12
+  },
+  detailBanner: {
+    marginHorizontal: -layoutMetrics.screenGutter,
+    paddingHorizontal: layoutMetrics.screenGutter,
+    paddingTop: 2,
+    paddingBottom: 8,
+    backgroundColor: colors.primary
+  },
+  detailBannerRow: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between'
+  },
+  detailBannerButton: {
+    width: layoutMetrics.touchTarget,
+    height: layoutMetrics.touchTarget,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  detailBannerBrand: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingLeft: 4
+  },
+  detailBannerLogo: { width: 28, height: 28, borderRadius: 7 },
+  detailBannerWordmark: { color: colors.surface, fontSize: 20, lineHeight: 26 },
+  detailBannerActions: { flexDirection: 'row', alignItems: 'center' },
+  detailSummary: { gap: 10 },
+  detailSummaryCaption: { marginTop: 0, fontSize: 13 },
+  detailSummaryRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 14 },
+  detailSummaryImageWrap: {
+    width: 92,
+    height: 112,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceMuted,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  detailSummaryImage: { width: 84, height: 104 },
+  detailSummaryBody: { flex: 1, minWidth: 0, gap: 4 },
+  detailSummaryTitle: { fontSize: 16, lineHeight: 22 },
+  detailSummaryPriceRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
+  detailSummaryPrice: { fontSize: 24, lineHeight: 30 },
+  detailSummaryRetailer: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  detailSummaryFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginTop: 2 },
+  detailSummaryNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: colors.amberSoft,
+    borderRadius: radius.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 8
+  },
+  detailSummaryNoteText: { flex: 1, color: colors.amber, fontSize: 13 },
+  detailCard: { overflow: 'hidden' },
+  detailCardHeader: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 6 },
+  detailCardTitle: { fontSize: 16, lineHeight: 22 },
+  detailInsightRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingHorizontal: 16, paddingVertical: 11, minHeight: 44 },
+  detailInsightValue: { fontSize: 16 },
+  detailDivider: { height: StyleSheet.hairlineWidth, backgroundColor: colors.border, marginHorizontal: 16 },
+  productInformationCard: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    overflow: 'hidden'
+  },
+  productInformationHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 14, minHeight: 52 },
+  productInformationTitle: { fontSize: 16, lineHeight: 22 },
+  productInformationSummary: { fontSize: 12, lineHeight: 16, marginTop: 2 },
+  productInformationRows: { paddingHorizontal: 16, paddingBottom: 6 },
+  snapshotShowAll: { minHeight: 44, alignItems: 'center', justifyContent: 'center', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+  snapshotShowAllText: { fontSize: 14, color: colors.primary },  snapshotList: {
     backgroundColor: colors.surface,
     borderRadius: radius.md,
     borderWidth: 1,
