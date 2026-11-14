@@ -122,6 +122,15 @@ describe('rankSearchGroups', () => {
     expect(ids(rankSearchGroups([phone160, phoneOf16], 'iphone 16'))).toEqual(['phone-16', 'phone-160']);
   });
 
+  it('keeps accessories below the product even when the accessory starts with the query', () => {
+    const product = group('product', 'Apple AirPods Pro 2 Wireless Earbuds', ['noon'], 1);
+    const accessory = group('accessory', 'AirPods Pro 2 Silicone Case Cover', ['noon', 'amazon_ae'], 2);
+    expect(ids(rankSearchGroups([accessory, product], 'airpods pro 2'))).toEqual(['product', 'accessory']);
+
+    // An explicit accessory query may rank the accessory normally.
+    expect(ids(rankSearchGroups([product, accessory], 'airpods pro 2 case'))[0]).toBe('accessory');
+  });
+
   it('does not let multi-store accessories leapfrog the product itself', () => {
     const product = group('product', 'Apple AirPods Pro 2 Wireless Earbuds', ['noon'], 1);
     const accessory = group('accessory', 'Apple AirPods Pro 2 Case Cover', ['noon', 'amazon_ae', 'carrefour_uae'], 2);

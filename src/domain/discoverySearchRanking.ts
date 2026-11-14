@@ -48,6 +48,8 @@ type RankedGroup = {
   /** Original position in the incoming match order, used as the final tie-break. */
   index: number;
   grade: number;
+  /** Compatibility accessory for a product query; sorted after the products. */
+  isAccessory: boolean;
   /** `index - boundedBoost`; lower sorts first inside a grade. */
   adjustedPosition: number;
 };
@@ -69,10 +71,10 @@ export function rankSearchGroups(groups: DiscoveryProductGroup[], query: string)
   const ranked: RankedGroup[] = input.map((group, index) => {
     const offers = Array.isArray(group.offers) ? group.offers : [];
     const titleTokens = normalizeProductTokens(group.title);
-    const titleIsAccessory = titleTokens.some((token) => ACCESSORY_TOKENS.has(token));
+    const titleIsAccessory = !queryMentionsAccessory && titleTokens.some((token) => ACCESSORY_TOKENS.has(token));
     const retailerCount = distinctRetailerCount(offers);
     const comparableCount = countComparableOffers(offers);
-    const boundedBoost = !queryMentionsAccessory && titleIsAccessory
+    const boundedBoost = titleIsAccessory
       ? 0
       : Math.min(
         MAX_BOOST,
@@ -82,12 +84,14 @@ export function rankSearchGroups(groups: DiscoveryProductGroup[], query: string)
       group,
       index,
       grade: matchGrade(titleTokens, phrase),
+      isAccessory: titleIsAccessory,
       adjustedPosition: index - boundedBoost
     };
   });
 
   ranked.sort(
     (left, right) =>
+      Number(left.isAccessory) - Number(right.isAccessory) ||
       right.grade - left.grade ||
       left.adjustedPosition - right.adjustedPosition ||
       left.index - right.index

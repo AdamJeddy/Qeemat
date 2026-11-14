@@ -118,6 +118,15 @@ describe('watchlist copies in the Explore feed', () => {
     expect(filterTrackedFeedGroups([equalPrice, higherPrice, outOfStock])).toEqual([]);
   });
 
+  it('rejects a cheaper offer that is only a variant price range', () => {
+    const pricedRange = group({
+      offers: [offer('noon', 41900), offer('amazon_ae', 33900, { hasPriceRange: true })]
+    });
+
+    expect(trackedFeedSaving(pricedRange)).toBeUndefined();
+    expect(filterTrackedFeedGroups([pricedRange])).toEqual([]);
+  });
+
   it('drops a tracked group whose tracked price is unknown', () => {
     const unknownPrice = group({ trackedProduct: tracked({ currentPriceMinor: undefined }) });
 

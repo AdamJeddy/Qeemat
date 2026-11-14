@@ -123,6 +123,10 @@ function comparableAlternativePrice(
   if (product.availability === 'out_of_stock') {
     return undefined;
   }
+  // "From AED X" listings may start at a variant/size the tracker does not have.
+  if (product.hasPriceRange === true) {
+    return undefined;
+  }
   const priceMinor = readPrice(product.priceMinor);
   if (priceMinor === undefined || readCurrency(product.currency) !== currency) {
     return undefined;
