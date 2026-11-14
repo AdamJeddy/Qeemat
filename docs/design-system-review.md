@@ -34,7 +34,7 @@ Reviewed 13 November 2026 against the current React Native code and Watchlist, S
 1. Define status semantics and fix the misleading direction indicator. **Done.**
 2. Establish type, spacing, surface and action roles, using real examples from all four screens. **Tokens done; screen adoption partial.**
 3. Build a small set of shared primitives and state examples, including large-text and error cases. **Status, input and surface primitives done; chip/action consolidation still intended.**
-4. Apply them screen by screen, beginning with Watchlist and product detail, followed by Search and Settings; validate on device. **Watchlist, product detail, Add and Settings done; Activity and Search passes still open.**
+4. Apply them screen by screen, beginning with Watchlist and product detail, followed by Search and Settings; validate on device. **Watchlist, product detail, Add, Settings and Activity done; a fuller Search hierarchy is still open.**
 
 ## Scope of verification
 

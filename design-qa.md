@@ -11,7 +11,7 @@ The semantic type/layout tokens and shared status primitives were installed on t
 - Device accessibility labels were present for the header and icon controls ("Go back", "Copy product link", "Tracking settings").
 - **Screen-pass follow-up (installed after the token pass):** product detail shows the full title, an image plus price/status block, flat equal-weight insight cards and direction-colored snapshot prices [detail](docs/assets/design-2026-11-13/detail-hierarchy.png), [snapshots](docs/assets/design-2026-11-13/detail-snapshot-directions.png); Add collapses the supported-store list behind a disclosure [Add](docs/assets/design-2026-11-13/add-supported-stores-disclosure.png); Settings collapses run diagnostics and supported stores [Settings](docs/assets/design-2026-11-13/settings-progressive-disclosure.png); tracking settings adds a per-product **Active** switch [toggle](docs/assets/design-2026-11-13/tracking-active-toggle.png); the tab stack stays mounted so Watchlist keeps its scroll position after a product round trip [state](docs/assets/design-2026-11-13/watchlist-state-preserved.png); the archived-with-no-items state is covered [archived](docs/assets/design-2026-11-13/archived-empty-state.png). Discovery listing images fall back to a neutral placeholder when missing or broken, with three focused component tests. Search listing cards now show the same green/amber direction badge as Watchlist when a previously observed price changed [badges](docs/assets/design-2026-11-13/search-price-change-badges.png).
 
-Remaining for later passes: the price-history chart keeps its own change indicator; a fuller Search hierarchy and an Activity layout pass are still open, while the product-detail, Add and Settings passes are recorded below. The accessibility matrix still needs TalkBack order/heading announcement, landscape, larger scales with inputs, other devices and a loading/error/selection sweep; contrast, narrow widths and Android 16/17 edge-to-edge were checked.
+Remaining for later passes: the price-history chart keeps its own change indicator; a fuller Search hierarchy is still open, while the product-detail, Add, Settings and Activity passes are recorded below. The accessibility matrix still needs TalkBack order/heading announcement, landscape, larger scales with inputs, other devices and a loading/error/selection sweep; contrast, narrow widths and Android 16/17 edge-to-edge were checked.
 
 ## Shared input primitive: device verification 14 November
 
@@ -36,6 +36,17 @@ Remaining after this pass: Search card/chip containers and the compact discovery
 - `src/components/Surface.test.tsx` covers the default card role, muted/accent/plain variants, padding/radius token mapping and forwarded view props/layout overrides.
 
 Remaining after this pass: Search filter chips and the still-local card styles (Settings/Activity rows, Add preview, update pin) already match the role; consolidating them onto `Surface` and defining a shared chip primitive are the next surface steps.
+
+## Activity layout pass: device verification 14 November
+
+The Activity tab was rebuilt as a calendar-day history rather than a list of relative-time groups:
+
+- Events are grouped by stable **local calendar day** (`Today`, `Yesterday`, then e.g. `Mon, 10 Nov`) with a per-day change count; the grouping helper is unit-tested against fixed dates. [grouping tests](src/domain/__tests__/activity.test.ts)
+- Each day is one flat `Surface` with compact rows (thumbnail, title, old → new price, explicit delta badge such as `+AED 39` or `−AED 250`, then retailer · source · time). This replaces one bordered card per event and matches the Watchlist card language. [before](docs/assets/activity-redesign/current-activity.png), [after](docs/assets/activity-redesign/activity-after.png)
+- Stock transitions keep their state text (Out of stock / Back in stock) with the last or new price; first observations read “Started tracking” with a `New` badge. Source is still muted provenance text.
+- Deleted products render a non-tappable “Product removed” row; existing products open their detail page with a descriptive accessibility label. Day headers are headings with counts.
+- Device checks on the Samsung SM-S928B: populated list, 1.3 font scale (rows reflow, meta wraps instead of truncating) and landscape (rows use the full width, badges stay right-aligned). [1.3](docs/assets/activity-redesign/activity-font-scale-1-3.png), [landscape](docs/assets/activity-redesign/activity-landscape.png)
+- Full plan and design rationale: [activity redesign](docs/activity-redesign-plan.md).
 
 ## Accessibility and device matrix: 13 November
 
@@ -119,12 +130,12 @@ On the phone, Activity opened from the header bell, out-of-stock products expand
 
 1. Resolve the floating button overlapping product information and retest populated and out-of-stock lists. *(Superseded by the user correction above: the floating button is the chosen pattern and its overlap is accepted, so there is no dock to build. The post-restore device check is recorded in [the handover](docs/design-handover.md).)*
 2. Fix live font-scale changes and check long names, missing images, empty/error and larger-text states. *(Live font-scale remeasure fixed in `bb1883f`; the remaining state checks are still open.)*
-3. Apply the agreed visual language to Search, Activity, Add, details and Settings with task-first layouts; review each as a complete flow. *(Partial: product-detail, Add and Settings passes shipped; a fuller Search hierarchy and an Activity layout pass are still open.)*
+3. Apply the agreed visual language to Search, Activity, Add, details and Settings with task-first layouts; review each as a complete flow. *(Partial: product-detail, Add, Settings and Activity passes shipped; a fuller Search hierarchy is still open.)*
 4. Recheck accessibility, shared components and device behavior across the app before treating the design system rollout as complete. *(Open; see the verification limits in the [design-system review](docs/design-system-review.md).)*
 
 final result: blocked
 
-**Status (14 November 2026):** the `blocked` verdict above is historical and is not the current status. The initial blocking findings were addressed or explicitly superseded: the misleading detail status (`16019c1`) and live font-scale clipping (`bb1883f`) are fixed, Add and Settings now put the primary task first (`04e8bfb`, `b1069b6`), Activity's green source badge is fixed (`5608b6e`), and product detail now renders provenance as muted text (`6794cec`). The floating-button finding is superseded by the user correction at the top. The app-wide visual-system rollout, the Search hierarchy and Activity passes, and the remaining accessibility and edge-state checks are open and are tracked in [the handover's “What remains” section](docs/design-handover.md#what-remains).
+**Status (14 November 2026):** the `blocked` verdict above is historical and is not the current status. The initial blocking findings were addressed or explicitly superseded: the misleading detail status (`16019c1`) and live font-scale clipping (`bb1883f`) are fixed, Add and Settings now put the primary task first (`04e8bfb`, `b1069b6`), Activity's green source badge is fixed (`5608b6e`), and product detail now renders provenance as muted text (`6794cec`). The floating-button finding is superseded by the user correction at the top. The app-wide visual-system rollout, a fuller Search hierarchy and the remaining accessibility and edge-state checks are open and are tracked in [the handover's “What remains” section](docs/design-handover.md#what-remains).
 
 ## Earlier For You review
 
