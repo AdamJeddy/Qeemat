@@ -4,15 +4,15 @@ Qeemat can download and install a newer GitHub release without leaving the app. 
 
 ## Flow
 
-1. On launch Qeemat asks the GitHub releases API for a newer version. For the chosen release it selects an APK asset, preferring `arm64-v8a`, then a universal build, then any APK.
+1. On launch Qeemat asks the GitHub releases API for a newer version. For the chosen release it selects an APK asset compatible with the device ABIs reported by Android (`Build.SUPPORTED_ABIS`): a build for the primary ABI wins, then a universal build, then another supported ABI. If the release has no compatible asset, the update is still offered with a link to the GitHub release page instead of downloading the wrong APK.
 2. If a newer version exists, an **update popup** opens over the app: the version, **Download and install**, **Release notes** and a close button. It opens once per release; closing it remembers that version.
 3. Closing the popup adds red badges to the Watchlist bell and the Activity tab. Activity also keeps a pinned **Qeemat update available** item that opens the popup again. The badges stay until the installed version is the latest, when the popup, badges and pinned item all disappear.
 4. Pressing **Download and install** downloads the APK inside the app to the app cache, over HTTPS only. GitHub hosts are allowlisted (`github.com` and `*.githubusercontent.com`); redirects are followed manually and each hop is re-checked.
 5. After the download, Qeemat verifies the byte count against GitHub's asset size and, when the API publishes a digest, the SHA-256 against the downloaded bytes. A mismatch deletes the file and reports an error instead of opening the installer.
 6. If Android has not been allowed to install apps from Qeemat, the popup explains this and opens **Settings → Install unknown apps → Qeemat**; the downloaded file is retained so **Install update** continues without downloading again.
-7. Qeemat opens the standard Android install prompt from a `FileProvider` content URI. Android verifies the signing certificate before applying the update; a differently signed APK is rejected by the platform.
+7. Qeemat opens the standard Android install prompt from a `FileProvider` content URI. Android verifies the signing certificate before applying the update; a differently signed APK is rejected by the platform. If the user cancels that prompt or the install fails, Qeemat comes back to the install-ready popup so the user can retry or dismiss it.
 
-Progress is polled from the native module every 400 ms and shown in the popup as a percentage, transferred size and progress bar. The download can be cancelled, and closing the popup during a download cancels it.
+Progress is polled from the native module every 400 ms and shown in the popup as a percentage, transferred size and progress bar. The download can be cancelled, and closing the popup during a download cancels it. Each download attempt has its own generation token, so cancelling and restarting never revives an older polling loop.
 
 ## Implementation
 
@@ -37,9 +37,10 @@ Samsung SM-S928B, Android 17 / API 37, 1440 × 3120, connected via wireless debu
 - The pinned item reopened the popup. Downloading from it streamed the 25,621,040-byte release APK with live progress, size and percentage. [screenshot](assets/app-update-2026-11-14/download-progress.png)
 - Windows Android settings: **Install unknown apps → Qeemat → Allow permission** was reached from the popup's permission hand-off. [screenshot](assets/app-update-2026-11-14/install-permission.png)
 - The standard Android install prompt opened; Google Play Protect offered its usual pre-install scan for a sideloaded APK. [screenshot](assets/app-update-2026-11-14/install-prompt.png)
+- Cancelling that installer returned to the **Ready to install** popup instead of leaving it stuck on *Installing update*; the download stayed verified so it could be installed again or dismissed. [screenshot](assets/app-update-2026-11-14/installer-dismissed-recovery.png)
 - After the install, `dumpsys package com.qeemat` reported `versionName=0.6.0-alpha` and a fresh `lastUpdateTime`; Qeemat relaunched on the new version with no popup, no bell or Activity badges and no pinned Activity item. [screenshot](assets/app-update-2026-11-14/badges-after-update.png)
 
-The download's SHA-256 digest matched GitHub's published `sha256:ff8f90db…`, and the same debug signing certificate as the installed build let Android apply the update. Automated coverage: `src/domain/__tests__/updates.test.ts`, `src/domain/__tests__/appUpdate.test.ts`, `src/domain/__tests__/updatePrompt.test.ts`, `src/components/UpdateNotice.test.tsx`.
+The download's SHA-256 digest matched GitHub's published `sha256:ff8f90db…`, and the same debug signing certificate as the installed build let Android apply the update. The device is arm64; the ABI selection and the installer-dismissal recovery are covered by automated tests in addition to the arm64 device pass. Automated coverage: `src/domain/__tests__/updates.test.ts`, `src/domain/__tests__/appUpdate.test.ts`, `src/domain/__tests__/updatePrompt.test.ts`, `src/components/UpdateNotice.test.tsx`.
 
 ## Limitations
 
@@ -47,4 +48,4 @@ The download's SHA-256 digest matched GitHub's published `sha256:ff8f90db…`, a
 - Closing the popup during a download cancels it; completed downloads are not persisted across app restarts.
 - A dismissed release stays dismissed until the update is installed; the bell and Activity badges and the pinned item keep the update reachable in the meantime.
 - Play Protect or device-vendor install screens may add their own prompts for sideloaded APKs; Qeemat cannot bypass them and should not try to.
-- The GitHub release must include an APK asset; releases without one are ignored by the update check, as before.
+- The GitHub release must include an APK asset compatible with the device ABIs; releases without one are ignored by the update check, and a release with only incompatible APKs is offered through the GitHub link, as before.
