@@ -21,7 +21,7 @@ Explore is the new opening point for finding something to track. Its feed is ord
 
 Products already on your watchlist are hidden from Explore unless another retailer offers a genuinely cheaper comparable price. When that happens, the row says **On your watchlist** and shows the saving against your tracked price.
 
-![Qeemat Explore feed with watchlist-informed rows](screenshots/02-explore.png)
+<img width="300" alt="Qeemat Explore feed with watchlist-informed rows" src="screenshots/02-explore.png" />
 
 ## One product, many stores
 
@@ -29,7 +29,7 @@ The same product listed by several UAE retailers becomes one grouped row. Brand,
 
 Open **Compare** to see each retailer’s own title, price, availability, previous observation and check age, ordered lowest price first. A “Lowest at X” claim only appears when at least two in-stock, single-price offers share the same currency and pack/weight basis. Out-of-stock and “from AED” range offers stay visible but cannot win.
 
-![Compare sheet sorted lowest price first](screenshots/05-compare.png)
+<img width="300" alt="Compare sheet sorted lowest price first" src="screenshots/05-compare.png" />
 
 Grouping is deliberately conservative and happens locally from retailer titles. It can still miss a match when retailer wording differs, or occasionally group two closely named products; the retailer titles remain visible in Compare so you can verify an offer.
 
@@ -37,9 +37,9 @@ Grouping is deliberately conservative and happens locally from retailer titles. 
 
 Search from the Explore banner across 20 storefronts and 27 weighted source requests. Results arrive as stores respond, an animated progress card shows which stores are checking, ready, empty or unavailable, and cached matches stay visible while stores revalidate. Clearing search returns you to the feed and its position.
 
-![Search starting while stores are checked](screenshots/03-search-progress.png)
+<img width="300" alt="Search starting while stores are checked" src="screenshots/03-search-progress.png" />
 
-![Cross-store search results with grouped offers](screenshots/04-search-results.png)
+<img width="300" alt="Cross-store search results with grouped offers" src="screenshots/04-search-results.png" />
 
 Results are ranked so named products come before compatible accessories. Items available at more retailers rise within the same textual match grade, while an exact product match never loses to a weaker one just because the weaker one has more sources. Reaching the bottom loads the next page automatically — no Show more or Load more buttons.
 
@@ -49,17 +49,17 @@ Search coverage depends on the retailer, query and connection. Sharaf DG search 
 
 The Watchlist keeps its store and folder controls, pull-to-refresh and **Recheck all**, with a cleaner card rhythm and clearer status for each tracked product.
 
-![Qeemat Watchlist](screenshots/01-watchlist.png)
+<img width="300" alt="Qeemat Watchlist" src="screenshots/01-watchlist.png" />
 
 Activity is now grouped into stable local calendar days — **Today**, **Yesterday**, then dated sections — with one change count per day. The new price comes first, the previous price is struck through, and an explicit delta badge shows the movement: red for a rise, green for a drop. Each row shows retailer, source and check time underneath.
 
-![Activity grouped by local calendar day](screenshots/07-activity.png)
+<img width="300" alt="Activity grouped by local calendar day" src="screenshots/07-activity.png" />
 
 ## Product details at a glance
 
 Product detail now opens with a compact summary: image, two-line title, current or last-known price with direction, retailer, variant/folder and check status. Price insights and the item information sit in flat cards, while the price chart plots only the points where the price actually changed and labels the high, middle and low values directly on the chart. Drag across the chart to inspect an earlier check; **Check now**, **Open link**, copy and share remain one tap away.
 
-![Product detail with price insights and labelled chart](screenshots/06-product-detail.png)
+<img width="300" alt="Product detail with price insights and labelled chart" src="screenshots/06-product-detail.png" />
 
 ## New stores and tracking reliability
 
