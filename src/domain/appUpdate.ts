@@ -1,4 +1,5 @@
 import { NativeModules, Platform } from 'react-native';
+import { AvailableUpdate, checkForUpdate } from './updates';
 import type { UpdateApk } from './updates';
 
 export type UpdateDownloadPhase = 'idle' | 'downloading' | 'verifying' | 'ready' | 'failed' | 'cancelled';
@@ -18,12 +19,24 @@ type AppUpdaterModule = {
   installDownloaded?: () => Promise<UpdateInstallResult>;
   openInstallPermissionSettings?: () => Promise<boolean>;
   cancelDownload?: () => Promise<boolean>;
+  supportedAbis?: unknown;
+  getConstants?: () => { supportedAbis?: unknown };
 };
 
 const PHASES: UpdateDownloadPhase[] = ['idle', 'downloading', 'verifying', 'ready', 'failed', 'cancelled'];
 
 function getAppUpdater(): AppUpdaterModule | undefined {
   return NativeModules.QeematAppUpdater as AppUpdaterModule | undefined;
+}
+
+export function getSupportedAbis(): string[] {
+  const appUpdater = getAppUpdater();
+  const abis = appUpdater?.supportedAbis ?? appUpdater?.getConstants?.()?.supportedAbis;
+  return Array.isArray(abis) ? abis.filter((abi): abi is string => typeof abi === 'string') : [];
+}
+
+export async function checkForUpdateForDevice(installedVersion: string): Promise<AvailableUpdate | undefined> {
+  return checkForUpdate(installedVersion, undefined, getSupportedAbis());
 }
 
 export function supportsInAppUpdate(): boolean {

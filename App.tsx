@@ -70,7 +70,8 @@ import { StatusPill } from './src/components/StatusPill';
 import { VariantSelector } from './src/components/VariantSelector';
 import { UpdateNotice } from './src/components/UpdateNotice';
 import { clearUpdateNotificationHistory } from './src/domain/updateBackground';
-import { AvailableUpdate, checkForUpdate } from './src/domain/updates';
+import { AvailableUpdate } from './src/domain/updates';
+import { checkForUpdateForDevice } from './src/domain/appUpdate';
 import { clearDismissedUpdateVersion, dismissUpdateVersion, getDismissedUpdateVersion, shouldBadgeUpdate } from './src/domain/updatePrompt';
 import {
   DiscoveryFilterChip,
@@ -230,7 +231,7 @@ export default function App() {
     (async () => {
       const [dismissedVersion, update] = await Promise.all([
         getDismissedUpdateVersion(),
-        typeof installedVersion === 'string' ? checkForUpdate(installedVersion) : Promise.resolve(undefined)
+        typeof installedVersion === 'string' ? checkForUpdateForDevice(installedVersion) : Promise.resolve(undefined)
       ]);
       if (!active) {
         return;

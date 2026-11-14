@@ -78,3 +78,37 @@ describe('update APK assets', () => {
 });
 
 
+
+describe('device ABI selection', () => {
+  it('picks the APK for a non-arm64 device even when an arm64 build is listed first', () => {
+    const update = findNewerRelease('0.5.5-alpha', [releaseWithAssets('v0.6.0-alpha', [
+      asset('qeemat-arm64-v8a.apk'), asset('qeemat-armeabi-v7a.apk')
+    ])], ['armeabi-v7a', 'armeabi']);
+    expect(update?.apk?.name).toBe('qeemat-armeabi-v7a.apk');
+  });
+  it('prefers the device primary ABI and accepts universal builds', () => {
+    const x86 = findNewerRelease('0.5.5-alpha', [releaseWithAssets('v0.6.0-alpha', [
+      asset('qeemat-x86.apk'), asset('qeemat-x86_64.apk')
+    ])], ['x86_64', 'x86']);
+    expect(x86?.apk?.name).toBe('qeemat-x86_64.apk');
+    const universal = findNewerRelease('0.5.5-alpha', [releaseWithAssets('v0.6.0-alpha', [
+      asset('qeemat-universal.apk')
+    ])], ['armeabi-v7a']);
+    expect(universal?.apk?.name).toBe('qeemat-universal.apk');
+  });
+  it('offers the release without an APK when no asset supports the device', () => {
+    const update = findNewerRelease('0.5.5-alpha', [releaseWithAssets('v0.6.0-alpha', [
+      asset('qeemat-arm64-v8a.apk')
+    ])], ['armeabi-v7a', 'armeabi']);
+    expect(update?.version).toBe('0.6.0-alpha');
+    expect(update?.apk).toBeUndefined();
+  });
+  it('passes the device ABIs through checkForUpdate', async () => {
+    const fetcher = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [releaseWithAssets('v0.6.0-alpha', [asset('qeemat-arm64-v8a.apk'), asset('qeemat-armeabi-v7a.apk')])]
+    });
+    const update = await checkForUpdate('0.5.5-alpha', fetcher, ['armeabi-v7a']);
+    expect(update?.apk?.name).toBe('qeemat-armeabi-v7a.apk');
+  });
+});

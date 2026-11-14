@@ -1,12 +1,22 @@
 import { NativeModules, Platform } from 'react-native';
 import {
   cancelInAppUpdateDownload,
+  checkForUpdateForDevice,
+  getSupportedAbis,
   installInAppUpdate,
   openInAppInstallSettings,
   readInAppUpdateDownloadState,
   startInAppUpdateDownload,
   supportsInAppUpdate
 } from '../appUpdate';
+import { checkForUpdate } from '../updates';
+
+jest.mock('../updates', () => ({
+  ...jest.requireActual('../updates'),
+  checkForUpdate: jest.fn()
+}));
+
+const findUpdate = checkForUpdate as jest.Mock;
 
 const nativeModule = {
   startDownload: jest.fn(),
@@ -26,6 +36,9 @@ beforeEach(() => {
   nativeModule.installDownloaded.mockReset().mockResolvedValue({ started: true });
   nativeModule.openInstallPermissionSettings.mockReset().mockResolvedValue(true);
   nativeModule.cancelDownload.mockReset().mockResolvedValue(true);
+  delete (nativeModule as Record<string, unknown>).supportedAbis;
+  delete (nativeModule as Record<string, unknown>).getConstants;
+  findUpdate.mockReset();
 });
 
 afterEach(() => {
@@ -98,5 +111,31 @@ describe('in-app update bridge', () => {
     expect(await installInAppUpdate()).toEqual({ started: false, reason: 'unsupported' });
     expect(await openInAppInstallSettings()).toBe(false);
     await expect(cancelInAppUpdateDownload()).resolves.toBeUndefined();
+  });
+});
+
+describe('device ABI bridge', () => {
+  it('reads the device ABIs from the native module constants', () => {
+    expect(getSupportedAbis()).toEqual([]);
+    (nativeModule as Record<string, unknown>).supportedAbis = ['arm64-v8a', 'armeabi-v7a'];
+    expect(getSupportedAbis()).toEqual(['arm64-v8a', 'armeabi-v7a']);
+    delete (nativeModule as Record<string, unknown>).supportedAbis;
+    (nativeModule as Record<string, unknown>).getConstants = () => ({ supportedAbis: ['x86_64'] });
+    expect(getSupportedAbis()).toEqual(['x86_64']);
+  });
+
+  it('checks for updates with the device ABIs', async () => {
+    (nativeModule as Record<string, unknown>).supportedAbis = ['armeabi-v7a'];
+    findUpdate.mockResolvedValue(undefined);
+    await checkForUpdateForDevice('0.5.5-alpha');
+    expect(findUpdate).toHaveBeenCalledWith('0.5.5-alpha', undefined, ['armeabi-v7a']);
+  });
+
+  it('falls back to no ABI information when the module is missing', async () => {
+    delete (NativeModules as Record<string, unknown>).QeematAppUpdater;
+    findUpdate.mockResolvedValue(undefined);
+    expect(getSupportedAbis()).toEqual([]);
+    await checkForUpdateForDevice('0.5.5-alpha');
+    expect(findUpdate).toHaveBeenCalledWith('0.5.5-alpha', undefined, []);
   });
 });

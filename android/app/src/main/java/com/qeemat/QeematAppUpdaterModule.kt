@@ -43,6 +43,8 @@ class QeematAppUpdaterModule(private val reactContext: ReactApplicationContext) 
 
   override fun getName(): String = "QeematAppUpdater"
 
+  override fun getConstants(): Map<String, Any> = mapOf("supportedAbis" to Build.SUPPORTED_ABIS.toList())
+
   @ReactMethod
   fun startDownload(url: String, fileName: String, expectedBytes: Double, sha256: String, promise: Promise) {
     try {

@@ -7,24 +7,40 @@ export type AvailableUpdate = { version: string; url: string; apk?: UpdateApk };
 
 type RawAsset = { name?: unknown; browser_download_url?: unknown; size?: unknown; digest?: unknown };
 
-function apkRank(name: string): number {
+const ABI_TOKENS = ['arm64-v8a', 'armeabi-v7a', 'x86_64', 'x86'];
+
+function apkAbi(name: string): string | undefined {
+  const lower = name.toLowerCase();
+  return ABI_TOKENS.find((abi) => lower.includes(abi));
+}
+
+function apkRank(name: string, supportedAbis: string[] | undefined): number {
+  if (supportedAbis?.length) {
+    const abi = apkAbi(name);
+    if (!abi) { return 1; }
+    const index = supportedAbis.indexOf(abi);
+    if (index < 0) { return -1; }
+    return index === 0 ? 0 : 2;
+  }
   if (/arm64-v8a/i.test(name)) { return 0; }
   if (/universal/i.test(name)) { return 1; }
   if (/armeabi|x86/i.test(name)) { return 3; }
   return 2;
 }
 
-export function selectUpdateApk(assets: unknown): UpdateApk | undefined {
+export function selectUpdateApk(assets: unknown, supportedAbis?: string[]): UpdateApk | undefined {
   if (!Array.isArray(assets)) { return undefined; }
+  const abis = supportedAbis?.map((abi) => abi.toLowerCase());
   const candidates: UpdateApk[] = [];
   for (const asset of assets as RawAsset[]) {
     if (!asset || typeof asset !== 'object' || typeof asset.name !== 'string' || !/\.apk$/i.test(asset.name) ||
       typeof asset.browser_download_url !== 'string' || typeof asset.size !== 'number' ||
       !Number.isFinite(asset.size) || asset.size <= 0) { continue; }
+    if (apkRank(asset.name, abis) < 0) { continue; }
     const digest = typeof asset.digest === 'string' ? /^sha256:([0-9a-f]{64})$/i.exec(asset.digest)?.[1] : undefined;
     candidates.push({ url: asset.browser_download_url, name: asset.name, size: asset.size, sha256: digest?.toLowerCase() });
   }
-  candidates.sort((a, b) => apkRank(a.name) - apkRank(b.name));
+  candidates.sort((a, b) => apkRank(a.name, abis) - apkRank(b.name, abis));
   return candidates[0];
 }
 
@@ -55,7 +71,7 @@ function compareVersions(a: Version, b: Version): number {
   return 0;
 }
 
-export function findNewerRelease(installedVersion: string, releases: unknown): AvailableUpdate | undefined {
+export function findNewerRelease(installedVersion: string, releases: unknown, supportedAbis?: string[]): AvailableUpdate | undefined {
   const installed = parseVersion(installedVersion);
   if (!installed || !Array.isArray(releases)) { return undefined; }
   let newest = installed;
@@ -70,19 +86,23 @@ export function findNewerRelease(installedVersion: string, releases: unknown): A
     result = {
       version: item.tag_name.replace(/^v/, ''),
       url: RELEASE_PAGE + encodeURIComponent(item.tag_name),
-      apk: selectUpdateApk(item.assets)
+      apk: selectUpdateApk(item.assets, supportedAbis)
     };
   }
   return result;
 }
 
-export async function checkForUpdate(installedVersion: string, fetcher: typeof fetch = fetch): Promise<AvailableUpdate | undefined> {
+export async function checkForUpdate(
+  installedVersion: string,
+  fetcher: typeof fetch = fetch,
+  supportedAbis?: string[]
+): Promise<AvailableUpdate | undefined> {
   if (!parseVersion(installedVersion)) { return undefined; }
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10000);
   try {
     const response = await fetcher(RELEASES_URL, { signal: controller.signal, headers: { Accept: 'application/vnd.github+json' } });
-    return response.ok ? findNewerRelease(installedVersion, await response.json()) : undefined;
+    return response.ok ? findNewerRelease(installedVersion, await response.json(), supportedAbis) : undefined;
   } catch {
     return undefined;
   } finally {
