@@ -126,7 +126,7 @@ WorkManager is best effort. Battery saver, device-vendor restrictions, connectiv
 - `src/domain/parser.ts` - fetch and site parsers.
 - `src/domain/sites.ts` - site registry and URL cleaning.
 - `src/domain/checker.ts` - check orchestration and alert rules.
-- `src/components/` - reusable UI, including `AppText`, `AppTextInput`, `ProductCard`, and `SiteIcon`.
+- `src/components/` - reusable UI, including `AppText`, `AppTextInput`, `Surface`, `ProductCard`, and `SiteIcon`.
 - `src/theme/layout.ts` - compact layout helper.
 - `android/app/src/main/java/com/qeemat/` - Android WorkManager, notifications, and WebView modules.
 - `docs/bfl-integration.md` - BFL's current rendered parser and historical fetch limitations.

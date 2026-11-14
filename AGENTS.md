@@ -32,7 +32,7 @@ assets/site-icons/— per-store favicon PNGs
 - **Screens** live in `App.tsx` as top-level function components with a manual `Route` union type stack. No React Navigation.
 - **Domain layer** is pure TypeScript; no React imports. Keeps parsers, price formatting, date helpers, and site config separate from UI.
 - **Types** are defined in `src/domain/types.ts`. Add new `SiteKey` values there first; then `sites.ts`, then parser logic, then tests.
-- **Components** use a wrapper `<AppText>` instead of raw `<Text>` for consistent typography, and `<AppTextInput>` instead of raw `<TextInput>` for the shared 52-high field role (labels, focus/error states, 1.3 text cap, `bare` variant for embedded search rows). All colors come from `src/theme/theme.ts`.
+- **Components** use a wrapper `<AppText>` instead of raw `<Text>` for consistent typography, `<AppTextInput>` instead of raw `<TextInput>` for the shared 52-high field role (labels, focus/error states, 1.3 text cap, `bare` variant for embedded search rows), and `<Surface>` for flat card/muted/accent surfaces instead of repeating background, border, radius and padding styles. All colors come from `src/theme/theme.ts`.
 - **Styles** use React Native `StyleSheet.create` at the bottom of each file.
 - **Icons** come from `lucide-react-native`.
 - **Storage** is AsyncStorage (flat key-value). Each entity type has its own key namespace managed through `src/data/database.ts`.

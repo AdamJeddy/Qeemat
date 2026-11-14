@@ -98,6 +98,7 @@ Use the 4/8/12/16/24/32 `spacing` scale in React Native density-independent unit
 Page background is `colors.background` (#F8FAFC); inline cards are flat white (`colors.surface`) with a 1px `colors.border` border; muted insets use `colors.surfaceMuted` (#F1F5F9). Radii come from the `radius` scale (sm 6, md 8, lg 12; pills use 999). Overlay sheets keep the shared `shadow` (8 vertical offset, 0.08 opacity, 18 radius, Android elevation 3); inline cards carry no shadow.
 
 - **Shipped:** flat Watchlist rows, Settings cards, product-detail insight cards, empty-state cards, the Add-product preview card and the onboarding card; overlay sheets and the floating bulk action bar keep the `shadow` token for genuine layering.
+- **Shipped (14 November 2026):** `Surface` in `src/components/Surface.tsx` provides the shared flat-surface role — `card` (white, 1px border), `muted` (surfaceMuted inset), `accent` (blueSoft) and `plain`, with token-based padding and radius. Search discovery/product cards, the discovery setup/empty cards, Watchlist/Activity empty states and product-detail insight cards render through it. Remaining local card styles visually match the role and can migrate without changing their treatment.
 - **Intended:** no further inline shadows; future elevated elements should be limited to floating layers.
 
 ## Actions
