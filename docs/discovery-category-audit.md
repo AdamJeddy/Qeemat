@@ -1,5 +1,7 @@
 # Discovery category coverage audit
 
+**Status: historical work log (started 26 October 2026).** The registry has since expanded to 4,584 mapped listing entries across 20 supported storefronts plus experimental BFL. This audit records the original expansion investigation and its extraction/validation gaps; use [current-state.md](current-state.md) for current discovery behavior.
+
 Started 26 October 2026, after Carrefour PR #68 merged. This is an implementation work log and source map, not a claim that every discovered URL already supplies products.
 
 The previous registry had 23 selected listings for 19 retailers. Four interests combined unrelated shopping choices and electronics supply was concentrated on headphones. The replacement must make each retailer's departments and product listings browsable, with independent shopping interests and budgets.

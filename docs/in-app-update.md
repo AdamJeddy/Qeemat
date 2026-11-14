@@ -1,6 +1,6 @@
 # In-app updates
 
-Qeemat can download and install a newer GitHub release without leaving the app. This document records the shipped flow, its constraints and the device verification for issue #83.
+Qeemat can download and install a newer GitHub release without leaving the app. The flow shipped in [v0.6.5-alpha](https://github.com/AdamJeddy/Qeemat/releases/tag/v0.6.5-alpha); this document records the shipped flow, its constraints and the device verification for issue #83, plus the background notification copy.
 
 ## Flow
 
@@ -31,7 +31,7 @@ Both the background update notification and the in-app popup refer to the same i
 
 ## Verification (14 November 2026)
 
-Samsung SM-S928B, Android 17 / API 37, 1440 × 3120, connected via wireless debugging. Verification builds use `versionName` `0.5.5-alpha` and `versionCode` 4 so a real `0.6.0-alpha` release is offered while the signing key and version code stay compatible:
+The verification below used temporary test builds with `versionName` `0.5.5-alpha` and `versionCode` 4 so a real `0.6.0-alpha` release was offered while the signing key and version code stayed compatible. It was run on the Samsung SM-S928B (Android 17 / API 37, 1440 × 3120). The flow itself shipped to users in v0.6.5-alpha; the notification copy was later refreshed to the wording above.
 
 - The update popup appeared over the Watchlist for `0.6.0-alpha` with **Download and install** and **Release notes**. [screenshot](assets/app-update-2026-11-14/update-available.png)
 - Closing the popup added red badges to the bell and the Activity tab. [Watchlist](assets/app-update-2026-11-14/update-bell-badge.png)

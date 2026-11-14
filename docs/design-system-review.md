@@ -18,15 +18,15 @@ Reviewed 13 November 2026 against the current React Native code and Watchlist, S
 5. **Accessibility and adaptation.** `AppText` caps font scaling at 1.3; some controls lack explicit roles or labels. A 1.3 font-scale phone check confirmed Watchlist control wrapping, but not TalkBack, contrast or larger scales throughout the app. Set a scaling and touch-target policy, then verify each screen.
 6. **System documentation and governance.** `DESIGN.md` now records the existing baseline and chosen direction, but it does not yet define complete states or a validated component catalog. Update it alongside implemented primitives and distinguish desired direction from shipped behavior.
 
-**Status at 14 November 2026** (after the Watchlist/status work in PR #84 and the in-app update UI in PR #85; source inspection at `32a6163`, device passes recorded in [`design-qa.md`](../design-qa.md)):
+**Status at 15 November 2026** (after the Explore redesign shipped in v0.6.5-alpha; source inspection and device evidence in [`design-qa.md`](../design-qa.md)):
 
 | # | Status | Evidence and remaining work |
 | --- | --- | --- |
 | 1 | Mostly shipped | `StatusPill` renders a neutral blue check (`16019c1`), `PriceDirectionBadge` renders green drops and red rises, and `SourceLabel` renders provenance as muted text instead of a coloured badge (`6794cec`); snapshot prices are tinted by direction. Full unification is still intended: `StatusPill` remains product-detail only and the price-history chart keeps its own change indicator. |
 | 2 | Partial | Settings, Watchlist rows, product-detail insight cards and the update surfaces use flat bordered surfaces. Form fields share the 52-high `AppTextInput` role with focus/error states, and `Surface` now provides the shared card/muted/accent surface role used by Search discovery cards, empty states and detail insight cards. Search filter chips and some remaining local card styles still carry their own treatment (`DESIGN.md` marks chip consolidation **intended**). |
-| 3 | Mostly shipped | Add puts **Find product** after the URL field and collapses supported stores; Settings is task-first; Search discovery cards use a compact outline Track action plus direction badges; product detail matches the Watchlist language with a blue banner, compact summary card, divided insight rows, a collapsed About this item disclosure and shortened snapshot list. A fuller Search hierarchy and further chart hierarchy refinement remain **intended**. |
+| 3 | Shipped | Add puts **Find product** after the URL field and collapses supported stores; Settings is task-first; Search discovery cards use a compact outline Track action plus direction badges; product detail matches the Watchlist language with a blue banner, compact summary card, divided insight rows, a collapsed About this item disclosure and shortened snapshot list; Explore now uses the Watchlist banner/row language, grouped comparison rows, a compare sheet and automatic continuation. Further chart hierarchy refinement remains **intended**. |
 | 4 | Tokens shipped, adoption partial | Semantic `typography` and `layoutMetrics` roles ship in `src/theme/theme.ts`, and `AppText` renders on the body role. Screens still set many local font sizes and spacing values, so app-wide adoption is incomplete. |
-| 5 | Partial | Font scaling caps at 1.3 for `AppText` and every current `TextInput`; the live font-scale remeasure is fixed (`bb1883f`); contrast was measured against WCAG AA and 1.3/1.5 layouts match. TalkBack order/heading announcement, landscape, other Android versions/devices and some loading/error/selection states remain unverified. |
+| 5 | Partial | Font scaling caps at 1.3 for `AppText` and every current `TextInput`; the live font-scale remeasure is fixed (`bb1883f`); contrast was measured against WCAG AA and 1.3/1.5 layouts match. Landscape Watchlist, the accessibility tree and 44dp targets were checked; TalkBack order/heading announcement, dark mode and other Android versions/devices remain unverified. |
 | 6 | Partial | `DESIGN.md` now separates shipped from intended behaviour and documents type, spacing, surfaces, actions, inputs and status rules. A validated component catalog and complete state matrix are still missing. |
 
 ## Suggested sequence
@@ -34,7 +34,7 @@ Reviewed 13 November 2026 against the current React Native code and Watchlist, S
 1. Define status semantics and fix the misleading direction indicator. **Done.**
 2. Establish type, spacing, surface and action roles, using real examples from all four screens. **Tokens done; screen adoption partial.**
 3. Build a small set of shared primitives and state examples, including large-text and error cases. **Status, input and surface primitives done; chip/action consolidation still intended.**
-4. Apply them screen by screen, beginning with Watchlist and product detail, followed by Search and Settings; validate on device. **Watchlist, product detail, Add, Settings and Activity done; a fuller Search hierarchy is still open.**
+4. Apply them screen by screen, beginning with Watchlist and product detail, followed by Search and Settings; validate on device. **Watchlist, product detail, Add, Settings, Activity and Explore are done in v0.6.5-alpha; shared chip/action consolidation remains a possible follow-up.**
 
 ## Scope of verification
 

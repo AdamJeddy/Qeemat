@@ -1,5 +1,7 @@
 # For You screenshots — 28 October 2026
 
+**Status: historical.** These screenshots predate the Explore redesign and the removal of the personalization quiz/interests; use the [Explore iteration gallery](../explore-iteration-2026-11-14/README.md) for current UI evidence.
+
 Captured on the installed standalone Android release on a Samsung SM-S928B, runtime commit `2d4fb7f` (version 0.5.5-alpha). Products, observed prices, and result counts reflect the device's live and cached listings at the time of capture; they will change.
 
 - [Landing and personalized picks](landing.png)

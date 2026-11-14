@@ -1,6 +1,8 @@
-# For You source register
+# Discovery source register
 
-**Category expansion, 27 October 2026:** the active department browser now uses per-retailer maps under [`src/domain/discoverySources/`](../src/domain/discoverySources/), with 4,517 named listings across all 19 retailers. The [category audit](discovery-category-audit.md) records this expansion and its validation gaps. The selected-collection URLs and Android counts below are historical evidence from 25–26 October, not validation of every expanded listing. Open **Browse departments & retailers → All listings** in the app to search the current registry, browse a PLP in the same feed, and open its exact retailer URL.
+**Status: historical validation snapshot plus current source map.** The registry now contains **4,584 mapped listing entries across 20 supported storefronts**, plus the experimental BFL source map. The URLs and Android counts below are the 25–27 October validation evidence, not a guarantee that every mapped collection still loads or that every store's inventory is available. Current behavior and limits are in [current-state.md](current-state.md).
+
+**Category expansion, 27 October 2026:** the active department browser uses per-retailer maps under [`src/domain/discoverySources/`](../src/domain/discoverySources/), with 4,584 named listing entries across 20 supported storefronts plus BFL. The [category audit](discovery-category-audit.md) records this expansion and its validation gaps. Open **Browse departments & retailers → All listings** in the app to search the current registry, browse a PLP in the same feed, and open its exact retailer URL.
 
 Verified against source and a connected Galaxy S24 Ultra on 25 October 2026. This is a validation snapshot: retailer counts, prices, rate limits, and bot challenges can change.
 
@@ -16,7 +18,7 @@ The last endpoint returned an empty product array in this audit. It has been rep
 
 ## Current sources
 
-Carrefour UAE was added on 26 October after the original audit below. The registry now covers 19 retailers, including experimental BFL. Its Headphones & Earphones collection uses `https://www.carrefouruae.com/mafuae/en/c/NF1210300`; desktop and native Android responses supplied 61 distinct seller-specific product listings. This addition does not broaden the other retailers' selected collections; category coverage is a separate follow-up.
+Carrefour UAE was added on 26 October after the original audit below. The registry now covers 20 supported storefronts plus experimental BFL. Its Headphones & Earphones collection uses `https://www.carrefouruae.com/mafuae/en/c/NF1210300`; desktop and native Android responses supplied 61 distinct seller-specific product listings. This addition does not broaden the other retailers' selected collections; category coverage is a separate follow-up.
 
 The original 25 October audit covered all 18 retailers then registered. **17 retailers supplied products on Android; Brands For Less did not.** That observed personalized feed contained **649 available products across four categories**, before the later source-limit increase and Carrefour addition. These are locally fetched listings, not a bundled sample catalogue.
 
