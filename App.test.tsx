@@ -767,7 +767,7 @@ describe('OpportunityScreen', () => {
     expect(feedRows[0].brand).toBe('Nike');
     expect(feedRows[0].relevance?.reason).toBeTruthy();
     const text = tree!.root.findAllByType(AppText).map(node => [node.props.children].flat().join('')).join(' ');
-    expect(text).toContain('On your watchlist at');
+    expect(text).toContain('On your watchlist');
     expect(text).toContain('Because you track Nike Air Zoom Pegasus 41 Running Shoes');
     await act(async () => tree!.unmount());
     listTracked.mockRestore();
@@ -812,7 +812,7 @@ describe('OpportunityScreen', () => {
     const [group] = rows(tree!);
     expect(group.trackedProduct?.id).toBe(3);
     const text = tree!.root.findAllByType(AppText).map(node => [node.props.children].flat().join('')).join(' ');
-    expect(text).toContain('On your watchlist at');
+    expect(text).toContain('On your watchlist');
     await act(async () => tree!.unmount());
     listTracked.mockRestore();
   });

@@ -21,6 +21,11 @@ export type SearchProductRowProps = {
   compact?: boolean;
 };
 
+/** Retailer titles sometimes start lowercase; capitalizing the first glyph is display-only. */
+function displayTitle(value: string): string {
+  return value ? value.charAt(0).toUpperCase() + value.slice(1) : value;
+}
+
 /** Up to this many source icons fit on one line at 343dp with large text. */
 const MAX_SOURCE_ICONS = 4;
 
@@ -67,14 +72,16 @@ export function SearchProductRow({ group, onPress, onTrack, onOpenTracker, track
         : 'No stores';
   const storeCountLabel = group.bestOffer && group.offers.length > 1 ? `${group.offers.length} stores` : undefined;
   const saving = group.bestOffer && (group.priceSpreadMinor ?? 0) > 0 ? `Save ${formatPrice(group.priceSpreadMinor, group.currency)}` : undefined;
-  const trackedLabel = group.trackedProduct ? `On your watchlist at ${getSiteByKey(group.trackedProduct.siteKey).shortName}` : undefined;
+  const trackedLabel = group.trackedProduct ? 'On your watchlist' : undefined;
   const showStoreLine = trackedLabel ? group.offers.length > 1 : true;
   const reason = group.relevance?.reason && !(group.trackedProduct && group.relevance.reason.startsWith('You track this')) ? group.relevance.reason : undefined;
+  const brandLabel = group.brand && group.brand !== 'Other brands' ? displayTitle(group.brand) : undefined;
   const categoryLabel = group.category === 'general' ? undefined : DISCOVERY_CATEGORY_LABELS[group.category];
-  const categoryLine = [group.brand && group.brand !== 'Other brands' ? group.brand : undefined, categoryLabel].filter(Boolean).join(' · ');
+  const categoryLine = [brandLabel, categoryLabel].filter(Boolean).join(' · ');
+  const titleLabel = displayTitle(group.title);
   const accessibilityLabel = [
-    group.title,
-    group.brand,
+    titleLabel,
+    brandLabel,
     priceDisplay,
     storeLabel,
     trackedLabel,
@@ -111,7 +118,7 @@ export function SearchProductRow({ group, onPress, onTrack, onOpenTracker, track
               </AppText>
             ) : null}
             <AppText weight="semibold" numberOfLines={2} style={styles.title}>
-              {group.title}
+              {titleLabel}
             </AppText>
             <View style={styles.priceRow}>
               <AppText weight="bold" style={styles.price}>

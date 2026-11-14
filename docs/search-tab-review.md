@@ -86,6 +86,10 @@ Supporting surfaces: department tiles (`DiscoveryDepartments`), a full browse sh
 6. Pull-to-refresh reuses the existing force refresh; the freshness line says when observed prices were checked and whether cached results are stale.
 7. Empty states: no tracker yet (explain relevance and offer Explore all), loading stream, filtered-to-nothing, refresh failure with saved listings.
 
+### Follow-up after the first visual review (14 November 2026)
+
+The first device look showed the Search banner content sitting on the screen edges. The Search ScrollView was missing the base 20dp gutter that the Watchlist has, so the banner's full-bleed negative margin cancelled its internal padding. The ScrollView now carries the same gutter and the body no longer double-pads; the banner title, subtitle, Qeemat lockup, count pill, search field and coverage/refresh controls all line up on the Watchlist content line. The review also shortened the tracked row annotation to “On your watchlist” and capitalises a lowercase retailer title's first display glyph (display-only; retailer text is unchanged in the compare sheet).
+
 ### Search mode — “find it, compare it”
 
 1. The same banner search field; explicit submit only; typing does not fetch.

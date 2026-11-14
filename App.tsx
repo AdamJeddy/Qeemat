@@ -2577,10 +2577,10 @@ export function OpportunityScreen({ navigate, active = true, sessionOffset }: { 
               <AppText weight="bold" style={styles.watchlistBrand}>Qeemat</AppText>
             </View>
             <View style={styles.watchlistHeaderActions}>
-              <Pressable accessibilityRole="button" accessibilityLabel="Browse departments, stores and coverage" onPress={() => setShowSources(true)} style={styles.watchlistSearchButton}>
+              <Pressable accessibilityRole="button" accessibilityLabel="Browse departments, stores and coverage" focusable={false} android_ripple={{ color: 'transparent' }} onPress={() => setShowSources(true)} style={styles.watchlistSearchButton}>
                 <BookOpen size={22} color={colors.surface} />
               </Pressable>
-              <Pressable accessibilityRole="button" accessibilityLabel="Refresh discovery products" accessibilityState={{ disabled: catalogBusy || refreshing }} disabled={catalogBusy || refreshing} onPress={refresh} style={styles.watchlistSearchButton}>
+              <Pressable accessibilityRole="button" accessibilityLabel="Refresh discovery products" focusable={false} android_ripple={{ color: 'transparent' }} accessibilityState={{ disabled: catalogBusy || refreshing }} disabled={catalogBusy || refreshing} onPress={refresh} style={styles.watchlistSearchButton}>
                 {catalogBusy || refreshing ? <ActivityIndicator size="small" color={colors.surface} /> : <RefreshCcw size={21} color={colors.surface} />}
               </Pressable>
             </View>
@@ -3985,7 +3985,12 @@ const styles = StyleSheet.create({
     marginTop: -2
   },
   searchScrollContent: {
-    paddingBottom: 110
+    // The Search banner is full-bleed via a negative margin, exactly like the
+    // Watchlist banner. The ScrollView therefore needs the base screen gutter
+    // so the banner's internal padding lands on the normal 20dp content line.
+    paddingHorizontal: layoutMetrics.screenGutter,
+    paddingBottom: 110,
+    backgroundColor: colors.background
   },
   searchBannerSubtitle: {
     color: colors.blueSoft,
@@ -4022,7 +4027,6 @@ const styles = StyleSheet.create({
     lineHeight: 13
   },
   searchBody: {
-    paddingHorizontal: layoutMetrics.screenGutter,
     paddingTop: 12,
     paddingBottom: 8,
     gap: 12,

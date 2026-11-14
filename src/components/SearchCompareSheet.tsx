@@ -39,6 +39,11 @@ function availabilityLabel(availability: Availability): string {
   return 'Availability not confirmed';
 }
 
+/** Retailer titles sometimes start lowercase; capitalizing the first glyph is display-only. */
+function displayTitle(value: string): string {
+  return value ? value.charAt(0).toUpperCase() + value.slice(1) : value;
+}
+
 function availabilityStyle(availability: Availability) {
   if (availability === 'in_stock') {
     return styles.availabilityInStock;
@@ -108,7 +113,7 @@ export function SearchCompareSheet({
   const previousBestDifference = previousBestPriceMinor !== undefined && summaryOffer?.product.priceMinor !== undefined
     ? summaryOffer.product.priceMinor - previousBestPriceMinor
     : undefined;
-  const brandLabel = group && group.brand !== 'Other brands' ? group.brand : undefined;
+  const brandLabel = group && group.brand !== 'Other brands' ? displayTitle(group.brand) : undefined;
   const categoryLabel = group && group.category !== 'general' ? DISCOVERY_CATEGORY_LABELS[group.category] : undefined;
   const contextLine = group ? [brandLabel, categoryLabel].filter(Boolean).join(' · ') : '';
 
@@ -140,7 +145,7 @@ export function SearchCompareSheet({
 
             <View style={styles.heading}>
               {contextLine ? <AppText muted style={styles.contextLine}>{contextLine}</AppText> : null}
-              <AppText weight="bold" numberOfLines={4} style={styles.title}>{group.title}</AppText>
+              <AppText weight="bold" numberOfLines={4} style={styles.title}>{displayTitle(group.title)}</AppText>
             </View>
 
             <View style={styles.summary}>
