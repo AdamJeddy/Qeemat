@@ -33,23 +33,21 @@ export function DiscoverySearch({ query, result, groups, busy, retailer, onRetai
       counts.set(siteKey, (counts.get(siteKey) ?? 0) + 1);
     }
   }
-  const completed = STORES.filter((site) => {
-    const sources = result?.sources.filter((source) => source.request.siteKey === site) ?? [];
-    return sources.length && sources.every((source) => source.status !== 'loading');
-  }).length;
 
   return (
     <View style={styles.container}>
       <View style={styles.statusRow}>
-        <AppText muted accessibilityLiveRegion="polite" style={styles.flex}>{`${completed} of ${STORES.length} stores checked${busy ? ' · Searching…' : ''}`}</AppText>
+        <View style={styles.flex} />
         <Pressable accessibilityRole="button" accessibilityLabel="Search coverage" onPress={() => setShowCoverage(true)} style={styles.action}>
           <AppText style={styles.link}>Coverage</AppText>
         </Pressable>
       </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail}>
-        <DiscoveryFilterChip label={`All results (${groups.length})`} selected={!retailer} onPress={() => onRetailer(undefined)} />
-        {STORES.filter((site) => counts.has(site)).map((site) => <DiscoveryFilterChip key={site} label={`${getSiteByKey(site).shortName} (${counts.get(site)})`} selected={retailer === site} onPress={() => onRetailer(site === retailer ? undefined : site)} />)}
-      </ScrollView>
+      {groups.length || !busy ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail}>
+          <DiscoveryFilterChip label={`All results (${groups.length})`} selected={!retailer} onPress={() => onRetailer(undefined)} />
+          {STORES.filter((site) => counts.has(site)).map((site) => <DiscoveryFilterChip key={site} label={`${getSiteByKey(site).shortName} (${counts.get(site)})`} selected={retailer === site} onPress={() => onRetailer(site === retailer ? undefined : site)} />)}
+        </ScrollView>
+      ) : null}
       <Modal visible={showCoverage} transparent animationType="slide" onRequestClose={() => setShowCoverage(false)}>
         <View style={styles.backdrop}><SafeAreaView edges={['bottom']} style={styles.sheet}>
           <View style={styles.statusRow}><AppText weight="bold">Search coverage</AppText><Pressable accessibilityRole="button" accessibilityLabel="Close search coverage" onPress={() => setShowCoverage(false)} style={styles.action}><X size={22} color={colors.text} /></Pressable></View>

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Image, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ExternalLink, ImageOff, Plus, X } from 'lucide-react-native';
@@ -10,6 +10,7 @@ import { SiteIcon } from './SiteIcon';
 import { Surface } from './Surface';
 import { formatRelativeTime } from '../domain/dates';
 import { DISCOVERY_CATEGORY_LABELS } from '../domain/discovery';
+import { trackedFeedSaving } from '../domain/discoveryFeed';
 import { formatPrice } from '../domain/price';
 import { cleanUrl, getSiteByKey } from '../domain/sites';
 import { Availability, DiscoveryOffer, DiscoveryProductGroup } from '../domain/types';
@@ -100,9 +101,17 @@ export function SearchCompareSheet({
   onOpenTracker
 }: SearchCompareSheetProps) {
   const [imageFailed, setImageFailed] = useState(false);
-  const offers = group?.offers ?? [];
+  const offers = useMemo(() => {
+    const sortable = group?.offers ?? [];
+    return [...sortable].sort((left, right) => {
+      const leftPrice = left.product.priceMinor ?? Number.POSITIVE_INFINITY;
+      const rightPrice = right.product.priceMinor ?? Number.POSITIVE_INFINITY;
+      return leftPrice - rightPrice || Number(Boolean(right.comparable)) - Number(Boolean(left.comparable)) || left.order - right.order;
+    });
+  }, [group]);
   const bestOffer = group?.bestOffer;
   const trackedProduct = group?.trackedProduct;
+  const trackedSaving = group ? trackedFeedSaving(group) : undefined;
   const imageUrl = group?.imageUrl ?? offers.find((offer) => offer.product.imageUrl)?.product.imageUrl;
   const summaryOffer = bestOffer ?? (offers.length === 1 ? offers[0] : undefined);
   const primaryOffer = bestOffer ?? offers[0];
@@ -176,9 +185,17 @@ export function SearchCompareSheet({
             {trackedProduct ? (
               <Surface variant="muted" padding="sm" style={styles.trackedBlock}>
                 <View style={styles.trackedRow}>
-                  <AppText weight="semibold" style={styles.trackedText}>
-                    You track this at {getSiteByKey(trackedProduct.siteKey).shortName}
-                  </AppText>
+                  <View style={styles.flexTracked}>
+                    <AppText weight="semibold" style={styles.trackedText}>
+                      You track this at {getSiteByKey(trackedProduct.siteKey).shortName}
+                      {trackedProduct.currentPriceMinor !== undefined ? ` · ${formatPrice(trackedProduct.currentPriceMinor, trackedProduct.currency, trackedProduct.priceBasis)}` : ''}
+                    </AppText>
+                    {trackedSaving ? (
+                      <AppText weight="semibold" style={styles.trackedSaving}>
+                        {formatPrice(trackedSaving.savingMinor, group.currency)} cheaper at {getSiteByKey(trackedSaving.siteKey).shortName} than your watched price
+                      </AppText>
+                    ) : null}
+                  </View>
                   {onOpenTracker ? (
                     <PrimaryButton label="Open tracker" variant="outline" onPress={onOpenTracker} style={styles.trackedButton} />
                   ) : null}
@@ -186,9 +203,12 @@ export function SearchCompareSheet({
               </Surface>
             ) : null}
 
-            <AppText weight="bold" accessibilityRole="header" style={styles.sectionTitle}>
-              {offers.length === 1 ? 'Price' : `Prices across ${offers.length} stores`}
-            </AppText>
+            <View>
+              <AppText weight="bold" accessibilityRole="header" style={styles.sectionTitle}>
+                {offers.length === 1 ? 'Price' : `Prices across ${offers.length} stores`}
+              </AppText>
+              {offers.length > 1 ? <AppText muted style={styles.sortedHint}>Lowest price first</AppText> : null}
+            </View>
 
             {offers.map((offer) => {
               const product = offer.product;
@@ -397,6 +417,16 @@ const styles = StyleSheet.create({
     minWidth: 0,
     fontSize: 14
   },
+  flexTracked: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2
+  },
+  trackedSaving: {
+    color: colors.green,
+    fontSize: 13,
+    lineHeight: 18
+  },
   trackedButton: {
     minHeight: layoutMetrics.touchTarget,
     paddingHorizontal: 14
@@ -404,6 +434,11 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     lineHeight: 24
+  },
+  sortedHint: {
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 2
   },
   offerCard: {
     gap: 6

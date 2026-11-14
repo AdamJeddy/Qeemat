@@ -147,6 +147,21 @@ describe('SearchCompareSheet', () => {
     act(() => tree.unmount());
   });
 
+  it('lists store prices lowest first', () => {
+    const { tree } = renderSheet();
+    const labels = tree.root
+      .findAll((node) => typeof node.props.accessibilityLabel === 'string' && node.props.accessibilityLabel.startsWith('Track ') && node.props.accessibilityLabel.endsWith(' price'))
+      .map((node) => node.props.accessibilityLabel as string);
+    expect([...new Set(labels)]).toEqual(['Track Noon price', 'Track Namshi price', 'Track Amazon price']);
+  });
+
+  it('shows the saving against the watched price when another store is cheaper', () => {
+    const { tree } = renderSheet({ group: makeGroup({ trackedProduct }) });
+    const text = sheetText(tree);
+    expect(text).toContain('You track this at Amazon · AED 249');
+    expect(text).toContain('AED 50 cheaper at Noon than your watched price');
+  });
+
   it('summarizes the previous cross-store best price', () => {
     const { tree } = renderSheet({ group: makeGroup({ previousBestPriceMinor: 21900 }) });
     const text = sheetText(tree);

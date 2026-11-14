@@ -6,6 +6,7 @@ import { AppText } from './AppText';
 import { PriceDirectionBadge } from './PriceDirectionBadge';
 import { SiteIcon } from './SiteIcon';
 import { DISCOVERY_CATEGORY_LABELS } from '../domain/discovery';
+import { trackedFeedSaving } from '../domain/discoveryFeed';
 import { formatPrice } from '../domain/price';
 import { getSiteByKey } from '../domain/sites';
 import { DiscoveryOffer, DiscoveryProductGroup } from '../domain/types';
@@ -78,6 +79,10 @@ export function SearchProductRow({ group, onPress, onTrack, onOpenTracker, track
   const brandLabel = group.brand && group.brand !== 'Other brands' ? displayTitle(group.brand) : undefined;
   const categoryLabel = group.category === 'general' ? undefined : DISCOVERY_CATEGORY_LABELS[group.category];
   const categoryLine = [brandLabel, categoryLabel].filter(Boolean).join(' · ');
+  const trackedSaving = trackedFeedSaving(group);
+  const trackedSavingLabel = trackedSaving
+    ? `${formatPrice(trackedSaving.savingMinor, group.currency)} cheaper at ${getSiteByKey(trackedSaving.siteKey).shortName} than your watched price`
+    : undefined;
   const titleLabel = displayTitle(group.title);
   const accessibilityLabel = [
     titleLabel,
@@ -138,6 +143,11 @@ export function SearchProductRow({ group, onPress, onTrack, onOpenTracker, track
             {trackedLabel ? (
               <AppText muted style={styles.tracked}>
                 {trackedLabel}
+              </AppText>
+            ) : null}
+            {trackedSavingLabel ? (
+              <AppText weight="semibold" style={styles.trackedSaving}>
+                {trackedSavingLabel}
               </AppText>
             ) : null}
             {showStoreLine ? (
@@ -295,6 +305,11 @@ const styles = StyleSheet.create({
     fontSize: 11
   },
   tracked: {
+    fontSize: 12,
+    lineHeight: 17
+  },
+  trackedSaving: {
+    color: colors.green,
     fontSize: 12,
     lineHeight: 17
   },
