@@ -1,0 +1,590 @@
+[
+  {
+    "id": "hm_uae-shop-women-shop-product-dresses",
+    "label": "Dresses",
+    "siteKey": "hm_uae",
+    "category": "clothing",
+    "audience": "women",
+    "path": [
+      "Women",
+      "Dresses"
+    ],
+    "url": "https://ae.hm.com/en/shop-women/shop-product/dresses",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "hm_uae-shop-women-shop-product-shirts-blouses",
+    "label": "Shirts",
+    "siteKey": "hm_uae",
+    "category": "clothing",
+    "audience": "women",
+    "path": [
+      "Women",
+      "Shirts"
+    ],
+    "url": "https://ae.hm.com/en/shop-women/shop-product/shirts-blouses",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "hm_uae-shop-women-shop-product-tops",
+    "label": "Tops",
+    "siteKey": "hm_uae",
+    "category": "clothing",
+    "audience": "women",
+    "path": [
+      "Women",
+      "Tops"
+    ],
+    "url": "https://ae.hm.com/en/shop-women/shop-product/tops",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "hm_uae-shop-women-shop-product-trousers",
+    "label": "Trousers",
+    "siteKey": "hm_uae",
+    "category": "clothing",
+    "audience": "women",
+    "path": [
+      "Women",
+      "Trousers"
+    ],
+    "url": "https://ae.hm.com/en/shop-women/shop-product/trousers",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "hm_uae-shop-women-shop-product-jeans",
+    "label": "Jeans",
+    "siteKey": "hm_uae",
+    "category": "clothing",
+    "audience": "women",
+    "path": [
+      "Women",
+      "Jeans"
+    ],
+    "url": "https://ae.hm.com/en/shop-women/shop-product/jeans",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "hm_uae-shop-women-shop-product-jackets-coats",
+    "label": "Jackets & coats",
+    "siteKey": "hm_uae",
+    "category": "clothing",
+    "audience": "women",
+    "path": [
+      "Women",
+      "Jackets & coats"
+    ],
+    "url": "https://ae.hm.com/en/shop-women/shop-product/jackets-coats",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "hm_uae-shop-women-shop-product-sportswear",
+    "label": "Sportswear",
+    "siteKey": "hm_uae",
+    "category": "clothing",
+    "audience": "women",
+    "path": [
+      "Women",
+      "Sportswear"
+    ],
+    "url": "https://ae.hm.com/en/shop-women/shop-product/sportswear",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "hm_uae-shop-women-shop-product-shoes",
+    "label": "Shoes",
+    "siteKey": "hm_uae",
+    "category": "footwear",
+    "audience": "women",
+    "path": [
+      "Women",
+      "Shoes"
+    ],
+    "url": "https://ae.hm.com/en/shop-women/shop-product/shoes",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "hm_uae-shop-women-shop-product-shoes-trainers",
+    "label": "Trainers",
+    "siteKey": "hm_uae",
+    "category": "footwear",
+    "audience": "women",
+    "path": [
+      "Women",
+      "Trainers"
+    ],
+    "url": "https://ae.hm.com/en/shop-women/shop-product/shoes/trainers",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "hm_uae-shop-women-shop-product-accessories",
+    "label": "Accessories",
+    "siteKey": "hm_uae",
+    "category": "accessories",
+    "audience": "women",
+    "path": [
+      "Women",
+      "Accessories"
+    ],
+    "url": "https://ae.hm.com/en/shop-women/shop-product/accessories",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "hm_uae-shop-women-shop-product-accessories-bags",
+    "label": "Bags",
+    "siteKey": "hm_uae",
+    "category": "bags",
+    "audience": "women",
+    "path": [
+      "Women",
+      "Bags"
+    ],
+    "url": "https://ae.hm.com/en/shop-women/shop-product/accessories/bags",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "hm_uae-shop-women-shop-product-accessories-jewellery",
+    "label": "Jewellery",
+    "siteKey": "hm_uae",
+    "category": "jewellery",
+    "audience": "women",
+    "path": [
+      "Women",
+      "Jewellery"
+    ],
+    "url": "https://ae.hm.com/en/shop-women/shop-product/accessories/jewellery",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "hm_uae-shop-men-shop-product-shirts",
+    "label": "Shirts",
+    "siteKey": "hm_uae",
+    "category": "clothing",
+    "audience": "men",
+    "path": [
+      "Men",
+      "Shirts"
+    ],
+    "url": "https://ae.hm.com/en/shop-men/shop-product/shirts",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "hm_uae-shop-men-shop-product-t-shirts-tanks",
+    "label": "Tops",
+    "siteKey": "hm_uae",
+    "category": "clothing",
+    "audience": "men",
+    "path": [
+      "Men",
+      "Tops"
+    ],
+    "url": "https://ae.hm.com/en/shop-men/shop-product/t-shirts-tanks",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "hm_uae-shop-men-shop-product-trousers",
+    "label": "Trousers",
+    "siteKey": "hm_uae",
+    "category": "clothing",
+    "audience": "men",
+    "path": [
+      "Men",
+      "Trousers"
+    ],
+    "url": "https://ae.hm.com/en/shop-men/shop-product/trousers",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "hm_uae-shop-men-shop-product-jeans",
+    "label": "Jeans",
+    "siteKey": "hm_uae",
+    "category": "clothing",
+    "audience": "men",
+    "path": [
+      "Men",
+      "Jeans"
+    ],
+    "url": "https://ae.hm.com/en/shop-men/shop-product/jeans",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "hm_uae-shop-men-shop-product-jackets-coats",
+    "label": "Jackets & coats",
+    "siteKey": "hm_uae",
+    "category": "clothing",
+    "audience": "men",
+    "path": [
+      "Men",
+      "Jackets & coats"
+    ],
+    "url": "https://ae.hm.com/en/shop-men/shop-product/jackets-coats",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "hm_uae-shop-men-shop-product-sportswear",
+    "label": "Sportswear",
+    "siteKey": "hm_uae",
+    "category": "clothing",
+    "audience": "men",
+    "path": [
+      "Men",
+      "Sportswear"
+    ],
+    "url": "https://ae.hm.com/en/shop-men/shop-product/sportswear",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "hm_uae-shop-men-shop-product-shoes",
+    "label": "Shoes",
+    "siteKey": "hm_uae",
+    "category": "footwear",
+    "audience": "men",
+    "path": [
+      "Men",
+      "Shoes"
+    ],
+    "url": "https://ae.hm.com/en/shop-men/shop-product/shoes",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "hm_uae-shop-men-shop-product-shoes-trainers",
+    "label": "Trainers",
+    "siteKey": "hm_uae",
+    "category": "footwear",
+    "audience": "men",
+    "path": [
+      "Men",
+      "Trainers"
+    ],
+    "url": "https://ae.hm.com/en/shop-men/shop-product/shoes/trainers",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "hm_uae-shop-men-shop-product-accessories",
+    "label": "Accessories",
+    "siteKey": "hm_uae",
+    "category": "accessories",
+    "audience": "men",
+    "path": [
+      "Men",
+      "Accessories"
+    ],
+    "url": "https://ae.hm.com/en/shop-men/shop-product/accessories",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "hm_uae-shop-men-shop-product-accessories-bags",
+    "label": "Bags",
+    "siteKey": "hm_uae",
+    "category": "bags",
+    "audience": "men",
+    "path": [
+      "Men",
+      "Bags"
+    ],
+    "url": "https://ae.hm.com/en/shop-men/shop-product/accessories/bags",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "hm_uae-shop-men-shop-product-accessories-jewellery",
+    "label": "Jewellery",
+    "siteKey": "hm_uae",
+    "category": "jewellery",
+    "audience": "men",
+    "path": [
+      "Men",
+      "Jewellery"
+    ],
+    "url": "https://ae.hm.com/en/shop-men/shop-product/accessories/jewellery",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "hm_uae-shop-kids-girls-2-8y-clothing",
+    "label": "Girls 2 8Y clothing",
+    "siteKey": "hm_uae",
+    "category": "clothing",
+    "audience": "kids",
+    "path": [
+      "Kids",
+      "Girls 2 8Y clothing"
+    ],
+    "url": "https://ae.hm.com/en/shop-kids/girls-2-8y/clothing",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "hm_uae-shop-kids-girls-2-8y-shoes",
+    "label": "Girls 2 8Y shoes",
+    "siteKey": "hm_uae",
+    "category": "footwear",
+    "audience": "kids",
+    "path": [
+      "Kids",
+      "Girls 2 8Y shoes"
+    ],
+    "url": "https://ae.hm.com/en/shop-kids/girls-2-8y/shoes",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "hm_uae-shop-kids-boys-2-8y-clothing",
+    "label": "Boys 2 8Y clothing",
+    "siteKey": "hm_uae",
+    "category": "clothing",
+    "audience": "kids",
+    "path": [
+      "Kids",
+      "Boys 2 8Y clothing"
+    ],
+    "url": "https://ae.hm.com/en/shop-kids/boys-2-8y/clothing",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "hm_uae-shop-kids-boys-2-8y-shoes",
+    "label": "Boys 2 8Y shoes",
+    "siteKey": "hm_uae",
+    "category": "footwear",
+    "audience": "kids",
+    "path": [
+      "Kids",
+      "Boys 2 8Y shoes"
+    ],
+    "url": "https://ae.hm.com/en/shop-kids/boys-2-8y/shoes",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "hm_uae-shop-kids-girls-9-14y-clothing",
+    "label": "Girls 9 14Y clothing",
+    "siteKey": "hm_uae",
+    "category": "clothing",
+    "audience": "kids",
+    "path": [
+      "Kids",
+      "Girls 9 14Y clothing"
+    ],
+    "url": "https://ae.hm.com/en/shop-kids/girls-9-14y/clothing",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "hm_uae-shop-kids-girls-9-14y-shoes",
+    "label": "Girls 9 14Y shoes",
+    "siteKey": "hm_uae",
+    "category": "footwear",
+    "audience": "kids",
+    "path": [
+      "Kids",
+      "Girls 9 14Y shoes"
+    ],
+    "url": "https://ae.hm.com/en/shop-kids/girls-9-14y/shoes",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "hm_uae-shop-home-shop-product-vases-decorations",
+    "label": "Décor",
+    "siteKey": "hm_uae",
+    "category": "home",
+    "path": [
+      "Home",
+      "Décor"
+    ],
+    "url": "https://ae.hm.com/en/shop-home/shop-product/vases-decorations",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "hm_uae-shop-home-shop-product-bedding",
+    "label": "Bedding",
+    "siteKey": "hm_uae",
+    "category": "bedding",
+    "path": [
+      "Home",
+      "Bedding"
+    ],
+    "url": "https://ae.hm.com/en/shop-home/shop-product/bedding",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "hm_uae-shop-home-shop-product-furniture",
+    "label": "Furniture",
+    "siteKey": "hm_uae",
+    "category": "furniture",
+    "path": [
+      "Home",
+      "Furniture"
+    ],
+    "url": "https://ae.hm.com/en/shop-home/shop-product/furniture",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "hm_uae-shop-home-shop-product-storage-organizing",
+    "label": "Storage",
+    "siteKey": "hm_uae",
+    "category": "storage",
+    "path": [
+      "Home",
+      "Storage"
+    ],
+    "url": "https://ae.hm.com/en/shop-home/shop-product/storage-organizing",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "hm_uae-shop-home-shop-product-dinnerware-tableware",
+    "label": "Dinnerware",
+    "siteKey": "hm_uae",
+    "category": "kitchen",
+    "path": [
+      "Home",
+      "Dinnerware"
+    ],
+    "url": "https://ae.hm.com/en/shop-home/shop-product/dinnerware-tableware",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "hm_uae-shop-home-shop-product-cookware-bakeware",
+    "label": "Cookware",
+    "siteKey": "hm_uae",
+    "category": "kitchen",
+    "path": [
+      "Home",
+      "Cookware"
+    ],
+    "url": "https://ae.hm.com/en/shop-home/shop-product/cookware-bakeware",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "hm_uae-shop-home-shop-product-towels-bathroom-accessories",
+    "label": "Bathroom",
+    "siteKey": "hm_uae",
+    "category": "bathroom",
+    "path": [
+      "Home",
+      "Bathroom"
+    ],
+    "url": "https://ae.hm.com/en/shop-home/shop-product/towels-bathroom-accessories",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "hm_uae-shop-home-shop-product-lighting",
+    "label": "Lighting",
+    "siteKey": "hm_uae",
+    "category": "lighting",
+    "path": [
+      "Home",
+      "Lighting"
+    ],
+    "url": "https://ae.hm.com/en/shop-home/shop-product/lighting",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "hm_uae-shop-home-shop-product-toys",
+    "label": "Toys",
+    "siteKey": "hm_uae",
+    "category": "toys",
+    "path": [
+      "Home",
+      "Toys"
+    ],
+    "url": "https://ae.hm.com/en/shop-home/shop-product/toys",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "hm_uae-shop-beauty-beauty-products-makeup",
+    "label": "Makeup",
+    "siteKey": "hm_uae",
+    "category": "makeup",
+    "path": [
+      "Beauty",
+      "Makeup"
+    ],
+    "url": "https://ae.hm.com/en/shop-beauty/beauty-products/makeup",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "hm_uae-shop-beauty-beauty-products-skin-care",
+    "label": "Skincare",
+    "siteKey": "hm_uae",
+    "category": "skincare",
+    "path": [
+      "Beauty",
+      "Skincare"
+    ],
+    "url": "https://ae.hm.com/en/shop-beauty/beauty-products/skin-care",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "hm_uae-shop-beauty-beauty-products-bath-body",
+    "label": "Bath & body",
+    "siteKey": "hm_uae",
+    "category": "bath_body",
+    "path": [
+      "Beauty",
+      "Bath & body"
+    ],
+    "url": "https://ae.hm.com/en/shop-beauty/beauty-products/bath-body",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "hm_uae-shop-beauty-beauty-products-hair-care",
+    "label": "Hair care",
+    "siteKey": "hm_uae",
+    "category": "haircare",
+    "path": [
+      "Beauty",
+      "Hair care"
+    ],
+    "url": "https://ae.hm.com/en/shop-beauty/beauty-products/hair-care",
+    "provider": "html",
+    "isDepartment": false
+  },
+  {
+    "id": "hm_uae-shop-beauty-beauty-products-perfume",
+    "label": "Perfume",
+    "siteKey": "hm_uae",
+    "category": "fragrance",
+    "path": [
+      "Beauty",
+      "Perfume"
+    ],
+    "url": "https://ae.hm.com/en/shop-beauty/beauty-products/perfume",
+    "provider": "html",
+    "isDepartment": false
+  }
+]

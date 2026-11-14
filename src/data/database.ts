@@ -1,3 +1,4 @@
+import { mergeProductMetadata } from '../domain/productMetadata';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {
@@ -53,6 +54,8 @@ export async function initializeDatabase(): Promise<void> {
 
   // One-time migration: backfill activity events from existing snapshot data
   await migrateActivityEventsIfNeeded();
+  // One-time migration: remember the last actual price change for cards
+  await migrateLastPriceChangeIfNeeded();
 }
 
 export async function listTrackedProducts(): Promise<TrackedProduct[]> {
@@ -111,6 +114,10 @@ export async function createTrackedProduct(draft: ProductDraft): Promise<number>
     canonicalUrl: parsed.canonicalUrl,
     siteKey: parsed.siteKey,
     title: parsed.title,
+    sourceMetadata: parsed.sourceMetadata,
+    brand: draft.brand ?? parsed.sourceMetadata?.brand,
+    category: draft.category,
+    categoryExcluded: draft.categoryExcluded,
     imageUrl: parsed.imageUrl,
     currency: parsed.currency ?? 'AED',
     currentPriceMinor: parsed.priceMinor,
@@ -168,6 +175,7 @@ export async function updateTrackingSettings(
     minimumPriceDropMinor?: number;
     restockAlertEnabled?: boolean;
     folder?: string;
+    category?: import('../domain/discoveryCategories').ShoppingCategory | null;
     isActive: boolean;
   }
 ): Promise<void> {
@@ -187,6 +195,8 @@ export async function updateTrackingSettings(
             minimumPriceDropMinor: settings.minimumPriceDropMinor,
             restockAlertEnabled: settings.restockAlertEnabled ?? product.restockAlertEnabled ?? true,
             folder: normalizeFolderName(settings.folder, knownFolders),
+            category: settings.category === undefined ? product.category : settings.category ?? undefined,
+            categoryExcluded: settings.category === undefined ? product.categoryExcluded : settings.category === null,
             isActive: settings.isActive,
             updatedAt: now
           }
@@ -280,6 +290,65 @@ export async function listActivityEvents(limit = 50): Promise<ActivityEvent[]> {
 }
 
 const MIGRATION_KEY = 'qeemat.migrated-activity.v1';
+const PRICE_CHANGE_MIGRATION_KEY = 'qeemat.migrated-price-change.v1';
+
+/**
+ * The most recent check where the price actually changed, derived from stored
+ * snapshots (oldest to newest). Returns the price before that change and when
+ * it was detected. Flat checks after a change do not affect the result.
+ */
+export function deriveLastPriceChange(
+  snapshots: PriceSnapshot[]
+): { previousPriceMinor: number; at: string } | undefined {
+  const priced = snapshots
+    .filter((snapshot): snapshot is PriceSnapshot & { priceMinor: number } => snapshot.priceMinor !== undefined)
+    .sort((left, right) => left.checkedAt.localeCompare(right.checkedAt));
+
+  let previousPriceMinor: number | undefined;
+  let change: { previousPriceMinor: number; at: string } | undefined;
+
+  for (const snapshot of priced) {
+    if (previousPriceMinor !== undefined && snapshot.priceMinor !== previousPriceMinor) {
+      change = { previousPriceMinor, at: snapshot.checkedAt };
+    }
+    previousPriceMinor = snapshot.priceMinor;
+  }
+
+  return change;
+}
+
+async function migrateLastPriceChangeIfNeeded(): Promise<void> {
+  if (await AsyncStorage.getItem(PRICE_CHANGE_MIGRATION_KEY)) {
+    return;
+  }
+
+  const store = await readStore();
+  let changed = false;
+  const products = store.products.map((product) => {
+    if (product.lastPriceChangeAt !== undefined) {
+      return product;
+    }
+
+    const derived = deriveLastPriceChange(store.snapshots.filter((snapshot) => snapshot.trackedProductId === product.id));
+    if (!derived) {
+      return product;
+    }
+
+    changed = true;
+    return {
+      ...product,
+      lastPriceChangeMinor: derived.previousPriceMinor,
+      lastPriceChangeAt: derived.at
+    };
+  });
+
+  if (changed) {
+    await writeStore({ ...store, products });
+  }
+
+  await AsyncStorage.setItem(PRICE_CHANGE_MIGRATION_KEY, 'done');
+}
+
 
 async function migrateActivityEventsIfNeeded(): Promise<void> {
   const alreadyMigrated = await AsyncStorage.getItem(MIGRATION_KEY);
@@ -385,6 +454,7 @@ export async function recordSuccessfulCheck(
     previousPriceMinor !== undefined && newPriceMinor !== undefined && previousPriceMinor !== newPriceMinor
       ? 'price_changed'
       : 'ok';
+  const priceChanged = status === 'price_changed';
   const snapshot = createSnapshot(store.nextSnapshotId, product.id, parsed, status, source, undefined, checkedAt);
 
   await writeStore({
@@ -396,12 +466,16 @@ export async function recordSuccessfulCheck(
             ...item,
             canonicalUrl: parsed.canonicalUrl,
             title: parsed.title,
+            sourceMetadata: mergeProductMetadata(item.sourceMetadata, parsed.sourceMetadata),
+            brand: item.brand ?? parsed.sourceMetadata?.brand,
             imageUrl: parsed.imageUrl ?? item.imageUrl,
             currency: parsed.currency ?? item.currency,
             currentPriceMinor: newPriceMinor,
             priceBasis: parsed.priceBasis ?? item.priceBasis,
             lastAvailability: parsed.availability,
             previousPriceMinor,
+            lastPriceChangeMinor: priceChanged ? previousPriceMinor : item.lastPriceChangeMinor,
+            lastPriceChangeAt: priceChanged ? checkedAt : item.lastPriceChangeAt,
             lastCheckedAt: checkedAt,
             lastSuccessAt: checkedAt,
             lastErrorAt: undefined,

@@ -19,7 +19,7 @@ describe('background update checks', () => {
     check.mockResolvedValue(update); notify.mockResolvedValue(true);
     await runBackgroundUpdateCheck(); await runBackgroundUpdateCheck();
     expect(notify).toHaveBeenCalledTimes(1);
-    expect(notify).toHaveBeenCalledWith('0.6-alpha');
+    expect(notify).toHaveBeenCalledWith();
     check.mockResolvedValue({ ...update, version: '0.7-alpha' });
     await runBackgroundUpdateCheck();
     expect(notify).toHaveBeenCalledTimes(2);

@@ -11,13 +11,14 @@ import {
   Modal,
   NativeEventEmitter,
   NativeModules,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
+  Share,
   StatusBar,
   StyleSheet,
   Switch,
-  TextInput,
   useWindowDimensions,
   View
 } from 'react-native';
@@ -27,46 +28,58 @@ import {
   Archive,
   ArrowLeft,
   Bell,
+  Bookmark,
+  BookOpen,
   Check,
   ChevronDown,
+  ChevronRight,
   ChevronUp,
   CircleAlert,
   Clock,
+  Compass,
   Copy,
+  Download,
   FolderInput,
+  ImageOff,
   Link2,
-  PackageX,
   Pause,
   Plus,
   RefreshCcw,
+  Search,
+  Share2,
   Settings as SettingsIcon,
   SlidersHorizontal,
-  SquareStack,
-  Sparkles,
-  Store,
   Trash2,
-  TrendingDown,
-  TrendingUp,
   X
 } from 'lucide-react-native';
 
 import { AppText } from './src/components/AppText';
+import { AppTextInput } from './src/components/AppTextInput';
+import { ActivityList } from './src/components/ActivityList';
+import { Surface } from './src/components/Surface';
+import { FontScaleContext } from './src/theme/FontScaleContext';
 import { OptionGroup } from './src/components/OptionGroup';
 import { SiteIcon } from './src/components/SiteIcon';
 import { PriceChart } from './src/components/PriceChart';
+import { PriceDirectionBadge } from './src/components/PriceDirectionBadge';
 import { PrimaryButton } from './src/components/PrimaryButton';
 import { ProductCard } from './src/components/ProductCard';
+import { ProductCategoryPicker } from './src/components/ProductCategoryPicker';
+import { SearchCompareSheet } from './src/components/SearchCompareSheet';
+import { SearchFilterSheet, SearchFilters } from './src/components/SearchFilterSheet';
+import { SearchProductRow } from './src/components/SearchProductRow';
+import { SearchProgress } from './src/components/SearchProgress';
+import { SourceLabel } from './src/components/SourceLabel';
+import { DISCOVERY_CATEGORY_LABELS as SHOPPING_CATEGORY_LABELS, ShoppingCategory } from './src/domain/discoveryCategories';
+import { inferWatchlistCategory, watchlistCategories } from './src/domain/watchlistDiscovery';
+import { mergeProductMetadata } from './src/domain/productMetadata';
 import { StatusPill } from './src/components/StatusPill';
 import { VariantSelector } from './src/components/VariantSelector';
 import { UpdateNotice } from './src/components/UpdateNotice';
 import { clearUpdateNotificationHistory } from './src/domain/updateBackground';
-import {
-  DiscoveryFilterChip,
-  DiscoveryPreferencesSheet,
-  DiscoveryProductGrid,
-  DiscoverySetupCard,
-  EmptyDiscovery
-} from './src/components/Discovery';
+import { AvailableUpdate } from './src/domain/updates';
+import { checkForUpdateForDevice } from './src/domain/appUpdate';
+import { clearDismissedUpdateVersion, dismissUpdateVersion, getDismissedUpdateVersion, shouldBadgeUpdate } from './src/domain/updatePrompt';
 import {
   getBackgroundStatus,
   BackgroundStatus,
@@ -87,13 +100,13 @@ import {
   updateTrackingSettings
 } from './src/data/database';
 import {
+  advanceDiscoveryOffset,
   clearDiscoveryData,
   dismissDiscoveryProduct,
   getDiscoveryPreferences,
-  markDiscoveryProductsSeen,
-  saveDiscoveryPreferences
+  markDiscoveryProductsSeen
 } from './src/data/discovery';
-import { runBackgroundCheckOnce, scheduleBackgroundChecks, scheduleUpdateChecks, checkBatteryOptimizationExempt, requestBatteryOptimizationExemption, openAppSystemSettings } from './src/domain/backgroundScheduler';
+import { runBackgroundCheckOnce, scheduleBackgroundChecks, scheduleUpdateChecks, scheduleDiscoveryChecks, checkBatteryOptimizationExempt, requestBatteryOptimizationExemption, openAppSystemSettings } from './src/domain/backgroundScheduler';
 import { checkAllActiveProducts, checkProductById } from './src/domain/checker';
 import { availableCheckPreferences, formatRelativeTime, formatSnapshotTime } from './src/domain/dates';
 import { getOnboardingState, markOnboardingCompleted } from './src/domain/onboarding';
@@ -103,32 +116,42 @@ import { calculatePriceInsights } from './src/domain/priceInsights';
 import { formatPrice, parseTargetPriceInput } from './src/domain/price';
 import { priceBasisSuffix, verifyDiscoveryTrackingBasis } from './src/domain/priceBasis';
 import { cleanUrl, detectSharedUrl, detectSupportedSite, getSiteByKey, normalizeUrl, SUPPORTED_SITES } from './src/domain/sites';
-import { ActivityEvent, AlertMode, CheckPreference, DiscoveryCategory, DiscoveryPreferences, DiscoveryProduct, ParsedProduct, PriceSnapshot, ProductWithSnapshots, SnapshotSource, TrackedProduct } from './src/domain/types';
-import { colors, radius, shadow } from './src/theme/theme';
+import { ActivityEvent, AlertMode, CheckPreference, DiscoveryCategory, DiscoveryOffer, DiscoveryPreferences, DiscoveryProduct, DiscoveryProductGroup, ParsedProduct, PriceSnapshot, ProductWithSnapshots, SiteKey, TrackedProduct } from './src/domain/types';
+import { colors, layoutMetrics, radius, shadow, typography } from './src/theme/theme';
 import { isCompactLayout } from './src/theme/layout';
 import {
   filterWatchlistProducts,
   getWatchlistFolders,
   getWatchlistSites,
+  searchWatchlistProducts,
   sortWatchlistProducts,
-  WatchlistSort,
-  WatchlistStoreFilter
+  WatchlistSort
 } from './src/domain/watchlist';
+import { findTrackingMatches, trackingOptionLabel, TrackingMatch } from './src/domain/duplicates';
 import { resolveSelectedVariant, toVariantSelection, updateSelectedVariantAttributes, VariantAttributes } from './src/domain/variants';
 import {
-  buildDiscoverySections,
   DISCOVERY_CATEGORY_LABELS,
-  discoveryVariantChoices,
   discoveryFeedbackId,
+  discoveryVariantChoices,
   uniqueDiscoveryBrands,
   filterDiscoveryProducts,
   isDiscoveryProductDismissed
 } from './src/domain/discovery';
+import { groupDiscoveryProducts } from './src/domain/discoveryGroups';
+import { filterTrackedFeedGroups } from './src/domain/discoveryFeed';
+import { rankSearchGroups } from './src/domain/discoverySearchRanking';
+import {
+  buildDiscoveryTasteProfile,
+  discoveryTasteSummary,
+  hasDiscoveryTasteProfile,
+  rankDiscoveryGroups
+} from './src/domain/discoveryRanking';
 import { DiscoveryCatalogResult, loadDiscoveryCatalog } from './src/domain/discoveryCatalog';
 import { DiscoveryBrowseSheet } from './src/components/DiscoveryBrowseSheet';
 import { DiscoveryDepartments } from './src/components/DiscoveryDepartments';
 import { DiscoverySearch } from './src/components/DiscoverySearch';
 import { loadProductSearch, ProductSearchResult } from './src/domain/discoverySearchCatalog';
+import { buildSearchRequests, normalizeSearchQuery } from './src/domain/discoverySearch';
 import { DISCOVERY_SOURCE_MAPS, selectDiscoveryCollections } from './src/domain/discoverySources';
 
 type TabKey = 'watchlist' | 'opportunities' | 'activity' | 'settings';
@@ -164,17 +187,33 @@ const BACKGROUND_TIME_PRESETS = [
   { label: 'Evening', hour: 20 }
 ];
 
+/** Departments offered when no watchlist history narrows the feed. */
+const SEARCH_DEPARTMENTS: DiscoveryCategory[] = ['footwear', 'phones', 'skincare', 'fragrance', 'clothing', 'fresh_food'];
+const SEARCH_STORE_COUNT = new Set(buildSearchRequests('products').map((request) => request.siteKey)).size;
+/** In-memory discovery scope cache; mirrors the 24-hour retailer cache. */
+const DISCOVERY_SCOPE_TTL_MS = 24 * 60 * 60 * 1000;
+
 export default function App() {
-  const [route, setRoute] = useState<Route>({ name: 'tabs', tab: 'opportunities' });
+  const { fontScale } = useWindowDimensions();
+  const [route, setRoute] = useState<Route>({ name: 'tabs', tab: 'watchlist' });
+  const [discoveryOffset, setDiscoveryOffset] = useState(0);
+  const [lastTab, setLastTab] = useState<TabKey>('watchlist');
+  const [tabsRefreshKey, setTabsRefreshKey] = useState(0);
+  const previousRouteName = useRef(route.name);
   const [ready, setReady] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const shareEventId = useRef(0);
+  const [availableUpdate, setAvailableUpdate] = useState<AvailableUpdate>();
+  const [dismissedUpdateVersion, setDismissedUpdateVersion] = useState<string>();
+  const [updatePopupVisible, setUpdatePopupVisible] = useState(false);
 
   useEffect(() => {
     let active = true;
 
     (async () => {
       await initializeDatabase();
+      const offset = await advanceDiscoveryOffset().catch(() => 0);
+      if (active) { setDiscoveryOffset(offset); }
       const [backgroundStatus, onboarding] = await Promise.all([
         getBackgroundStatus(),
         getOnboardingState()
@@ -187,6 +226,7 @@ export default function App() {
       }
 
       await scheduleUpdateChecks().catch(() => false);
+      await scheduleDiscoveryChecks().catch(() => false);
       const scheduled = await scheduleBackgroundChecks(backgroundStatus.preferredHour).catch(() => false);
       if (scheduled) {
         await markBackgroundSchedule(backgroundStatus.preferredHour);
@@ -203,6 +243,38 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    let active = true;
+    const installedVersion = Platform.OS === 'android' ? NativeModules.QeematBackgroundCheck?.getConstants?.()?.appVersion : undefined;
+    (async () => {
+      const [dismissedVersion, update] = await Promise.all([
+        getDismissedUpdateVersion(),
+        typeof installedVersion === 'string' ? checkForUpdateForDevice(installedVersion) : Promise.resolve(undefined)
+      ]);
+      if (!active) {
+        return;
+      }
+      setDismissedUpdateVersion(dismissedVersion);
+      if (update) {
+        setAvailableUpdate(update);
+        setUpdatePopupVisible(dismissedVersion !== update.version);
+      }
+    })().catch(() => undefined);
+    return () => { active = false; };
+  }, []);
+
+  const dismissUpdate = useCallback((version: string) => {
+    setUpdatePopupVisible(false);
+    setDismissedUpdateVersion(version);
+    dismissUpdateVersion(version).catch(() => undefined);
+  }, []);
+
+  const openUpdatePopup = useCallback(() => {
+    if (availableUpdate) {
+      setUpdatePopupVisible(true);
+    }
+  }, [availableUpdate]);
+
+  useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
       const backRoute = getBackRoute(route);
       if (!backRoute) {
@@ -214,6 +286,22 @@ export default function App() {
     });
 
     return () => subscription.remove();
+  }, [route]);
+
+  useEffect(() => {
+    if (route.name === 'tabs') {
+      setLastTab(route.tab);
+    }
+  }, [route]);
+
+  // The tab stack stays mounted so lists keep their state. When a flow (Add,
+  // product detail, tracking settings) returns to the tabs, bump a refresh key
+  // so the visible tab reloads its stored data instead of showing stale rows.
+  useEffect(() => {
+    if (previousRouteName.current !== 'tabs' && route.name === 'tabs') {
+      setTabsRefreshKey((value) => value + 1);
+    }
+    previousRouteName.current = route.name;
   }, [route]);
 
   useEffect(() => {
@@ -245,18 +333,35 @@ export default function App() {
     );
   }
 
+  const blueStatusBar = ((route.name === 'tabs' && (route.tab === 'watchlist' || route.tab === 'opportunities')) || route.name === 'detail') && !showOnboarding;
+  const activeTab: TabKey = route.name === 'tabs' ? route.tab : lastTab;
+
   return (
+    <FontScaleContext.Provider value={fontScale}>
     <SafeAreaProvider>
-      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
-      <SafeAreaView style={styles.app}>
-        <UpdateNotice visible={route.name === 'tabs' && route.tab !== 'activity'} />
-        {route.name === 'tabs' ? <TabsScreen tab={route.tab} navigate={setRoute} /> : null}
+      <StatusBar barStyle={blueStatusBar ? 'light-content' : 'dark-content'} backgroundColor={blueStatusBar ? colors.primary : colors.background} />
+      <SafeAreaView edges={['top']} style={[styles.app, blueStatusBar && styles.watchlistSystemBar]}>
+      <SafeAreaView edges={['bottom', 'left', 'right']} style={styles.app}>
+        <UpdateNotice update={availableUpdate} visible={updatePopupVisible && !showOnboarding} onDismiss={dismissUpdate} />
+        <View style={route.name === 'tabs' ? styles.flex : styles.hiddenTab}>
+          <TabsScreen
+            tab={activeTab}
+            navigate={setRoute}
+            discoveryOffset={discoveryOffset}
+            refreshKey={tabsRefreshKey}
+            availableUpdate={availableUpdate}
+            showUpdateDot={shouldBadgeUpdate(availableUpdate, dismissedUpdateVersion)}
+            onOpenUpdate={openUpdatePopup}
+          />
+        </View>
         {route.name === 'add' ? <AddScreen initialUrl={route.initialUrl} shareEventId={route.shareEventId} returnTab={route.returnTab} navigate={setRoute} /> : null}
         {route.name === 'detail' ? <DetailScreen productId={route.id} navigate={setRoute} /> : null}
         {route.name === 'trackingSettings' ? <TrackingSettingsScreen productId={route.id} navigate={setRoute} /> : null}
         {showOnboarding ? <OnboardingOverlay onClose={() => setShowOnboarding(false)} /> : null}
       </SafeAreaView>
+      </SafeAreaView>
     </SafeAreaProvider>
+    </FontScaleContext.Provider>
   );
 }
 
@@ -307,7 +412,7 @@ function OnboardingOverlay({ onClose }: { onClose: () => void }) {
         <View style={onboardingStyles.iconCircle}>
           {step === 0 ? <Bell size={28} color={colors.primary} /> : <SettingsIcon size={28} color={colors.primary} />}
         </View>
-        <AppText weight="bold" style={onboardingStyles.title}>
+        <AppText weight="bold" accessibilityRole="header" style={onboardingStyles.title}>
           {step === 0 ? 'Stay on top of prices' : 'Run checks in background'}
         </AppText>
         <AppText muted style={onboardingStyles.body}>
@@ -356,33 +461,56 @@ function getBackRoute(route: Route): Route | undefined {
   return undefined;
 }
 
-function TabsScreen({ tab, navigate }: { tab: TabKey; navigate: (route: Route) => void }) {
+export function TabsScreen({
+  tab,
+  navigate,
+  discoveryOffset,
+  refreshKey = 0,
+  availableUpdate,
+  showUpdateDot = false,
+  onOpenUpdate
+}: {
+  tab: TabKey;
+  navigate: (route: Route) => void;
+  discoveryOffset?: number;
+  refreshKey?: number;
+  availableUpdate?: AvailableUpdate;
+  showUpdateDot?: boolean;
+  onOpenUpdate?: () => void;
+}) {
+  const [searchOpened, setSearchOpened] = useState(tab === 'opportunities');
+  useEffect(() => { if (tab === 'opportunities') { setSearchOpened(true); } }, [tab]);
   return (
     <View style={styles.app}>
-      {tab === 'watchlist' ? <WatchlistScreen navigate={navigate} /> : null}
-      {tab === 'opportunities' ? <OpportunityScreen navigate={navigate} /> : null}
-      {tab === 'activity' ? <ActivityScreen navigate={navigate} /> : null}
-      {tab === 'settings' ? <SettingsScreen /> : null}
+      {tab === 'watchlist' ? <WatchlistScreen navigate={navigate} refreshKey={refreshKey} showUpdateDot={showUpdateDot} /> : null}
+      {searchOpened || tab === 'opportunities' ? <View style={tab === 'opportunities' ? styles.flex : styles.hiddenTab}><OpportunityScreen navigate={navigate} active={tab === 'opportunities'} sessionOffset={discoveryOffset} /></View> : null}
+      {tab === 'activity' ? <ActivityScreen navigate={navigate} refreshKey={refreshKey} availableUpdate={availableUpdate} onOpenUpdate={onOpenUpdate} /> : null}
+      {tab === 'settings' ? <SettingsScreen refreshKey={refreshKey} /> : null}
       <View style={styles.tabBar}>
-        <TabButton active={tab === 'watchlist'} label="Watchlist" icon={<SquareStack />} onPress={() => navigate({ name: 'tabs', tab: 'watchlist' })} />
-        <TabButton active={tab === 'opportunities'} label="For you" icon={<Sparkles />} onPress={() => navigate({ name: 'tabs', tab: 'opportunities' })} />
-        <TabButton active={tab === 'activity'} label="Activity" icon={<Clock />} onPress={() => navigate({ name: 'tabs', tab: 'activity' })} />
+        <TabButton active={tab === 'watchlist'} label="Watchlist" icon={<Bookmark fill={tab === 'watchlist' ? colors.primary : 'none'} />} onPress={() => navigate({ name: 'tabs', tab: 'watchlist' })} />
+        <TabButton active={tab === 'opportunities'} label="Explore" icon={<Compass />} onPress={() => navigate({ name: 'tabs', tab: 'opportunities' })} />
+        <TabButton active={tab === 'activity'} label="Activity" icon={<Clock />} onPress={() => navigate({ name: 'tabs', tab: 'activity' })} showDot={showUpdateDot} />
         <TabButton active={tab === 'settings'} label="Settings" icon={<SettingsIcon />} onPress={() => navigate({ name: 'tabs', tab: 'settings' })} />
       </View>
     </View>
   );
 }
 
-function TabButton({ active, label, icon, onPress }: { active: boolean; label: string; icon: React.ReactElement; onPress: () => void }) {
+function TabButton({ active, label, icon, onPress, showDot = false }: { active: boolean; label: string; icon: React.ReactElement; onPress: () => void; showDot?: boolean }) {
   return (
-    <Pressable style={styles.tabButton} onPress={onPress}>
-      {React.cloneElement(icon as React.ReactElement<{ size: number; color: string }>, {
-        size: 22,
-        color: active ? colors.primary : colors.textMuted
-      })}
+    <Pressable accessibilityRole="tab" accessibilityLabel={label} accessibilityState={{ selected: active }} style={styles.tabButton} onPress={onPress}>
+      <View style={[styles.tabButtonContent, active && styles.tabButtonActive]}>
+      <View style={styles.tabIconWrap}>
+        {React.cloneElement(icon as React.ReactElement<{ size: number; color: string }>, {
+          size: 22,
+          color: active ? colors.primary : colors.textMuted
+        })}
+        {showDot ? <View style={styles.tabUpdateDot} /> : null}
+      </View>
       <AppText weight="semibold" style={[styles.tabLabel, active && styles.tabLabelActive]}>
         {label}
       </AppText>
+      </View>
     </Pressable>
   );
 }
@@ -391,13 +519,13 @@ function Header({ title, onBack }: { title: string; onBack?: () => void }) {
   return (
     <View style={styles.headerBar}>
       {onBack ? (
-        <Pressable onPress={onBack} style={styles.headerButton}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Go back" onPress={onBack} style={styles.headerButton}>
           <ArrowLeft size={22} color={colors.text} />
         </Pressable>
       ) : (
         <View style={styles.headerButton} />
       )}
-      <AppText weight="bold" style={styles.headerTitle} numberOfLines={1}>
+      <AppText weight="bold" accessibilityRole="header" style={styles.headerTitle} numberOfLines={1}>
         {title}
       </AppText>
       <View style={styles.headerButton} />
@@ -442,24 +570,24 @@ function WatchlistFilterRail({
 function WatchlistControlsSheet({
   visible,
   onClose,
-  trackedSites,
+  sites,
   folders,
-  storeFilter,
+  storeFilters,
   folderFilter,
   sort,
-  onStoreFilter,
+  onStoreFilters,
   onFolderFilter,
   onSort,
   onClear
 }: {
   visible: boolean;
   onClose: () => void;
-  trackedSites: WatchlistStoreFilter[];
+  sites: SiteKey[];
   folders: string[];
-  storeFilter: WatchlistStoreFilter;
+  storeFilters: SiteKey[];
   folderFilter?: string;
   sort: WatchlistSort;
-  onStoreFilter: (value: WatchlistStoreFilter) => void;
+  onStoreFilters: (value: SiteKey[]) => void;
   onFolderFilter: (value?: string) => void;
   onSort: (value: WatchlistSort) => void;
   onClear: () => void;
@@ -505,11 +633,11 @@ function WatchlistControlsSheet({
     <Modal visible transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
       <View style={styles.controlSheetOverlay}>
         <Animated.View pointerEvents="none" style={[styles.controlSheetScrim, { opacity: backdropOpacity }]} />
-        <Pressable accessibilityRole="button" accessibilityLabel="Close filters" style={styles.controlSheetBackdrop} onPress={onClose} />
+        <Pressable accessible={false} importantForAccessibility="no" style={styles.controlSheetBackdrop} onPress={onClose} />
         <Animated.View style={[styles.controlSheet, { transform: [{ translateY: sheetTranslateY }] }]}>
           <View style={styles.controlSheetHeader}>
             <View>
-              <AppText weight="bold" style={styles.controlSheetTitle}>Filter & sort</AppText>
+              <AppText weight="bold" accessibilityRole="header" style={styles.controlSheetTitle}>Filter & sort</AppText>
               <AppText muted style={styles.fieldHint}>Choose what you want to see.</AppText>
             </View>
             <Pressable accessibilityRole="button" accessibilityLabel="Close filters" onPress={onClose} style={styles.controlSheetClose}>
@@ -523,13 +651,36 @@ function WatchlistControlsSheet({
               selected={sort}
               onSelect={(value) => onSort((value as WatchlistSort | undefined) ?? 'recently_updated')}
             />
-            {trackedSites.length > 1 ? (
-              <WatchlistFilterRail
-                label="Store"
-                options={[{ value: 'all', label: 'All stores' }, ...trackedSites.filter((site): site is Exclude<WatchlistStoreFilter, 'all'> => site !== 'all').map((site) => ({ value: site, label: getSiteByKey(site).shortName }))]}
-                selected={storeFilter}
-                onSelect={(value) => onStoreFilter((value as WatchlistStoreFilter | undefined) ?? 'all')}
-              />
+            {sites.length > 1 ? (
+              <View style={styles.filterSection}>
+                <AppText weight="semibold" style={styles.filterLabel}>Stores</AppText>
+                <AppText muted style={styles.fieldHint}>Select any number of stores.</AppText>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.textFilterRail}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: storeFilters.length === 0 }}
+                    onPress={() => onStoreFilters([])}
+                    style={[styles.textFilterButton, storeFilters.length === 0 && styles.textFilterButtonSelected]}
+                  >
+                    <AppText weight="semibold" style={[styles.textFilterText, storeFilters.length === 0 && styles.textFilterTextSelected]}>All stores</AppText>
+                  </Pressable>
+                  {sites.map((site) => {
+                    const active = storeFilters.includes(site);
+                    return (
+                      <Pressable
+                        key={site}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Filter by ${getSiteByKey(site).shortName}`}
+                        accessibilityState={{ selected: active }}
+                        onPress={() => onStoreFilters(active ? storeFilters.filter((value) => value !== site) : [...storeFilters, site])}
+                        style={[styles.textFilterButton, active && styles.textFilterButtonSelected]}
+                      >
+                        <AppText weight="semibold" style={[styles.textFilterText, active && styles.textFilterTextSelected]}>{getSiteByKey(site).shortName}</AppText>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+              </View>
             ) : null}
             {folders.length > 0 ? (
               <WatchlistFilterRail
@@ -565,11 +716,11 @@ function BulkEditSheet({ visible, folders, selectedCount, onClose, onApply }: {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
       <View style={styles.controlSheetOverlay}>
-        <Pressable style={styles.controlSheetBackdrop} onPress={onClose} />
+        <Pressable accessible={false} importantForAccessibility="no" style={styles.controlSheetBackdrop} onPress={onClose} />
         <View style={styles.controlSheet}>
           <View style={styles.controlSheetHeader}>
-            <View><AppText weight="bold" style={styles.controlSheetTitle}>Move products</AppText><AppText muted style={styles.fieldHint}>{selectedCount} selected</AppText></View>
-            <Pressable onPress={onClose} style={styles.controlSheetClose}><X size={20} color={colors.text} /></Pressable>
+            <View><AppText weight="bold" accessibilityRole="header" style={styles.controlSheetTitle}>Move products</AppText><AppText muted style={styles.fieldHint}>{selectedCount} selected</AppText></View>
+            <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} style={styles.controlSheetClose}><X size={20} color={colors.text} /></Pressable>
           </View>
           <FolderPicker value={folder} folders={folders} onChange={setFolder} />
           <Pressable onPress={() => onApply({ clearFolder: true })} style={styles.bulkClearFolder}><AppText weight="semibold" style={styles.clearControlsText}>Remove from folder</AppText></Pressable>
@@ -580,18 +731,20 @@ function BulkEditSheet({ visible, folders, selectedCount, onClose, onApply }: {
   );
 }
 
-function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
+function WatchlistScreen({ navigate, refreshKey = 0, showUpdateDot = false }: { navigate: (route: Route) => void; refreshKey?: number; showUpdateDot?: boolean }) {
   const [products, setProducts] = useState<TrackedProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [checkingAll, setCheckingAll] = useState(false);
-  const [storeFilter, setStoreFilter] = useState<WatchlistStoreFilter>('all');
+  const [storeFilters, setStoreFilters] = useState<SiteKey[]>([]);
   const [folderFilter, setFolderFilter] = useState<string | undefined>();
   const [sort, setSort] = useState<WatchlistSort>('recently_updated');
   const [showControls, setShowControls] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const [selectedProductIds, setSelectedProductIds] = useState<Set<number>>(new Set());
   const [showBulkFolderPicker, setShowBulkFolderPicker] = useState(false);
+  const [searchExpanded, setSearchExpanded] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const loadProducts = useCallback(async () => {
     setProducts(await listTrackedProducts());
@@ -600,7 +753,7 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
 
   useEffect(() => {
     loadProducts();
-  }, [loadProducts]);
+  }, [loadProducts, refreshKey]);
 
   async function refresh() {
     setRefreshing(true);
@@ -644,8 +797,12 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
   const trackedSites = useMemo(() => getWatchlistSites(visibleProducts), [visibleProducts]);
   const folders = useMemo(() => getWatchlistFolders(products), [products]);
   const filteredProducts = useMemo(
-    () => sortWatchlistProducts(filterWatchlistProducts(visibleProducts, storeFilter, { folder: folderFilter }), sort),
-    [visibleProducts, storeFilter, folderFilter, sort]
+    () =>
+      searchWatchlistProducts(
+        sortWatchlistProducts(filterWatchlistProducts(visibleProducts, storeFilters, { folder: folderFilter }), sort),
+        searchQuery
+      ),
+    [visibleProducts, storeFilters, folderFilter, sort, searchQuery]
   );
   const selectedProducts = useMemo(
     () => products.filter((product) => selectedProductIds.has(product.id)),
@@ -654,17 +811,19 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
   const shouldPauseSelected = selectedProducts.length > 0 && selectedProducts.every((product) => product.isActive);
   const inStock = filteredProducts.filter((p) => p.lastAvailability !== 'out_of_stock');
   const oos = filteredProducts.filter((p) => p.lastAvailability === 'out_of_stock');
-  const activeControlCount = (storeFilter !== 'all' ? 1 : 0) + (folderFilter ? 1 : 0) + (sort !== 'recently_updated' ? 1 : 0);
+  const activeControlCount = (storeFilters.length > 0 ? 1 : 0) + (folderFilter ? 1 : 0) + (sort !== 'recently_updated' ? 1 : 0) + (searchQuery.trim() ? 1 : 0);
   const activeControlSummary = [
-    storeFilter === 'all' ? undefined : getSiteByKey(storeFilter).shortName,
+    storeFilters.length > 0 ? storeFilters.map((site) => getSiteByKey(site).shortName).join(', ') : undefined,
     folderFilter,
-    sort === 'recently_updated' ? undefined : WATCHLIST_SORT_OPTIONS.find((option) => option.value === sort)?.label
+    sort === 'recently_updated' ? undefined : WATCHLIST_SORT_OPTIONS.find((option) => option.value === sort)?.label,
+    searchQuery.trim() ? `“${searchQuery.trim()}”` : undefined
   ].filter(Boolean).join(' · ');
 
   function clearControls() {
-    setStoreFilter('all');
+    setStoreFilters([]);
     setFolderFilter(undefined);
     setSort('recently_updated');
+    setSearchQuery('');
   }
 
   function toggleSelection(id: number) {
@@ -699,10 +858,11 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
   }
 
   useEffect(() => {
-    if (storeFilter !== 'all' && !trackedSites.includes(storeFilter)) {
-      setStoreFilter('all');
-    }
-  }, [storeFilter, trackedSites]);
+    setStoreFilters((current) => {
+      const next = current.filter((site) => trackedSites.includes(site));
+      return next.length === current.length ? current : next;
+    });
+  }, [trackedSites]);
 
   useEffect(() => {
     if (folderFilter && !folders.includes(folderFilter)) {
@@ -712,34 +872,94 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
 
   return (
     <View style={styles.app}>
-      <Header title="Qeemat" />
       <ScrollView
-        contentContainerStyle={styles.screenContent}
+        style={styles.flex}
+        contentContainerStyle={[styles.screenContent, styles.watchlistContent]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
         showsVerticalScrollIndicator={false}
       >
+        <View style={styles.watchlistBanner}>
+          <View style={styles.watchlistBrandRow}>
+            <View style={styles.watchlistBrandLockup}>
+              <Image source={require('./assets/app-icon/qeemat-q-tag.png')} style={styles.watchlistBrandIcon} />
+              <AppText weight="bold" style={styles.watchlistBrand}>Qeemat</AppText>
+            </View>
+            <View style={styles.watchlistHeaderActions}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={searchExpanded ? 'Close watchlist search' : 'Search watchlist'}
+                accessibilityState={{ expanded: searchExpanded }}
+                onPress={() => {
+                  setSearchExpanded((value) => !value);
+                  if (searchExpanded) {
+                    setSearchQuery('');
+                  }
+                }}
+                style={styles.watchlistSearchButton}
+              >
+                <Search size={23} color={colors.surface} />
+              </Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel={showUpdateDot ? 'Open recent activity, update available' : 'Open recent activity'} onPress={() => navigate({ name: 'tabs', tab: 'activity' })} style={styles.watchlistSearchButton}>
+                <Bell size={22} color={colors.surface} />
+                {showUpdateDot ? <View style={styles.watchlistUpdateDot} /> : null}
+              </Pressable>
+            </View>
+          </View>
         <View style={styles.titleRow}>
-          <View>
-            <AppText weight="bold" style={styles.heading}>
+          <View style={styles.flex}>
+            <AppText weight="bold" accessibilityRole="header" style={styles.watchlistBannerTitle}>
               Watchlist
             </AppText>
-            <AppText muted>Track supported product prices locally.</AppText>
           </View>
-          <View style={styles.countPill}>
-            <AppText weight="semibold" style={styles.countText}>
+          <View style={styles.watchlistBannerCount}>
+            <Bookmark size={14} color={colors.surface} />
+            <AppText weight="semibold" style={styles.watchlistBannerCountText}>
             {showArchived ? 'Archived' : `${filteredProducts.length} ${filteredProducts.length === 1 ? 'item' : 'items'}`}
             </AppText>
           </View>
         </View>
+        {searchExpanded ? (
+          <View style={styles.watchlistBannerSearch}>
+            <Search size={18} color={colors.textMuted} />
+            <AppTextInput
+              bare
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="Search watchlist by product, store or folder"
+              autoFocus
+              autoCorrect={false}
+              accessibilityLabel="Search watchlist products"
+              returnKeyType="search"
+              inputStyle={styles.watchlistSearchInput}
+            />
+            {searchQuery ? (
+              <Pressable accessibilityRole="button" accessibilityLabel="Clear watchlist search" hitSlop={8} onPress={() => setSearchQuery('')}>
+                <X size={18} color={colors.textMuted} />
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
+        </View>
         <View style={styles.watchlistToolbar}>
-        <Pressable accessibilityRole="button" onPress={() => setShowControls(true)} style={({ pressed }) => [styles.controlsButton, pressed && styles.storeFilterButtonPressed]}>
-          <SlidersHorizontal size={18} color={colors.primary} />
-          <AppText weight="semibold" style={styles.controlsButtonText}>Filter & sort</AppText>
+        <Pressable accessibilityRole="button" accessibilityLabel={activeControlCount > 0 ? `Filter and sort, ${activeControlCount} active` : 'Filter and sort'} onPress={() => setShowControls(true)} style={({ pressed }) => [styles.controlsButton, pressed && styles.storeFilterButtonPressed]}>
+          <SlidersHorizontal size={18} color={colors.surface} />
+          <AppText weight="semibold" style={styles.watchlistFilterText}>Filter & sort</AppText>
           {activeControlCount > 0 ? <View style={styles.controlsCount}><AppText weight="bold" style={styles.controlsCountText}>{activeControlCount}</AppText></View> : null}
         </Pressable>
-        <Pressable accessibilityRole="button" onPress={() => { setShowArchived((value) => !value); setSelectedProductIds(new Set()); }} style={styles.archiveToggle}>
-          <AppText weight="semibold" style={styles.archiveToggleText}>{showArchived ? 'Show active' : 'Archived'}</AppText>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={showArchived ? 'Show active products' : 'Show archived products'}
+          accessibilityState={{ selected: showArchived }}
+          onPress={() => { setShowArchived((value) => !value); setSelectedProductIds(new Set()); }}
+          style={[styles.toolbarIconButton, showArchived && styles.toolbarIconButtonActive]}
+        >
+          <Archive size={18} color={showArchived ? colors.surface : colors.primary} />
         </Pressable>
+        <View style={styles.flex} />
+        {selectedProductIds.size === 0 ? <Pressable accessibilityRole="button" accessibilityLabel="Recheck all prices" accessibilityState={{ disabled: !products.length || loading || checkingAll }} disabled={!products.length || loading || checkingAll} onPress={recheckAllPrices} style={({ pressed }) => [styles.watchlistRecheck, (!products.length || loading || checkingAll) && styles.watchlistRecheckDisabled, pressed && styles.storeFilterButtonPressed]}>
+          {checkingAll ? <ActivityIndicator size="small" color={colors.primary} /> : <RefreshCcw size={18} color={colors.primary} />}
+          <AppText weight="semibold" style={styles.controlsButtonText}>{checkingAll ? 'Checking…' : 'Recheck all'}</AppText>
+        </Pressable> : null}
         </View>
         {activeControlSummary ? (
           <View style={styles.activeControlsRow}>
@@ -747,24 +967,17 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
             <Pressable accessibilityRole="button" onPress={clearControls}><AppText weight="semibold" style={styles.clearControlsText}>Clear</AppText></Pressable>
           </View>
         ) : null}
-        {selectedProductIds.size === 0 ? <PrimaryButton
-          label="Recheck all prices"
-          variant="outline"
-          onPress={recheckAllPrices}
-          loading={checkingAll}
-          disabled={!products.length || loading}
-          icon={!checkingAll ? <RefreshCcw size={18} color={colors.primary} /> : undefined}
-        /> : <View style={styles.selectionHeader}><AppText weight="bold">{selectedProductIds.size} selected</AppText><Pressable onPress={() => setSelectedProductIds(new Set())}><AppText weight="semibold" style={styles.clearControlsText}>Cancel</AppText></Pressable></View>}
+        {selectedProductIds.size > 0 ? <View style={styles.selectionHeader}><AppText weight="bold">{selectedProductIds.size} selected</AppText><Pressable accessibilityRole="button" onPress={() => setSelectedProductIds(new Set())}><AppText weight="semibold" style={styles.clearControlsText}>Cancel</AppText></Pressable></View> : null}
 
         <WatchlistControlsSheet
           visible={showControls}
           onClose={() => setShowControls(false)}
-          trackedSites={trackedSites}
+          sites={trackedSites}
           folders={folders}
-          storeFilter={storeFilter}
+          storeFilters={storeFilters}
           folderFilter={folderFilter}
           sort={sort}
-          onStoreFilter={setStoreFilter}
+          onStoreFilters={setStoreFilters}
           onFolderFilter={setFolderFilter}
           onSort={setSort}
           onClear={clearControls}
@@ -772,15 +985,46 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
 
         {loading ? <ActivityIndicator color={colors.primary} /> : null}
         {!loading && products.length === 0 ? <EmptyWatchlist onAdd={() => navigate({ name: 'add' })} /> : null}
+        {!loading && products.length > 0 && showArchived && visibleProducts.length === 0 ? (
+          <Surface padding="lg" style={styles.emptyCard}>
+            <View style={styles.emptyIcon}>
+              <Archive size={24} color={colors.primary} />
+            </View>
+            <AppText weight="bold" style={styles.emptyTitle}>Nothing archived yet</AppText>
+            <AppText muted style={styles.emptyCopy}>Archived products keep their price history and appear here.</AppText>
+            <PrimaryButton label="Show active products" variant="outline" onPress={() => setShowArchived(false)} style={styles.emptyButton} />
+          </Surface>
+        ) : null}
+        {!loading && visibleProducts.length > 0 && filteredProducts.length === 0 ? (
+          <Surface padding="lg" style={styles.emptyCard}>
+            <View style={styles.emptyIcon}>
+              {searchQuery.trim() ? <Search size={24} color={colors.primary} /> : <SlidersHorizontal size={24} color={colors.primary} />}
+            </View>
+            <AppText weight="bold" style={styles.emptyTitle}>
+              {searchQuery.trim() ? 'No products match your search' : 'No products match these filters'}
+            </AppText>
+            <AppText muted style={styles.emptyCopy}>
+              {searchQuery.trim()
+                ? `No tracked product matches “${searchQuery.trim()}”. Try a product name, store or folder.`
+                : 'Change or clear the store, folder and sort controls to see your products.'}
+            </AppText>
+            <PrimaryButton
+              label={searchQuery.trim() ? 'Clear search' : 'Clear filters'}
+              variant="outline"
+              onPress={searchQuery.trim() ? () => setSearchQuery('') : clearControls}
+              style={styles.emptyButton}
+            />
+          </Surface>
+        ) : null}
 
         {oos.length > 0 ? (
-          <Pressable style={styles.oosSection} onPress={() => setOosExpanded((v) => !v)}>
+          <Pressable accessibilityRole="button" accessibilityState={{ expanded: oosExpanded }} style={styles.oosSection} onPress={() => setOosExpanded((v) => !v)}>
             <View style={styles.oosHeader}>
               <View style={styles.oosDot} />
               <AppText weight="semibold" style={styles.oosLabel}>
                 Out of Stock
               </AppText>
-              <AppText muted style={styles.oosCount}>
+              <AppText style={styles.oosCount}>
                 {oos.length} {oos.length === 1 ? 'item' : 'items'}
               </AppText>
               <View style={styles.oosThumbnails}>
@@ -805,7 +1049,7 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
         ) : null}
 
         {oos.length > 0 && oosExpanded ? (
-          <View style={styles.cardList}>
+          <View style={styles.watchlistCardList}>
             {oos.map((product) => (
               <ProductCard
                 key={product.id}
@@ -818,7 +1062,7 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
           </View>
         ) : null}
 
-        <View style={styles.cardList}>
+        <View style={styles.watchlistCardList}>
           {inStock.map((product) => (
             <ProductCard key={product.id} product={product} onPress={() => selectedProductIds.size ? toggleSelection(product.id) : navigate({ name: 'detail', id: product.id })} onLongPress={() => startSelection(product.id)} selected={selectedProductIds.has(product.id)} />
           ))}
@@ -829,8 +1073,8 @@ function WatchlistScreen({ navigate }: { navigate: (route: Route) => void }) {
         <BulkActionButton label={shouldPauseSelected ? 'Pause' : 'Resume'} icon={<Pause size={20} color={colors.primary} />} onPress={() => applyBulk({ isActive: !shouldPauseSelected })} />
         <BulkActionButton label={showArchived ? 'Restore' : 'Archive'} icon={<Archive size={20} color={colors.primary} />} onPress={() => applyBulk({ isArchived: !showArchived })} />
         <BulkActionButton label="Delete" icon={<Trash2 size={20} color={colors.red} />} destructive onPress={confirmBulkDelete} />
-      </View> : <Pressable style={styles.fab} onPress={() => navigate({ name: 'add' })}>
-        <Plus size={30} color="#FFFFFF" />
+      </View> : <Pressable accessibilityRole="button" accessibilityLabel="Add a product" style={styles.fab} onPress={() => navigate({ name: 'add' })}>
+        <Plus size={30} color={colors.surface} />
       </Pressable>}
       <BulkEditSheet visible={showBulkFolderPicker} folders={folders} selectedCount={selectedProductIds.size} onClose={() => setShowBulkFolderPicker(false)} onApply={applyBulk} />
     </View>
@@ -848,7 +1092,7 @@ function BulkActionButton({ label, icon, destructive, onPress }: { label: string
 
 function EmptyWatchlist({ onAdd }: { onAdd: () => void }) {
   return (
-    <View style={styles.emptyCard}>
+    <Surface padding="lg" style={styles.emptyCard}>
       <View style={styles.emptyIcon}>
         <Bell size={24} color={colors.primary} />
       </View>
@@ -859,7 +1103,7 @@ function EmptyWatchlist({ onAdd }: { onAdd: () => void }) {
         Paste a supported product link to start a local price history.
       </AppText>
       <PrimaryButton label="Add product" onPress={onAdd} style={styles.emptyButton} />
-    </View>
+    </Surface>
   );
 }
 
@@ -907,9 +1151,7 @@ function FolderPicker({ value, folders, onChange }: { value: string; folders: st
           })}
         </ScrollView>
       ) : null}
-      <View style={styles.inputWrap}>
-        <TextInput value={value} onChangeText={onChange} placeholder="e.g. Running" placeholderTextColor={colors.textSoft} maxFontSizeMultiplier={1.3} style={styles.input} />
-      </View>
+      <AppTextInput value={value} onChangeText={onChange} placeholder="e.g. Running" accessibilityLabel="Folder name" />
     </View>
   );
 }
@@ -926,8 +1168,12 @@ export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { i
   const [minimumPriceDrop, setMinimumPriceDrop] = useState('');
   const [restockAlertEnabled, setRestockAlertEnabled] = useState(true);
   const [folder, setFolder] = useState('');
+  const [productCategory, setProductCategory] = useState<ShoppingCategory>();
+  const [categoryExcluded, setCategoryExcluded] = useState(false);
+  const [categoryEdited, setCategoryEdited] = useState(false);
   const organizationOptions = useOrganizationOptions();
   const [selectedVariantAttributes, setSelectedVariantAttributes] = useState<VariantAttributes>({});
+  const [trackingMatches, setTrackingMatches] = useState<TrackingMatch | undefined>();
   const scrollRef = useRef<ScrollView>(null);
   const shouldFocusParsedResult = useRef(false);
   const parseRequestId = useRef(0);
@@ -936,6 +1182,9 @@ export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { i
     Keyboard.dismiss();
     setError(undefined);
     setParsedProduct(undefined);
+    setProductCategory(undefined);
+    setCategoryExcluded(false);
+    setCategoryEdited(false);
     setSelectedVariantAttributes({});
     shouldFocusParsedResult.current = true;
     setLoading(true);
@@ -946,6 +1195,7 @@ export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { i
     }
     if (result.ok) {
       setParsedProduct(result.product);
+      setProductCategory(inferWatchlistCategory({ ...result.product, url: sourceUrl }));
     } else {
       shouldFocusParsedResult.current = false;
       setError(result.message);
@@ -996,6 +1246,29 @@ export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { i
     };
   }, [parsedProduct, selectedVariant]);
 
+  useEffect(() => {
+    let active = true;
+    if (!parsedProduct) {
+      setTrackingMatches(undefined);
+      return () => { active = false; };
+    }
+
+    const selection = selectedVariant ? toVariantSelection(selectedVariant) : undefined;
+    listTrackedProducts()
+      .then((tracked) => {
+        if (active) {
+          setTrackingMatches(findTrackingMatches({ ...parsedProduct, selectedVariant: selection }, tracked));
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setTrackingMatches(undefined);
+        }
+      });
+
+    return () => { active = false; };
+  }, [parsedProduct, selectedVariant]);
+
   const siteKeyForPrefs = parsedProduct?.siteKey ?? detectedSite?.key;
   const checkOptions = useMemo(
     () => CHECK_OPTIONS.filter((opt) => availableCheckPreferences(siteKeyForPrefs).includes(opt.value)),
@@ -1021,21 +1294,7 @@ export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { i
     });
   }, []);
 
-  async function saveProduct() {
-    if (!parsedProduct) {
-      return;
-    }
-    setSaving(true);
-    let productToSave = previewProduct ?? parsedProduct;
-    if (parsedProduct.siteKey === 'the_deal' && selectedVariant) {
-      const result = await fetchTheDealVariantForSaving(parsedProduct, toVariantSelection(selectedVariant));
-      if (!result.ok) {
-        setError(result.message);
-        setSaving(false);
-        return;
-      }
-      productToSave = result.product;
-    }
+  async function persistTracking(productToSave: ParsedProduct) {
     const id = await createTrackedProduct({
       parsed: productToSave,
       sourceUrl: normalizedUrl,
@@ -1045,6 +1304,8 @@ export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { i
       minimumPriceDropMinor: alertMode === 'price_drop' ? parseTargetPriceInput(minimumPriceDrop) : undefined,
       restockAlertEnabled,
       folder,
+      category: categoryEdited ? productCategory : undefined,
+      categoryExcluded,
       variant: productToSave.selectedVariant
     });
     setSaving(false);
@@ -1060,6 +1321,44 @@ export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { i
       return;
     }
     navigate({ name: 'detail', id });
+  }
+
+  async function saveProduct() {
+    if (!parsedProduct) {
+      return;
+    }
+    setSaving(true);
+    let productToSave = previewProduct ?? parsedProduct;
+    if (parsedProduct.siteKey === 'the_deal' && selectedVariant) {
+      const result = await fetchTheDealVariantForSaving(parsedProduct, toVariantSelection(selectedVariant));
+      if (!result.ok) {
+        setError(result.message);
+        setSaving(false);
+        return;
+      }
+      productToSave = { ...result.product, sourceMetadata: mergeProductMetadata(parsedProduct.sourceMetadata, result.product.sourceMetadata) };
+    }
+
+    const tracked = await listTrackedProducts();
+    const matches = findTrackingMatches(productToSave, tracked);
+
+    if (matches.exact) {
+      setSaving(false);
+      Alert.alert(
+        'Duplicate product',
+        `"${productToSave.title}" is already in your watchlist${matches.exact.variant?.label ? ` (${matches.exact.variant.label})` : ''}.`,
+        [
+          { text: 'Open product', onPress: () => navigate({ name: 'detail', id: matches.exact!.id }) },
+          { text: 'Cancel', style: 'cancel' }
+        ]
+      );
+      return;
+    }
+
+    await persistTracking(productToSave).catch(() => {
+      setSaving(false);
+      setError('Could not save this product. Please try again.');
+    });
   }
 
   return (
@@ -1078,28 +1377,24 @@ export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { i
           <AppText weight="semibold" style={styles.formLabel}>
             Product URL
           </AppText>
-          <View style={[styles.inputWrap, detectedSite && styles.inputDetected]}>
-            <Link2 size={18} color={colors.textMuted} />
-            <TextInput
-              value={url}
-              onChangeText={(value) => {
-                parseRequestId.current += 1;
-                setUrl(value);
-                setParsedProduct(undefined);
-                setSelectedVariantAttributes({});
-                shouldFocusParsedResult.current = false;
-                setError(undefined);
-                setLoading(false);
-              }}
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="url"
-              placeholder="https://www.noon.com/..."
-              placeholderTextColor={colors.textSoft}
-              maxFontSizeMultiplier={1.3}
-              style={styles.input}
-            />
-          </View>
+          <AppTextInput
+            leading={<Link2 size={18} color={colors.textMuted} />}
+            value={url}
+            onChangeText={(value) => {
+              parseRequestId.current += 1;
+              setUrl(value);
+              setParsedProduct(undefined);
+              setSelectedVariantAttributes({});
+              shouldFocusParsedResult.current = false;
+              setError(undefined);
+              setLoading(false);
+            }}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="url"
+            placeholder="https://www.noon.com/..."
+            containerStyle={detectedSite ? styles.inputDetected : undefined}
+          />
           {detectedSite ? (
             <View style={styles.detectedSource}>
               <View style={styles.detectedSourceIcon}>
@@ -1117,19 +1412,8 @@ export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { i
             </View>
           ) : null}
         </View>
-        {!detectedSite ? (
-          <View style={styles.chips}>
-            {SUPPORTED_SITES.filter(s => s.status === 'supported').map((site) => (
-              <View key={site.key} style={styles.chip}>
-                <SiteIcon siteKey={site.key} size={14} />
-                <AppText weight="medium" style={styles.chipText}>
-                  {site.shortName}
-                </AppText>
-              </View>
-            ))}
-          </View>
-        ) : null}
         <PrimaryButton label="Find product" onPress={() => parseUrl(url)} disabled={!url.trim() || loading} loading={loading} />
+        {!detectedSite ? <AddSupportedStores /> : null}
         {error ? (
           <View style={styles.errorBox}>
             <CircleAlert size={18} color={colors.red} />
@@ -1144,6 +1428,36 @@ export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { i
               siteKey={parsedProduct.siteKey}
               awaitingVariantSelection={variants.length > 0 && !selectedVariant}
             />
+            {trackingMatches?.exact ? (
+              <View style={styles.trackingNoticeWarning}>
+                <CircleAlert size={20} color={colors.amber} />
+                <View style={styles.flex}>
+                  <AppText weight="bold">Duplicate product</AppText>
+                  <AppText style={styles.trackingWarningCopy}>
+                    This product is already in your watchlist{trackingMatches.exact.variant?.label ? ` (${trackingMatches.exact.variant.label})` : ' at page level'}. Adding it again would create a duplicate.
+                  </AppText>
+                </View>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Open tracked product"
+                  hitSlop={6}
+                  onPress={() => navigate({ name: 'detail', id: trackingMatches.exact!.id })}
+                  style={({ pressed }) => [styles.noticeActionButton, pressed && styles.storeFilterButtonPressed]}
+                >
+                  <AppText weight="semibold" style={styles.noticeActionText}>Open product</AppText>
+                </Pressable>
+              </View>
+            ) : trackingMatches?.sameProduct.length ? (
+              <View style={styles.trackingNoticeInfo}>
+                <Check size={18} color={colors.primary} />
+                <View style={styles.flex}>
+                  <AppText weight="semibold">Adding another option</AppText>
+                  <AppText muted style={styles.fieldHint}>
+                    You already track {trackingMatches.sameProduct.map((item) => trackingOptionLabel(item)).join(', ')}. Each option is tracked as a separate item.
+                  </AppText>
+                </View>
+              </View>
+            ) : null}
             {variants.length > 0 ? (
               <View style={styles.variantSection}>
                 <AppText weight="semibold" style={styles.formLabel}>
@@ -1170,37 +1484,29 @@ export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { i
             </AppText>
             <OptionGroup value={alertMode} options={ALERT_OPTIONS} onChange={setAlertMode} />
             {alertMode === 'target_price' ? (
-              <View style={styles.inputWrap}>
-                <AppText weight="semibold" muted>
-                  {selectedCurrency}{priceBasisSuffix(previewProduct?.priceBasis)}
-                </AppText>
-                <TextInput
-                  value={targetPrice}
-                  onChangeText={setTargetPrice}
-                  keyboardType="decimal-pad"
-                  placeholder="250"
-                  placeholderTextColor={colors.textSoft}
-                  maxFontSizeMultiplier={1.3}
-                  style={styles.input}
-                />
-              </View>
+              <AppTextInput
+                leading={
+                  <AppText weight="semibold" muted>
+                    {selectedCurrency}{priceBasisSuffix(previewProduct?.priceBasis)}
+                  </AppText>
+                }
+                value={targetPrice}
+                onChangeText={setTargetPrice}
+                keyboardType="decimal-pad"
+                placeholder="250"
+              />
             ) : null}
             {alertMode === 'price_drop' ? (
               <View style={styles.fieldGroup}>
                 <AppText weight="semibold">Minimum price drop alert</AppText>
                 <AppText muted style={styles.fieldHint}>Only notify when the price drops by at least this amount.</AppText>
-                <View style={styles.inputWrap}>
-                  <AppText weight="semibold" muted>{selectedCurrency}</AppText>
-                  <TextInput
-                    value={minimumPriceDrop}
-                    onChangeText={setMinimumPriceDrop}
-                    keyboardType="decimal-pad"
-                    placeholder="Any drop"
-                    placeholderTextColor={colors.textSoft}
-                    maxFontSizeMultiplier={1.3}
-                    style={styles.input}
-                  />
-                </View>
+                <AppTextInput
+                  leading={<AppText weight="semibold" muted>{selectedCurrency}</AppText>}
+                  value={minimumPriceDrop}
+                  onChangeText={setMinimumPriceDrop}
+                  keyboardType="decimal-pad"
+                  placeholder="Any drop"
+                />
               </View>
             ) : null}
             <View style={styles.settingToggleRow}>
@@ -1211,15 +1517,52 @@ export function AddScreen({ initialUrl, shareEventId, returnTab, navigate }: { i
               <Switch value={restockAlertEnabled} onValueChange={setRestockAlertEnabled} trackColor={{ true: colors.primary }} />
             </View>
             <FolderPicker value={folder} folders={organizationOptions.folders} onChange={setFolder} />
+            <ProductCategoryPicker value={productCategory} onChange={(value) => { setProductCategory(value); setCategoryExcluded(value === undefined); setCategoryEdited(true); }} />
             <PrimaryButton
               label="Confirm Tracking"
               onPress={saveProduct}
               loading={saving}
-              disabled={(alertMode === 'target_price' && !targetPriceMinor) || (variants.length > 0 && !selectedVariant)}
+              disabled={(alertMode === 'target_price' && !targetPriceMinor) || (variants.length > 0 && !selectedVariant) || Boolean(trackingMatches?.exact)}
             />
           </View>
         ) : null}
       </ScrollView>
+    </View>
+  );
+}
+
+function AddSupportedStores() {
+  const [expanded, setExpanded] = useState(false);
+  const stores = SUPPORTED_SITES.filter((site) => site.status === 'supported');
+
+  return (
+    <View style={styles.supportedStoresSection}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded }}
+        onPress={() => setExpanded((value) => !value)}
+        style={styles.disclosureRow}
+      >
+        <AppText weight="semibold" style={styles.flex}>
+          Supported stores
+        </AppText>
+        <AppText muted style={styles.caption}>
+          {stores.length} stores
+        </AppText>
+        {expanded ? <ChevronUp size={16} color={colors.textMuted} /> : <ChevronDown size={16} color={colors.textMuted} />}
+      </Pressable>
+      {expanded ? (
+        <View style={styles.chips}>
+          {stores.map((site) => (
+            <View key={site.key} style={styles.chip}>
+              <SiteIcon siteKey={site.key} size={14} />
+              <AppText weight="medium" style={styles.chipText}>
+                {site.shortName}
+              </AppText>
+            </View>
+          ))}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -1237,11 +1580,21 @@ function ProductPreview({
 }) {
   const { width, fontScale } = useWindowDimensions();
   const compact = isCompactLayout(width, fontScale);
+  const [imageFailed, setImageFailed] = useState(false);
+  useEffect(() => {
+    setImageFailed(false);
+  }, [product.imageUrl]);
 
   return (
     <View style={[styles.previewCard, compact && styles.previewCardCompact]}>
       <View style={[styles.previewImageWrap, compact && styles.previewImageWrapCompact]}>
-        {product.imageUrl ? <Image source={{ uri: product.imageUrl }} style={styles.previewImage} resizeMode="contain" /> : null}
+        {product.imageUrl && !imageFailed ? (
+          <Image source={{ uri: product.imageUrl }} style={styles.previewImage} resizeMode="contain" onError={() => setImageFailed(true)} />
+        ) : (
+          <View accessible accessibilityLabel="Product image unavailable">
+            <ImageOff size={28} color={colors.textMuted} />
+          </View>
+        )}
       </View>
       <View style={styles.previewCopy}>
         <AppText weight="bold" numberOfLines={2} style={styles.previewTitle}>
@@ -1262,6 +1615,41 @@ function ProductPreview({
   );
 }
 
+export function buildProductShareMessage(
+  product: Pick<TrackedProduct, 'title' | 'currency' | 'currentPriceMinor' | 'lastPriceChangeMinor' | 'targetPriceMinor' | 'lastAvailability' | 'lastErrorCode' | 'priceBasis'>,
+  siteName: string,
+  url: string
+): string {
+  const price = formatPrice(product.currentPriceMinor, product.currency, product.priceBasis);
+  const checkFailed = Boolean(product.lastErrorCode && product.lastErrorCode !== 'ok' && product.lastErrorCode !== 'price_changed');
+  const delta =
+    product.currentPriceMinor !== undefined && product.lastPriceChangeMinor !== undefined
+      ? product.currentPriceMinor - product.lastPriceChangeMinor
+      : 0;
+  const change = delta < 0
+    ? `${formatPrice(Math.abs(delta), product.currency, product.priceBasis)} lower`
+    : delta > 0
+      ? `${formatPrice(delta, product.currency, product.priceBasis)} higher`
+      : undefined;
+  const targetHit =
+    product.targetPriceMinor !== undefined &&
+    product.currentPriceMinor !== undefined &&
+    product.currentPriceMinor <= product.targetPriceMinor;
+
+  let headline: string;
+  if (product.lastAvailability === 'out_of_stock') {
+    headline = `${product.title} is out of stock on ${siteName}${product.currentPriceMinor !== undefined ? ` — last known ${price}` : ''}.`;
+  } else if (targetHit) {
+    headline = `${product.title} hit my target on ${siteName} — ${price}.`;
+  } else if (checkFailed) {
+    headline = `${product.title} — last known ${price} on ${siteName}.`;
+  } else {
+    headline = `${product.title} — ${price} on ${siteName}${change ? ` (${change})` : ''}.`;
+  }
+
+  return `${headline}\n${url}\n\nTracked with Qeemat`;
+}
+
 export function getTrackedProductLink(product: Pick<TrackedProduct, 'url' | 'canonicalUrl' | 'siteKey' | 'variant'>): string {
   const customerFacingUrl = product.siteKey === 'the_deal'
     ? product.canonicalUrl || product.url
@@ -1270,15 +1658,17 @@ export function getTrackedProductLink(product: Pick<TrackedProduct, 'url' | 'can
 }
 
 export function DetailScreen({ productId, navigate }: { productId: number; navigate: (route: Route) => void }) {
-  const { width, fontScale } = useWindowDimensions();
-  const compact = isCompactLayout(width, fontScale);
   const [data, setData] = useState<ProductWithSnapshots | undefined>();
   const [checking, setChecking] = useState(false);
+  const [imageFailed, setImageFailed] = useState(false);
 
   const load = useCallback(async () => setData(await getProductWithSnapshots(productId)), [productId]);
   useEffect(() => {
     load();
   }, [load]);
+  useEffect(() => {
+    setImageFailed(false);
+  }, [data?.product.imageUrl]);
 
   async function checkNow() {
     setChecking(true);
@@ -1310,84 +1700,133 @@ export function DetailScreen({ productId, navigate }: { productId: number; navig
     Alert.alert('Link copied', 'The product link is ready to paste.');
   }
 
+  async function shareProduct() {
+    try {
+      await Share.share({ message: buildProductShareMessage(product, site.shortName, productLink) });
+    } catch {
+      // Dismissing the native share sheet is not an error.
+    }
+  }
+
+  const site = getSiteByKey(product.siteKey);
+  const currentPrice = product.currentPriceMinor;
+  const changedFrom = product.lastPriceChangeMinor;
+  const delta = !isOos && changedFrom !== undefined && currentPrice !== undefined ? currentPrice - changedFrom : 0;
+  const summaryMeta = [product.variant?.label, product.folder].filter(Boolean).join(' · ');
+
   return (
     <View style={styles.app}>
-      <Header title="Qeemat" onBack={() => navigate({ name: 'tabs', tab: 'watchlist' })} />
-      <ScrollView contentContainerStyle={styles.screenContent} showsVerticalScrollIndicator={false}>
-        <View style={[styles.detailHero, compact && styles.detailHeroCompact]}>
-          <View style={[styles.detailImageWrap, compact && styles.detailImageWrapCompact]}>
-            {product.imageUrl ? <Image source={{ uri: product.imageUrl }} style={styles.detailImage} resizeMode="contain" /> : null}
+      <ScrollView contentContainerStyle={[styles.screenContent, styles.detailContent]} showsVerticalScrollIndicator={false}>
+        <View style={styles.detailBanner}>
+          <View style={styles.detailBannerRow}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
+              onPress={() => navigate({ name: 'tabs', tab: 'watchlist' })}
+              style={styles.detailBannerButton}
+            >
+              <ArrowLeft size={22} color={colors.surface} />
+            </Pressable>
+            <View style={styles.detailBannerBrand}>
+              <Image source={require('./assets/app-icon/qeemat-q-tag.png')} style={styles.detailBannerLogo} />
+              <AppText weight="bold" style={styles.detailBannerWordmark}>Qeemat</AppText>
+            </View>
+            <View style={styles.detailBannerActions}>
+              <Pressable accessibilityLabel="Copy product link" accessibilityRole="button" hitSlop={5} style={styles.detailBannerButton} onPress={copyProductLink}>
+                <Copy size={20} color={colors.surface} />
+              </Pressable>
+              <Pressable accessibilityLabel="Share product" accessibilityRole="button" hitSlop={5} style={styles.detailBannerButton} onPress={shareProduct}>
+                <Share2 size={20} color={colors.surface} />
+              </Pressable>
+              <Pressable accessibilityLabel="Tracking settings" accessibilityRole="button" hitSlop={5} style={styles.detailBannerButton} onPress={() => navigate({ name: 'trackingSettings', id: product.id })}>
+                <SettingsIcon size={20} color={colors.surface} />
+              </Pressable>
+            </View>
           </View>
-          <View style={styles.detailCopy}>
-            <View style={styles.titleRow}>
-              <AppText weight="bold" style={styles.detailTitle} numberOfLines={3}>
+        </View>
+
+        <Surface padding="md" style={styles.detailSummary}>
+          <View style={styles.detailSummaryRow}>
+            <View style={styles.detailSummaryImageWrap}>
+              {product.imageUrl && !imageFailed ? (
+                <Image source={{ uri: product.imageUrl }} style={styles.detailSummaryImage} resizeMode="contain" onError={() => setImageFailed(true)} />
+              ) : (
+                <View accessible accessibilityLabel="Product image unavailable">
+                  <ImageOff size={28} color={colors.textMuted} />
+                </View>
+              )}
+            </View>
+            <View style={styles.detailSummaryBody}>
+              <AppText weight="semibold" numberOfLines={2} style={styles.detailSummaryTitle}>
                 {product.title}
               </AppText>
-              <View style={styles.detailHeaderActions}>
-                <Pressable
-                  accessibilityLabel="Copy product link"
-                  accessibilityRole="button"
-                  style={styles.iconButton}
-                  onPress={copyProductLink}
-                >
-                  <Copy size={20} color={colors.text} />
-                </Pressable>
-                <Pressable
-                  accessibilityLabel="Tracking settings"
-                  accessibilityRole="button"
-                  style={styles.iconButton}
-                  onPress={() => navigate({ name: 'trackingSettings', id: product.id })}
-                >
-                  <SettingsIcon size={20} color={colors.text} />
-                </Pressable>
-              </View>
-            </View>
-            {product.variant ? <AppText muted style={styles.caption}>Tracking {product.variant.label}</AppText> : null}
-            <AppText muted style={styles.caption}>
-              {checkFailed || isOos ? 'Last known price' : 'Current price'}
-            </AppText>
-            <AppText weight="bold" style={styles.currentPrice}>
-              {formatPrice(product.currentPriceMinor, product.currency, product.priceBasis)}
-            </AppText>
-            {product.targetPriceMinor ? (
-              <AppText weight="semibold">Target {formatPrice(product.targetPriceMinor, product.currency, product.priceBasis)}</AppText>
-            ) : null}
-            <StatusPill
-              status={status}
-              label={status === 'variant_not_found' ? 'Variant unavailable' : `${checkFailed ? 'Check failed' : 'Checked'} ${formatRelativeTime(product.lastCheckedAt)}`}
-              availability={checkFailed ? 'unknown' : product.lastAvailability}
-            />
-            {checkFailed ? (
-              <AppText muted style={styles.caption}>
-                {product.lastSuccessAt ? `Last successful check: ${formatRelativeTime(product.lastSuccessAt)}` : 'No successful check recorded'}
+              <AppText muted style={styles.detailSummaryCaption}>
+                {checkFailed || isOos ? 'Last known price' : 'Current price'}
               </AppText>
-            ) : null}
+              <View style={styles.detailSummaryPriceRow}>
+                <AppText weight="bold" style={styles.detailSummaryPrice}>
+                  {formatPrice(currentPrice, product.currency, product.priceBasis)}
+                </AppText>
+                {!isOos && delta < 0 ? (
+                  <PriceDirectionBadge direction="down" text={`${formatPrice(Math.abs(delta), product.currency, product.priceBasis)} lower`} />
+                ) : null}
+                {!isOos && delta > 0 ? (
+                  <PriceDirectionBadge direction="up" text={`${formatPrice(delta, product.currency, product.priceBasis)} higher`} />
+                ) : null}
+              </View>
+              <View style={styles.detailSummaryRetailer}>
+                <SiteIcon siteKey={product.siteKey} size={14} />
+                <AppText muted style={styles.detailSummaryCaption}>{site.shortName}</AppText>
+              </View>
+              {summaryMeta ? (
+                <AppText muted numberOfLines={2} style={styles.detailSummaryCaption}>{summaryMeta}</AppText>
+              ) : null}
+              <View style={styles.detailSummaryFooter}>
+                <StatusPill
+                  status={status}
+                  label={status === 'variant_not_found' ? 'Variant unavailable' : `${checkFailed ? 'Check failed' : 'Checked'} ${formatRelativeTime(product.lastCheckedAt)}`}
+                  availability={checkFailed ? 'unknown' : product.lastAvailability}
+                />
+                {product.targetPriceMinor ? (
+                  <AppText muted style={styles.detailSummaryCaption}>Target {formatPrice(product.targetPriceMinor, product.currency, product.priceBasis)}</AppText>
+                ) : null}
+              </View>
+              {checkFailed ? (
+                <AppText muted style={styles.detailSummaryCaption}>
+                  {product.lastSuccessAt ? `Last successful check: ${formatRelativeTime(product.lastSuccessAt)}` : 'No successful check recorded'}
+                </AppText>
+              ) : null}
+            </View>
           </View>
-        </View>
-        {product.lastAvailability === 'out_of_stock' ? (
-          <View style={styles.oosBanner}>
-            <CircleAlert size={16} color={colors.amber} />
-            <AppText weight="medium" style={styles.oosBannerText}>
-              {product.currentPriceMinor !== undefined
-                ? 'Out of stock — last known price shown'
-                : 'Out of stock — no price recorded'}
-            </AppText>
+          {isOos ? (
+            <View style={styles.detailSummaryNote}>
+              <CircleAlert size={16} color={colors.amber} />
+              <AppText weight="medium" style={styles.detailSummaryNoteText}>
+                {product.currentPriceMinor !== undefined ? 'Out of stock — last known price shown' : 'Out of stock — no price recorded'}
+              </AppText>
+            </View>
+          ) : null}
+        </Surface>
+
+        <Surface padding="none" style={styles.detailCard}>
+          <View style={styles.detailCardHeader}>
+            <AppText weight="bold" style={styles.detailCardTitle}>Price insights</AppText>
+            <AppText muted style={styles.detailSummaryCaption}>{insights.observations} {insights.observations === 1 ? 'priced check' : 'priced checks'}</AppText>
           </View>
-        ) : null}
-        <SectionTitle title="Price insights" />
-        <View style={styles.statsRow}>
-          <StatCard label="Lowest price" price={insights.lowestPriceMinor} currency={product.currency} priceBasis={product.priceBasis} tone="green" />
-          <StatCard label="Highest price" price={insights.highestPriceMinor} currency={product.currency} priceBasis={product.priceBasis} tone="red" />
-        </View>
-        <StatCard label="Average price" price={insights.averagePriceMinor} currency={product.currency} priceBasis={product.priceBasis} tone="neutral" emphasized />
-        <AppText muted style={styles.insightCaption}>{insights.observations} {insights.observations === 1 ? 'priced check' : 'priced checks'} recorded locally.</AppText>
+          <DetailInsightRow label="Lowest price" price={insights.lowestPriceMinor} currency={product.currency} priceBasis={product.priceBasis} tone="green" />
+          <View style={styles.detailDivider} />
+          <DetailInsightRow label="Highest price" price={insights.highestPriceMinor} currency={product.currency} priceBasis={product.priceBasis} tone="red" />
+          <View style={styles.detailDivider} />
+          <DetailInsightRow label="Average price" price={insights.averagePriceMinor} currency={product.currency} priceBasis={product.priceBasis} tone="neutral" />
+        </Surface>
+
         <SectionTitle title="Price History" />
         {product.priceBasis ? <AppText muted>Prices, chart and targets use{priceBasisSuffix(product.priceBasis)}. Weighted grocery totals depend on the final delivered weight.</AppText> : null}
         <PriceChart snapshots={snapshots} currency={product.currency} />
+        <ProductInformation product={product} />
         <SectionTitle title="Price Snapshots" />
         <SnapshotList snapshots={snapshots} currency={product.currency} />
-      </ScrollView>
-      <View style={styles.bottomActionRow}>
+      </ScrollView>      <View style={styles.bottomActionRow}>
         <PrimaryButton label="Check now" variant="outline" onPress={checkNow} loading={checking} style={styles.bottomActionHalf}
           icon={!checking ? <RefreshCcw size={18} color={colors.primary} /> : undefined} />
         <PrimaryButton label="Open link" variant="outline" onPress={() => Linking.openURL(productLink)} style={styles.bottomActionHalf}
@@ -1397,9 +1836,65 @@ export function DetailScreen({ productId, navigate }: { productId: number; navig
   );
 }
 
+function ProductInformation({ product }: { product: TrackedProduct }) {
+  const [expanded, setExpanded] = useState(false);
+  const metadata = product.sourceMetadata;
+  if (!metadata) { return null; }
+  const selectedAttributes = new Set(product.variant?.attributes.map((attribute) => attribute.name.toLowerCase().replace('colour', 'color')) ?? []);
+  const attributeLabels: Record<string, string> = {
+    material: 'Material', color: 'Color', gender: 'For', fit: 'Fit', style: 'Style',
+    garment_length: 'Length', sleeve_length: 'Sleeve length', age_group: 'Age group'
+  };
+  const rows = [
+    ...(metadata.brand ? [{ label: 'Brand', value: metadata.brand }] : []),
+    ...(metadata.productType ? [{ label: 'Product type', value: metadata.productType }] : []),
+    ...Object.entries(attributeLabels).flatMap(([key, label]) => {
+      const value = metadata.attributes?.[key];
+      return value && !selectedAttributes.has(key) ? [{ label, value }] : [];
+    }),
+    ...(metadata.categoryPath?.length ? [{ label: 'Store category', value: metadata.categoryPath.join('  ›  ') }] : [])
+  ];
+  if (!rows.length) { return null; }
+  const summary = rows.slice(0, 2).map((row) => `${row.label}: ${row.value}`).join(' · ');
+  const remaining = rows.length - Math.min(rows.length, 2);
+
+  return (
+    <View style={styles.productInformationCard}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`About this item, ${expanded ? 'expanded' : 'collapsed'}`}
+        accessibilityState={{ expanded }}
+        onPress={() => setExpanded((value) => !value)}
+        style={styles.productInformationHeader}
+      >
+        <View style={styles.flex}>
+          <AppText weight="semibold" style={styles.productInformationTitle}>About this item</AppText>
+          {!expanded ? (
+            <AppText muted numberOfLines={1} style={styles.productInformationSummary}>
+              {summary}{remaining > 0 ? ` · +${remaining} more` : ''}
+            </AppText>
+          ) : null}
+        </View>
+        {expanded ? <ChevronUp size={18} color={colors.textMuted} /> : <ChevronDown size={18} color={colors.textMuted} />}
+      </Pressable>
+      {expanded ? (
+        <View style={styles.productInformationRows}>
+          {rows.map((row, index) => (
+            <View key={row.label} style={[styles.productInformationRow, index > 0 && styles.productInformationDivider]}>
+              <AppText muted style={styles.productInformationLabel}>{row.label}</AppText>
+              <AppText weight="medium" style={styles.productInformationValue}>{row.value}</AppText>
+            </View>
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
 function SnapshotList({ snapshots, currency }: { snapshots: PriceSnapshot[]; currency: string }) {
   const groups = useMemo(() => groupSnapshots(snapshots.slice(0, 30)), [snapshots]);
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set());
+  const [showAll, setShowAll] = useState(false);
+  const visibleGroups = showAll ? groups : groups.slice(0, 3);
 
   function toggle(key: string) {
     setExpandedKeys((prev) => {
@@ -1412,18 +1907,34 @@ function SnapshotList({ snapshots, currency }: { snapshots: PriceSnapshot[]; cur
 
   return (
     <View style={styles.snapshotList}>
-      {groups.map((group) => {
+      {visibleGroups.map((group, index) => {
         const first = group.snapshots[0];
         const rest = group.snapshots.slice(1);
         const isExpanded = expandedKeys.has(group.key);
+        const older = groups[index + 1]?.snapshots[0];
+        const direction =
+          first.priceMinor !== undefined && older?.priceMinor !== undefined && first.priceMinor !== older.priceMinor
+            ? first.priceMinor < older.priceMinor
+              ? 'down'
+              : 'up'
+            : undefined;
+        const failedGroup = Boolean(first.errorCode);
 
         return (
           <View key={group.key}>
-            <SnapshotRow snapshot={first} currency={currency} />
+            <SnapshotRow snapshot={first} currency={currency} direction={direction} />
             {rest.length > 0 && !isExpanded && (
-              <Pressable style={styles.snapshotCollapsed} onPress={() => toggle(group.key)}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={failedGroup ? `Show ${rest.length} earlier failed checks` : `Show ${rest.length} earlier checks, no change`}
+                accessibilityState={{ expanded: false }}
+                style={styles.snapshotCollapsed}
+                onPress={() => toggle(group.key)}
+              >
                 <AppText muted style={styles.snapshotCollapsedText}>
-                  +{rest.length} earlier {rest.length === 1 ? 'check' : 'checks'}, no change
+                  {failedGroup
+                    ? `+${rest.length} earlier failed ${rest.length === 1 ? 'check' : 'checks'}`
+                    : `+${rest.length} earlier ${rest.length === 1 ? 'check' : 'checks'}, no change`}
                 </AppText>
               </Pressable>
             )}
@@ -1432,7 +1943,13 @@ function SnapshotList({ snapshots, currency }: { snapshots: PriceSnapshot[]; cur
                 {rest.map((s) => (
                   <SnapshotRow key={s.id} snapshot={s} currency={currency} subtle />
                 ))}
-                <Pressable style={styles.snapshotCollapsed} onPress={() => toggle(group.key)}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Collapse earlier checks"
+                  accessibilityState={{ expanded: true }}
+                  style={styles.snapshotCollapsed}
+                  onPress={() => toggle(group.key)}
+                >
                   <AppText muted style={styles.snapshotCollapsedText}>
                     Collapse
                   </AppText>
@@ -1442,6 +1959,18 @@ function SnapshotList({ snapshots, currency }: { snapshots: PriceSnapshot[]; cur
           </View>
         );
       })}
+      {groups.length > 3 ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ expanded: showAll }}
+          onPress={() => setShowAll((value) => !value)}
+          style={styles.snapshotShowAll}
+        >
+          <AppText weight="semibold" style={styles.snapshotShowAllText}>
+            {showAll ? 'Show fewer snapshots' : `Show all ${groups.length} price groups`}
+          </AppText>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -1450,10 +1979,12 @@ function SnapshotRow({
   snapshot,
   currency,
   subtle,
+  direction,
 }: {
   snapshot: PriceSnapshot;
   currency: string;
   subtle?: boolean;
+  direction?: 'up' | 'down';
 }) {
   return (
     <View style={[styles.snapshotRow, subtle && styles.snapshotRowSubtle]}>
@@ -1462,16 +1993,19 @@ function SnapshotRow({
           <AppText weight={subtle ? 'regular' : 'medium'} muted={subtle}>
             {formatSnapshotTime(snapshot.checkedAt)}
           </AppText>
-          <View style={[styles.sourceBadge, snapshotSourceBadgeStyle(snapshot.source)]}>
-            <AppText weight="semibold" style={styles.sourceBadgeText}>
-              {snapshotSourceLabel(snapshot.source)}
-            </AppText>
-          </View>
+          <SourceLabel source={snapshot.source} />
         </View>
         {snapshot.errorCode ? <AppText muted>{snapshot.rawPriceText?.slice(0, 400) ?? snapshot.errorCode}</AppText> : null}
       </View>
       <View style={styles.snapshotPriceBlock}>
-        <AppText weight="bold" muted={subtle} style={snapshot.status === 'price_changed' && !subtle && styles.changedPrice}>
+        <AppText
+          weight="bold"
+          muted={subtle}
+          style={[
+            !subtle && direction === 'down' && styles.snapshotPriceDown,
+            !subtle && direction === 'up' && styles.snapshotPriceUp
+          ]}
+        >
           {snapshot.priceMinor !== undefined
             ? formatPrice(snapshot.priceMinor, snapshot.currency ?? currency, snapshot.priceBasis)
             : snapshot.availability === 'out_of_stock' ? 'Out of stock' : 'Failed'}
@@ -1491,7 +2025,10 @@ function TrackingSettingsScreen({ productId, navigate }: { productId: number; na
   const [targetPrice, setTargetPrice] = useState('');
   const [minimumPriceDrop, setMinimumPriceDrop] = useState('');
   const [restockAlertEnabled, setRestockAlertEnabled] = useState(true);
+  const [isActive, setIsActive] = useState(true);
   const [folder, setFolder] = useState('');
+  const [productCategory, setProductCategory] = useState<ShoppingCategory>();
+  const [categoryEdited, setCategoryEdited] = useState(false);
   const organizationOptions = useOrganizationOptions();
 
   useEffect(() => {
@@ -1510,7 +2047,10 @@ function TrackingSettingsScreen({ productId, navigate }: { productId: number; na
       setTargetPrice(row.targetPriceMinor ? String(row.targetPriceMinor / 100) : '');
       setMinimumPriceDrop(row.minimumPriceDropMinor ? String(row.minimumPriceDropMinor / 100) : '');
       setRestockAlertEnabled(row.restockAlertEnabled ?? true);
+      setIsActive(row.isActive);
       setFolder(row.folder ?? '');
+      setProductCategory(inferWatchlistCategory(row));
+      setCategoryEdited(false);
     });
   }, [productId]);
 
@@ -1522,7 +2062,8 @@ function TrackingSettingsScreen({ productId, navigate }: { productId: number; na
       minimumPriceDropMinor: alertMode === 'price_drop' ? parseTargetPriceInput(minimumPriceDrop) : undefined,
       restockAlertEnabled,
       folder,
-      isActive: product?.isActive ?? true
+      category: categoryEdited ? productCategory ?? null : undefined,
+      isActive
     });
     navigate({ name: 'detail', id: productId });
   }
@@ -1545,7 +2086,7 @@ function TrackingSettingsScreen({ productId, navigate }: { productId: number; na
     <View style={styles.app}>
       <Header title="Tracking Settings" onBack={() => navigate({ name: 'detail', id: productId })} />
       <ScrollView contentContainerStyle={styles.screenContent} showsVerticalScrollIndicator={false}>
-        <AppText weight="bold" style={styles.detailTitle} numberOfLines={2}>
+        <AppText weight="bold" accessibilityRole="header" style={styles.detailTitle} numberOfLines={2}>
           {product?.title ?? 'Product'}
         </AppText>
         <AppText weight="semibold">Check preference</AppText>
@@ -1553,21 +2094,28 @@ function TrackingSettingsScreen({ productId, navigate }: { productId: number; na
         <AppText weight="semibold">Alert mode</AppText>
         <OptionGroup value={alertMode} options={ALERT_OPTIONS} onChange={setAlertMode} />
         {alertMode === 'target_price' ? (
-          <View style={styles.inputWrap}>
-            <AppText weight="semibold" muted>
-              {product?.currency ?? 'AED'}{priceBasisSuffix(product?.priceBasis)}
-            </AppText>
-            <TextInput value={targetPrice} onChangeText={setTargetPrice} keyboardType="decimal-pad" maxFontSizeMultiplier={1.3} style={styles.input} />
-          </View>
+          <AppTextInput
+            leading={
+              <AppText weight="semibold" muted>
+                {product?.currency ?? 'AED'}{priceBasisSuffix(product?.priceBasis)}
+              </AppText>
+            }
+            value={targetPrice}
+            onChangeText={setTargetPrice}
+            keyboardType="decimal-pad"
+          />
         ) : null}
         {alertMode === 'price_drop' ? (
           <View style={styles.fieldGroup}>
             <AppText weight="semibold">Minimum price drop alert</AppText>
             <AppText muted style={styles.fieldHint}>Only notify when the price drops by at least this amount.</AppText>
-            <View style={styles.inputWrap}>
-              <AppText weight="semibold" muted>{product?.currency ?? 'AED'}{priceBasisSuffix(product?.priceBasis)}</AppText>
-              <TextInput value={minimumPriceDrop} onChangeText={setMinimumPriceDrop} keyboardType="decimal-pad" placeholder="Any drop" placeholderTextColor={colors.textSoft} maxFontSizeMultiplier={1.3} style={styles.input} />
-            </View>
+            <AppTextInput
+              leading={<AppText weight="semibold" muted>{product?.currency ?? 'AED'}{priceBasisSuffix(product?.priceBasis)}</AppText>}
+              value={minimumPriceDrop}
+              onChangeText={setMinimumPriceDrop}
+              keyboardType="decimal-pad"
+              placeholder="Any drop"
+            />
           </View>
         ) : null}
         <View style={styles.settingToggleRow}>
@@ -1577,7 +2125,15 @@ function TrackingSettingsScreen({ productId, navigate }: { productId: number; na
           </View>
           <Switch value={restockAlertEnabled} onValueChange={setRestockAlertEnabled} trackColor={{ true: colors.primary }} />
         </View>
+        <View style={styles.settingToggleRow}>
+          <View style={styles.flex}>
+            <AppText weight="semibold">Active</AppText>
+            <AppText muted style={styles.fieldHint}>Paused products stay in the watchlist but are skipped by price checks.</AppText>
+          </View>
+          <Switch value={isActive} onValueChange={setIsActive} trackColor={{ true: colors.primary }} />
+        </View>
         <FolderPicker value={folder} folders={organizationOptions.folders} onChange={setFolder} />
+        <ProductCategoryPicker value={productCategory} onChange={(value) => { setProductCategory(value); setCategoryEdited(true); }} />
         <PrimaryButton label="Save settings" onPress={save} />
         <PrimaryButton label="Delete product" variant="danger" onPress={confirmDelete} icon={<Trash2 size={18} color={colors.red} />} />
       </ScrollView>
@@ -1585,38 +2141,39 @@ function TrackingSettingsScreen({ productId, navigate }: { productId: number; na
   );
 }
 
-function ActivityScreen({ navigate }: { navigate: (route: Route) => void }) {
+function ActivityScreen({
+  navigate,
+  refreshKey = 0,
+  availableUpdate,
+  onOpenUpdate
+}: {
+  navigate: (route: Route) => void;
+  refreshKey?: number;
+  availableUpdate?: AvailableUpdate;
+  onOpenUpdate?: () => void;
+}) {
   const [events, setEvents] = useState<ActivityEvent[]>([]);
   const [products, setProducts] = useState<TrackedProduct[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let active = true;
     (async () => {
       const [loadedEvents, loadedProducts] = await Promise.all([
         listActivityEvents(),
         listTrackedProducts()
       ]);
+      if (!active) {
+        return;
+      }
       setEvents(loadedEvents);
       setProducts(loadedProducts);
       setLoading(false);
     })();
-  }, []);
+    return () => { active = false; };
+  }, [refreshKey]);
 
-  const existingProductIds = useMemo(() => new Set(products.map((p) => p.id)), [products]);
-
-  const groupedEvents = useMemo(() => {
-    const groups: { label: string; events: ActivityEvent[] }[] = [];
-    for (const event of events) {
-      const label = formatRelativeTime(event.checkedAt);
-      const lastGroup = groups[groups.length - 1];
-      if (lastGroup && lastGroup.label === label) {
-        lastGroup.events.push(event);
-      } else {
-        groups.push({ label, events: [event] });
-      }
-    }
-    return groups;
-  }, [events]);
+  const productsById = useMemo(() => new Map(products.map((product) => [product.id, product])), [products]);
 
   if (loading) {
     return (
@@ -1628,143 +2185,41 @@ function ActivityScreen({ navigate }: { navigate: (route: Route) => void }) {
 
   return (
     <ScrollView contentContainerStyle={styles.screenContent} showsVerticalScrollIndicator={false}>
-      <AppText weight="bold" style={styles.heading}>
+      <AppText weight="bold" accessibilityRole="header" style={styles.heading}>
         Activity
       </AppText>
-      <AppText muted>Recent price changes across all tracked products.</AppText>
-      {events.length === 0 ? <EmptyActivity /> : null}
-      {groupedEvents.map((group) => (
-        <View key={group.label}>
-          <View style={styles.activityDateHeader}>
-            <AppText weight="semibold" style={styles.activityDateHeaderText}>
-              {group.label}
-            </AppText>
+      <AppText muted>Price and stock changes from your watchlist.</AppText>
+      {availableUpdate && onOpenUpdate ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Update available: Qeemat ${availableUpdate.version}. Open update dialog.`}
+          onPress={onOpenUpdate}
+          style={({ pressed }) => [styles.updatePinCard, pressed && styles.storeFilterButtonPressed]}
+        >
+          <View style={styles.updatePinBadge}>
+            <Download size={20} color={colors.primary} />
           </View>
-          <View style={styles.cardList}>
-            {group.events.map((event) => {
-              const productExists = existingProductIds.has(event.trackedProductId);
-              const cardContent = (
-                <View style={styles.activityCard}>
-                  {event.productImageUrl ? (
-                    <Image source={{ uri: event.productImageUrl }} style={styles.activityThumb} resizeMode="contain" />
-                  ) : (
-                    <View style={styles.activityThumbPlaceholder}>
-                      <Store size={18} color={colors.textMuted} />
-                    </View>
-                  )}
-                  <View style={styles.activityBody}>
-                    <AppText weight="semibold" numberOfLines={2} style={styles.activityTitle}>
-                      {event.productTitle}
-                    </AppText>
-                    <View style={styles.activityPriceRow}>
-                      {event.availability === 'out_of_stock' ? (
-                        <>
-                          <PackageX size={18} color={colors.amber} />
-                          <AppText weight="semibold" style={styles.oosActivityLabel}>
-                            Out of stock
-                          </AppText>
-                          {event.previousPriceMinor !== undefined ? (
-                            <AppText muted style={styles.activityOldPrice}>
-                              {formatPrice(event.previousPriceMinor, event.currency, event.priceBasis)}
-                            </AppText>
-                          ) : null}
-                        </>
-                      ) : event.availability === 'in_stock' ? (
-                        <>
-                          <Check size={18} color={colors.green} />
-                          <AppText weight="semibold" style={styles.restockActivityLabel}>Back in stock</AppText>
-                          <AppText weight="bold" style={styles.activityNewPrice}>{formatPrice(event.newPriceMinor, event.currency, event.priceBasis)}</AppText>
-                        </>
-                      ) : (
-                        <>
-                          {event.previousPriceMinor !== undefined ? (
-                            <AppText muted style={styles.activityOldPrice}>
-                              {formatPrice(event.previousPriceMinor, event.currency, event.priceBasis)}
-                            </AppText>
-                          ) : null}
-                          <View style={styles.activityDirectionIcon}>
-                            {event.priceDirection === 'down' ? (
-                              <TrendingDown size={16} color={colors.green} />
-                            ) : event.priceDirection === 'up' ? (
-                              <TrendingUp size={16} color={colors.red} />
-                            ) : (
-                              <View style={styles.activityFirstDot} />
-                            )}
-                          </View>
-                          {event.priceDirection === 'first' ? (
-                            <AppText weight="bold" style={styles.activityFirstPrice}>
-                              {formatPrice(event.newPriceMinor, event.currency, event.priceBasis)}
-                            </AppText>
-                          ) : (
-                            <AppText weight="bold" style={[
-                              styles.activityNewPrice,
-                              event.priceDirection === 'down' && styles.activityPriceDown,
-                              event.priceDirection === 'up' && styles.activityPriceUp
-                            ]}>
-                              {formatPrice(event.newPriceMinor, event.currency, event.priceBasis)}
-                            </AppText>
-                          )}
-                        </>
-                      )}
-                    </View>
-                    <View style={styles.activityMetaRow}>
-                      {event.priceDirection === 'first' && !event.availability ? (
-                        <View style={styles.activityFirstBadge}>
-                          <AppText weight="semibold" style={styles.activityFirstBadgeText}>
-                            Started tracking
-                          </AppText>
-                        </View>
-                      ) : null}
-                      {event.availability === 'out_of_stock' ? (
-                        <View style={styles.oosActivityBadge}>
-                          <AppText weight="semibold" style={styles.oosActivityBadgeText}>
-                            Out of stock
-                          </AppText>
-                        </View>
-                      ) : null}
-                      {event.availability === 'in_stock' ? (
-                        <View style={styles.restockActivityBadge}>
-                          <AppText weight="semibold" style={styles.restockActivityBadgeText}>Back in stock</AppText>
-                        </View>
-                      ) : null}
-                      <View style={[styles.sourceBadge, snapshotSourceBadgeStyle(event.source)]}>
-                        <AppText weight="semibold" style={styles.sourceBadgeText}>
-                          {snapshotSourceLabel(event.source)}
-                        </AppText>
-                      </View>
-                    </View>
-                  </View>
-                </View>
-              );
-
-              if (!productExists) {
-                return (
-                  <View key={event.id}>
-                    {cardContent}
-                  </View>
-                );
-              }
-
-              return (
-                <Pressable
-                  key={event.id}
-                  onPress={() => navigate({ name: 'detail', id: event.trackedProductId })}
-                  style={({ pressed }) => pressed && { opacity: 0.7 }}
-                >
-                  {cardContent}
-                </Pressable>
-              );
-            })}
+          <View style={styles.flex}>
+            <AppText weight="semibold" style={styles.updatePinTitle}>Qeemat update available</AppText>
+            <AppText muted style={styles.updatePinBody}>Version {availableUpdate.version} is ready to download and install.</AppText>
           </View>
-        </View>
-      ))}
+          <ChevronRight size={18} color={colors.textSoft} />
+        </Pressable>
+      ) : null}
+      {events.length === 0 ? <EmptyActivity /> : (
+        <ActivityList
+          events={events}
+          productsById={productsById}
+          onOpenProduct={(productId) => navigate({ name: 'detail', id: productId })}
+        />
+      )}
     </ScrollView>
   );
 }
 
 function EmptyActivity() {
   return (
-    <View style={styles.emptyCard}>
+    <Surface padding="lg" style={styles.emptyCard}>
       <View style={styles.emptyIcon}>
         <Clock size={24} color={colors.primary} />
       </View>
@@ -1774,40 +2229,71 @@ function EmptyActivity() {
       <AppText muted style={styles.emptyCopy}>
         Tracked product prices will appear here when they change.
       </AppText>
-    </View>
+    </Surface>
   );
 }
 
-export function OpportunityScreen({ navigate }: { navigate: (route: Route) => void }) {
+export function rotateDiscoveryProducts<T>(products: T[], offset: number): T[] {
+  const first = products.slice(0, 24);
+  if (first.length < 2) { return products; }
+  const shift = offset % first.length;
+  return [...first.slice(shift), ...first.slice(0, shift), ...products.slice(24)];
+}
+
+type CachedDiscoveryScope = {
+  products: DiscoveryProduct[];
+  refreshedAt?: string;
+  stale: boolean;
+  sources?: DiscoveryCatalogResult['sources'];
+  failedCollectionIds: string[];
+  historyUnavailable?: boolean;
+  cachedAt: number;
+};
+
+export function OpportunityScreen({ navigate, active = true, sessionOffset }: { navigate: (route: Route) => void; active?: boolean; sessionOffset?: number }) {
+  const [searchInput, setSearchInput] = useState('');
+  const [searchError, setSearchError] = useState<string>();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResult, setSearchResult] = useState<ProductSearchResult>();
   const [searchBusy, setSearchBusy] = useState(false);
-  const [searchRetailer, setSearchRetailer] = useState<DiscoveryProduct['siteKey']>();
+  const [searchRetailer, setSearchRetailer] = useState<SiteKey>();
   const searchGeneration = useRef(0);
   const discoveryScroll = useRef(0);
   const savedDiscoveryScroll = useRef(0);
   const restoreScroll = useRef(false);
+  const scopeCache = useRef(new Map<string, CachedDiscoveryScope>());
+  const autoLoadLock = useRef(false);
+  const lastAutoLoadAt = useRef(0);
+  const atBottom = useRef(false);
+  const viewportHeight = useRef(0);
+  const maybeLoadMoreRef = useRef<() => void>(() => {});
   const [discoveryProducts, setDiscoveryProducts] = useState<DiscoveryProduct[]>([]);
   const [preferences, setPreferences] = useState<DiscoveryPreferences>();
   const [trackedProducts, setTrackedProducts] = useState<TrackedProduct[]>([]);
+  const watchedCategories = useMemo(() => watchlistCategories(trackedProducts), [trackedProducts]);
+  const watchedCategoryKey = watchedCategories.join(',');
+  const tasteProfile = useMemo(() => buildDiscoveryTasteProfile(trackedProducts), [trackedProducts]);
+  const personalized = useMemo(() => hasDiscoveryTasteProfile(tasteProfile), [tasteProfile]);
+  const profileSummary = useMemo(() => discoveryTasteSummary(tasteProfile), [tasteProfile]);
+  const hasTrackers = useMemo(() => trackedProducts.some((product) => product.isActive && !product.isArchived), [trackedProducts]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [showPreferences, setShowPreferences] = useState(false);
   const [trackingProductId, setTrackingProductId] = useState<string>();
   const [category, setCategory] = useState<DiscoveryCategory>();
   const [brand, setBrand] = useState<string>();
-  const [retailer, setRetailer] = useState<DiscoveryProduct['siteKey']>();
+  const [retailer, setRetailer] = useState<SiteKey>();
   const [browseAll, setBrowseAll] = useState(false);
-  const [showFilters, setShowFilters] = useState(false);
   const [showSources, setShowSources] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
   const [collectionId, setCollectionId] = useState<string>();
   const [batchLimit, setBatchLimit] = useState(24);
   const [catalogBusy, setCatalogBusy] = useState(false);
   const loadGeneration = useRef(0);
   const [catalog, setCatalog] = useState<DiscoveryCatalogResult>();
-  const [discoveryVisibleCount, setDiscoveryVisibleCount] = useState(24);
-  const [searchVisibleCount, setSearchVisibleCount] = useState(24);
+  const [discoveryVisibleCount, setDiscoveryVisibleCount] = useState(12);
+  const [searchVisibleCount, setSearchVisibleCount] = useState(12);
   const [notice, setNotice] = useState<{ message: string; trackedId?: number }>();
+  const [compareGroupId, setCompareGroupId] = useState<string>();
   const [pendingProduct, setPendingProduct] = useState<{ listing: DiscoveryProduct; parsed: ParsedProduct }>();
   const [variantAttributes, setVariantAttributes] = useState<VariantAttributes>({});
   const [savingVariant, setSavingVariant] = useState(false);
@@ -1816,11 +2302,25 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
   const [maximumPrice, setMaximumPrice] = useState('');
   const scrollRef = useRef<ScrollView>(null);
   const [catalogState, setCatalogState] = useState<{ refreshedAt?: string; stale: boolean }>({ stale: false });
+  useEffect(() => {
+    if (active) { listTrackedProducts().then(setTrackedProducts).catch(() => {}); }
+  }, [active]);
 
   const load = useCallback(async (force = false) => {
     if (!preferences || searchQuery) { return; }
     const generation = ++loadGeneration.current;
     const isCancelled = () => generation !== loadGeneration.current;
+    const scopeKey = `${category ?? 'watch'}|${retailer ?? ''}|${collectionId ?? ''}|${browseAll ? 'all' : ''}|${batchLimit}|${watchedCategoryKey}`;
+    const cached = force ? undefined : scopeCache.current.get(scopeKey);
+    if (cached && Date.now() - cached.cachedAt < DISCOVERY_SCOPE_TTL_MS) {
+      setCatalog({ products: cached.products, refreshedAt: cached.refreshedAt, stale: cached.stale, failedCollectionIds: cached.failedCollectionIds, sources: cached.sources, ...(cached.historyUnavailable ? { historyUnavailable: true } : {}) });
+      setCatalogBusy(false);
+      setCatalogState({ refreshedAt: cached.refreshedAt, stale: cached.stale });
+      setDiscoveryProducts(cached.products);
+      setLoading(false);
+      autoLoadLock.current = false;
+      return;
+    }
     const tracked = await listTrackedProducts();
     if (isCancelled()) { return; }
     setTrackedProducts(tracked);
@@ -1833,12 +2333,30 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
       setLoading(false);
     };
     try {
-      update(await loadDiscoveryCatalog(undefined, { force, onUpdate: update, isCancelled, scope: {
-        categories: category ? [category] : browseAll || retailer || collectionId ? [] : preferences.categories,
+      const result = await loadDiscoveryCatalog(undefined, { force, onUpdate: update, isCancelled, scope: {
+        categories: category ? [category] : browseAll || retailer || collectionId ? [] : watchedCategoryKey ? watchedCategoryKey.split(',') as ShoppingCategory[] : watchlistCategories(tracked),
         siteKey: retailer, collectionId, limit: batchLimit
-      } }));
-    } finally { if (!isCancelled()) { setCatalogBusy(false); } }
-  }, [preferences, category, retailer, collectionId, browseAll, batchLimit, searchQuery]);
+      } });
+      if (!isCancelled()) {
+        update(result);
+        scopeCache.current.set(scopeKey, {
+          products: result.products,
+          refreshedAt: result.refreshedAt,
+          stale: result.stale,
+          sources: result.sources,
+          failedCollectionIds: result.failedCollectionIds,
+          historyUnavailable: result.historyUnavailable,
+          cachedAt: Date.now()
+        });
+      }
+    } finally {
+      if (!isCancelled()) {
+        setCatalogBusy(false);
+        setLoading(false);
+        autoLoadLock.current = false;
+      }
+    }
+  }, [preferences, category, retailer, collectionId, browseAll, batchLimit, searchQuery, watchedCategoryKey]);
 
   useEffect(() => { getDiscoveryPreferences().then(setPreferences).catch(() => setLoading(false)); }, []);
   const cancelLoad = useCallback(() => { loadGeneration.current++; }, []);
@@ -1849,9 +2367,10 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
     const isCancelled = () => generation !== searchGeneration.current;
     cancelLoad(); setCatalogBusy(false);
     if (!searchQuery) { savedDiscoveryScroll.current = discoveryScroll.current; }
-    if (query !== searchQuery) { setSearchResult(undefined); setSearchRetailer(undefined); }
-    setSearchQuery(query); setSearchBusy(true); setNotice(undefined);
-    if (!previous) { setSearchVisibleCount(24); scrollRef.current?.scrollTo({ y: 0, animated: false }); }
+    if (query !== searchQuery) { setSearchResult(undefined); setSearchRetailer(undefined); setBrand(undefined); }
+    setSearchInput(query);
+    setSearchQuery(query); setSearchBusy(true); setNotice(undefined); setSearchError(undefined);
+    if (!previous) { setSearchVisibleCount(12); scrollRef.current?.scrollTo({ y: 0, animated: false }); atBottom.current = false; }
     const update = (result: ProductSearchResult) => { if (!isCancelled()) { setSearchResult(result); } };
     try {
       const tracked = await listTrackedProducts();
@@ -1862,9 +2381,19 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
     finally { if (!isCancelled()) { setSearchBusy(false); } }
   }
 
+  function submitSearch(value = searchInput) {
+    const normalized = normalizeSearchQuery(value);
+    if (!buildSearchRequests(normalized).length) {
+      setSearchError('Enter at least two letters or numbers.');
+      return;
+    }
+    runProductSearch(normalized).catch(() => undefined);
+  }
+
   function clearProductSearch() {
-    searchGeneration.current++; setSearchBusy(false); setSearchQuery(''); setSearchResult(undefined); setSearchRetailer(undefined);
+    searchGeneration.current++; setSearchBusy(false); setSearchQuery(''); setSearchInput(''); setSearchError(undefined); setSearchResult(undefined); setSearchRetailer(undefined);
     restoreScroll.current = true;
+    atBottom.current = false;
   }
 
   useEffect(() => {
@@ -1882,80 +2411,178 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
     finally { setRefreshing(false); }
   }
 
-  const effectivePreferences = useMemo(() => {
-    if (!preferences) { return undefined; }
-    const dismissed = new Set(preferences.dismissedProductIds);
+  const dismissedIds = useMemo(() => {
+    const dismissed = new Set(preferences?.dismissedProductIds ?? []);
     for (const product of discoveryProducts) {
       if (dismissed.has(product.id)) { dismissed.add(discoveryFeedbackId(product)); }
     }
-    return { ...preferences, dismissedProductIds: [...dismissed] };
-  }, [preferences, discoveryProducts]);
-  const sections = useMemo(
-    () => effectivePreferences ? buildDiscoverySections(discoveryProducts, browseAll || category || retailer || collectionId ? {
-      ...effectivePreferences, categories: category ? [category] : [], budgetsByCategory: browseAll ? {} : effectivePreferences.budgetsByCategory
-    } : effectivePreferences) : { picks: [], newlyDiscovered: [], exploreDifferent: [] },
-    [discoveryProducts, effectivePreferences, browseAll, category, retailer, collectionId]
+    return dismissed;
+  }, [preferences?.dismissedProductIds, discoveryProducts]);
+  const maximumPriceMinor = parseTargetPriceInput(maximumPrice);
+
+  const feedProducts = useMemo(() => {
+    const scopedToWatchlist = !category && !browseAll && !retailer && !collectionId && watchedCategories.length > 0;
+    const visible = discoveryProducts.filter((product) => {
+      if (isDiscoveryProductDismissed(product, dismissedIds)) { return false; }
+      if (!scopedToWatchlist) { return true; }
+      return (product.categories ?? [product.category]).some((item) => watchedCategories.includes(item as ShoppingCategory));
+    });
+    return filterDiscoveryProducts(visible, { category, brand, siteKey: retailer, collectionId, maximumPriceMinor });
+  }, [discoveryProducts, dismissedIds, category, brand, retailer, collectionId, maximumPriceMinor, browseAll, watchedCategories]);
+
+  const feedGroups = useMemo(() => groupDiscoveryProducts(feedProducts, { trackedProducts }), [feedProducts, trackedProducts]);
+  const discoveryGroups = useMemo(() => {
+    // Explore should not be a copy of the watchlist: filter tracked-only
+    // groups before ranking so they do not consume diversity slots.
+    const visible = filterTrackedFeedGroups(feedGroups);
+    const ranked = rankDiscoveryGroups(visible, tasteProfile);
+    const unfiltered = !category && !brand && !retailer && !collectionId && !maximumPrice;
+    return unfiltered && !personalized ? rotateDiscoveryProducts(ranked, sessionOffset ?? 0) : ranked;
+  }, [feedGroups, tasteProfile, category, brand, retailer, collectionId, maximumPrice, personalized, sessionOffset]);
+
+  const searchProducts = useMemo(
+    () => (searchResult?.products ?? []).filter((product) => !isDiscoveryProductDismissed(product, dismissedIds)),
+    [searchResult, dismissedIds]
   );
-  const searchProducts = useMemo(() => {
-    const dismissed = new Set(effectivePreferences?.dismissedProductIds ?? []);
-    return (searchResult?.products ?? []).filter((product) => !isDiscoveryProductDismissed(product, dismissed));
-  }, [searchResult, effectivePreferences?.dismissedProductIds]);
-  useEffect(() => {
-    if (searchRetailer && !searchProducts.some((product) => product.siteKey === searchRetailer)) { setSearchRetailer(undefined); }
-  }, [searchProducts, searchRetailer]);
-  const filteredProducts = useMemo(() => searchQuery ? filterDiscoveryProducts(searchProducts, { siteKey: searchRetailer }) : filterDiscoveryProducts(sections.picks, {
-    category, brand, siteKey: retailer, collectionId, maximumPriceMinor: parseTargetPriceInput(maximumPrice)
-  }), [sections.picks, category, brand, retailer, collectionId, maximumPrice, searchQuery, searchProducts, searchRetailer]);
-  const brands = useMemo(() => uniqueDiscoveryBrands(filterDiscoveryProducts(discoveryProducts, { category }).map((product) => product.brand)), [category, discoveryProducts]);
-  const retailers = useMemo(() => [...new Set(DISCOVERY_SOURCE_MAPS.map((source) => source.siteKey))], []);
-  const selectedCollection = DISCOVERY_SOURCE_MAPS.find((source) => source.id === collectionId);
-  const hasMoreListings = !searchQuery && !collectionId && selectDiscoveryCollections({ categories: category ? [category] : browseAll || retailer ? [] : preferences?.categories, siteKey: retailer, offset: batchLimit, limit: 1 }).length > 0;
+  const searchGroupsAll = useMemo(() => groupDiscoveryProducts(searchProducts, { trackedProducts }), [searchProducts, trackedProducts]);
+  const rankedSearchGroups = useMemo(() => rankSearchGroups(searchGroupsAll, searchQuery), [searchGroupsAll, searchQuery]);
+  const searchGroups = useMemo(() => rankedSearchGroups
+    .filter((group) => !searchRetailer || group.offers.some((offer) => offer.product.siteKey === searchRetailer))
+    .filter((group) => !brand || group.brand.toLocaleLowerCase() === brand.toLocaleLowerCase())
+    .filter((group) => {
+      if (maximumPriceMinor === undefined) { return true; }
+      const price = group.bestOffer?.product.priceMinor ?? group.offers[0]?.product.priceMinor;
+      return price !== undefined && price <= maximumPriceMinor;
+    }), [rankedSearchGroups, searchRetailer, brand, maximumPriceMinor]);
+
+  const displayGroups = searchQuery ? searchGroups : discoveryGroups;
   const visibleCount = searchQuery ? searchVisibleCount : discoveryVisibleCount;
-  const visibleProducts = filteredProducts.slice(0, visibleCount);
-  const resultRetailerCount = new Set(filteredProducts.map((product) => product.siteKey)).size;
+  const visibleGroups = displayGroups.slice(0, visibleCount);
+  const resultStoreCount = useMemo(() => new Set(displayGroups.flatMap((group) => group.offers.map((offer) => offer.product.siteKey))).size, [displayGroups]);
+  const compareGroup = useMemo(() => displayGroups.find((group) => group.id === compareGroupId), [displayGroups, compareGroupId]);
+  const activeFilterCount = [category, brand, searchQuery ? searchRetailer : retailer, maximumPrice.trim()].filter(Boolean).length;
+  const activeFilterSummary = searchQuery
+    ? [searchRetailer && getSiteByKey(searchRetailer).shortName, brand, maximumPrice && `Under AED ${maximumPrice}`].filter(Boolean).join(' · ')
+    : [category && DISCOVERY_CATEGORY_LABELS[category], brand, retailer && getSiteByKey(retailer).shortName, maximumPrice && `Under AED ${maximumPrice}`].filter(Boolean).join(' · ');
+  const filterStores = useMemo<{ siteKey: SiteKey; count: number }[]>(() => {
+    const counts = new Map<SiteKey, number>();
+    for (const group of displayGroups) {
+      for (const siteKey of new Set(group.offers.map((offer) => offer.product.siteKey))) {
+        counts.set(siteKey, (counts.get(siteKey) ?? 0) + 1);
+      }
+    }
+    return [...counts].map(([siteKey, count]) => ({ siteKey, count })).sort((left, right) => right.count - left.count);
+  }, [displayGroups]);
+  const filterBrands = useMemo(() => uniqueDiscoveryBrands(displayGroups.map((group) => group.brand).filter((value): value is string => Boolean(value))).slice(0, 24), [displayGroups]);
+  const filterDepartments = useMemo(() => [...new Set([...(category ? [category] : []), ...watchedCategories, ...SEARCH_DEPARTMENTS])], [category, watchedCategories]);
+  const filterSelection: SearchFilters = { category, siteKey: searchQuery ? searchRetailer : retailer, brand, maximumPrice };
+  const selectedCollection = DISCOVERY_SOURCE_MAPS.find((source) => source.id === collectionId);
+  const hasMoreListings = !searchQuery && !collectionId && selectDiscoveryCollections({ categories: category ? [category] : browseAll || retailer ? [] : watchedCategories, siteKey: retailer, offset: batchLimit, limit: 1 }).length > 0;
   const variantChoices = discoveryVariantChoices(pendingProduct?.parsed.variants ?? []);
   const selectedChoice = resolveSelectedVariant(variantChoices, variantAttributes);
   const selectedVariant = pendingProduct?.parsed.variants?.find((variant) => variant.id === selectedChoice?.id);
-  const activeFilter = Boolean(category || brand || retailer || collectionId || maximumPrice);
+  const feedTitle = category ? DISCOVERY_CATEGORY_LABELS[category] : selectedCollection ? `${getSiteByKey(selectedCollection.siteKey).shortName} · ${selectedCollection.label}` : browseAll ? 'All products' : 'For you';
+  const feedLoading = loading || (catalogBusy && !displayGroups.length);
+  const searchIsStarting = Boolean(searchQuery) && searchBusy && displayGroups.length === 0;
+  const feedCopy = feedLoading
+    ? 'Loading products for this selection…'
+    : category || browseAll || retailer || collectionId
+      ? `${displayGroups.length} ${displayGroups.length === 1 ? 'product' : 'products'} · ${resultStoreCount} ${resultStoreCount === 1 ? 'store' : 'stores'}`
+      : personalized
+        ? `Based on your watchlist${profileSummary.length ? ` · ${profileSummary.join(', ')}` : ''}`
+        : hasTrackers ? 'Based on your watchlist' : 'Track a product to personalise this feed';
 
-  useEffect(() => { setDiscoveryVisibleCount(24); }, [category, brand, retailer, maximumPrice, browseAll]);
-  useEffect(() => { setSearchVisibleCount(24); }, [searchRetailer]);
-  const preferenceKey = preferences?.categories.join(',');
-  useEffect(() => { setBatchLimit(24); }, [category, retailer, collectionId, browseAll, preferenceKey]);
+  /**
+   * The Explore feed and search results both continue automatically near the
+   * bottom. There is no Show more / Load more button: already-fetched groups
+   * reveal another batch first, then the next retailer page/collection batch
+   * is requested. A short cooldown prevents repeated scroll events from
+   * firing several requests.
+   */
+  function maybeLoadMore() {
+    const now = Date.now();
+    if (autoLoadLock.current || now - lastAutoLoadAt.current < 700) { return; }
+    lastAutoLoadAt.current = now;
+    if (searchQuery) {
+      if (searchBusy) { return; }
+      if (searchVisibleCount < displayGroups.length) {
+        setSearchVisibleCount((count) => count + 12);
+        return;
+      }
+      if (searchResult?.sources.some((source) => source.nextUrl)) {
+        autoLoadLock.current = true;
+        runProductSearch(searchQuery, false, searchResult)
+          .catch(() => undefined)
+          .finally(() => { autoLoadLock.current = false; });
+      }
+      return;
+    }
+    if (loading || catalogBusy) { return; }
+    if (discoveryVisibleCount < displayGroups.length) {
+      setDiscoveryVisibleCount((count) => count + 12);
+      return;
+    }
+    // Brand and maximum-price filters are applied locally after fetching, so
+    // fetching more retailer batches would not necessarily add matches. The
+    // other filters (department, store, collection) are part of the fetch scope
+    // itself, so continuing to fetch more of that scope is correct.
+    if (brand || maximumPrice.trim()) { return; }
+    if (hasMoreListings) {
+      autoLoadLock.current = true;
+      setBatchLimit((current) => current + 24);
+    }
+  }
+  maybeLoadMoreRef.current = maybeLoadMore;
+
+  useEffect(() => { if (!searchBusy) { autoLoadLock.current = false; } }, [searchBusy]);
+  useEffect(() => { if (!catalogBusy) { autoLoadLock.current = false; } }, [catalogBusy]);
+  useEffect(() => {
+    if (!searchBusy && searchQuery && atBottom.current) { maybeLoadMoreRef.current(); }
+  }, [searchBusy, searchQuery]);
+  useEffect(() => {
+    if (!catalogBusy && !searchQuery && atBottom.current) { maybeLoadMoreRef.current(); }
+  }, [catalogBusy, searchQuery]);
+
+  useEffect(() => { setDiscoveryVisibleCount(12); }, [category, brand, retailer, maximumPrice, browseAll, watchedCategoryKey]);
+  useEffect(() => { setSearchVisibleCount(12); }, [searchRetailer, brand, maximumPrice]);
+  useEffect(() => { setBatchLimit(24); }, [category, retailer, collectionId, browseAll, watchedCategoryKey]);
 
   function resetBrowse() { setCategory(undefined); setBrand(undefined); setRetailer(undefined); setCollectionId(undefined); setMaximumPrice(''); }
+
+  /** Re-tapping a department should be instant when its scope is already cached. */
+  function scopeIsCached(nextCategory?: DiscoveryCategory, nextRetailer?: SiteKey, nextCollectionId?: string, nextBrowseAll = false, limit = 24): boolean {
+    const key = `${nextCategory ?? 'watch'}|${nextRetailer ?? ''}|${nextCollectionId ?? ''}|${nextBrowseAll ? 'all' : ''}|${limit}|${watchedCategoryKey}`;
+    const cached = scopeCache.current.get(key);
+    return Boolean(cached && Date.now() - cached.cachedAt < DISCOVERY_SCOPE_TTL_MS);
+  }
+
   function selectDepartment(selected: DiscoveryCategory) {
     const deselect = selected === category && !retailer && !collectionId;
+    const nextCategory = deselect ? undefined : selected;
+    if (!scopeIsCached(nextCategory)) { setLoading(true); }
     resetBrowse();
     if (!deselect) { setCategory(selected); }
     setBrowseAll(false);
   }
-  async function handleSavePreferences(update: Pick<DiscoveryPreferences, 'completed' | 'categories' | 'favoriteBrands' | 'budgetsByCategory'>) {
-    const saved = await saveDiscoveryPreferences(update);
-    setPreferences(saved);
-    setShowPreferences(false);
-    setDiscoveryVisibleCount(24);
-    resetBrowse();
-    setBrowseAll(false);
-    setNotice({ message: 'Picks updated.' });
-    scrollRef.current?.scrollTo({ y: 0, animated: true });
+  function clearFilters() {
+    setCategory(undefined); setBrand(undefined); setRetailer(undefined); setSearchRetailer(undefined); setCollectionId(undefined); setMaximumPrice('');
+    if (!searchQuery && !scopeIsCached(undefined)) { setLoading(true); }
   }
-
-  async function handleDismissInvitation() {
-    if (!preferences) {
-      return;
+  function applyFilters(next: SearchFilters) {
+    const scopeChanged = next.category !== category || next.siteKey !== (searchQuery ? searchRetailer : retailer);
+    setCategory(next.category);
+    setBrand(next.brand);
+    setMaximumPrice(next.maximumPrice);
+    if (searchQuery) { setSearchRetailer(next.siteKey); }
+    else {
+      if (next.siteKey !== retailer) { setCollectionId(undefined); }
+      setRetailer(next.siteKey);
+      if (scopeChanged && !scopeIsCached(next.category, next.siteKey)) { setLoading(true); }
     }
-    setPreferences(await saveDiscoveryPreferences({
-      completed: true,
-      categories: preferences.categories,
-      favoriteBrands: preferences.favoriteBrands,
-      budgetsByCategory: preferences.budgetsByCategory
-    }));
   }
-
-  async function handleDismiss(productId: string) {
-    const product = (searchResult?.products ?? []).find((item) => item.id === productId) ?? discoveryProducts.find((item) => item.id === productId);
-    await dismissDiscoveryProduct(productId, product);
+  async function handleDismissGroup(group: DiscoveryProductGroup) {
+    setCompareGroupId(undefined);
+    for (const offer of group.offers) { await dismissDiscoveryProduct(offer.product.id, offer.product); }
     setPreferences(await getDiscoveryPreferences());
   }
 
@@ -1995,6 +2622,8 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
       const id = await createTrackedProduct({
         parsed: verified,
         sourceUrl: product.url,
+        brand: product.brand === 'Other brands' ? undefined : product.brand,
+        category: Object.prototype.hasOwnProperty.call(SHOPPING_CATEGORY_LABELS, product.category) ? product.category as ShoppingCategory : undefined,
         checkPreference: availableCheckPreferences(result.product.siteKey)[0] ?? 'daily',
         alertMode: 'price_drop',
         restockAlertEnabled: true
@@ -2006,6 +2635,11 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
     finally { trackingBusy.current = false; setTrackingProductId(undefined); }
   }
 
+  async function handleTrackOffer(group: DiscoveryProductGroup, offer?: DiscoveryOffer) {
+    setCompareGroupId(undefined);
+    await handleTrack((offer ?? group.bestOffer ?? group.offers[0]).product);
+  }
+
   async function handleViewAtRetailer(product: DiscoveryProduct) {
     try {
       await Linking.openURL(product.url);
@@ -2015,6 +2649,7 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
   }
 
   function openBrandListing(selectedBrand: string) {
+    setCompareGroupId(undefined);
     if (searchQuery) { runProductSearch(selectedBrand); return; }
     setBrand(selectedBrand);
     setCategory(undefined);
@@ -2037,6 +2672,8 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
       }
       const existing = (await listTrackedProducts()).find((item) => cleanUrl(item.canonicalUrl || item.url) === cleanUrl(parsed.canonicalUrl || pendingProduct.listing.url) && item.variant?.id === selectedVariant.id);
       const id = existing?.id ?? await createTrackedProduct({ parsed, sourceUrl: pendingProduct.listing.url,
+        brand: pendingProduct.listing.brand === 'Other brands' ? undefined : pendingProduct.listing.brand,
+        category: Object.prototype.hasOwnProperty.call(SHOPPING_CATEGORY_LABELS, pendingProduct.listing.category) ? pendingProduct.listing.category as ShoppingCategory : undefined,
         variant: parsed.selectedVariant, checkPreference: availableCheckPreferences(parsed.siteKey)[0] ?? 'daily', alertMode: 'price_drop', restockAlertEnabled: true });
       setTrackedProducts(await listTrackedProducts());
       setNotice({ message: existing ? 'You are already tracking this option.' : `Tracking ${parsed.selectedVariant?.label ?? selectedVariant.label}`, trackedId: id });
@@ -2046,103 +2683,239 @@ export function OpportunityScreen({ navigate }: { navigate: (route: Route) => vo
     finally { setSavingVariant(false); }
   }
 
-  if (loading) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator color={colors.primary} />
-      </View>
-    );
-  }
-
   return (
-    <ScrollView
-      ref={scrollRef}
-      contentContainerStyle={[styles.screenContent, styles.discoveryScreenContent]}
-      showsVerticalScrollIndicator={false}
-      onScroll={(event) => { if (!searchQuery) { discoveryScroll.current = event.nativeEvent.contentOffset.y; } }}
-      scrollEventThrottle={100}
-      onContentSizeChange={() => { if (!searchQuery && restoreScroll.current) { restoreScroll.current = false; scrollRef.current?.scrollTo({ y: savedDiscoveryScroll.current, animated: false }); } }}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.primary} />}
-    >
-      <View style={styles.discoveryHeader}>
-        <View style={styles.discoveryHeaderIcon}>
-          <Sparkles size={22} color={colors.primary} />
-        </View>
-        <View style={styles.flex}>
-          <AppText weight="bold" style={styles.heading}>For you</AppText>
-          <AppText muted>Discover it. Track the price.</AppText>
-        </View>
-        <Pressable accessibilityRole="button" accessibilityLabel="Edit discovery preferences" onPress={() => setShowPreferences(true)} style={styles.discoveryPreferencesButton}>
-          <SlidersHorizontal size={19} color={colors.primary} />
-        </Pressable>
-      </View>
-
-      <DiscoverySearch query={searchQuery} result={searchResult} products={searchProducts} busy={searchBusy} retailer={searchRetailer} onRetailer={setSearchRetailer} onSearch={(query) => { runProductSearch(query); }} onClear={clearProductSearch} />
-      {!searchQuery && !preferences?.completed ? <DiscoverySetupCard onPress={() => setShowPreferences(true)} onDismiss={handleDismissInvitation} /> : null}
-
-      {!searchQuery ? <DiscoveryDepartments selected={category} products={discoveryProducts} onSelect={selectDepartment} onBrowse={() => setShowSources(true)} /> : null}
-      {!searchQuery && selectedCollection ? <AppText weight="semibold">{getSiteByKey(selectedCollection.siteKey).shortName} · {selectedCollection.label}</AppText> : null}
-      {notice ? <View accessibilityLiveRegion="polite" style={styles.discoveryNotice}><AppText style={styles.flex}>{notice.message}</AppText>{notice.trackedId ? <Pressable accessibilityRole="button" onPress={() => navigate({ name: 'trackingSettings', id: notice.trackedId! })}><AppText style={styles.discoveryLink}>Set target price</AppText></Pressable> : null}<Pressable accessibilityRole="button" accessibilityLabel="Dismiss message" onPress={() => setNotice(undefined)}><X size={18} color={colors.textMuted} /></Pressable></View> : null}
-
-      {searchQuery ? <View style={styles.discoverySection}>
-        <AppText weight="bold" style={styles.discoverySectionTitle}>Results for “{searchQuery}”</AppText>
-        <AppText muted>{filteredProducts.length} title and brand {filteredProducts.length === 1 ? 'match' : 'matches'} · {resultRetailerCount} {resultRetailerCount === 1 ? 'retailer' : 'retailers'}</AppText>
-        {!filteredProducts.length ? <AppText muted>{searchBusy ? 'Searching stores. Matches appear as each store responds.' : 'No matching product names in the returned results. Try a brand, model, or fewer words; check Coverage for unavailable stores.'}</AppText> : null}
-        <DiscoveryProductGrid products={visibleProducts} trackedProducts={trackedProducts} trackingProductId={trackingProductId} onTrack={handleTrack} onDismiss={handleDismiss} onMoreLikeThis={openBrandListing} onViewAtRetailer={handleViewAtRetailer} />
-        {filteredProducts.length > visibleCount ? <PrimaryButton label={`Show more (${filteredProducts.length - visibleCount} remaining)`} variant="outline" onPress={() => setSearchVisibleCount((count) => count + 24)} /> : null}
-        {searchResult?.sources.some((source) => source.nextUrl) ? <PrimaryButton label="Load more search results" variant="outline" loading={searchBusy} onPress={() => runProductSearch(searchQuery, false, searchResult)} /> : null}
-        {searchResult?.sources.some((source) => source.status === 'unavailable') ? <AppText muted>Some stores could not be searched. Saved matches may be older; see Coverage for details. Pull down to retry.</AppText> : null}
-      </View> : discoveryProducts.length > 0 || category || retailer || collectionId ? (
-        <>
-          <View style={styles.discoverySection}>
-            <View style={styles.titleRow}><AppText weight="bold" style={styles.discoverySectionTitle}>{category ? `${DISCOVERY_CATEGORY_LABELS[category]} for you` : browseAll ? 'Explore all products' : 'Picks for you'}</AppText><Pressable accessibilityRole="button" onPress={() => { resetBrowse(); setBrowseAll(!browseAll && !category); }} style={styles.discoveryToolbarAction}><AppText style={styles.discoveryLink}>{category || browseAll ? 'All picks' : 'All products'}</AppText></Pressable></View>
-            <View style={styles.discoveryToolbar}>
-              <AppText muted style={styles.discoveryResultCount}>{filteredProducts.length} {filteredProducts.length === 1 ? 'product' : 'products'} · {resultRetailerCount} {resultRetailerCount === 1 ? 'retailer' : 'retailers'}</AppText>
-              <Pressable accessibilityRole="button" accessibilityLabel="Refresh discovery products" accessibilityState={{ disabled: catalogBusy || refreshing }} disabled={catalogBusy || refreshing} onPress={refresh} style={styles.discoveryToolbarAction}><RefreshCcw size={16} color={colors.primary} /><AppText style={styles.discoveryLink}>{catalogBusy || refreshing ? 'Refreshing…' : 'Refresh'}</AppText></Pressable>
-              <Pressable accessibilityRole="button" onPress={() => setShowFilters((value) => !value)} style={styles.discoveryToolbarAction}><SlidersHorizontal size={16} color={colors.primary} /><AppText style={styles.discoveryLink}>Filters{activeFilter ? ' •' : ''}</AppText></Pressable>
+    <View style={styles.flex}>
+      <ScrollView
+        ref={scrollRef}
+        contentContainerStyle={styles.searchScrollContent}
+        showsVerticalScrollIndicator={false}
+        onLayout={(event) => { viewportHeight.current = event.nativeEvent.layout.height; }}
+        onScroll={(event) => {
+          const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+          if (!searchQuery) { discoveryScroll.current = contentOffset.y; }
+          const distanceFromBottom = contentSize.height - (contentOffset.y + layoutMeasurement.height);
+          atBottom.current = distanceFromBottom < 420;
+          if (atBottom.current) { maybeLoadMoreRef.current(); }
+        }}
+        scrollEventThrottle={100}
+        onContentSizeChange={(_width, height) => {
+          if (!searchQuery && restoreScroll.current) {
+            restoreScroll.current = false;
+            scrollRef.current?.scrollTo({ y: savedDiscoveryScroll.current, animated: false });
+          }
+          // Short result lists must also continue loading without a scroll.
+          if (height < viewportHeight.current + 360) { maybeLoadMoreRef.current(); }
+        }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.primary} />}
+      >
+        <View style={styles.watchlistBanner}>
+          <View style={styles.watchlistBrandRow}>
+            <View style={styles.watchlistBrandLockup}>
+              <Image source={require('./assets/app-icon/qeemat-q-tag.png')} style={styles.watchlistBrandIcon} />
+              <AppText weight="bold" style={styles.watchlistBrand}>Qeemat</AppText>
             </View>
-            {category && !browseAll && preferences?.budgetsByCategory[category] !== undefined ? <Pressable accessibilityRole="button" accessibilityLabel={`Edit ${DISCOVERY_CATEGORY_LABELS[category]} budget`} onPress={() => setShowPreferences(true)} style={styles.discoveryToolbarAction}><AppText style={styles.discoveryLink}>Budget {formatPrice(preferences.budgetsByCategory[category], 'AED')}</AppText></Pressable> : null}
-            {showFilters ? <View style={styles.listingFilters}>
-              <AppText weight="semibold">Retailer</AppText>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.discoveryFilterRail}>
-                <DiscoveryFilterChip label="Any retailer" selected={!retailer} onPress={() => setRetailer(undefined)} />
-                {retailers.map((site) => <DiscoveryFilterChip key={site} label={getSiteByKey(site).shortName} selected={retailer === site} onPress={() => { setCollectionId(undefined); setRetailer(retailer === site ? undefined : site); }} />)}
-              </ScrollView>
-              <AppText weight="semibold">Brand</AppText>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.discoveryFilterRail}>
-                <DiscoveryFilterChip label="Any brand" selected={!brand} onPress={() => setBrand(undefined)} />
-                {brands.map((item) => <DiscoveryFilterChip key={item} label={item} selected={brand === item} onPress={() => setBrand(brand === item ? undefined : item)} />)}
-              </ScrollView>
-              <TextInput accessibilityLabel="Maximum discovery price in AED" value={maximumPrice} onChangeText={setMaximumPrice} keyboardType="decimal-pad" placeholder="Maximum price (AED)" placeholderTextColor={colors.textSoft} style={styles.listingPriceInput} />
-            </View> : null}
-            {brand || retailer || collectionId || maximumPrice ? <View style={styles.titleRow}><AppText muted>{[brand, retailer && getSiteByKey(retailer).shortName, maximumPrice && `Under AED ${maximumPrice}`].filter(Boolean).join(' · ')}</AppText><Pressable accessibilityRole="button" onPress={resetBrowse}><AppText style={styles.discoveryLink}>Clear filters</AppText></Pressable></View> : null}
-            {!filteredProducts.length ? <View style={styles.discoverySection}><AppText muted>{catalogBusy ? 'Loading products for this selection…' : 'No products match your interests, budgets, and filters right now.'}</AppText>{!catalogBusy ? <PrimaryButton label="Explore all products" variant="outline" onPress={() => { resetBrowse(); setBrowseAll(true); }} /> : null}</View> : null}
-            {filteredProducts.length ? <DiscoveryProductGrid products={visibleProducts} trackedProducts={trackedProducts} trackingProductId={trackingProductId} onTrack={handleTrack} onDismiss={handleDismiss} onMoreLikeThis={openBrandListing} onViewAtRetailer={handleViewAtRetailer} /> : null}
-            {filteredProducts.length > visibleCount ? <PrimaryButton label={`Show more (${filteredProducts.length - visibleCount} remaining)`} variant="outline" onPress={() => setDiscoveryVisibleCount((count) => count + 24)} /> : null}
+            <View style={styles.watchlistHeaderActions}>
+              <Pressable accessibilityRole="button" accessibilityLabel="Browse departments, stores and coverage" focusable={false} android_ripple={{ color: 'transparent' }} onPress={() => setShowSources(true)} style={styles.watchlistSearchButton}>
+                <BookOpen size={22} color={colors.surface} />
+              </Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel="Refresh discovery products" focusable={false} android_ripple={{ color: 'transparent' }} accessibilityState={{ disabled: catalogBusy || refreshing }} disabled={catalogBusy || refreshing} onPress={refresh} style={styles.watchlistSearchButton}>
+                {catalogBusy || refreshing ? <ActivityIndicator size="small" color={colors.surface} /> : <RefreshCcw size={21} color={colors.surface} />}
+              </Pressable>
+            </View>
           </View>
-        </>
-      ) : <View style={styles.discoverySection}><Pressable accessibilityRole="button" accessibilityLabel="Refresh discovery products" accessibilityState={{ disabled: catalogBusy || refreshing }} disabled={catalogBusy || refreshing} onPress={refresh} style={styles.discoveryToolbarAction}><RefreshCcw size={16} color={colors.primary} /><AppText style={styles.discoveryLink}>{catalogBusy || refreshing ? 'Refreshing…' : 'Refresh'}</AppText></Pressable>{catalogBusy ? <><ActivityIndicator color={colors.primary} /><AppText muted>Loading matching listings. Products appear as each retailer responds.</AppText></> : <EmptyDiscovery onPreferences={() => setShowPreferences(true)} />}</View>}
+          <View style={styles.titleRow}>
+            <View style={styles.flex}>
+              <AppText weight="bold" accessibilityRole="header" style={styles.watchlistBannerTitle}>Explore</AppText>
+              <AppText style={styles.searchBannerSubtitle}>Compare prices across {SEARCH_STORE_COUNT} stores</AppText>
+            </View>
+            <View style={styles.watchlistBannerCount}>
+              {searchIsStarting || (!searchQuery && feedLoading)
+                ? <ActivityIndicator size="small" color={colors.surface} />
+                : <Search size={14} color={colors.surface} />}
+              <AppText weight="semibold" style={styles.watchlistBannerCountText}>
+                {searchIsStarting
+                  ? 'Searching…'
+                  : !searchQuery && feedLoading
+                    ? 'Loading…'
+                    : `${displayGroups.length} ${displayGroups.length === 1 ? 'product' : 'products'}`}
+              </AppText>
+            </View>
+          </View>
+          <View style={styles.watchlistBannerSearch}>
+            <Search size={18} color={colors.textMuted} />
+            <AppTextInput
+              bare
+              value={searchInput}
+              onChangeText={(value) => { setSearchInput(value); if (searchError) { setSearchError(undefined); } }}
+              onSubmitEditing={(event) => submitSearch(event?.nativeEvent?.text ?? searchInput)}
+              returnKeyType="search"
+              maxLength={120}
+              autoCorrect={false}
+              placeholder={`Search products across ${SEARCH_STORE_COUNT} stores`}
+              accessibilityLabel="Search products across stores"
+              inputStyle={styles.watchlistSearchInput}
+            />
+            {searchInput ? <Pressable accessibilityRole="button" accessibilityLabel="Clear product search" hitSlop={8} onPress={clearProductSearch}><X size={18} color={colors.textMuted} /></Pressable> : null}
+            <Pressable accessibilityRole="button" accessibilityLabel={activeFilterCount > 0 ? `Filter products, ${activeFilterCount} active` : 'Filter products'} onPress={() => setShowFilters(true)} style={styles.searchFilterButton}>
+              <SlidersHorizontal size={18} color={colors.primary} />
+              {activeFilterCount > 0 ? <View style={styles.searchFilterCount}><AppText weight="bold" style={styles.searchFilterCountText}>{activeFilterCount}</AppText></View> : null}
+            </Pressable>
+          </View>
+          {searchError ? <AppText style={styles.searchBannerError}>{searchError}</AppText> : null}
+        </View>
 
-      {hasMoreListings ? <PrimaryButton label="Load more listings" variant="outline" loading={catalogBusy} onPress={() => setBatchLimit((current) => current + 24)} /> : null}
-      {!searchQuery && catalogState.refreshedAt ? <AppText muted style={styles.discoveryFreshness}>{catalogState.stale ? 'Showing saved discovery products from ' : 'Product prices observed '}{formatRelativeTime(catalogState.refreshedAt)}.</AppText> : null}
-      {!searchQuery && catalog?.failedCollectionIds?.length ? <Pressable accessibilityRole="button" onPress={() => setShowSources(true)}><AppText muted style={styles.discoveryFreshness}>{catalog.failedCollectionIds.length} collections could not refresh. View source status.</AppText></Pressable> : null}
-      <DiscoveryPreferencesSheet visible={showPreferences} initialPreferences={preferences} products={discoveryProducts} onClose={() => setShowPreferences(false)} onSave={handleSavePreferences} />
-      <DiscoveryBrowseSheet visible={showSources} sources={catalog?.sources} onClose={() => setShowSources(false)} onCategory={(selected) => { resetBrowse(); setCategory(selected); setBrowseAll(false); setShowSources(false); }} onRetailer={(selected) => { resetBrowse(); setRetailer(selected); setBrowseAll(true); setShowSources(false); }} onCollection={(source) => { resetBrowse(); setCollectionId(source.id); setRetailer(source.siteKey); setBrowseAll(true); setShowSources(false); }} />
+        <View style={styles.searchBody}>
+          {!searchQuery ? (
+            <DiscoveryDepartments
+              selected={category}
+              forYou={!category}
+              preferredCategories={watchedCategories}
+              onSelect={selectDepartment}
+              onForYou={() => { resetBrowse(); setBrowseAll(false); }}
+              onBrowse={() => setShowSources(true)}
+            />
+          ) : (
+            <>
+              {searchBusy ? <SearchProgress result={searchResult} storeCount={SEARCH_STORE_COUNT} busy={searchBusy} /> : null}
+              <DiscoverySearch query={searchQuery} result={searchResult} groups={rankedSearchGroups} busy={searchBusy} retailer={searchRetailer} onRetailer={setSearchRetailer} />
+            </>
+          )}
+
+          {notice ? <View accessibilityLiveRegion="polite" style={styles.discoveryNotice}><AppText style={styles.flex}>{notice.message}</AppText>{notice.trackedId ? <Pressable accessibilityRole="button" onPress={() => navigate({ name: 'trackingSettings', id: notice.trackedId! })}><AppText style={styles.discoveryLink}>Set target price</AppText></Pressable> : null}<Pressable accessibilityRole="button" accessibilityLabel="Dismiss message" onPress={() => setNotice(undefined)}><X size={18} color={colors.textMuted} /></Pressable></View> : null}
+
+          {activeFilterSummary ? (
+            <View style={styles.activeControlsRow}>
+              <AppText muted numberOfLines={1} style={styles.activeControlsSummary}>{activeFilterSummary}</AppText>
+              <Pressable accessibilityRole="button" accessibilityLabel="Clear discovery filters" onPress={clearFilters}><AppText weight="semibold" style={styles.clearControlsText}>Clear</AppText></Pressable>
+            </View>
+          ) : null}
+
+          {searchQuery ? (
+            <View style={styles.discoverySection}>
+              <View style={styles.titleRow}>
+                <AppText weight="bold" accessibilityRole="header" style={styles.discoverySectionTitle}>Results for “{searchQuery}”</AppText>
+              </View>
+              {searchBusy && !displayGroups.length ? (
+                <AppText muted accessibilityLiveRegion="polite">Checking {SEARCH_STORE_COUNT} stores. Matches appear here as each store responds.</AppText>
+              ) : (
+                <AppText muted>
+                  {displayGroups.length} {displayGroups.length === 1 ? 'product' : 'products'} · {resultStoreCount} {resultStoreCount === 1 ? 'store' : 'stores'}
+                  {searchBusy ? ' · still searching…' : ''}
+                </AppText>
+              )}
+              {!visibleGroups.length && !searchBusy ? <AppText muted>No matching product names in the returned results. Try a brand, model, or fewer words; check Coverage for unavailable stores.</AppText> : null}
+              {!visibleGroups.length && searchBusy ? (
+                <View style={styles.searchLoading}><ActivityIndicator color={colors.primary} /><AppText muted>Looking for matching products…</AppText></View>
+              ) : null}
+              {visibleGroups.length ? (
+                <View style={styles.searchRowList}>
+                  {visibleGroups.map((group) => <SearchProductRow key={`${group.id}:${group.offers[0]?.product.id ?? ''}`} group={group} onPress={() => setCompareGroupId(group.id)} onTrack={() => handleTrackOffer(group)} onOpenTracker={group.trackedProduct ? () => navigate({ name: 'detail', id: group.trackedProduct!.id }) : undefined} tracking={Boolean(trackingProductId && group.offers.some((offer) => offer.product.id === trackingProductId))} />)}
+                </View>
+              ) : null}
+              {searchResult?.sources.some((source) => source.status === 'unavailable') ? <AppText muted>Some stores could not be searched. Saved matches may be older; see Coverage for details. Pull down to retry.</AppText> : null}
+            </View>
+          ) : (
+            <>
+              <View style={styles.discoverySection}>
+                <View style={styles.titleRow}>
+                  <View style={styles.flex}>
+                    <AppText weight="bold" accessibilityRole="header" style={styles.discoverySectionTitle}>{feedTitle}</AppText>
+                    <AppText muted style={styles.searchSectionCopy}>{feedCopy}</AppText>
+                  </View>
+                  <Pressable accessibilityRole="button" accessibilityLabel={category || browseAll || retailer || collectionId ? 'Show watchlist picks' : 'Show all products'} onPress={() => {
+                    if (category || browseAll || retailer || collectionId) {
+                      if (!scopeIsCached(undefined)) { setLoading(true); }
+                      resetBrowse(); setBrowseAll(false);
+                    } else {
+                      if (!scopeIsCached(undefined, undefined, undefined, true)) { setLoading(true); }
+                      resetBrowse(); setBrowseAll(true);
+                    }
+                  }} style={styles.discoveryToolbarAction}>
+                    <AppText weight="semibold" style={styles.discoveryLink}>{category || browseAll || retailer || collectionId ? 'Watchlist picks' : 'All products'}</AppText>
+                  </Pressable>
+                </View>
+              </View>
+
+              <View style={styles.discoverySection}>
+                {loading || (catalogBusy && !displayGroups.length) ? (
+                  <View style={styles.searchLoading}><ActivityIndicator color={colors.primary} /><AppText muted>Loading matching listings. Products appear as each store responds.</AppText></View>
+                ) : null}
+
+                {!loading && !catalogBusy && !displayGroups.length ? (
+                  <Surface padding="lg" style={styles.emptyCard}>
+                    <View style={styles.emptyIcon}><Compass size={24} color={colors.primary} /></View>
+                    <AppText weight="bold" style={styles.emptyTitle}>{activeFilterSummary ? 'No products match these filters' : hasTrackers ? 'Nothing new to compare yet' : 'Find a better price'}</AppText>
+                    <AppText muted style={styles.emptyCopy}>
+                      {activeFilterSummary
+                        ? 'Clear the department, store, brand or price filters to see more products.'
+                        : hasTrackers
+                          ? 'Items already on your watchlist stay hidden here unless another store is cheaper. Pull to refresh to look again.'
+                          : 'Track a product to personalise this feed, or explore all departments to compare prices.'}
+                    </AppText>
+                    {activeFilterSummary ? <PrimaryButton label="Clear filters" variant="outline" onPress={clearFilters} style={styles.emptyButton} /> : null}
+                    {!activeFilterSummary ? <PrimaryButton label="Browse departments" variant="outline" onPress={() => setShowSources(true)} style={styles.emptyButton} /> : null}
+                  </Surface>
+                ) : null}
+
+                {visibleGroups.length ? (
+                  <View style={styles.searchRowList}>
+                    {visibleGroups.map((group) => <SearchProductRow key={`${group.id}:${group.offers[0]?.product.id ?? ''}`} group={group} onPress={() => setCompareGroupId(group.id)} onTrack={() => handleTrackOffer(group)} onOpenTracker={group.trackedProduct ? () => navigate({ name: 'detail', id: group.trackedProduct!.id }) : undefined} tracking={Boolean(trackingProductId && group.offers.some((offer) => offer.product.id === trackingProductId))} />)}
+                  </View>
+                ) : null}
+              </View>
+            </>
+          )}
+
+          {(searchBusy || (!searchQuery && catalogBusy && !loading)) && displayGroups.length ? (
+            <View style={styles.searchLoading}>
+              <ActivityIndicator size="small" color={colors.primary} />
+              <AppText muted>{searchQuery ? 'Checking more stores…' : 'Loading more products…'}</AppText>
+            </View>
+          ) : null}
+
+          {!searchQuery && catalogState.refreshedAt ? <AppText muted style={styles.discoveryFreshness}>{catalogState.stale ? 'Showing saved discovery products from ' : 'Product prices observed '}{formatRelativeTime(catalogState.refreshedAt)}.</AppText> : null}
+          {!searchQuery && catalog?.failedCollectionIds?.length ? <Pressable accessibilityRole="button" onPress={() => setShowSources(true)}><AppText muted style={styles.discoveryFreshness}>{catalog.failedCollectionIds.length} collections could not refresh. View source status.</AppText></Pressable> : null}
+          {(searchQuery ? searchResult?.historyUnavailable : catalog?.historyUnavailable) ? <AppText muted style={styles.discoveryFreshness}>Could not save listing price history. Refresh to retry.</AppText> : null}
+        </View>
+      </ScrollView>
+
+      <DiscoveryBrowseSheet visible={showSources} sources={catalog?.sources} onClose={() => setShowSources(false)} onCategory={(selected) => { if (!scopeIsCached(selected)) { setLoading(true); } resetBrowse(); setCategory(selected); setBrowseAll(false); setShowSources(false); }} onRetailer={(selected) => { if (!scopeIsCached(undefined, selected, undefined, true)) { setLoading(true); } resetBrowse(); setRetailer(selected); setBrowseAll(true); setShowSources(false); }} onCollection={(source) => { if (!scopeIsCached(undefined, source.siteKey, source.id, true)) { setLoading(true); } resetBrowse(); setCollectionId(source.id); setRetailer(source.siteKey); setBrowseAll(true); setShowSources(false); }} />
+      <SearchFilterSheet
+        visible={showFilters}
+        filters={filterSelection}
+        departments={searchQuery ? [] : filterDepartments}
+        stores={filterStores}
+        brands={filterBrands}
+        resultCount={displayGroups.length}
+        onChangeFilters={applyFilters}
+        onClear={clearFilters}
+        onClose={() => setShowFilters(false)}
+      />
+      <SearchCompareSheet
+        visible={Boolean(compareGroup)}
+        group={compareGroup}
+        trackingOfferId={trackingProductId}
+        onClose={() => setCompareGroupId(undefined)}
+        onTrack={(offer) => { if (compareGroup) { handleTrackOffer(compareGroup, offer).catch(() => undefined); } }}
+        onOpenOffer={(offer) => handleViewAtRetailer(offer.product)}
+        onDismiss={() => { if (compareGroup) { handleDismissGroup(compareGroup).catch(() => undefined); } }}
+        onMoreLikeThis={(selectedBrand) => openBrandListing(selectedBrand)}
+        onOpenTracker={compareGroup?.trackedProduct ? () => { setCompareGroupId(undefined); navigate({ name: 'detail', id: compareGroup.trackedProduct!.id }); } : undefined}
+      />
       <Modal visible={Boolean(pendingProduct)} transparent animationType="slide" onRequestClose={() => !savingVariant && setPendingProduct(undefined)}>
         <View style={styles.discoveryModalBackdrop}><SafeAreaView edges={['bottom']} style={styles.discoveryOptionSheet}><Header title="Choose your option" onBack={() => !savingVariant && setPendingProduct(undefined)} /><ScrollView contentContainerStyle={styles.screenContent}>
-          <AppText weight="bold" style={styles.discoverySectionTitle}>{pendingProduct?.parsed.title}</AppText>
+          <AppText weight="bold" accessibilityRole="header" style={styles.discoverySectionTitle}>{pendingProduct?.parsed.title}</AppText>
           <VariantSelector variants={variantChoices} selectedAttributes={variantAttributes} onSelect={(name, value) => setVariantAttributes((current) => updateSelectedVariantAttributes(variantChoices, current, name, value))} />
           <AppText muted>{selectedVariant ? `${selectedChoice?.attributes.map((attribute) => attribute.value).join(' · ')} · ${formatPrice(selectedVariant.priceMinor, selectedVariant.currency ?? pendingProduct?.parsed.currency ?? 'AED', selectedVariant.priceBasis ?? pendingProduct?.parsed.priceBasis)}` : 'Choose an available option to track its exact price and stock.'}</AppText>
           {variantError ? <AppText accessibilityLiveRegion="polite">{variantError}</AppText> : null}
           <PrimaryButton label="Track this option" onPress={saveVariant} disabled={!selectedVariant} loading={savingVariant} />
         </ScrollView></SafeAreaView></View>
       </Modal>
-    </ScrollView>
+    </View>
   );
 }
 
-
-function SettingsScreen() {
+function SettingsScreen({ refreshKey = 0 }: { refreshKey?: number }) {
   const { width, fontScale } = useWindowDimensions();
   const compact = isCompactLayout(width, fontScale);
   const [backgroundStatus, setBackgroundStatus] = useState<BackgroundStatus>();
@@ -2152,6 +2925,8 @@ function SettingsScreen() {
   const [requestingNotifications, setRequestingNotifications] = useState(false);
   const [batteryExempt, setBatteryExempt] = useState<boolean>();
   const [requestingBattery, setRequestingBattery] = useState(false);
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
+  const [showStores, setShowStores] = useState(false);
 
   const loadStatus = useCallback(async () => {
     const [status, notificationsAllowed, batteryOptExempt] = await Promise.all([
@@ -2167,7 +2942,7 @@ function SettingsScreen() {
 
   useEffect(() => {
     loadStatus();
-  }, [loadStatus]);
+  }, [loadStatus, refreshKey]);
 
   const selectedPresetHour = backgroundStatus?.preferredHour ?? 9;
   const preferredHourLabel = formatPreferredHour(backgroundStatus?.preferredHour ?? 9);
@@ -2268,37 +3043,12 @@ function SettingsScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.screenContent} showsVerticalScrollIndicator={false}>
-      <AppText weight="bold" style={styles.heading}>
+      <AppText weight="bold" accessibilityRole="header" style={styles.heading}>
         Settings
       </AppText>
       <AppText muted style={styles.settingsIntro}>
-        Control local alerts, daily background timing, and the stores Qeemat can track in this MVP.
+        Manage notifications and when Qeemat checks prices.
       </AppText>
-      <View style={styles.settingsCard}>
-        <View style={styles.settingsStack}>
-          <View style={styles.settingsHeaderRow}>
-            <AppText weight="bold">Supported stores</AppText>
-            <View style={styles.settingsBadge}>
-              <AppText weight="semibold" style={styles.settingsBadgeText}>
-                {SUPPORTED_SITES.filter(s => s.status === 'supported').length} live
-              </AppText>
-            </View>
-          </View>
-          <AppText muted style={styles.settingsBodyText}>
-            Product links are currently supported for these stores. Amazon support is kept intentionally lightweight for the MVP across selected regional domains.
-          </AppText>
-          <View style={styles.settingsChipWrap}>
-            {SUPPORTED_SITES.filter(s => s.status === 'supported').map((site) => (
-              <View key={site.key} style={styles.settingsChip}>
-                <SiteIcon siteKey={site.key} size={14} />
-                <AppText weight="medium" style={styles.settingsChipText}>
-                  {site.shortName}
-                </AppText>
-              </View>
-            ))}
-          </View>
-        </View>
-      </View>
       <View style={styles.settingsCard}>
         <View style={styles.settingsStack}>
           <View style={styles.settingsHeaderRow}>
@@ -2376,21 +3126,77 @@ function SettingsScreen() {
               );
             })}
           </View>
-          <View style={styles.settingsMetaCard}>
-            <InfoRow label="Target" value={preferredHourLabel} />
-            <InfoRow label="Scheduled" value={formatStatusTime(backgroundStatus?.lastScheduledAt)} />
-            <InfoRow label="Started" value={formatStatusTime(backgroundStatus?.lastStartedAt)} />
-            <InfoRow label="Completed" value={formatStatusTime(backgroundStatus?.lastCompletedAt)} />
-            <InfoRow
-              label="Source"
-              value={backgroundStatus?.lastSource ? formatRunSource(backgroundStatus.lastSource, backgroundStatus.lastForceRun) : 'No background run yet'}
-            />
-            {backgroundStatus?.lastRunError ? <AppText style={styles.errorText}>Last run error: {backgroundStatus.lastRunError}</AppText> : null}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ expanded: showDiagnostics }}
+            onPress={() => setShowDiagnostics((value) => !value)}
+            style={styles.disclosureRow}
+          >
+            <View style={styles.flex}>
+              <AppText weight="semibold">Run diagnostics</AppText>
+              <AppText muted style={styles.settingsBodyText}>
+                Last completed: {backgroundStatus?.lastCompletedAt ? formatRelativeTime(backgroundStatus.lastCompletedAt) : 'never'}
+              </AppText>
+            </View>
+            {showDiagnostics ? <ChevronUp size={16} color={colors.textMuted} /> : <ChevronDown size={16} color={colors.textMuted} />}
+          </Pressable>
+          {showDiagnostics ? (
+            <>
+              <View style={styles.settingsMetaCard}>
+                <InfoRow label="Target" value={preferredHourLabel} />
+                <InfoRow label="Scheduled" value={formatStatusTime(backgroundStatus?.lastScheduledAt)} />
+                <InfoRow label="Started" value={formatStatusTime(backgroundStatus?.lastStartedAt)} />
+                <InfoRow label="Completed" value={formatStatusTime(backgroundStatus?.lastCompletedAt)} />
+                <InfoRow
+                  label="Source"
+                  value={backgroundStatus?.lastSource ? formatRunSource(backgroundStatus.lastSource, backgroundStatus.lastForceRun) : 'No background run yet'}
+                />
+                {backgroundStatus?.lastRunError ? <AppText style={styles.errorText}>Last run error: {backgroundStatus.lastRunError}</AppText> : null}
+              </View>
+              <AppText muted style={styles.settingsHint}>
+                Best-effort — enable battery exemption above for reliability.
+              </AppText>
+              <PrimaryButton label="Queue background check once" variant="outline" onPress={queueBackgroundCheck} loading={queueingCheck} />
+            </>
+          ) : null}
+        </View>
+      </View>
+      <View style={styles.settingsCard}>
+        <View style={styles.settingsStack}>
+          <View style={styles.settingsHeaderRow}>
+            <AppText weight="bold">Supported stores</AppText>
+            <View style={styles.settingsBadge}>
+              <AppText weight="semibold" style={styles.settingsBadgeText}>
+                {SUPPORTED_SITES.filter(s => s.status === 'supported').length} live
+              </AppText>
+            </View>
           </View>
-          <AppText muted style={styles.settingsHint}>
-            Best-effort — enable battery exemption above for reliability.
+          <AppText muted style={styles.settingsBodyText}>
+            Track product links from these stores, including selected Amazon regions.
           </AppText>
-          <PrimaryButton label="Queue background check once" variant="outline" onPress={queueBackgroundCheck} loading={queueingCheck} />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ expanded: showStores }}
+            onPress={() => setShowStores((value) => !value)}
+            style={styles.disclosureRow}
+          >
+            <AppText weight="semibold" style={styles.flex}>
+              {showStores ? 'Hide stores' : 'View supported stores'}
+            </AppText>
+            {showStores ? <ChevronUp size={16} color={colors.textMuted} /> : <ChevronDown size={16} color={colors.textMuted} />}
+          </Pressable>
+          {showStores ? (
+            <View style={styles.settingsChipWrap}>
+              {SUPPORTED_SITES.filter(s => s.status === 'supported').map((site) => (
+                <View key={site.key} style={styles.settingsChip}>
+                  <SiteIcon siteKey={site.key} size={14} />
+                  <AppText weight="medium" style={styles.settingsChipText}>
+                    {site.shortName}
+                  </AppText>
+                </View>
+              ))}
+            </View>
+          ) : null}
         </View>
       </View>
       <PrimaryButton
@@ -2399,11 +3205,22 @@ function SettingsScreen() {
         onPress={() =>
           Alert.alert('Delete local data?', 'This removes all tracked products and price history from this device.', [
             { text: 'Cancel', style: 'cancel' },
-            { text: 'Delete', style: 'destructive', onPress: () => Promise.all([deleteAllLocalData(), clearDiscoveryData(), clearUpdateNotificationHistory()]) }
+            { text: 'Delete', style: 'destructive', onPress: () => Promise.all([deleteAllLocalData(), clearDiscoveryData(), clearUpdateNotificationHistory(), clearDismissedUpdateVersion()]) }
           ])
         }
       />
     </ScrollView>
+  );
+}
+
+function DetailInsightRow({ label, price, currency, priceBasis, tone }: { label: string; price?: number; currency: string; priceBasis?: import('./src/domain/priceBasis').PriceBasis; tone: 'green' | 'red' | 'neutral' }) {
+  return (
+    <View style={styles.detailInsightRow}>
+      <AppText muted>{label}</AppText>
+      <AppText weight="semibold" style={[styles.detailInsightValue, tone === 'green' ? styles.greenText : tone === 'red' ? styles.redText : undefined]}>
+        {formatPrice(price, currency, priceBasis)}
+      </AppText>
+    </View>
   );
 }
 
@@ -2426,17 +3243,6 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function StatCard({ label, price, currency, priceBasis, tone, emphasized = false }: { label: string; price?: number; currency: string; priceBasis?: import('./src/domain/priceBasis').PriceBasis; tone: 'green' | 'red' | 'neutral'; emphasized?: boolean }) {
-  return (
-    <View style={[styles.statCard, emphasized && styles.statCardEmphasized]}>
-      <AppText muted>{label}</AppText>
-      <AppText weight="bold" style={[styles.statPrice, emphasized && styles.statPriceEmphasized, tone === 'green' ? styles.greenText : tone === 'red' ? styles.redText : undefined]}>
-        {formatPrice(price, currency, priceBasis)}
-      </AppText>
-    </View>
-  );
-}
-
 type SnapshotGroup = {
   snapshots: PriceSnapshot[];
   key: string;
@@ -2447,13 +3253,15 @@ function groupSnapshots(snapshots: PriceSnapshot[]): SnapshotGroup[] {
   const groups: SnapshotGroup[] = [];
   for (const s of snapshots) {
     const prev = groups.length > 0 ? groups[groups.length - 1].snapshots[0] : undefined;
-    const same =
+    const sameFailure = Boolean(prev?.errorCode && s.errorCode && prev.errorCode === s.errorCode);
+    const sameSuccess =
       prev &&
+      !prev.errorCode &&
+      !s.errorCode &&
       prev.priceMinor === s.priceMinor &&
       prev.availability === s.availability &&
-      prev.source === s.source &&
-      !prev.errorCode &&
-      !s.errorCode;
+      prev.source === s.source;
+    const same = sameFailure || Boolean(sameSuccess);
     if (same) {
       groups[groups.length - 1].snapshots.push(s);
     } else {
@@ -2476,38 +3284,6 @@ function formatPreferredHour(hour: number): string {
   const suffix = normalized >= 12 ? 'PM' : 'AM';
   const hour12 = normalized % 12 === 0 ? 12 : normalized % 12;
   return `${hour12}:00 ${suffix}`;
-}
-
-function snapshotSourceLabel(source: SnapshotSource): string {
-  if (source === 'manual_single') {
-    return 'Check now';
-  }
-
-  if (source === 'manual_batch') {
-    return 'Recheck all';
-  }
-
-  if (source === 'background') {
-    return 'Background';
-  }
-
-  return 'Unknown';
-}
-
-function snapshotSourceBadgeStyle(source: SnapshotSource) {
-  if (source === 'manual_single') {
-    return styles.sourceBadgeBlue;
-  }
-
-  if (source === 'manual_batch') {
-    return styles.sourceBadgeAmber;
-  }
-
-  if (source === 'background') {
-    return styles.sourceBadgeGreen;
-  }
-
-  return styles.sourceBadgeMuted;
 }
 
 function formatRunSource(source: string, forced?: boolean): string {
@@ -2539,23 +3315,37 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border
   },
   headerButton: {
-    width: 38,
-    height: 38,
+    width: layoutMetrics.touchTarget,
+    height: layoutMetrics.touchTarget,
     alignItems: 'center',
     justifyContent: 'center'
   },
   headerTitle: {
-    fontSize: 20,
+    ...typography.sheetTitle,
     flex: 1,
     minWidth: 0,
     textAlign: 'center'
   },
   screenContent: {
-    padding: 20,
+    padding: layoutMetrics.screenGutter,
     paddingBottom: 110,
-    gap: 16
+    gap: layoutMetrics.sectionGap
   },
   discoveryScreenContent: { padding: 16, gap: 10 },
+  watchlistContent: { backgroundColor: colors.surface, paddingTop: 0, paddingBottom: 110 },
+  watchlistSystemBar: { backgroundColor: colors.primary },
+  watchlistBanner: { backgroundColor: colors.primary, marginHorizontal: -layoutMetrics.screenGutter, paddingHorizontal: layoutMetrics.screenGutter, paddingTop: 14, paddingBottom: 18, gap: 12 },
+  watchlistBrandRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  watchlistBrandLockup: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 },
+  watchlistBrandIcon: { width: 30, height: 30, borderRadius: 7 },
+  watchlistHeaderActions: { flexDirection: 'row', alignItems: 'center' },
+  watchlistBrand: { color: colors.surface, fontSize: 20, lineHeight: 26 },
+  watchlistSearchButton: { width: layoutMetrics.touchTarget, height: layoutMetrics.touchTarget, alignItems: 'center', justifyContent: 'center' },
+  watchlistUpdateDot: { position: 'absolute', top: 4, right: 6, width: 13, height: 13, borderRadius: 7, backgroundColor: colors.red, borderWidth: 2, borderColor: colors.primary },
+  watchlistBannerTitle: { color: colors.surface, ...typography.screenTitle },
+  watchlistBannerCount: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.primaryDark, borderRadius: radius.lg, paddingHorizontal: 12, paddingVertical: 7 },
+  watchlistBannerCountText: { color: colors.surface, fontSize: 12 },
+  watchlistFilterText: { color: colors.surface, fontSize: 14 },
   addScreenContent: {
     paddingTop: 28,
     gap: 18
@@ -2565,8 +3355,7 @@ const styles = StyleSheet.create({
     lineHeight: 24
   },
   heading: {
-    fontSize: 28,
-    lineHeight: 34
+    ...typography.screenTitle
   },
   titleRow: {
     flexDirection: 'row',
@@ -2595,10 +3384,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    minHeight: layoutMetrics.touchTarget,
+    justifyContent: 'center',
     borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: colors.primary,
-    backgroundColor: colors.blueSoft,
+    backgroundColor: colors.primary,
     paddingHorizontal: 12,
     paddingVertical: 10
   },
@@ -2612,10 +3403,10 @@ const styles = StyleSheet.create({
     borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.primary
+    backgroundColor: colors.surface
   },
   controlsCountText: {
-    color: colors.surface,
+    color: colors.primary,
     fontSize: 11
   },
   activeControlsRow: {
@@ -2660,14 +3451,14 @@ const styles = StyleSheet.create({
     marginBottom: 20
   },
   controlSheetTitle: {
-    fontSize: 20
+    ...typography.sheetTitle
   },
   controlSheetClose: {
-    width: 36,
-    height: 36,
+    width: layoutMetrics.touchTarget,
+    height: layoutMetrics.touchTarget,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 18,
+    borderRadius: 22,
     backgroundColor: colors.surfaceMuted
   },
   controlSheetContent: {
@@ -2675,19 +3466,47 @@ const styles = StyleSheet.create({
   },
   watchlistToolbar: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     gap: 10
   },
-  archiveToggle: {
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+  toolbarIconButton: {
+    minWidth: layoutMetrics.touchTarget,
+    minHeight: layoutMetrics.touchTarget,
+    alignItems: 'center',
+    justifyContent: 'center',
     borderRadius: radius.md,
     backgroundColor: colors.surfaceMuted
   },
-  archiveToggleText: {
-    color: colors.textMuted,
-    fontSize: 13
+  toolbarIconButtonActive: {
+    backgroundColor: colors.primary
   },
+  watchlistBannerSearch: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    minHeight: 44,
+    paddingHorizontal: 12,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface
+  },
+  watchlistSearchInput: {
+    flex: 1,
+    minWidth: 0,
+    paddingVertical: 8
+  },
+  watchlistRecheck: {
+    minHeight: layoutMetrics.touchTarget,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    backgroundColor: colors.surface
+  },
+  watchlistRecheckDisabled: { opacity: 0.5 },
   selectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -2740,6 +3559,8 @@ const styles = StyleSheet.create({
     paddingVertical: 2
   },
   textFilterButton: {
+    minHeight: layoutMetrics.touchTarget,
+    justifyContent: 'center',
     borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: colors.border,
@@ -2774,14 +3595,11 @@ const styles = StyleSheet.create({
   storeFilterButtonPressed: {
     opacity: 0.78
   },
-  cardList: {
-    gap: 12
-  },
+  watchlistCardList: { gap: 0 },
   oosSection: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.blueSoft,
     borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderWidth: 0,
     padding: 12,
     marginBottom: 4
   },
@@ -2817,13 +3635,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceMuted
   },
   emptyCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 22,
-    alignItems: 'center',
-    ...shadow
+    alignItems: 'center'
   },
   emptyIcon: {
     width: 52,
@@ -2853,22 +3665,24 @@ const styles = StyleSheet.create({
     borderRadius: 29,
     backgroundColor: colors.primary,
     alignItems: 'center',
-    justifyContent: 'center',
-    ...shadow
+    justifyContent: 'center'
   },
   tabBar: {
     height: 74,
     flexDirection: 'row',
-    borderTopColor: colors.border,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    backgroundColor: colors.surface
+    backgroundColor: colors.background,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20
   },
   tabButton: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4
+    justifyContent: 'center'
   },
+  tabButtonContent: { alignItems: 'center', justifyContent: 'center', gap: 2, paddingHorizontal: 10, paddingVertical: 5 },
+  tabButtonActive: { backgroundColor: colors.blueSoft, borderRadius: radius.lg },
+  tabIconWrap: { position: 'relative' },
+  tabUpdateDot: { position: 'absolute', top: -4, right: -9, width: 12, height: 12, borderRadius: 6, backgroundColor: colors.red, borderWidth: 2, borderColor: colors.background },
   tabLabel: {
     color: colors.textMuted,
     fontSize: 12
@@ -2905,6 +3719,8 @@ const styles = StyleSheet.create({
     paddingVertical: 2
   },
   collectionPickerChip: {
+    minHeight: layoutMetrics.touchTarget,
+    justifyContent: 'center',
     borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: colors.border,
@@ -2932,25 +3748,8 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.surface
   },
-  inputWrap: {
-    minHeight: 68,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
-    backgroundColor: colors.surface,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 16
-  },
   inputDetected: {
     borderColor: colors.green
-  },
-  input: {
-    flex: 1,
-    minWidth: 0,
-    fontSize: 16,
-    color: colors.text
   },
   detectedSource: {
     flexDirection: 'row',
@@ -2982,6 +3781,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 10
+  },
+  supportedStoresSection: {
+    gap: 10
+  },
+  disclosureRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    minHeight: layoutMetrics.touchTarget,
+    paddingHorizontal: 2
   },
   chip: {
     flexDirection: 'row',
@@ -3015,11 +3824,44 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: colors.surface,
-    ...shadow
+    backgroundColor: colors.surface
   },
   previewCardCompact: {
     flexDirection: 'column'
+  },
+  trackingNoticeWarning: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 12,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.amber,
+    backgroundColor: colors.amberSoft
+  },
+  trackingWarningCopy: {
+    color: colors.text,
+    marginTop: 2
+  },
+  noticeActionButton: {
+    minHeight: 40,
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    borderRadius: radius.sm,
+    backgroundColor: colors.primary
+  },
+  noticeActionText: {
+    color: colors.surface
+  },
+  trackingNoticeInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 12,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.blueSoft
   },
   previewImageWrap: {
     width: 118,
@@ -3067,104 +3909,30 @@ const styles = StyleSheet.create({
     fontSize: 26,
     lineHeight: 32
   },
-  detailHero: {
-    flexDirection: 'row',
-    gap: 16,
-    paddingBottom: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border
-  },
-  detailHeroCompact: {
-    flexDirection: 'column'
-  },
-  detailImageWrap: {
-    width: 112,
-    height: 142,
-    backgroundColor: colors.surfaceMuted,
-    borderRadius: radius.md,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  detailImageWrapCompact: {
-    width: '100%',
-    height: 180
-  },
-  detailImage: {
-    width: 104,
-    height: 134
-  },
-  detailCopy: {
-    flex: 1,
-    minWidth: 0,
-    gap: 6
-  },
-  detailHeaderActions: {
-    flexDirection: 'row',
-    gap: 4
-  },
   detailTitle: {
-    flex: 1,
-    fontSize: 18,
-    lineHeight: 24
-  },
-  iconButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surface
-  },
-  currentPrice: {
-    fontSize: 26,
-    lineHeight: 32
-  },
-  oosBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: colors.amberSoft,
-    borderRadius: radius.md,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    marginBottom: 8
-  },
-  oosBannerText: {
-    color: colors.amber,
-    fontSize: 13,
-    flex: 1
+    ...typography.detailTitle
   },
   sectionTitle: {
-    fontSize: 18
+    ...typography.sectionTitle
   },
-  statsRow: {
+  productInformationRow: {
     flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingVertical: 12,
     gap: 12
   },
-  insightCaption: {
-    fontSize: 12,
-    marginTop: -8
+  productInformationDivider: {
+    borderTopWidth: 1,
+    borderTopColor: colors.border
   },
-  statCard: {
+  productInformationLabel: {
+    width: 105,
+    fontSize: 13
+  },
+  productInformationValue: {
     flex: 1,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    padding: 14,
-    ...shadow
-  },
-  statCardEmphasized: {
-    backgroundColor: colors.blueSoft,
-    borderColor: colors.primary
-  },
-  statPrice: {
-    marginTop: 4,
-    fontSize: 20
-  },
-  statPriceEmphasized: {
-    color: colors.primary,
-    fontSize: 24
+    fontSize: 14,
+    lineHeight: 20
   },
   greenText: {
     color: colors.green
@@ -3172,24 +3940,92 @@ const styles = StyleSheet.create({
   redText: {
     color: colors.red
   },
-  changedPrice: {
+  snapshotPriceDown: {
     color: colors.green
   },
-  restockActivityLabel: {
-    color: colors.green,
-    fontSize: 14
+  snapshotPriceUp: {
+    color: colors.red
   },
-  restockActivityBadge: {
-    backgroundColor: colors.greenSoft,
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 4
+  detailContent: {
+    paddingTop: 0,
+    gap: 12
   },
-  restockActivityBadgeText: {
-    color: colors.green,
-    fontSize: 11
+  detailBanner: {
+    marginHorizontal: -layoutMetrics.screenGutter,
+    paddingHorizontal: layoutMetrics.screenGutter,
+    paddingTop: 2,
+    paddingBottom: 8,
+    backgroundColor: colors.primary
   },
-  snapshotList: {
+  detailBannerRow: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between'
+  },
+  detailBannerButton: {
+    width: layoutMetrics.touchTarget,
+    height: layoutMetrics.touchTarget,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  detailBannerBrand: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingLeft: 4
+  },
+  detailBannerLogo: { width: 28, height: 28, borderRadius: 7 },
+  detailBannerWordmark: { color: colors.surface, fontSize: 20, lineHeight: 26 },
+  detailBannerActions: { flexDirection: 'row', alignItems: 'center' },
+  detailSummary: { gap: 10 },
+  detailSummaryCaption: { marginTop: 0, fontSize: 13 },
+  detailSummaryRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 14 },
+  detailSummaryImageWrap: {
+    width: 92,
+    height: 112,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceMuted,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  detailSummaryImage: { width: 84, height: 104 },
+  detailSummaryBody: { flex: 1, minWidth: 0, gap: 4 },
+  detailSummaryTitle: { fontSize: 16, lineHeight: 22 },
+  detailSummaryPriceRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
+  detailSummaryPrice: { fontSize: 24, lineHeight: 30 },
+  detailSummaryRetailer: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  detailSummaryFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginTop: 2 },
+  detailSummaryNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: colors.amberSoft,
+    borderRadius: radius.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 8
+  },
+  detailSummaryNoteText: { flex: 1, color: colors.amber, fontSize: 13 },
+  detailCard: { overflow: 'hidden' },
+  detailCardHeader: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 6 },
+  detailCardTitle: { fontSize: 16, lineHeight: 22 },
+  detailInsightRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingHorizontal: 16, paddingVertical: 11, minHeight: 44 },
+  detailInsightValue: { fontSize: 16 },
+  detailDivider: { height: StyleSheet.hairlineWidth, backgroundColor: colors.border, marginHorizontal: 16 },
+  productInformationCard: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    overflow: 'hidden'
+  },
+  productInformationHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 14, minHeight: 52 },
+  productInformationTitle: { fontSize: 16, lineHeight: 22 },
+  productInformationSummary: { fontSize: 12, lineHeight: 16, marginTop: 2 },
+  productInformationRows: { paddingHorizontal: 16, paddingBottom: 6 },
+  snapshotShowAll: { minHeight: 44, alignItems: 'center', justifyContent: 'center', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+  snapshotShowAllText: { fontSize: 14, color: colors.primary },  snapshotList: {
     backgroundColor: colors.surface,
     borderRadius: radius.md,
     borderWidth: 1,
@@ -3236,26 +4072,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textTransform: 'capitalize'
   },
-  sourceBadge: {
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 4
-  },
-  sourceBadgeText: {
-    fontSize: 11
-  },
-  sourceBadgeBlue: {
-    backgroundColor: colors.blueSoft
-  },
-  sourceBadgeAmber: {
-    backgroundColor: colors.amberSoft
-  },
-  sourceBadgeGreen: {
-    backgroundColor: colors.greenSoft
-  },
-  sourceBadgeMuted: {
-    backgroundColor: colors.surfaceMuted
-  },
   bottomAction: {
     position: 'absolute',
     left: 0,
@@ -3290,6 +4106,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12
   },
+  watchlistReason: { fontSize: 12, lineHeight: 18 },
   discoveryToolbarAction: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 6 },
   discoveryModalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: colors.scrim },
   discoveryOptionSheet: { height: '75%', backgroundColor: colors.background, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, overflow: 'hidden' },
@@ -3317,7 +4134,7 @@ const styles = StyleSheet.create({
     gap: 12
   },
   discoverySectionTitle: {
-    fontSize: 18
+    ...typography.sectionTitle
   },
   discoverySectionCopy: {
     fontSize: 13,
@@ -3333,6 +4150,72 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: -2
   },
+  searchScrollContent: {
+    // The Search banner is full-bleed via a negative margin, exactly like the
+    // Watchlist banner. The ScrollView therefore needs the base screen gutter
+    // so the banner's internal padding lands on the normal 20dp content line.
+    paddingHorizontal: layoutMetrics.screenGutter,
+    paddingBottom: 110,
+    backgroundColor: colors.background
+  },
+  searchBannerSubtitle: {
+    color: colors.blueSoft,
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 2
+  },
+  searchBannerError: {
+    color: colors.amberSoft,
+    fontSize: 13,
+    lineHeight: 18
+  },
+  searchFilterButton: {
+    width: layoutMetrics.touchTarget,
+    height: layoutMetrics.touchTarget,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+    marginRight: -8
+  },
+  searchFilterCount: {
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    paddingHorizontal: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary
+  },
+  searchFilterCountText: {
+    color: colors.surface,
+    fontSize: 10,
+    lineHeight: 13
+  },
+  searchBody: {
+    paddingTop: 12,
+    paddingBottom: 8,
+    gap: 12,
+    backgroundColor: colors.background
+  },
+  searchSectionCopy: {
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 2
+  },
+  searchRowList: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: 12,
+    overflow: 'hidden'
+  },
+  searchLoading: {
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 24
+  },
   listingFilters: {
     gap: 8
   },
@@ -3340,144 +4223,43 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 4
   },
-  listingPriceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginTop: 4
-  },
-  listingPriceInputWrap: {
-    flex: 1,
-    minWidth: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.sm,
-    backgroundColor: colors.surface
-  },
-  listingPriceInput: {
-    flex: 1,
-    minWidth: 0,
-    color: colors.text,
-    paddingVertical: 10
-  },
   listingCount: {
     fontSize: 13,
     marginTop: -2
   },
-  activityCard: {
+  updatePinCard: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: 12,
+    marginTop: 14,
+    marginBottom: 4,
     padding: 14,
     borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
+    backgroundColor: colors.blueSoft
+  },
+  updatePinBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: colors.surface
   },
-  activityThumb: {
-    width: 48,
-    height: 56,
-    borderRadius: radius.sm,
-    backgroundColor: colors.surfaceMuted
-  },
-  activityThumbPlaceholder: {
-    width: 48,
-    height: 56,
-    borderRadius: radius.sm,
-    backgroundColor: colors.surfaceMuted,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  activityBody: {
-    flex: 1,
-    minWidth: 0,
-    gap: 6
-  },
-  activityTitle: {
+  updatePinTitle: {
     fontSize: 15,
     lineHeight: 20
   },
-  activityPriceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6
-  },
-  activityOldPrice: {
+  updatePinBody: {
     fontSize: 13,
-    textDecorationLine: 'line-through'
-  },
-  activityNewPrice: {
-    fontSize: 16
-  },
-  activityFirstPrice: {
-    fontSize: 16,
-    color: colors.primary
-  },
-  activityPriceDown: {
-    color: colors.green
-  },
-  activityPriceUp: {
-    color: colors.red
-  },
-  activityMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6
-  },
-  activityDirectionIcon: {
-    width: 18,
-    alignItems: 'center'
-  },
-  activityFirstDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.primary
-  },
-  activityFirstBadge: {
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    backgroundColor: colors.blueSoft
-  },
-  activityFirstBadgeText: {
-    fontSize: 11,
-    color: colors.primary
-  },
-  activityDateHeader: {
-    paddingVertical: 10,
-    paddingHorizontal: 2,
-    marginTop: 4
-  },
-  activityDateHeaderText: {
-    fontSize: 13,
-    color: colors.textMuted
-  },
-  oosActivityLabel: {
-    fontSize: 13,
-    color: colors.amber,
-    flex: 1
-  },
-  oosActivityBadge: {
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    backgroundColor: colors.amberSoft
-  },
-  oosActivityBadgeText: {
-    fontSize: 11,
-    color: colors.amber
+    lineHeight: 18,
+    marginTop: 2
   },
   settingsCard: {
     padding: 20,
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: colors.surface,
-    ...shadow
+    backgroundColor: colors.surface
   },
   settingsHeaderRow: {
     flexDirection: 'row',
@@ -3596,6 +4378,7 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0
   },
+  hiddenTab: { display: 'none' },
   errorText: {
     color: colors.red
   },
@@ -3622,8 +4405,7 @@ const onboardingStyles = StyleSheet.create({
     paddingHorizontal: 28,
     alignItems: 'center',
     gap: 14,
-    width: '100%',
-    ...shadow
+    width: '100%'
   },
   iconCircle: {
     width: 64,

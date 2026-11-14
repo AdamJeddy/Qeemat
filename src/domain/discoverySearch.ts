@@ -1,12 +1,13 @@
 import type { DiscoveryProduct, SiteKey } from './types';
 import type { DiscoveryCollection } from './discovery';
-import { parseDiscoveryListing } from './discoveryListings';
+import { decodeHtml, parseDiscoveryListing } from './discoveryListings';
 import { parseRenderedSearch } from './searchRenderedListings';
 
 export type SearchRequest = DiscoveryCollection & { url: string };
-export type SearchPage = { products: DiscoveryProduct[]; nextUrl?: string };
+export type SearchPage = { products: DiscoveryProduct[]; observedProducts?: DiscoveryProduct[]; nextUrl?: string };
 
 const SEARCH_URLS: Partial<Record<SiteKey, string>> = {
+  hm_uae: 'https://ae.hm.com/en/search?q=',
   nike_uae: 'https://www.nike.ae/en/search?q=',
   sun_sand_sports: 'https://en-ae.sssports.com/search?q=',
   adidas: 'https://www.adidas.ae/en/search?q=',
@@ -39,7 +40,10 @@ export function buildSearchRequests(input: string): SearchRequest[] {
     id: `search-${site}`, siteKey: site as SiteKey, label: 'Product search', category: 'general' as const,
     provider: site === 'ay_accessories' ? 'woocommerce' as const : 'html' as const, url: `${prefix}${encodeURIComponent(query)}`
   }));
-  return [...requests, ...['women', 'men', 'kids'].map((audience): SearchRequest => ({
+  return [...requests, ...['WOMAN', 'MAN', 'KIDS', 'HOME'].map((section): SearchRequest => ({
+    id: `search-zara_uae-${section.toLowerCase()}`, siteKey: 'zara_uae', label: `${section.toLowerCase()} product search`,
+    category: 'general', provider: 'html', url: `https://www.zara.com/ae/en/search?searchTerm=${encodeURIComponent(query)}&section=${section}`
+  })), ...['women', 'men', 'kids'].map((audience): SearchRequest => ({
     id: `search-ounass-${audience}`, siteKey: 'ounass', label: `${audience} product search`, category: 'general', provider: 'html',
     url: `https://www.ounass.ae/${audience}?fh_location=%2F%24s%3D${encodeURIComponent(query)}`
   })), ...['women', 'men', 'kids'].map((audience): SearchRequest => ({
@@ -66,13 +70,19 @@ export function matchesProductSearch(product: DiscoveryProduct, query: string): 
 
 export function rankSearchMatches(products: DiscoveryProduct[], query: string): DiscoveryProduct[] {
   const phrase = searchTokens(query).join(' ');
-  const accessory = /\b(?:case|cover|protector|charger|cable|strap)\b/i;
+  const accessory = /\b(?:cases?|covers?|protectors?|chargers?|cables?|straps?|bands?|lenses?|lens caps?|sleeves?|skins?|ear\s*tips?|tips?|replacement|insoles?|soles?|laces?|charms?|cleaners?|care kits?|adapters?|stands?|holders?|mounts?|clips?|screen protectors?|films?|spare parts?|accessor(?:y|ies)|compatible)\b/i;
+  const mentionsAccessory = accessory.test(query);
   const score = (product: DiscoveryProduct) => {
     const title = searchTokens(product.title).join(' ');
     const phraseScore = title === phrase ? 300 : title.startsWith(`${phrase} `) ? 200 : title.includes(phrase) ? 100 : 0;
     // A case *with* magnets is still an accessory. A phone *with* a case is a bundle.
-    const primaryName = product.title.split(/\bwith\b/i)[0];
-    const accessoryPenalty = !accessory.test(query) && accessory.test(primaryName) ? 500 : 0;
+    // "X for <product>" is the common accessory pattern ("Ear Tips for AirPods"),
+    // while "with" describes what the main product includes.
+    const primaryName = product.title.split(/\b(?:with|for)\b/i)[0];
+    const isAccessory = accessory.test(primaryName) ||
+      (/\bfor\b/i.test(product.title) && accessory.test(product.title)) ||
+      /^(?:replacement|compatible)\b/i.test(product.title);
+    const accessoryPenalty = !mentionsAccessory && isAccessory ? 500 : 0;
     return phraseScore - accessoryPenalty - searchTokens(product.title).length;
   };
   return products.filter((product) => matchesProductSearch(product, query)).map((product, index) => ({ product, index, score: score(product) }))
@@ -84,6 +94,15 @@ export function parseSearchPage(body: string, request: SearchRequest, query: str
   if (/cf_chl_opt|cf-browser-verify|<title>\s*just a moment|reference&#|<title>\s*access denied|<title>\s*robot check|id="captchacharacters"|\/errors\/validateCaptcha/i.test(body)) { return undefined; }
   let listingBody = body;
   let verifiedEmpty = false;
+  if (request.siteKey === 'hm_uae') {
+    const term = body.match(/<p\b[^>]*class=["'][^"']*\bsearch-term\b[^"']*["'][^>]*>([\s\S]*?)<\/p>/i)?.[1];
+    if (!term || normalizeSearchQuery(decodeHtml(term.replace(/<[^>]*>/g, ' '))).toLowerCase() !== query.toLowerCase()) { return undefined; }
+  }
+  if (request.siteKey === 'zara_uae') {
+    const input = body.match(/<input\b[^>]*id=["']search-products-form-combo-input["'][^>]*>/i)?.[0];
+    const term = input?.match(/\bvalue=(["'])([\s\S]*?)\1/i)?.[2];
+    if (!term || normalizeSearchQuery(decodeHtml(term)).toLowerCase() !== query.toLowerCase()) { return undefined; }
+  }
   if (request.siteKey === 'level_shoes') {
     const json = body.match(/<script\b[^>]*id=["']__NEXT_DATA__["'][^>]*>([\s\S]*?)<\/script>/i)?.[1];
     if (!json) { return undefined; }
@@ -108,7 +127,8 @@ export function parseSearchPage(body: string, request: SearchRequest, query: str
   const explicitEmpty = /no (?:matching )?(?:products|results|matches)(?: were)? (?:found|available|for|could be found)|could(?:n.t| not) find|did not match any/i.test(text) || /\b0\s+(?:products|results|items)/i.test(headings);
   const emptyJson = request.provider === 'woocommerce' && body.trim() === '[]';
   if (!products.length && !verifiedEmpty && !explicitEmpty && !emptyJson) { return undefined; }
-  return { products: rankSearchMatches(products, query), ...nextSearchPage(body, request, query) };
+  const matches = rankSearchMatches(products, query);
+  return { products: matches, ...(matches.length < products.length ? { observedProducts: products } : {}), ...nextSearchPage(body, request, query) };
 }
 
 function nextSearchPage(body: string, request: SearchRequest, query: string): { nextUrl?: string } {

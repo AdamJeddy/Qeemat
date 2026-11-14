@@ -1,18 +1,24 @@
 import { SiteKey } from './types';
+import { getSiteByKey } from './sites';
 import { uniqueOrganizationNames } from './organization';
 
 export type WatchlistStoreFilter = 'all' | SiteKey;
 export type WatchlistSort = 'recently_updated' | 'lowest_price' | 'largest_drop' | 'closest_to_target' | 'name';
 export type WatchlistCollectionFilter = {
   folder?: string;
+  query?: string;
 };
-
 type SiteProduct = { siteKey: SiteKey };
 type OrganizableProduct = SiteProduct & { folder?: string };
+type SearchableProduct = OrganizableProduct & {
+  title: string;
+  variant?: { label?: string };
+};
 type SortableProduct = SiteProduct & {
   title: string;
   currentPriceMinor?: number;
   previousPriceMinor?: number;
+  lastPriceChangeMinor?: number;
   targetPriceMinor?: number;
   updatedAt: string;
 };
@@ -27,14 +33,38 @@ export function getWatchlistFolders(products: OrganizableProduct[]): string[] {
 
 export function filterWatchlistProducts<T extends OrganizableProduct>(
   products: T[],
-  storeFilter: WatchlistStoreFilter,
+  storeFilters: SiteKey[] = [],
   collectionFilter: WatchlistCollectionFilter = {}
 ): T[] {
   return products.filter((product) => {
-    const matchesStore = storeFilter === 'all' || product.siteKey === storeFilter;
+    const matchesStore = storeFilters.length === 0 || storeFilters.includes(product.siteKey);
     const matchesFolder = !collectionFilter.folder || product.folder === collectionFilter.folder;
     return matchesStore && matchesFolder;
   });
+}
+
+/**
+ * Case-insensitive, multi-term (AND) search over the fields a shopper can see
+ * on a watchlist row: product title, retailer name, folder and selected option.
+ */
+export function matchesWatchlistSearch(product: SearchableProduct, query: string): boolean {
+  const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (!terms.length) {
+    return true;
+  }
+
+  const site = getSiteByKey(product.siteKey);
+  const haystack = [product.title, product.folder, product.variant?.label, site.shortName, site.displayName]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+
+  return terms.every((term) => haystack.includes(term));
+}
+
+export function searchWatchlistProducts<T extends SearchableProduct>(products: T[], query: string): T[] {
+  const normalizedQuery = query.trim();
+  return normalizedQuery ? products.filter((product) => matchesWatchlistSearch(product, normalizedQuery)) : products;
 }
 
 export function sortWatchlistProducts<T extends SortableProduct>(products: T[], sort: WatchlistSort): T[] {
@@ -96,11 +126,12 @@ function compareNumberDescending(left: number | undefined, right: number | undef
 }
 
 function priceDrop(product: SortableProduct): number | undefined {
-  if (product.currentPriceMinor === undefined || product.previousPriceMinor === undefined) {
+  const changedFrom = product.lastPriceChangeMinor ?? product.previousPriceMinor;
+  if (product.currentPriceMinor === undefined || changedFrom === undefined) {
     return undefined;
   }
 
-  return Math.max(0, product.previousPriceMinor - product.currentPriceMinor);
+  return Math.max(0, changedFrom - product.currentPriceMinor);
 }
 
 function targetDistance(product: SortableProduct): number | undefined {

@@ -86,7 +86,7 @@ class QeematNotificationsModule(private val reactContext: ReactApplicationContex
   }
 
   @ReactMethod
-  fun notifyAppUpdate(version: String, promise: Promise) {
+  fun notifyAppUpdate(promise: Promise) {
     try {
       if (!areNotificationsAllowed()) {
         promise.resolve(false)
@@ -115,8 +115,8 @@ class QeematNotificationsModule(private val reactContext: ReactApplicationContex
       }
       val notification = NotificationCompat.Builder(reactContext, UPDATE_CHANNEL_ID)
           .setSmallIcon(R.mipmap.ic_launcher)
-          .setContentTitle("Qeemat update available")
-          .setContentText("Version $version is ready. Open Qeemat to view the release.")
+          .setContentTitle("New Qeemat just dropped 🎉")
+          .setContentText("A new version is ready. Open the app to install it.")
           .setAutoCancel(true)
           .setPriority(NotificationCompat.PRIORITY_DEFAULT)
           .setContentIntent(pendingIntent)

@@ -1,5 +1,7 @@
 package com.qeemat
 
+import android.os.Handler
+import android.os.Looper
 import android.os.PowerManager
 import android.provider.Settings
 import androidx.work.Constraints
@@ -80,6 +82,36 @@ class QeematBackgroundCheckModule(private val reactContext: ReactApplicationCont
       promise.resolve(true)
     } catch (error: Exception) {
       promise.reject("QBG_UPDATE_SCHEDULE_FAILED", error)
+    }
+  }
+
+  @ReactMethod
+  fun waitForDiscoveryTimeout(milliseconds: Double, promise: Promise) {
+    Handler(Looper.getMainLooper()).postDelayed({ promise.resolve(true) }, milliseconds.toLong().coerceIn(1, 60000))
+  }
+
+  @ReactMethod
+  fun completeDiscovery(token: String, success: Boolean) {
+    QeematDiscoveryWorker.complete(token, success)
+  }
+
+  @ReactMethod
+  fun scheduleDiscovery(promise: Promise) {
+    try {
+      val request = PeriodicWorkRequestBuilder<QeematDiscoveryWorker>(6, TimeUnit.HOURS)
+          .setInitialDelay(1, TimeUnit.MINUTES)
+          .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+          .setInputData(Data.Builder().putString("task", "discovery").build())
+          .build()
+      val manager = WorkManager.getInstance(reactContext)
+      // Clean up schedules from earlier development builds.
+      manager.cancelUniqueWork("qeemat-discovery-refresh-periodic-v3")
+      manager.cancelUniqueWork("qeemat-discovery-refresh-periodic-v7")
+      manager.enqueueUniquePeriodicWork(
+          "qeemat-discovery-refresh", ExistingPeriodicWorkPolicy.KEEP, request)
+      promise.resolve(true)
+    } catch (error: Exception) {
+      promise.reject("QBG_DISCOVERY_SCHEDULE_FAILED", error)
     }
   }
 

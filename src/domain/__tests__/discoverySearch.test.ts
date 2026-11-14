@@ -29,6 +29,18 @@ describe('retailer product search', () => {
     expect(rankSearchMatches([cover, phone, product('iPhone 17')], 'iphone 16')).toEqual([phone, cover]);
     expect(rankSearchMatches([phone, cover], 'iphone 16 case')).toEqual([cover]);
   });
+  it('ranks the item itself above replacement tips, insoles and charms', () => {
+    const airpods = product('Apple AirPods Pro 2 with MagSafe Charging Case (USB-C)');
+    const tips = product('Replacement Ear Tips for AirPods Pro 2nd & 1st, 3 Pairs', 'Other brands');
+    const charms = product('Sneaker Lace Charms for Nike Air Force 1', 'Other brands');
+    const shoe = product("Nike Air Force 1 '07 Men's Shoes", 'Nike');
+    const insoles = product('Insoles for Nike Air Force 1 Jordan 4 Replacement', 'Endoto');
+    const esrCase = product('ESR for AirPods Pro 2 Case, Compatible with MagSafe, Cyber Tough Series', 'ESR');
+
+    expect(rankSearchMatches([tips, airpods], 'airpods pro 2')[0]).toBe(airpods);
+    expect(rankSearchMatches([esrCase, airpods], 'airpods pro 2')[0]).toBe(airpods);
+    expect(rankSearchMatches([charms, insoles, shoe], 'nike air force 1')[0]).toBe(shoe);
+  });
   it('reads only the Level Shoes search list, excluding recommendation state', () => {
     const request = buildSearchRequests('sneakers').find((entry) => entry.siteKey === 'level_shoes')!;
     const tile = { id: '1', name: 'Sneakers', rawSalePrice: 300, brandName: 'Nike', action: { url: '/shoe.html' } };

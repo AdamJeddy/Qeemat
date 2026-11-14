@@ -1,4 +1,4 @@
-export type SiteKey = 'noon' | 'nike_uae' | 'sun_sand_sports' | 'level_shoes' | 'ay_accessories' | 'ounass' | 'amazon_ae' | 'adidas' | 'puma_uae' | 'decathlon_uae' | 'salomon_gcc' | 'sephora_uae' | 'faces_uae' | 'centrepoint_uae' | 'namshi' | 'the_deal' | 'sharaf_dg' | 'brands_for_less' | 'carrefour_uae';
+export type SiteKey = 'hm_uae' | 'zara_uae' | 'noon' | 'nike_uae' | 'sun_sand_sports' | 'level_shoes' | 'ay_accessories' | 'ounass' | 'amazon_ae' | 'adidas' | 'puma_uae' | 'decathlon_uae' | 'salomon_gcc' | 'sephora_uae' | 'faces_uae' | 'centrepoint_uae' | 'namshi' | 'the_deal' | 'sharaf_dg' | 'brands_for_less' | 'carrefour_uae';
 
 export type Availability = 'in_stock' | 'out_of_stock' | 'unknown';
 
@@ -24,6 +24,8 @@ export type DiscoveryCategory = import('./discoveryCategories').ShoppingCategory
   'fashion' | 'beauty' | 'electronics' | 'sport' | 'home_department' | 'groceries' | 'general';
 
 export type DiscoveryProduct = {
+  previousPriceMinor?: number;
+  previousObservedAt?: string;
   priceBasis?: import('./priceBasis').PriceBasis;
   /** Stable identifier from the retailer catalogue. */
   id: string;
@@ -56,6 +58,64 @@ export type DiscoveryPreferences = {
   seenProductIds: string[];
 };
 
+/** One retailer's offer inside a cross-retailer product group. */
+export type DiscoveryOffer = {
+  product: DiscoveryProduct;
+  /** Original position in the source list, used for stable tie-breaks. */
+  order: number;
+  /**
+   * True when this offer can be compared on price: it has a single AED price
+   * on the same pack/weight basis as the other comparable offers in its group.
+   */
+  comparable: boolean;
+  /** Difference from the group's lowest comparable price, in minor units. */
+  priceDeltaMinor?: number;
+};
+
+/** How strongly a grouped product relates to the shopper's watchlist. */
+export type DiscoveryRelevance = {
+  score: number;
+  /** 2 = brand, keyword or tracked-product match; 1 = category; 0 = no watchlist signal. */
+  tier: 0 | 1 | 2;
+  /** Short, honest explanation such as `Because you track running shoes`. */
+  reason?: string;
+};
+
+/**
+ * The same product observed at one or more retailers. Created locally from
+ * retailer listings; there is no cross-retailer product identifier, so grouping
+ * stays conservative (brand plus a matching product signature).
+ */
+export type DiscoveryProductGroup = {
+  /** Stable local key derived from brand and product signature. */
+  id: string;
+  title: string;
+  brand: string;
+  category: DiscoveryCategory;
+  categories: DiscoveryCategory[];
+  imageUrl?: string;
+  currency: string;
+  /** One offer per retailer, lowest comparable price first. */
+  offers: DiscoveryOffer[];
+  /**
+   * Lowest usable offer. Only set when at least two offers are comparable, so
+   * the UI never claims a "best source" from unrelated prices.
+   */
+  bestOffer?: DiscoveryOffer;
+  comparableOfferCount: number;
+  /** Saving between the lowest and highest comparable offer, in minor units. */
+  priceSpreadMinor?: number;
+  /**
+   * Lowest comparable price from the previous observation set, only when every
+   * compared offer had a previous observation (so the comparison is fair).
+   */
+  previousBestPriceMinor?: number;
+  observedAt: string;
+  /** Matched active watchlist product, when matched conservatively. */
+  trackedProduct?: TrackedProduct;
+  relevance?: DiscoveryRelevance;
+};
+
 export type DiscoveryFilter = {
   collectionId?: string;
   category?: DiscoveryCategory;
@@ -70,6 +130,8 @@ export type SupportedSite = {
   shortName: string;
   hostnames: string[];
   status: 'supported' | 'experimental';
+  /** False when tracking is available but no verified discovery source exists yet. */
+  discoveryAvailable?: boolean;
   notes: string;
   /** Minimum hours that must elapse between checks for this site.
    *  When set, overrides shorter user check preferences. */
@@ -102,6 +164,7 @@ export type ProductVariant = {
 export type VariantSelection = Pick<ProductVariant, 'id' | 'label' | 'attributes' | 'url'>;
 
 export type ParsedProduct = {
+  sourceMetadata?: import('./productMetadata').ProductMetadata;
   priceBasis?: import('./priceBasis').PriceBasis;
   siteKey: SiteKey;
   canonicalUrl: string;
@@ -119,6 +182,13 @@ export type ParsedProduct = {
 };
 
 export type TrackedProduct = {
+  sourceMetadata?: import('./productMetadata').ProductMetadata;
+  /** Brand supplied by the listing when the tracker was created. */
+  brand?: string;
+  /** Shopper-selected or source-provided category for discovery. */
+  category?: import('./discoveryCategories').ShoppingCategory;
+  /** True when the shopper explicitly chose no category. */
+  categoryExcluded?: boolean;
   priceBasis?: import('./priceBasis').PriceBasis;
   id: number;
   url: string;
@@ -130,6 +200,10 @@ export type TrackedProduct = {
   currentPriceMinor?: number;
   /** Previous price from the check before the most recent one. Used to compute price direction on cards. */
   previousPriceMinor?: number;
+  /** Price before the most recent actual price change; preserved across later unchanged checks. */
+  lastPriceChangeMinor?: number;
+  /** When the most recent actual price change was detected. */
+  lastPriceChangeAt?: string;
   targetPriceMinor?: number;
   /** Minimum AED amount a price must drop before a price-drop alert is sent. */
   minimumPriceDropMinor?: number;
@@ -174,6 +248,9 @@ export type ProductWithSnapshots = {
 };
 
 export type ProductDraft = {
+  brand?: string;
+  category?: import('./discoveryCategories').ShoppingCategory;
+  categoryExcluded?: boolean;
   parsed: ParsedProduct;
   sourceUrl: string;
   checkPreference: CheckPreference;

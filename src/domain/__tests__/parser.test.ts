@@ -742,6 +742,117 @@ describe('parseProductHtml', () => {
     );
   });
 
+  it('keeps a product URL when Amazon canonical points at a /clp/ offer page', () => {
+    const input = 'https://www.amazon.com/Canon-Digital-18-55mm-3-5-5-6-Renewed/dp/B0BHJHHJ1T';
+    const html = `
+      <html>
+        <head>
+          <link rel="canonical" href="https://www.amazon.com/clp/B0BHJHHJ1T" />
+        </head>
+        <body>
+          <div id="titleSection">
+            <span id="productTitle">Canon EOS Rebel T1i 15.1 MP CMOS Digital SLR Camera (Renewed)</span>
+          </div>
+          <div id="tp_price_update_feature_ww">
+            <span id="tp_price_block_total_price_ww" class="a-price">
+              <span class="a-offscreen">AED 229.00</span>
+            </span>
+          </div>
+          <div id="availability">
+            <span class="a-size-medium a-color-success primary-availability-message"> In Stock </span>
+          </div>
+        </body>
+      </html>
+    `;
+
+    const parsed = parseProductHtml('amazon_ae', input, html);
+
+    expect(parsed).toEqual(expect.objectContaining({
+      canonicalUrl: input,
+      priceMinor: 22900,
+      currency: 'AED',
+      availability: 'in_stock',
+      sku: 'B0BHJHHJ1T'
+    }));
+  });
+
+  it('rewrites Amazon /clp/ URLs to a parseable product URL', () => {
+    const html = `
+      <html>
+        <head>
+          <link rel="canonical" href="https://www.amazon.com/clp/B0BHJHHJ1T" />
+        </head>
+        <body>
+          <span id="productTitle">Canon EOS Rebel T1i 15.1 MP CMOS Digital SLR Camera (Renewed)</span>
+          <div id="tp_price_update_feature_ww">
+            <span id="tp_price_block_total_price_ww" class="a-price">
+              <span class="a-offscreen">AED 229.00</span>
+            </span>
+          </div>
+          <div id="availability">
+            <span class="a-size-medium a-color-success primary-availability-message"> In Stock </span>
+          </div>
+        </body>
+      </html>
+    `;
+
+    const parsed = parseProductHtml('amazon_ae', 'https://www.amazon.com/clp/B0BHJHHJ1T', html);
+
+    expect(parsed?.canonicalUrl).toBe('https://www.amazon.com/dp/B0BHJHHJ1T?th=1&psc=1');
+    expect(parsed?.sku).toBe('B0BHJHHJ1T');
+  });
+
+  it('adds the variant query to a bare Amazon product URL', () => {
+    const html = `
+      <html>
+        <head>
+          <link rel="canonical" href="https://www.amazon.com/clp/B0BHJHHJ1T" />
+        </head>
+        <body>
+          <span id="productTitle">Canon EOS Rebel T1i 15.1 MP CMOS Digital SLR Camera (Renewed)</span>
+          <div id="tp_price_update_feature_ww">
+            <span id="tp_price_block_total_price_ww" class="a-price">
+              <span class="a-offscreen">AED 229.00</span>
+            </span>
+          </div>
+          <div id="availability">
+            <span class="a-size-medium a-color-success primary-availability-message"> In Stock </span>
+          </div>
+        </body>
+      </html>
+    `;
+
+    const parsed = parseProductHtml('amazon_ae', 'https://www.amazon.com/dp/B0BHJHHJ1T', html);
+
+    expect(parsed?.canonicalUrl).toBe('https://www.amazon.com/dp/B0BHJHHJ1T?th=1&psc=1');
+  });
+
+  it('keeps a normal Amazon canonical product URL unchanged', () => {
+    const canonical = 'https://www.amazon.ae/soundcore-Open-Ear-Headphones-Adjustable-Bluetooth/dp/B0DCZ2QFV8';
+    const html = `
+      <html>
+        <head>
+          <link rel="canonical" href="${canonical}" />
+        </head>
+        <body>
+          <span id="productTitle">soundcore by Anker AeroFit 2 Open-Ear Headphones</span>
+          <div id="tp_price_update_feature_ww">
+            <span id="tp_price_block_total_price_ww" class="a-price">
+              <span class="a-offscreen">AED 229.00</span>
+            </span>
+          </div>
+          <div id="availability">
+            <span class="a-size-medium a-color-success primary-availability-message"> In Stock </span>
+          </div>
+        </body>
+      </html>
+    `;
+
+    const parsed = parseProductHtml('amazon_ae', canonical, html);
+
+    expect(parsed?.canonicalUrl).toBe(canonical);
+    expect(parsed?.priceMinor).toBe(22900);
+  });
   it('parses AYM WooCommerce variable product markup', () => {
     const html = `
       <html>
@@ -1139,6 +1250,26 @@ describe('parseProductHtml', () => {
 
     const incompleteRecordHtml = html.replace('"available": false, "price": 16500', '"price": 16500');
     expect(parseProductHtml('decathlon_uae', decathlonUrl, incompleteRecordHtml)?.variants).toBeUndefined();
+  });
+
+  it('does not treat a Shopify product page with theme 404-like strings as missing', () => {
+    const html = `
+      <img src="//decathlon.ae/cdn/shop/files/jersey.jpg?width=404" alt="Germany 26 Home Replica Jersey" />
+      <script>console.error('Product section not found for variant price updates');</script>
+      <script id="ProductJson" type="application/json">{"id":123456,"title":"Germany 26 Home Replica Jersey, White","options":["Size"],"price":25000,"available":true,"variants":[{"id":111,"price":25000,"available":true,"options":["XL"]}]}</script>
+    `;
+
+    expect(parseProductHtml('decathlon_uae', decathlonUrl, html)).toEqual(expect.objectContaining({
+      siteKey: 'decathlon_uae',
+      title: 'Germany 26 Home Replica Jersey, White',
+      priceMinor: 25000,
+      availability: 'in_stock'
+    }));
+  });
+
+  it('still treats a genuine 404 page as a missing product', () => {
+    const html = '<html><body><h1>404</h1><img src="/missing.png" alt="404 page" /></body></html>';
+    expect(parseProductHtml('noon', noonUrl, html)).toBeUndefined();
   });
 
   it('uses Salomon Shopify variant records for the chosen exact size', () => {
@@ -2171,6 +2302,80 @@ describe('fetchAndParseProduct', () => {
     expect(fetchPageHtmlViaWebView).toHaveBeenCalledWith(theDealUrl);
   });
 
+  it('uses the Android WebView fallback when Amazon returns a page without product details', async () => {
+    globalThis.fetch = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      url: amazonUrl,
+      text: async () => '<html><body><div id="nav-belt">Amazon</div></body></html>'
+    })) as unknown as typeof fetch;
+    jest.mocked(fetchPageHtmlViaWebView).mockResolvedValue(`
+      <link rel="canonical" href="${amazonUrl}" />
+      <span id="productTitle">Logitech H390 Wired Headset</span>
+      <div id="corePriceDisplay_desktop_feature_div">
+        <span class="a-price priceToPay"><span class="a-offscreen">AED 79.00</span></span>
+      </div>
+      <div id="availability"><span class="primary-availability-message">In Stock</span></div>
+    `);
+
+    await expect(fetchAndParseProduct(amazonUrl)).resolves.toEqual({
+      ok: true,
+      product: expect.objectContaining({
+        siteKey: 'amazon_ae',
+        title: 'Logitech H390 Wired Headset',
+        priceMinor: 7900,
+        currency: 'AED',
+        availability: 'in_stock'
+      })
+    });
+    expect(fetchPageHtmlViaWebView).toHaveBeenCalledWith(amazonUrl);
+  });
+
+  it('retries Amazon once, then uses the Android WebView fallback after a network error', async () => {
+    const fetchMock = jest.fn()
+      .mockRejectedValueOnce(new Error('socket reset'))
+      .mockRejectedValueOnce(new Error('socket reset'));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    jest.mocked(fetchPageHtmlViaWebView).mockResolvedValue(`
+      <span id="productTitle">Logitech H390 Wired Headset</span>
+      <div id="corePriceDisplay_desktop_feature_div">
+        <span class="a-price priceToPay"><span class="a-offscreen">AED 79.00</span></span>
+      </div>
+      <div id="availability"><span class="primary-availability-message">In Stock</span></div>
+    `);
+
+    await expect(fetchAndParseProduct(amazonUrl)).resolves.toEqual({
+      ok: true,
+      product: expect.objectContaining({ priceMinor: 7900 })
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchPageHtmlViaWebView).toHaveBeenCalledWith(amazonUrl);
+  });
+
+  it('uses the Android WebView fallback when Decathlon returns a page without ProductJson', async () => {
+    globalThis.fetch = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      url: decathlonUrl,
+      text: async () => '<html><body><div id="app"></div></body></html>'
+    })) as unknown as typeof fetch;
+    jest.mocked(fetchPageHtmlViaWebView).mockResolvedValue(`
+      <script id="ProductJson" type="application/json">{"id":123456,"title":"Kiprun Run 500","options":["Size"],"price":10000,"available":true,"variants":[{"id":111,"price":10000,"available":true,"options":["42"]}]}</script>
+    `);
+
+    await expect(fetchAndParseProduct(decathlonUrl)).resolves.toEqual({
+      ok: true,
+      product: expect.objectContaining({
+        siteKey: 'decathlon_uae',
+        title: 'Kiprun Run 500',
+        priceMinor: 10000,
+        currency: 'AED',
+        availability: 'in_stock'
+      })
+    });
+    expect(fetchPageHtmlViaWebView).toHaveBeenCalledWith(decathlonUrl);
+  });
+
   it('resolves a selected The Deal variant price before saving a tracker', async () => {
     const selectedVariant = {
       id: '0188147CMA0025|color=blue|size=42sEU',
@@ -2508,6 +2713,73 @@ describe('fetchAndParseProduct', () => {
     });
   });
 
+  it('normalizes an Amazon /clp/ URL before fetching it', async () => {
+    const clpUrl = 'https://www.amazon.com/clp/B0BHJHHJ1T';
+    const normalized = 'https://www.amazon.com/dp/B0BHJHHJ1T?th=1&psc=1';
+    const fetched: string[] = [];
+    globalThis.fetch = jest.fn(async (input: RequestInfo | URL) => {
+      fetched.push(String(input));
+      return {
+        ok: true,
+        status: 200,
+        url: normalized,
+        text: async () => `
+          <html>
+            <head><link rel="canonical" href="${clpUrl}" /></head>
+            <body>
+              <span id="productTitle">Canon EOS Rebel T1i 15.1 MP CMOS Digital SLR Camera (Renewed)</span>
+              <div id="tp_price_update_feature_ww">
+                <span id="tp_price_block_total_price_ww" class="a-price">
+                  <span class="a-offscreen">USD 219.89</span>
+                </span>
+              </div>
+              <div id="availability">
+                <span class="a-size-medium a-color-success primary-availability-message"> In Stock </span>
+              </div>
+            </body>
+          </html>
+        `
+      } as unknown as Response;
+    }) as unknown as typeof fetch;
+    jest.mocked(fetchPageHtmlViaWebView).mockResolvedValue(null);
+
+    const result = await fetchAndParseProduct(clpUrl);
+
+    expect(fetched).toEqual([normalized]);
+    expect(result).toEqual({
+      ok: true,
+      product: expect.objectContaining({
+        canonicalUrl: normalized,
+        priceMinor: 21989,
+        currency: 'USD',
+        sku: 'B0BHJHHJ1T'
+      })
+    });
+  });
+
+  it('reports Amazon checkpoint pages as blocked', async () => {
+    globalThis.fetch = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      url: amazonUrl,
+      text: async () => `
+        <!doctype html>
+        <html>
+          <head><title>Oops!</title></head>
+          <body><p>Something went wrong on our end. Please go back and try again.</p></body>
+        </html>
+      `
+    })) as unknown as typeof fetch;
+    jest.mocked(fetchPageHtmlViaWebView).mockResolvedValue(null);
+
+    const result = await fetchAndParseProduct(amazonUrl);
+
+    expect(result).toEqual({
+      ok: false,
+      code: 'blocked',
+      message: 'The website blocked this check.'
+    });
+  });
   it('reports when a saved variant no longer appears in the fetched page', async () => {
     globalThis.fetch = jest.fn(async () => ({
       ok: true,

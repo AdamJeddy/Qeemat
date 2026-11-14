@@ -6,9 +6,12 @@ import {
 } from '../domain/types';
 import { DEFAULT_DISCOVERY_PREFERENCES, discoveryFeedbackId } from '../domain/discovery';
 import { migrateDiscoveryBudgets, normalizeDiscoveryCategories } from '../domain/discoveryCategories';
+import { clearDiscoveryHistory } from './discoveryHistory';
+import { SEARCH_SOURCE_KEY } from './discoverySearch';
 
 const PREFERENCES_KEY = 'qeemat.discovery.preferences.v1';
 const CACHE_KEY = 'qeemat.discovery.cache.v1';
+const DISCOVERY_OFFSET_KEY = 'qeemat.discovery.launch-offset.v1';
 const SOURCE_CACHE_PREFIX = 'qeemat.discovery.source.v2.';
 const SOURCE_ATTEMPT_PREFIX = 'qeemat.discovery.attempt.v1.';
 const MAX_FEEDBACK_IDS = 300;
@@ -20,7 +23,15 @@ export type DiscoveryCacheEntry = {
   parserVersion?: number;
 };
 
-export const DISCOVERY_PARSER_VERSION = 5;
+export const DISCOVERY_PARSER_VERSION = 7;
+
+export async function advanceDiscoveryOffset(): Promise<number> {
+  const raw = await AsyncStorage.getItem(DISCOVERY_OFFSET_KEY);
+  const previous = raw === null ? -1 : Number(raw);
+  const next = Number.isInteger(previous) && previous >= -1 && previous < 24 ? (previous + 1) % 24 : 0;
+  await AsyncStorage.setItem(DISCOVERY_OFFSET_KEY, String(next));
+  return next;
+}
 
 type DiscoveryAttempt = { attemptedAt: number; failed: boolean; parserVersion: number };
 
@@ -104,10 +115,17 @@ export async function saveDiscoveryCache(collectionId: string, products: Discove
   legacyFeedbackAliases = undefined;
 }
 
+export async function listCachedDiscoveryCollectionIds(): Promise<string[]> {
+  const keys = await AsyncStorage.getAllKeys();
+  const current = keys.filter((key) => key.startsWith(SOURCE_CACHE_PREFIX)).map((key) => key.slice(SOURCE_CACHE_PREFIX.length));
+  return [...new Set([...current, ...Object.keys(await readCache())])];
+}
+
 export async function clearDiscoveryData(): Promise<void> {
   legacyFeedbackAliases = undefined;
   const keys = await AsyncStorage.getAllKeys();
-  await AsyncStorage.multiRemove([PREFERENCES_KEY, CACHE_KEY, 'qeemat.discovery.search.v1', ...keys.filter((key) => key.startsWith(SOURCE_CACHE_PREFIX) || key.startsWith(SOURCE_ATTEMPT_PREFIX))]);
+    await AsyncStorage.multiRemove([PREFERENCES_KEY, CACHE_KEY, DISCOVERY_OFFSET_KEY, 'qeemat.discovery.search.v1', SEARCH_SOURCE_KEY, 'qeemat.discovery.background.cursor.v1', ...keys.filter((key) => key.startsWith(SOURCE_CACHE_PREFIX) || key.startsWith(SOURCE_ATTEMPT_PREFIX))]);
+  await clearDiscoveryHistory();
 }
 
 async function getLegacyFeedbackAliases(): Promise<Map<string, string>> {
@@ -123,7 +141,9 @@ async function getLegacyFeedbackAliases(): Promise<Map<string, string>> {
         }
       };
       const keys = (await AsyncStorage.getAllKeys()).filter((key) => key.startsWith(`${SOURCE_CACHE_PREFIX}decathlon-`) || key.startsWith(`${SOURCE_CACHE_PREFIX}salomon-`));
-      const entries = await AsyncStorage.multiGet(keys);
+      const pending = AsyncStorage.multiGet(keys);
+      AsyncStorage.flushGetRequests();
+      const entries = await pending;
       for (const [, raw] of entries) {
         if (!raw) { continue; }
         try { const entry = JSON.parse(raw) as DiscoveryCacheEntry; if (Array.isArray(entry.products)) { add(entry); } } catch { /* Ignore a corrupt collection cache. */ }

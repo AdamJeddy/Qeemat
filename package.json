@@ -1,6 +1,6 @@
 {
   "name": "qeemat",
-  "version": "0.6.0-alpha",
+  "version": "0.6.5-alpha",
   "private": true,
   "main": "index.js",
   "scripts": {

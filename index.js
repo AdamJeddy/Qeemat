@@ -2,9 +2,10 @@
  * @format
  */
 
-import { AppRegistry } from 'react-native';
+import { AppRegistry, NativeModules } from 'react-native';
 import App from './App';
 import { name as appName } from './app.json';
+import { runDiscoveryBackgroundRefresh } from './src/domain/discoveryBackground';
 import { runBackgroundUpdateCheck } from './src/domain/updateBackground';
 import { checkAllActiveProductsFromBackground, checkDueProducts } from './src/domain/checker';
 import {
@@ -35,3 +36,13 @@ AppRegistry.registerHeadlessTask('QeematBackgroundPriceCheck', () => async (task
 });
 
 AppRegistry.registerHeadlessTask('QeematBackgroundUpdateCheck', () => runBackgroundUpdateCheck);
+
+AppRegistry.registerHeadlessTask('QeematBackgroundDiscoveryRefresh', () => async (taskData) => {
+  try {
+    await runDiscoveryBackgroundRefresh();
+    if (typeof taskData?.completionToken === 'string') { NativeModules.QeematBackgroundCheck?.completeDiscovery?.(taskData.completionToken, true); }
+  } catch (error) {
+    if (typeof taskData?.completionToken === 'string') { NativeModules.QeematBackgroundCheck?.completeDiscovery?.(taskData.completionToken, false); }
+    throw error;
+  }
+});
