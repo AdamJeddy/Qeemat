@@ -1,6 +1,6 @@
 import React from 'react';
 import renderer, { act } from 'react-test-renderer';
-import { Circle } from 'react-native-svg';
+import { Circle, Line } from 'react-native-svg';
 
 import { AppText } from '../AppText';
 import { PriceChart } from '../PriceChart';
@@ -105,7 +105,7 @@ describe('PriceChart', () => {
       tree = renderer.create(<PriceChart snapshots={snapshots} currency="AED" />);
     });
 
-    expect(renderedText(tree!)).toContain('Only points where the price changed are plotted. Drag across the chart to scrub through them; tap a point to inspect it. Green marks a drop; red marks an increase.');
+    expect(renderedText(tree!)).toContain('Only points where the price changed are plotted. Dashed lines mark the high and low; drag across the chart to scrub through them; tap a point to inspect it.');
   });
 
   it('plots only the points where the price actually changed', () => {
@@ -124,6 +124,16 @@ describe('PriceChart', () => {
 
     // Three price levels (10,000 -> 9,000 -> 10,500), not six checks.
     expect(tree!.root.findAllByType(Circle)).toHaveLength(3);
+  });
+  it('marks the high and low with dashed guide lines and a range readout', () => {
+    let tree: renderer.ReactTestRenderer;
+    act(() => { tree = renderer.create(<PriceChart snapshots={snapshots} currency="AED" />); });
+
+    const guides = tree!.root.findAllByType(Line).filter((line) => line.props.strokeDasharray === '4 5');
+    expect(guides).toHaveLength(2);
+    expect(guides.map((line) => line.props.stroke)).toEqual([colors.red, colors.green]);
+    expect(renderedText(tree!)).toContain('High AED 105');
+    expect(renderedText(tree!)).toContain('Low AED 90');
   });
   it('uses the shared direction colors for chart points', () => {
     let tree: renderer.ReactTestRenderer;

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Alert, Image, Linking, TextInput } from 'react-native';
+import { Alert, Image, Linking, Share, TextInput } from 'react-native';
 import renderer, { act } from 'react-test-renderer';
 
 jest.mock('@react-native-clipboard/clipboard', () => ({
@@ -29,7 +29,7 @@ jest.mock('./src/domain/discoveryCatalog', () => ({
 }));
 jest.mock('./src/domain/discoverySearchCatalog', () => ({ loadProductSearch: jest.fn() }));
 
-import { AddScreen, DetailScreen, getTrackedProductLink, OpportunityScreen, rotateDiscoveryProducts, TabsScreen } from './App';
+import { AddScreen, buildProductShareMessage, DetailScreen, getTrackedProductLink, OpportunityScreen, rotateDiscoveryProducts, TabsScreen } from './App';
 import { AppText } from './src/components/AppText';
 import { DiscoveryFilterChip, DiscoveryProductGrid } from './src/components/Discovery';
 import { DiscoveryBrowseSheet } from './src/components/DiscoveryBrowseSheet';
@@ -410,6 +410,70 @@ describe('DetailScreen', () => {
     await act(async () => tree!.unmount());
   });
 
+  it('builds a native share message ending with Tracked with Qeemat', () => {
+    const base = {
+      title: 'Sony WH-1000XM5',
+      currency: 'AED',
+      currentPriceMinor: 129900,
+      lastPriceChangeMinor: 139900,
+      lastAvailability: 'in_stock' as const,
+      lastErrorCode: 'price_changed' as const
+    };
+    expect(buildProductShareMessage(base, 'Amazon', 'https://example.com/sony')).toBe(
+      'Sony WH-1000XM5 — AED 1,299 on Amazon (AED 100 lower).\nhttps://example.com/sony\n\nTracked with Qeemat'
+    );
+    expect(buildProductShareMessage({ ...base, targetPriceMinor: 130000 }, 'Amazon', 'https://example.com/sony')).toContain('hit my target');
+    expect(buildProductShareMessage({ ...base, lastAvailability: 'out_of_stock' }, 'Amazon', 'https://example.com/sony')).toContain('out of stock');
+    expect(buildProductShareMessage({ ...base, lastErrorCode: 'blocked' }, 'Amazon', 'https://example.com/sony')).toContain('last known');
+    for (const message of [
+      buildProductShareMessage(base, 'Amazon', 'https://example.com/sony'),
+      buildProductShareMessage({ ...base, targetPriceMinor: 130000 }, 'Amazon', 'https://example.com/sony'),
+      buildProductShareMessage({ ...base, lastAvailability: 'out_of_stock' }, 'Amazon', 'https://example.com/sony'),
+      buildProductShareMessage({ ...base, lastErrorCode: 'blocked' }, 'Amazon', 'https://example.com/sony')
+    ]) {
+      expect(message.endsWith('Tracked with Qeemat')).toBe(true);
+    }
+  });
+
+  it('opens the native share sheet without changing copy-link behaviour', async () => {
+    mockGetProductWithSnapshots.mockResolvedValueOnce({
+      product: {
+        id: 97,
+        url: 'https://www.amazon.ae/dp/B0SHARE01',
+        canonicalUrl: 'https://www.amazon.ae/dp/B0SHARE01',
+        siteKey: 'amazon_ae',
+        title: 'Shared product',
+        currency: 'AED',
+        currentPriceMinor: 129900,
+        lastPriceChangeMinor: 139900,
+        alertMode: 'price_drop',
+        checkPreference: 'daily',
+        isActive: true,
+        lastErrorCode: 'price_changed',
+        lastCheckedAt: '2026-11-14T12:00:00.000Z',
+        createdAt: '2026-01-01T00:00:00Z',
+        updatedAt: '2026-11-14T12:00:00.000Z'
+      },
+      snapshots: []
+    });
+    const shareSpy = jest.spyOn(Share, 'share').mockResolvedValue({ action: 'sharedAction' } as never);
+    let tree: renderer.ReactTestRenderer;
+    await act(async () => { tree = renderer.create(<DetailScreen productId={97} navigate={jest.fn()} />); await Promise.resolve(); });
+
+    await act(async () => {
+      tree!.root.findByProps({ accessibilityLabel: 'Share product' }).props.onPress();
+      await Promise.resolve();
+    });
+    expect(shareSpy).toHaveBeenCalledTimes(1);
+    expect(shareSpy.mock.calls[0][0]).toEqual({ message: expect.stringContaining('Tracked with Qeemat') });
+
+    act(() => {
+      tree!.root.findByProps({ accessibilityLabel: 'Copy product link' }).props.onPress();
+    });
+    expect(mockClipboardSetString).toHaveBeenCalledWith('https://www.amazon.ae/dp/B0SHARE01');
+    shareSpy.mockRestore();
+    await act(async () => tree!.unmount());
+  });
   it('uses The Deal storefront URLs for customer-facing variant links', () => {
     const storefrontUrl = 'https://www.thedealoutlet.com/ae-en/serve-slide-1.0-fabric/0188147CMA0025.html?dwvar_0188147CMA0025_color=blue';
     const variationEndpoint = 'https://www.thedealoutlet.com/on/demandware.store/Sites-TheDealOutlet_AE-Site/en_AE/Product-Variation?pid=0188147CMA0025';

@@ -155,6 +155,28 @@ export function PriceChart({ snapshots, currency }: PriceChartProps) {
               strokeDasharray="3 5"
             />
           ))}
+          {max > min ? (
+            <>
+              <Line
+                x1={padding}
+                x2={width - padding}
+                y1={padding}
+                y2={padding}
+                stroke={colors.red}
+                strokeOpacity={0.35}
+                strokeDasharray="4 5"
+              />
+              <Line
+                x1={padding}
+                x2={width - padding}
+                y1={height - padding}
+                y2={height - padding}
+                stroke={colors.green}
+                strokeOpacity={0.35}
+                strokeDasharray="4 5"
+              />
+            </>
+          ) : null}
           {areaPath ? <Path d={areaPath} fill="url(#priceFill)" /> : null}
           <Path d={linePath} fill="none" stroke={colors.primary} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
           <Line
@@ -191,7 +213,19 @@ export function PriceChart({ snapshots, currency }: PriceChartProps) {
         <AppText muted style={styles.axisLabel}>{formatAxisDate(points[0].checkedAt)}</AppText>
         <AppText muted style={styles.axisLabel}>{formatAxisDate(points[points.length - 1].checkedAt)}</AppText>
       </View>
-      <AppText muted style={styles.hint}>Only points where the price changed are plotted. Drag across the chart to scrub through them; tap a point to inspect it. Green marks a drop; red marks an increase.</AppText>
+      {max > min ? (
+        <View style={styles.rangeRow}>
+          <View style={styles.rangeItem}>
+            <View style={[styles.rangeSwatch, styles.rangeHighSwatch]} />
+            <AppText muted style={[styles.rangeText, styles.rangeHighText]}>High {formatPrice(max, currency)}</AppText>
+          </View>
+          <View style={styles.rangeItem}>
+            <View style={[styles.rangeSwatch, styles.rangeLowSwatch]} />
+            <AppText muted style={[styles.rangeText, styles.rangeLowText]}>Low {formatPrice(min, currency)}</AppText>
+          </View>
+        </View>
+      ) : null}
+      <AppText muted style={styles.hint}>Only points where the price changed are plotted. Dashed lines mark the high and low; drag across the chart to scrub through them; tap a point to inspect it.</AppText>
     </View>
   );
 }
@@ -314,7 +348,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: 'right'
   },
-  canvas: {
+  rangeRow: { flexDirection: 'row', alignItems: 'center', gap: 16, marginTop: 6 },
+  rangeItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  rangeSwatch: { width: 14, height: 2, borderRadius: 1 },
+  rangeHighSwatch: { backgroundColor: colors.red },
+  rangeLowSwatch: { backgroundColor: colors.green },
+  rangeText: { fontSize: 12 },
+  rangeHighText: { color: colors.red },
+  rangeLowText: { color: colors.green },  canvas: {
     height: 172
   },
   axis: {

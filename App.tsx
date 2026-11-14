@@ -15,6 +15,7 @@ import {
   Pressable,
   RefreshControl,
   ScrollView,
+  Share,
   StatusBar,
   StyleSheet,
   Switch,
@@ -43,6 +44,7 @@ import {
   Plus,
   RefreshCcw,
   Search,
+  Share2,
   Settings as SettingsIcon,
   SlidersHorizontal,
   Trash2,
@@ -1597,6 +1599,41 @@ function ProductPreview({
   );
 }
 
+export function buildProductShareMessage(
+  product: Pick<TrackedProduct, 'title' | 'currency' | 'currentPriceMinor' | 'lastPriceChangeMinor' | 'targetPriceMinor' | 'lastAvailability' | 'lastErrorCode' | 'priceBasis'>,
+  siteName: string,
+  url: string
+): string {
+  const price = formatPrice(product.currentPriceMinor, product.currency, product.priceBasis);
+  const checkFailed = Boolean(product.lastErrorCode && product.lastErrorCode !== 'ok' && product.lastErrorCode !== 'price_changed');
+  const delta =
+    product.currentPriceMinor !== undefined && product.lastPriceChangeMinor !== undefined
+      ? product.currentPriceMinor - product.lastPriceChangeMinor
+      : 0;
+  const change = delta < 0
+    ? `${formatPrice(Math.abs(delta), product.currency, product.priceBasis)} lower`
+    : delta > 0
+      ? `${formatPrice(delta, product.currency, product.priceBasis)} higher`
+      : undefined;
+  const targetHit =
+    product.targetPriceMinor !== undefined &&
+    product.currentPriceMinor !== undefined &&
+    product.currentPriceMinor <= product.targetPriceMinor;
+
+  let headline: string;
+  if (product.lastAvailability === 'out_of_stock') {
+    headline = `${product.title} is out of stock on ${siteName}${product.currentPriceMinor !== undefined ? ` — last known ${price}` : ''}.`;
+  } else if (targetHit) {
+    headline = `${product.title} hit my target on ${siteName} — ${price}.`;
+  } else if (checkFailed) {
+    headline = `${product.title} — last known ${price} on ${siteName}.`;
+  } else {
+    headline = `${product.title} — ${price} on ${siteName}${change ? ` (${change})` : ''}.`;
+  }
+
+  return `${headline}\n${url}\n\nTracked with Qeemat`;
+}
+
 export function getTrackedProductLink(product: Pick<TrackedProduct, 'url' | 'canonicalUrl' | 'siteKey' | 'variant'>): string {
   const customerFacingUrl = product.siteKey === 'the_deal'
     ? product.canonicalUrl || product.url
@@ -1647,6 +1684,14 @@ export function DetailScreen({ productId, navigate }: { productId: number; navig
     Alert.alert('Link copied', 'The product link is ready to paste.');
   }
 
+  async function shareProduct() {
+    try {
+      await Share.share({ message: buildProductShareMessage(product, site.shortName, productLink) });
+    } catch {
+      // Dismissing the native share sheet is not an error.
+    }
+  }
+
   const site = getSiteByKey(product.siteKey);
   const currentPrice = product.currentPriceMinor;
   const changedFrom = product.lastPriceChangeMinor;
@@ -1673,6 +1718,9 @@ export function DetailScreen({ productId, navigate }: { productId: number; navig
             <View style={styles.detailBannerActions}>
               <Pressable accessibilityLabel="Copy product link" accessibilityRole="button" hitSlop={5} style={styles.detailBannerButton} onPress={copyProductLink}>
                 <Copy size={20} color={colors.surface} />
+              </Pressable>
+              <Pressable accessibilityLabel="Share product" accessibilityRole="button" hitSlop={5} style={styles.detailBannerButton} onPress={shareProduct}>
+                <Share2 size={20} color={colors.surface} />
               </Pressable>
               <Pressable accessibilityLabel="Tracking settings" accessibilityRole="button" hitSlop={5} style={styles.detailBannerButton} onPress={() => navigate({ name: 'trackingSettings', id: product.id })}>
                 <SettingsIcon size={20} color={colors.surface} />
