@@ -118,7 +118,7 @@ it('renders the relevance reason and the tracked-product annotation', () => {
   const text = rowText(tree);
 
   expect(text).toContain('Because you track running shoes');
-  expect(text).toContain('You track this at Noon');
+  expect(text).toContain('On your watchlist at Noon');
 });
 
 it('shows the saving across comparable stores only when there is a spread', () => {

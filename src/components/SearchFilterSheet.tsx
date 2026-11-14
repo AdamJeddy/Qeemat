@@ -64,24 +64,26 @@ export function SearchFilterSheet({
           <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <AppText muted style={styles.summary}>{resultCount} products</AppText>
 
-            <View style={styles.section}>
-              <AppText weight="semibold" style={styles.sectionTitle}>Department</AppText>
-              <View style={styles.chips}>
-                <DiscoveryFilterChip
-                  label="All departments"
-                  selected={!filters.category}
-                  onPress={() => update({ category: undefined })}
-                />
-                {departments.map((category) => (
+            {departments.length ? (
+              <View style={styles.section}>
+                <AppText weight="semibold" style={styles.sectionTitle}>Department</AppText>
+                <View style={styles.chips}>
                   <DiscoveryFilterChip
-                    key={category}
-                    label={DISCOVERY_CATEGORY_LABELS[category]}
-                    selected={filters.category === category}
-                    onPress={() => update({ category: filters.category === category ? undefined : category })}
+                    label="All departments"
+                    selected={!filters.category}
+                    onPress={() => update({ category: undefined })}
                   />
-                ))}
+                  {departments.map((category) => (
+                    <DiscoveryFilterChip
+                      key={category}
+                      label={DISCOVERY_CATEGORY_LABELS[category]}
+                      selected={filters.category === category}
+                      onPress={() => update({ category: filters.category === category ? undefined : category })}
+                    />
+                  ))}
+                </View>
               </View>
-            </View>
+            ) : null}
 
             <View style={styles.section}>
               <AppText weight="semibold" style={styles.sectionTitle}>Store</AppText>

@@ -147,6 +147,14 @@ describe('SearchCompareSheet', () => {
     act(() => tree.unmount());
   });
 
+  it('summarizes the previous cross-store best price', () => {
+    const { tree } = renderSheet({ group: makeGroup({ previousBestPriceMinor: 21900 }) });
+    const text = sheetText(tree);
+
+    expect(text).toContain('Lowest AED 20 lower than the last check (AED 219)');
+    act(() => tree.unmount());
+  });
+
   it('lists a row per store with availability, range, previous price and direction', () => {
     const rangeProduct: DiscoveryProduct = {
       ...noonProduct,

@@ -16,6 +16,7 @@ export type SearchProductRowProps = {
   group: DiscoveryProductGroup;
   onPress: () => void;
   onTrack?: () => void;
+  onOpenTracker?: () => void;
   tracking?: boolean;
   compact?: boolean;
 };
@@ -36,7 +37,7 @@ function offerPriceDisplay(offer: DiscoveryOffer | undefined, fallbackCurrency: 
   return product.hasPriceRange && product.priceMinor !== undefined ? `From ${price}` : price;
 }
 
-export function SearchProductRow({ group, onPress, onTrack, tracking, compact: compactProp }: SearchProductRowProps) {
+export function SearchProductRow({ group, onPress, onTrack, onOpenTracker, tracking, compact: compactProp }: SearchProductRowProps) {
   const { width, fontScale } = useWindowDimensions();
   const compact = compactProp ?? isCompactLayout(width, fontScale);
   const [imageFailed, setImageFailed] = useState(false);
@@ -66,14 +67,18 @@ export function SearchProductRow({ group, onPress, onTrack, tracking, compact: c
         : 'No stores';
   const storeCountLabel = group.bestOffer && group.offers.length > 1 ? `${group.offers.length} stores` : undefined;
   const saving = group.bestOffer && (group.priceSpreadMinor ?? 0) > 0 ? `Save ${formatPrice(group.priceSpreadMinor, group.currency)}` : undefined;
-  const trackedLabel = group.trackedProduct ? `You track this at ${getSiteByKey(group.trackedProduct.siteKey).shortName}` : undefined;
-  const categoryLine = [group.brand && group.brand !== 'Other brands' ? group.brand : undefined, DISCOVERY_CATEGORY_LABELS[group.category]].filter(Boolean).join(' · ');
+  const trackedLabel = group.trackedProduct ? `On your watchlist at ${getSiteByKey(group.trackedProduct.siteKey).shortName}` : undefined;
+  const showStoreLine = trackedLabel ? group.offers.length > 1 : true;
+  const reason = group.relevance?.reason && !(group.trackedProduct && group.relevance.reason.startsWith('You track this')) ? group.relevance.reason : undefined;
+  const categoryLabel = group.category === 'general' ? undefined : DISCOVERY_CATEGORY_LABELS[group.category];
+  const categoryLine = [group.brand && group.brand !== 'Other brands' ? group.brand : undefined, categoryLabel].filter(Boolean).join(' · ');
   const accessibilityLabel = [
     group.title,
     group.brand,
     priceDisplay,
     storeLabel,
-    group.relevance?.reason
+    trackedLabel,
+    reason
   ].filter(Boolean).join(', ');
 
   return (
@@ -100,9 +105,11 @@ export function SearchProductRow({ group, onPress, onTrack, tracking, compact: c
             )}
           </View>
           <View style={styles.content}>
-            <AppText muted weight="medium" numberOfLines={1} style={styles.category}>
-              {categoryLine}
-            </AppText>
+            {categoryLine ? (
+              <AppText muted weight="medium" numberOfLines={1} style={styles.category}>
+                {categoryLine}
+              </AppText>
+            ) : null}
             <AppText weight="semibold" numberOfLines={2} style={styles.title}>
               {group.title}
             </AppText>
@@ -126,24 +133,28 @@ export function SearchProductRow({ group, onPress, onTrack, tracking, compact: c
                 {trackedLabel}
               </AppText>
             ) : null}
-            <View style={styles.storeLine}>
-              <View style={styles.storeIcons}>
-                {group.offers.slice(0, MAX_SOURCE_ICONS).map((offer) => (
-                  <SiteIcon key={`${offer.product.siteKey}:${offer.order}`} siteKey={offer.product.siteKey} size={14} />
-                ))}
-              </View>
-              <AppText style={styles.storeText}>
-                {storeCountLabel ? `${storeLabel} · ${storeCountLabel}` : storeLabel}
-              </AppText>
-              {saving ? (
-                <AppText weight="semibold" style={styles.saving}>
-                  {saving}
+            {showStoreLine ? (
+              <View style={styles.storeLine}>
+                <View style={styles.storeIcons}>
+                  {group.offers.slice(0, MAX_SOURCE_ICONS).map((offer) => (
+                    <SiteIcon key={`${offer.product.siteKey}:${offer.order}`} siteKey={offer.product.siteKey} size={14} />
+                  ))}
+                </View>
+                <AppText style={styles.storeText}>
+                  {storeCountLabel ? `${storeLabel} · ${storeCountLabel}` : storeLabel}
                 </AppText>
-              ) : null}
-            </View>
-            {group.relevance?.reason ? (
+                {saving ? (
+                  <AppText weight="semibold" style={styles.saving}>
+                    {saving}
+                  </AppText>
+                ) : null}
+              </View>
+            ) : saving ? (
+              <AppText weight="semibold" style={styles.saving}>{saving}</AppText>
+            ) : null}
+            {reason ? (
               <AppText muted style={styles.reason}>
-                {group.relevance.reason}
+                {reason}
               </AppText>
             ) : null}
           </View>
@@ -161,7 +172,16 @@ export function SearchProductRow({ group, onPress, onTrack, tracking, compact: c
             Compare
           </AppText>
         </Pressable>
-        {onTrack ? (
+        {group.trackedProduct && onOpenTracker ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Open tracker for ${group.title}`}
+            onPress={onOpenTracker}
+            style={({ pressed }) => [styles.action, pressed && styles.actionPressed]}
+          >
+            <AppText weight="semibold" style={styles.actionText}>Open</AppText>
+          </Pressable>
+        ) : onTrack ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`Track ${group.title}`}

@@ -104,8 +104,13 @@ export function SearchCompareSheet({
   const trackedUrl = trackedProduct ? cleanUrl(trackedProduct.canonicalUrl || trackedProduct.url) : undefined;
   const storeCount = group?.comparableOfferCount || offers.length;
   const currency = group?.currency ?? 'AED';
-  const brandLabel = group && group.brand && group.brand !== 'Other brands' ? group.brand : undefined;
-  const contextLine = group ? [brandLabel, DISCOVERY_CATEGORY_LABELS[group.category]].filter(Boolean).join(' · ') : '';
+  const previousBestPriceMinor = group?.previousBestPriceMinor;
+  const previousBestDifference = previousBestPriceMinor !== undefined && summaryOffer?.product.priceMinor !== undefined
+    ? summaryOffer.product.priceMinor - previousBestPriceMinor
+    : undefined;
+  const brandLabel = group && group.brand !== 'Other brands' ? group.brand : undefined;
+  const categoryLabel = group && group.category !== 'general' ? DISCOVERY_CATEGORY_LABELS[group.category] : undefined;
+  const contextLine = group ? [brandLabel, categoryLabel].filter(Boolean).join(' · ') : '';
 
   useEffect(() => {
     setImageFailed(false);
@@ -135,7 +140,7 @@ export function SearchCompareSheet({
 
             <View style={styles.heading}>
               {contextLine ? <AppText muted style={styles.contextLine}>{contextLine}</AppText> : null}
-              <AppText weight="bold" numberOfLines={3} style={styles.title}>{group.title}</AppText>
+              <AppText weight="bold" numberOfLines={4} style={styles.title}>{group.title}</AppText>
             </View>
 
             <View style={styles.summary}>
@@ -152,6 +157,13 @@ export function SearchCompareSheet({
               ) : null}
               {group.priceSpreadMinor !== undefined && group.priceSpreadMinor > 0 ? (
                 <AppText weight="semibold" style={styles.saving}>Save {formatPrice(group.priceSpreadMinor, currency)} across {storeCount} stores</AppText>
+              ) : null}
+              {previousBestDifference !== undefined ? (
+                <AppText muted style={styles.checked}>
+                  {previousBestDifference === 0
+                    ? `Lowest unchanged since the last check (${formatPrice(previousBestPriceMinor, currency)})`
+                    : `Lowest ${formatPrice(Math.abs(previousBestDifference), currency)} ${previousBestDifference < 0 ? 'lower' : 'higher'} than the last check (${formatPrice(previousBestPriceMinor, currency)})`}
+                </AppText>
               ) : null}
               <AppText muted style={styles.checked}>Prices checked {formatRelativeTime(group.observedAt)}</AppText>
             </View>
@@ -314,7 +326,8 @@ const styles = StyleSheet.create({
   content: {
     padding: spacing.lg,
     gap: spacing.lg,
-    paddingBottom: spacing.xl
+    // Leave room for the pinned footer above the bottom safe area.
+    paddingBottom: 168
   },
   imageWrap: {
     width: '100%',
