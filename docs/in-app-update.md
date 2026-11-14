@@ -14,6 +14,8 @@ Qeemat can download and install a newer GitHub release without leaving the app. 
 
 Progress is polled from the native module every 400 ms and shown in the popup as a percentage, transferred size and progress bar. The download can be cancelled, and closing the popup during a download cancels it. Each download attempt has its own generation token, so cancelling and restarting never revives an older polling loop.
 
+A separate WorkManager job checks for a newer release approximately every 48 hours. When one is found it posts one notification per version on the **App updates** channel (`qeemat-app-updates`), titled **“New Qeemat just dropped 🎉”** with the body **“A new version is ready. Open the app to install it.”** The notification omits the version number, auto-cancels when tapped, and opens Qeemat; the in-app popup/badges remain the place where the release can be installed. The notification is posted only when Android notification permission and the channel are enabled, and the last notified version is remembered so relaunches do not repeat it.
+
 ## Implementation
 
 - `src/domain/updates.ts` — release/version comparison and APK asset selection (URL, name, size, SHA-256 digest).

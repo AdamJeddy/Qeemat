@@ -16,7 +16,7 @@ export async function runBackgroundUpdateCheck(): Promise<void> {
   try {
     const update = await checkForUpdate(version);
     if (!update || await AsyncStorage.getItem(LAST_NOTIFIED_KEY) === update.version) { return; }
-    if (await notify(update.version)) { await AsyncStorage.setItem(LAST_NOTIFIED_KEY, update.version); }
+    if (await notify()) { await AsyncStorage.setItem(LAST_NOTIFIED_KEY, update.version); }
   } catch {
     // Try again on the next scheduled run if storage or notifications are unavailable.
   }
