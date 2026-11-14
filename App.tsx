@@ -187,7 +187,6 @@ export default function App() {
   const shareEventId = useRef(0);
   const [availableUpdate, setAvailableUpdate] = useState<AvailableUpdate>();
   const [dismissedUpdateVersion, setDismissedUpdateVersion] = useState<string>();
-  const [seenUpdateVersion, setSeenUpdateVersion] = useState<string>();
   const [updatePopupVisible, setUpdatePopupVisible] = useState(false);
 
   useEffect(() => {
@@ -256,13 +255,6 @@ export default function App() {
       setUpdatePopupVisible(true);
     }
   }, [availableUpdate]);
-
-  // The bell badges an update the user has closed until Activity shows the pinned item.
-  useEffect(() => {
-    if (route.name === 'tabs' && route.tab === 'activity' && availableUpdate) {
-      setSeenUpdateVersion(availableUpdate.version);
-    }
-  }, [route, availableUpdate]);
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -340,7 +332,7 @@ export default function App() {
             discoveryOffset={discoveryOffset}
             refreshKey={tabsRefreshKey}
             availableUpdate={availableUpdate}
-            showUpdateDot={shouldBadgeUpdate(availableUpdate, dismissedUpdateVersion) && seenUpdateVersion !== availableUpdate?.version}
+            showUpdateDot={shouldBadgeUpdate(availableUpdate, dismissedUpdateVersion)}
             onOpenUpdate={openUpdatePopup}
           />
         </View>
@@ -479,21 +471,24 @@ export function TabsScreen({
       <View style={styles.tabBar}>
         <TabButton active={tab === 'watchlist'} label="Watchlist" icon={<Bookmark fill={tab === 'watchlist' ? colors.primary : 'none'} />} onPress={() => navigate({ name: 'tabs', tab: 'watchlist' })} />
         <TabButton active={tab === 'opportunities'} label="Search" icon={<Search />} onPress={() => navigate({ name: 'tabs', tab: 'opportunities' })} />
-        <TabButton active={tab === 'activity'} label="Activity" icon={<Clock />} onPress={() => navigate({ name: 'tabs', tab: 'activity' })} />
+        <TabButton active={tab === 'activity'} label="Activity" icon={<Clock />} onPress={() => navigate({ name: 'tabs', tab: 'activity' })} showDot={showUpdateDot} />
         <TabButton active={tab === 'settings'} label="Settings" icon={<SettingsIcon />} onPress={() => navigate({ name: 'tabs', tab: 'settings' })} />
       </View>
     </View>
   );
 }
 
-function TabButton({ active, label, icon, onPress }: { active: boolean; label: string; icon: React.ReactElement; onPress: () => void }) {
+function TabButton({ active, label, icon, onPress, showDot = false }: { active: boolean; label: string; icon: React.ReactElement; onPress: () => void; showDot?: boolean }) {
   return (
     <Pressable accessibilityRole="tab" accessibilityLabel={label} accessibilityState={{ selected: active }} style={styles.tabButton} onPress={onPress}>
       <View style={[styles.tabButtonContent, active && styles.tabButtonActive]}>
-      {React.cloneElement(icon as React.ReactElement<{ size: number; color: string }>, {
-        size: 22,
-        color: active ? colors.primary : colors.textMuted
-      })}
+      <View style={styles.tabIconWrap}>
+        {React.cloneElement(icon as React.ReactElement<{ size: number; color: string }>, {
+          size: 22,
+          color: active ? colors.primary : colors.textMuted
+        })}
+        {showDot ? <View style={styles.tabUpdateDot} /> : null}
+      </View>
       <AppText weight="semibold" style={[styles.tabLabel, active && styles.tabLabelActive]}>
         {label}
       </AppText>
@@ -2997,7 +2992,7 @@ const styles = StyleSheet.create({
   watchlistHeaderActions: { flexDirection: 'row', alignItems: 'center' },
   watchlistBrand: { color: colors.surface, fontSize: 20, lineHeight: 26 },
   watchlistSearchButton: { width: layoutMetrics.touchTarget, height: layoutMetrics.touchTarget, alignItems: 'center', justifyContent: 'center' },
-  watchlistUpdateDot: { position: 'absolute', top: 8, right: 9, width: 9, height: 9, borderRadius: 5, backgroundColor: colors.red, borderWidth: 1.5, borderColor: colors.primary },
+  watchlistUpdateDot: { position: 'absolute', top: 4, right: 6, width: 13, height: 13, borderRadius: 7, backgroundColor: colors.red, borderWidth: 2, borderColor: colors.primary },
   watchlistBannerTitle: { color: colors.surface, ...typography.screenTitle },
   watchlistBannerCount: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.primaryDark, borderRadius: radius.lg, paddingHorizontal: 12, paddingVertical: 7 },
   watchlistBannerCountText: { color: colors.surface, fontSize: 12 },
@@ -3343,6 +3338,8 @@ const styles = StyleSheet.create({
   },
   tabButtonContent: { alignItems: 'center', justifyContent: 'center', gap: 2, paddingHorizontal: 10, paddingVertical: 5 },
   tabButtonActive: { backgroundColor: colors.blueSoft, borderRadius: radius.lg },
+  tabIconWrap: { position: 'relative' },
+  tabUpdateDot: { position: 'absolute', top: -4, right: -9, width: 12, height: 12, borderRadius: 6, backgroundColor: colors.red, borderWidth: 2, borderColor: colors.background },
   tabLabel: {
     color: colors.textMuted,
     fontSize: 12
