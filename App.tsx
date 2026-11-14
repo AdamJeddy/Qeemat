@@ -2483,6 +2483,7 @@ export function OpportunityScreen({ navigate, active = true, sessionOffset }: { 
   const selectedVariant = pendingProduct?.parsed.variants?.find((variant) => variant.id === selectedChoice?.id);
   const feedTitle = category ? DISCOVERY_CATEGORY_LABELS[category] : selectedCollection ? `${getSiteByKey(selectedCollection.siteKey).shortName} · ${selectedCollection.label}` : browseAll ? 'All products' : 'For you';
   const feedLoading = loading || (catalogBusy && !displayGroups.length);
+  const searchIsStarting = Boolean(searchQuery) && searchBusy && displayGroups.length === 0;
   const feedCopy = feedLoading
     ? 'Loading products for this selection…'
     : category || browseAll || retailer || collectionId
@@ -2726,11 +2727,11 @@ export function OpportunityScreen({ navigate, active = true, sessionOffset }: { 
               <AppText style={styles.searchBannerSubtitle}>Compare prices across {SEARCH_STORE_COUNT} stores</AppText>
             </View>
             <View style={styles.watchlistBannerCount}>
-              {(searchQuery && searchBusy && !searchResult) || (!searchQuery && feedLoading)
+              {searchIsStarting || (!searchQuery && feedLoading)
                 ? <ActivityIndicator size="small" color={colors.surface} />
                 : <Search size={14} color={colors.surface} />}
               <AppText weight="semibold" style={styles.watchlistBannerCountText}>
-                {searchQuery && searchBusy && !searchResult
+                {searchIsStarting
                   ? 'Searching…'
                   : !searchQuery && feedLoading
                     ? 'Loading…'

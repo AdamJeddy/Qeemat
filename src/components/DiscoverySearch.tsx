@@ -36,15 +36,12 @@ export function DiscoverySearch({ query, result, groups, busy, retailer, onRetai
 
   return (
     <View style={styles.container}>
-      <View style={styles.statusRow}>
-        <View style={styles.flex} />
-        <Pressable accessibilityRole="button" accessibilityLabel="Search coverage" onPress={() => setShowCoverage(true)} style={styles.action}>
-          <AppText style={styles.link}>Coverage</AppText>
-        </Pressable>
-      </View>
       {groups.length || !busy ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail}>
           <DiscoveryFilterChip label={`All results (${groups.length})`} selected={!retailer} onPress={() => onRetailer(undefined)} />
+          <Pressable accessibilityRole="button" accessibilityLabel="Search coverage" onPress={() => setShowCoverage(true)} style={styles.action}>
+            <AppText style={styles.link}>Coverage</AppText>
+          </Pressable>
           {STORES.filter((site) => counts.has(site)).map((site) => <DiscoveryFilterChip key={site} label={`${getSiteByKey(site).shortName} (${counts.get(site)})`} selected={retailer === site} onPress={() => onRetailer(site === retailer ? undefined : site)} />)}
         </ScrollView>
       ) : null}
@@ -69,7 +66,6 @@ export function DiscoverySearch({ query, result, groups, busy, retailer, onRetai
 const styles = StyleSheet.create({
   container: { gap: 8 },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  flex: { flex: 1 },
   link: { color: colors.primary },
   rail: { gap: 8 },
   action: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
