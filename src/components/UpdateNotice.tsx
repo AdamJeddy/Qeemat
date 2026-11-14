@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, Linking, NativeModules, Platform, Pressable, StyleSheet, View } from 'react-native';
-import { Download, X } from 'lucide-react-native';
+import { ActivityIndicator, Alert, Linking, NativeModules, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { AlertTriangle, CheckCircle2, Download, X } from 'lucide-react-native';
 import { AppText } from './AppText';
 import { AvailableUpdate, checkForUpdate } from '../domain/updates';
 import {
@@ -11,7 +11,7 @@ import {
   startInAppUpdateDownload,
   supportsInAppUpdate
 } from '../domain/appUpdate';
-import { colors, radius } from '../theme/theme';
+import { colors, radius, spacing } from '../theme/theme';
 
 const PROGRESS_POLL_MS = 400;
 
@@ -25,10 +25,16 @@ function errorMessage(error: unknown): string {
   return error instanceof Error && error.message ? error.message : 'Please try again later.';
 }
 
+function megabytes(bytes: number): string {
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export function UpdateNotice({ visible = true }: { visible?: boolean }) {
   const [update, setUpdate] = useState<AvailableUpdate>();
   const [phase, setPhase] = useState<UpdatePhase>('idle');
   const [progress, setProgress] = useState(0);
+  const [downloadedBytes, setDownloadedBytes] = useState(0);
+  const [totalBytes, setTotalBytes] = useState(0);
   const [error, setError] = useState<string>();
   const mounted = useRef(true);
   const cancelled = useRef(false);
@@ -79,6 +85,7 @@ export function UpdateNotice({ visible = true }: { visible?: boolean }) {
 
   async function waitForDownload(): Promise<void> {
     const apk = update?.apk;
+    const expectedTotal = apk?.size ?? 0;
     for (;;) {
       await delay(PROGRESS_POLL_MS);
       if (!mounted.current || cancelled.current) { return; }
@@ -96,13 +103,17 @@ export function UpdateNotice({ visible = true }: { visible?: boolean }) {
         return;
       }
       if (state.state === 'downloading' || state.state === 'verifying') {
-        const total = state.totalBytes || apk?.size || 0;
+        const total = state.totalBytes || expectedTotal;
+        setDownloadedBytes(state.downloadedBytes);
+        setTotalBytes(total);
         setProgress(total > 0 ? Math.min(1, state.downloadedBytes / total) : 0);
         setPhase(state.state === 'verifying' ? 'verifying' : 'downloading');
         continue;
       }
       if (state.state === 'ready') {
         setProgress(1);
+        setDownloadedBytes(expectedTotal || state.downloadedBytes);
+        setTotalBytes(expectedTotal || state.totalBytes);
         await beginInstall();
         return;
       }
@@ -125,6 +136,8 @@ export function UpdateNotice({ visible = true }: { visible?: boolean }) {
     }
     setError(undefined);
     setProgress(0);
+    setDownloadedBytes(0);
+    setTotalBytes(apk.size);
     cancelled.current = false;
     setPhase('downloading');
     try {
@@ -154,88 +167,156 @@ export function UpdateNotice({ visible = true }: { visible?: boolean }) {
   if (!visible || !update) { return null; }
 
   const inAppSupported = Boolean(update.apk) && supportsInAppUpdate();
+  const busy = phase === 'downloading' || phase === 'verifying' || phase === 'installing';
+  const failed = Boolean(error);
   const percent = Math.round(progress * 100);
+  const total = totalBytes || update.apk?.size || 0;
+
+  const title = failed ? 'Update download failed' : phase === 'downloading' ? 'Downloading update' : phase === 'verifying'
+    ? 'Verifying update' : phase === 'ready' ? 'Ready to install' : phase === 'installing' ? 'Installing update'
+      : 'Update available';
+  const subtitle = failed ? error : phase === 'downloading' ? `Qeemat ${update.version}`
+    : phase === 'verifying' ? 'Checking the download before installing.'
+      : phase === 'ready' ? `Qeemat ${update.version} is downloaded and verified.`
+        : phase === 'installing' ? 'Follow the Android prompt to finish installing.'
+          : inAppSupported ? `Qeemat ${update.version} is ready to install.` : `Qeemat ${update.version} is available on GitHub.`;
 
   return (
-    <View style={styles.notice}>
-      <View style={styles.copy}>
-        <AppText weight="bold">Qeemat {update.version} is available</AppText>
-        {!inAppSupported ? (
-          <Pressable accessibilityRole="link" onPress={openReleasePage}>
-            <AppText style={styles.link}>View release on GitHub</AppText>
+    <View style={styles.card}>
+      <View style={styles.header}>
+        <View style={[styles.iconBadge, failed && styles.iconBadgeError]}>
+          {phase === 'downloading' || phase === 'verifying' || phase === 'installing' ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : failed ? (
+            <AlertTriangle size={20} color={colors.red} />
+          ) : phase === 'ready' ? (
+            <CheckCircle2 size={20} color={colors.primary} />
+          ) : (
+            <Download size={20} color={colors.primary} />
+          )}
+        </View>
+        <View style={styles.copy}>
+          <AppText weight="semibold" style={styles.title}>{title}</AppText>
+          <AppText muted style={[styles.subtitle, failed && styles.subtitleError]}>{subtitle}</AppText>
+        </View>
+        {busy ? null : (
+          <Pressable accessibilityRole="button" accessibilityLabel="Dismiss update notice" onPress={dismiss} hitSlop={10} style={styles.close}>
+            <X size={18} color={colors.textSoft} />
           </Pressable>
-        ) : null}
-        {phase === 'downloading' ? (
-          <View style={styles.actions}>
-            <View style={styles.progressBlock}>
-              <AppText muted style={styles.progressLabel}>Downloading update… {percent}%</AppText>
-              <View style={styles.progressTrack}>
-                <View style={[styles.progressFill, { width: `${percent}%` }]} />
-              </View>
-            </View>
-            <Pressable accessibilityRole="button" accessibilityLabel="Cancel update download" onPress={cancelDownload} hitSlop={8} style={styles.secondaryAction}>
-              <AppText style={styles.link}>Cancel</AppText>
-            </Pressable>
-          </View>
-        ) : null}
-        {phase === 'verifying' ? (
-          <AppText muted style={styles.progressLabel}>Verifying download…</AppText>
-        ) : null}
-        {phase === 'installing' ? (
-          <AppText muted>Follow the Android prompt to finish installing the update.</AppText>
-        ) : null}
-        {phase === 'ready' ? (
-          <View style={styles.actions}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Install Qeemat ${update.version} update`}
-              onPress={beginInstall}
-              style={({ pressed }) => [styles.primaryAction, pressed && styles.pressed]}
-            >
-              <AppText weight="semibold" style={styles.primaryLabel}>Install update</AppText>
-            </Pressable>
-            <Pressable accessibilityRole="link" onPress={openReleasePage} hitSlop={8}>
-              <AppText style={styles.link}>Release notes</AppText>
-            </Pressable>
-          </View>
-        ) : null}
-        {phase === 'idle' && inAppSupported ? (
-          <View style={styles.actions}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Download and install Qeemat ${update.version}`}
-              onPress={beginDownload}
-              style={({ pressed }) => [styles.primaryAction, pressed && styles.pressed]}
-            >
-              <Download size={16} color="#FFFFFF" />
-              <AppText weight="semibold" style={styles.primaryLabel}>{error ? 'Try again' : 'Download and install'}</AppText>
-            </Pressable>
-            <Pressable accessibilityRole="link" onPress={openReleasePage} hitSlop={8}>
-              <AppText style={styles.link}>Release notes</AppText>
-            </Pressable>
-          </View>
-        ) : null}
-        {error ? <AppText accessibilityLiveRegion="polite" style={styles.error}>{error}</AppText> : null}
+        )}
       </View>
-      <Pressable accessibilityRole="button" accessibilityLabel="Dismiss update notice" onPress={dismiss} hitSlop={8}>
-        <X size={20} color={colors.textMuted} />
-      </Pressable>
+
+      {phase === 'downloading' ? (
+        <View style={styles.progressBlock}>
+          <View style={styles.progressRow}>
+            <AppText muted style={styles.progressText}>
+              {total > 0 ? `${megabytes(downloadedBytes)} of ${megabytes(total)}` : 'Starting download…'}
+            </AppText>
+            <AppText weight="semibold" style={styles.percent}>{percent}%</AppText>
+          </View>
+          <View
+            accessible
+            accessibilityRole="progressbar"
+            accessibilityValue={{ min: 0, max: 100, now: percent }}
+            accessibilityLabel={`Update download ${percent} percent`}
+            style={styles.progressTrack}
+          >
+            <View style={[styles.progressFill, { width: `${percent}%` }]} />
+          </View>
+        </View>
+      ) : null}
+
+      {phase === 'downloading' ? (
+        <View style={styles.actions}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Cancel update download" onPress={cancelDownload} hitSlop={8} style={styles.textButton}>
+            <AppText weight="semibold" style={styles.textButtonLabel}>Cancel download</AppText>
+          </Pressable>
+        </View>
+      ) : null}
+
+      {phase === 'idle' && inAppSupported ? (
+        <View style={styles.actions}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Download and install Qeemat ${update.version}`}
+            onPress={beginDownload}
+            style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}
+          >
+            <Download size={16} color="#FFFFFF" />
+            <AppText weight="semibold" style={styles.primaryLabel}>{failed ? 'Try again' : 'Download and install'}</AppText>
+          </Pressable>
+          <Pressable accessibilityRole="link" accessibilityLabel={`Release notes for Qeemat ${update.version}`} onPress={openReleasePage} hitSlop={8} style={styles.textButton}>
+            <AppText weight="semibold" style={styles.linkLabel}>Release notes</AppText>
+          </Pressable>
+        </View>
+      ) : null}
+
+      {phase === 'idle' && !inAppSupported ? (
+        <View style={styles.actions}>
+          <Pressable accessibilityRole="link" onPress={openReleasePage} hitSlop={8} style={styles.textButton}>
+            <AppText weight="semibold" style={styles.linkLabel}>View release on GitHub</AppText>
+          </Pressable>
+        </View>
+      ) : null}
+
+      {phase === 'ready' ? (
+        <View style={styles.actions}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Install Qeemat ${update.version} update`}
+            onPress={beginInstall}
+            style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}
+          >
+            <AppText weight="semibold" style={styles.primaryLabel}>Install update</AppText>
+          </Pressable>
+          <Pressable accessibilityRole="link" onPress={openReleasePage} hitSlop={8} style={styles.textButton}>
+            <AppText weight="semibold" style={styles.linkLabel}>Release notes</AppText>
+          </Pressable>
+        </View>
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  notice: { flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: 16, marginTop: 8, padding: 12, borderRadius: radius.md, backgroundColor: colors.blueSoft },
-  copy: { flex: 1, gap: 6 },
-  link: { color: colors.primary, fontWeight: '600' },
-  actions: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginTop: 2 },
-  primaryAction: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: 14, borderRadius: radius.md, backgroundColor: colors.primary },
-  primaryLabel: { color: '#FFFFFF' },
+  card: {
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.sm,
+    padding: spacing.lg,
+    gap: spacing.md,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface
+  },
+  header: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
+  iconBadge: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.blueSoft },
+  iconBadgeError: { backgroundColor: colors.redSoft },
+  copy: { flex: 1, gap: 2 },
+  title: { fontSize: 16, lineHeight: 21, color: colors.text },
+  subtitle: { fontSize: 13, lineHeight: 18 },
+  subtitleError: { color: colors.red },
+  close: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+  progressBlock: { gap: spacing.sm },
+  progressRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  progressText: { fontSize: 13, lineHeight: 18 },
+  percent: { fontSize: 13, lineHeight: 18, color: colors.primary },
+  progressTrack: { height: 6, borderRadius: 3, backgroundColor: colors.surfaceMuted, overflow: 'hidden' },
+  progressFill: { height: 6, borderRadius: 3, backgroundColor: colors.primary },
+  actions: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.md },
+  primaryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    minHeight: 44,
+    paddingHorizontal: 18,
+    borderRadius: radius.md,
+    backgroundColor: colors.primary
+  },
+  primaryLabel: { color: '#FFFFFF', fontSize: 15 },
   pressed: { opacity: 0.82 },
-  secondaryAction: { minHeight: 44, justifyContent: 'center' },
-  progressBlock: { flex: 1, gap: 6, minWidth: 160 },
-  progressLabel: { fontSize: 13 },
-  progressTrack: { height: 4, borderRadius: 2, backgroundColor: colors.surface, overflow: 'hidden' },
-  progressFill: { height: 4, borderRadius: 2, backgroundColor: colors.primary },
-  error: { color: colors.red }
+  textButton: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 2 },
+  textButtonLabel: { color: colors.textMuted, fontSize: 15 },
+  linkLabel: { color: colors.primary, fontSize: 15 }
 });

@@ -78,7 +78,7 @@ describe('UpdateNotice', () => {
     await act(async () => { tree = renderer.create(<UpdateNotice />); });
     trees.push(tree!);
     expect(check).toHaveBeenCalledWith('0.5.5-alpha');
-    expect(tree!.root.findAllByType(AppText).some((item) => Array.isArray(item.props.children) && item.props.children.join('') === 'Qeemat 0.6-alpha is available')).toBe(true);
+    expect(tree!.root.findAllByType(AppText).some((item) => item.props.children === 'Qeemat 0.6-alpha is available on GitHub.')).toBe(true);
     await act(async () => { tree!.root.findByProps({ accessibilityRole: 'link' }).props.onPress(); });
     expect(open).toHaveBeenCalledWith(url);
     act(() => { tree!.root.findByProps({ accessibilityLabel: 'Dismiss update notice' }).props.onPress(); });
@@ -132,7 +132,7 @@ describe('UpdateNotice', () => {
 
     expect(startDownload).toHaveBeenCalledWith(apk);
     expect(install).toHaveBeenCalledTimes(1);
-    expect(tree!.root.findAllByType(AppText).some((item) => item.props.children === 'Follow the Android prompt to finish installing the update.')).toBe(true);
+    expect(tree!.root.findAllByType(AppText).some((item) => item.props.children === 'Follow the Android prompt to finish installing.')).toBe(true);
   });
 
   it('asks for install permission and opens the Android settings', async () => {
