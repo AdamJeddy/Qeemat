@@ -9,7 +9,7 @@ import { formatRelativeTime } from '../domain/dates';
 import { formatPrice } from '../domain/price';
 import { getSiteByKey } from '../domain/sites';
 import { CheckStatus, TrackedProduct } from '../domain/types';
-import { colors, radius } from '../theme/theme';
+import { colors, layoutMetrics, radius } from '../theme/theme';
 import { isCompactLayout } from '../theme/layout';
 import { DISCOVERY_CATEGORY_LABELS } from '../domain/discoveryCategories';
 import { inferWatchlistCategory } from '../domain/watchlistDiscovery';
@@ -45,8 +45,17 @@ export function ProductCard({ product, onPress, onRemove, onLongPress, selected 
   // Show error pill in footer only for actual errors (not ok/price_changed/OOS)
   const showErrorPill = status !== 'ok' && status !== 'price_changed' && !isOos;
 
+  const cardLabel = [
+    product.title,
+    product.variant?.label,
+    formatPrice(product.currentPriceMinor, product.currency, product.priceBasis),
+    isOos ? 'Out of stock' : showErrorPill ? 'Check failed' : undefined,
+    site.shortName,
+    `${checkFailed ? 'Last attempt' : 'Last checked'} ${formatRelativeTime(product.lastCheckedAt)}`
+  ].filter(Boolean).join(', ');
+
   return (
-    <Pressable accessibilityRole="button" accessibilityState={{ selected: Boolean(selected) }} onPress={onPress} onLongPress={onLongPress} delayLongPress={250} style={({ pressed }) => [styles.card, compact && styles.cardCompact, selected && styles.cardSelected, pressed && styles.pressed]}>
+    <Pressable accessibilityRole="button" accessibilityLabel={cardLabel} accessibilityState={{ selected: Boolean(selected) }} onPress={onPress} onLongPress={onLongPress} delayLongPress={250} style={({ pressed }) => [styles.card, compact && styles.cardCompact, selected && styles.cardSelected, pressed && styles.pressed]}>
       {selected ? <View style={styles.selectionMark}><CheckCircle2 size={22} color={colors.primary} /></View> : null}
       <View style={[styles.imageWrap, compact && styles.imageWrapCompact]}>
         {product.imageUrl && !imageFailed ? <Image source={{ uri: product.imageUrl }} style={[styles.image, compact && styles.imageCompact, isOos && styles.imageMuted]} resizeMode="contain" onError={() => setImageFailed(true)} /> : <View accessible accessibilityLabel="Product image unavailable"><ImageOff size={24} color={colors.textMuted} /></View>}
@@ -106,7 +115,12 @@ export function ProductCard({ product, onPress, onRemove, onLongPress, selected 
           ) : null}
         </View>
         {isOos && onRemove ? (
-          <TouchableOpacity style={styles.oosRemoveRow} onPress={onRemove}>
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel={`Remove ${product.title} from watchlist`}
+            style={styles.oosRemoveRow}
+            onPress={onRemove}
+          >
             <AppText muted style={styles.oosRemoveHint}>
               Still unavailable ·{' '}
             </AppText>
@@ -264,6 +278,7 @@ const styles = StyleSheet.create({
   oosRemoveRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    minHeight: layoutMetrics.touchTarget,
     marginTop: 8,
     paddingTop: 8,
     borderTopWidth: StyleSheet.hairlineWidth,

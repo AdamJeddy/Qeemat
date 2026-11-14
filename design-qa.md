@@ -51,6 +51,8 @@ Checked on the Samsung SM-S928B, Android 17 / SDK 37, 1440 × 3120 at override d
 
 Remaining: TalkBack order and heading announcement, landscape, dark mode, scales above 1.3 with a text input focused, other Android versions/devices, and a manual pass over every loading/error/selection state.
 
+**Follow-up (14 November 2026):** an accessibility-tree audit across Watchlist, Add Product, Activity, Settings, Search, both sheets and product detail found and fixed sub-44dp touch targets (Filter & sort, sort/folder chips, the out-of-stock remove row, detail header icons), malformed/merged card labels and a duplicated backdrop “Close filters” control. Font scale 1.3/1.5 and landscape Watchlist were rechecked on the device. Actual TalkBack speech order/heading navigation is still unverified. Full results: [accessibility audit](docs/accessibility-audit.md).
+
 ## Check reliability: Amazon and Decathlon (13 November)
 
 Watchlist checks were failing for Decathlon and Amazon products. Investigated on the installed release build and by running the parser against the fetched storefront HTML:
