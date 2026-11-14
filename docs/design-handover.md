@@ -78,3 +78,11 @@ The project uses React Native + TypeScript, a manual route stack in `App.tsx`, A
 - `output/pdf/qeemat-whats-new-since-v0.5.5-alpha.pdf` is now tracked (commit `5bc1294`). The `output/` directory is no longer untracked, and its PDF must not be deleted. The earlier note that `output/` pre-existed as an untracked directory describes the handover state only.
 - After the floating-button revert (`12aaa66`), the full Jest suite was rerun and passed: 42 suites, 377 passed, 1 skipped. The current run after the accessibility label/touch-target fixes adds two regression tests: 42 suites, 378 passed, 1 skipped (379 total). Typecheck is clean, and ESLint reports only the one known `react-native/no-inline-styles` warning noted above. This supersedes the earlier note that the full suite was not rerun for the revert.
 - The rest of this handover remains the historical record; check current `git log` and `git status` before continuing.
+
+## Postscript (14 November 2026)
+
+- PR #84 merged the Watchlist/design-system work into `dev` at `6ef108e`: semantic type/layout tokens, status primitives, product-detail/Add/Settings hierarchy passes, Watchlist banner search, multi-store filters, duplicate warnings and persisted price-change badges.
+- PR #85 merged the in-app update flow into `dev` at `32a6163`: device-ABI-aware APK download, SHA-256 verification, standard Android install prompt, update popup, bell and Activity badges, and the pinned Activity item. Its review findings were fixed in `c80d223` and `989f49e`.
+- Issues #81, #82 and #83 were closed as completed with evidence links. The merged feature branches were deleted.
+- Still open: the shared input primitive (the last structural design-system gap), an Activity layout pass, a fuller Search hierarchy, the manual accessibility matrix (TalkBack, landscape, larger text with inputs, other devices), and the stale dependabot PR #77. #37 (iOS) remains deliberately deferred.
+- Current gates: typecheck clean, ESLint 0 errors (one known `react-native/no-inline-styles` warning), Jest 49 suites / 446 passed / 1 skipped.

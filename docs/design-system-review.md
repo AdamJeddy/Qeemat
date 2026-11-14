@@ -18,24 +18,24 @@ Reviewed 13 November 2026 against the current React Native code and Watchlist, S
 5. **Accessibility and adaptation.** `AppText` caps font scaling at 1.3; some controls lack explicit roles or labels. A 1.3 font-scale phone check confirmed Watchlist control wrapping, but not TalkBack, contrast or larger scales throughout the app. Set a scaling and touch-target policy, then verify each screen.
 6. **System documentation and governance.** `DESIGN.md` now records the existing baseline and chosen direction, but it does not yet define complete states or a validated component catalog. Update it alongside implemented primitives and distinguish desired direction from shipped behavior.
 
-**Status at 13 November 2026** (after the day's fixes; source inspection at `5bc1294`, device follow-up recorded in [`design-qa.md`](../design-qa.md)):
+**Status at 14 November 2026** (after the Watchlist/status work in PR #84 and the in-app update UI in PR #85; source inspection at `32a6163`, device passes recorded in [`design-qa.md`](../design-qa.md)):
 
 | # | Status | Evidence and remaining work |
 | --- | --- | --- |
-| 1 | Partial | The product-detail `StatusPill` now shows a neutral blue check for `price_changed` instead of a green down-trend (`16019c1`; covered by `StatusPill.test.tsx`), with direction left to price history. It is not yet a shared primitive: `StatusPill` is used on product detail only, while `ProductCard` price-direction badges, Activity rows and the detail snapshot list render status separately. The detail snapshot list still shows `Background` provenance as a green badge (`snapshotSourceBadgeStyle` returns the green `sourceBadgeGreen` style for `background` in `App.tsx`). |
-| 2 | Partial | Settings now uses flat bordered cards without the shared shadow, and Watchlist cards are flat. Product-detail stat cards still use the shared shadow, and Search keeps its own discovery card and chip treatments (`src/components/Discovery.tsx`). |
-| 3 | Partial | Settings now leads with notifications, battery and scheduling before supported stores (`b1069b6`); Add puts **Find product** directly after the URL field (`04e8bfb`). Search still repeats a strong blue **Track price** action on every discovery card, and product detail still gives average price the strongest treatment (`statCardEmphasized`). |
-| 4 | Open | Semantic type roles and a consistent spacing rhythm are still not implemented; screens keep local font sizes and spacing values. |
-| 5 | Partial | The live 1.3 system-font remeasure is fixed (`bb1883f`). TalkBack, contrast, scales above 1.3 and consistent `TextInput` scaling remain unverified. |
-| 6 | Open | `DESIGN.md` was not updated alongside the fixes; this reconciliation now separates shipped from intended behavior for the status pill, typography cap and floating add button, but complete states and a validated component catalog are still missing. |
+| 1 | Mostly shipped | `StatusPill` renders a neutral blue check (`16019c1`), `PriceDirectionBadge` renders green drops and amber rises, and `SourceLabel` renders provenance as muted text instead of a coloured badge (`6794cec`); snapshot prices are tinted by direction. Full unification is still intended: `StatusPill` remains product-detail only and the price-history chart keeps its own change indicator. |
+| 2 | Partial | Settings, Watchlist rows, product-detail insight cards and the update surfaces use flat bordered surfaces. Search keeps its own discovery card, chip and button treatments, and there is still no shared input or surface primitive (`DESIGN.md` marks this **intended**). |
+| 3 | Mostly shipped | Add puts **Find product** after the URL field and collapses supported stores; Settings is task-first; Search discovery cards use a compact outline Track action plus direction badges; product detail has the full title, image/price/status block and equal-weight flat insight cards. A fuller Search hierarchy and further detail insight/chart refinement remain **intended**. |
+| 4 | Tokens shipped, adoption partial | Semantic `typography` and `layoutMetrics` roles ship in `src/theme/theme.ts`, and `AppText` renders on the body role. Screens still set many local font sizes and spacing values, so app-wide adoption is incomplete. |
+| 5 | Partial | Font scaling caps at 1.3 for `AppText` and every current `TextInput`; the live font-scale remeasure is fixed (`bb1883f`); contrast was measured against WCAG AA and 1.3/1.5 layouts match. TalkBack order/heading announcement, landscape, other Android versions/devices and some loading/error/selection states remain unverified. |
+| 6 | Partial | `DESIGN.md` now separates shipped from intended behaviour and documents type, spacing, surfaces, actions, inputs and status rules. A validated component catalog and complete state matrix are still missing. |
 
 ## Suggested sequence
 
-1. Define status semantics and fix the misleading direction indicator.
-2. Establish type, spacing, surface and action roles, using real examples from all four screens.
-3. Build a small set of shared primitives and state examples, including large-text and error cases.
-4. Apply them screen by screen, beginning with Watchlist and product detail, followed by Search and Settings; validate on device.
+1. Define status semantics and fix the misleading direction indicator. **Done.**
+2. Establish type, spacing, surface and action roles, using real examples from all four screens. **Tokens done; screen adoption partial.**
+3. Build a small set of shared primitives and state examples, including large-text and error cases. **Status primitives done; input and surface primitives still intended.**
+4. Apply them screen by screen, beginning with Watchlist and product detail, followed by Search and Settings; validate on device. **Watchlist, product detail, Add and Settings done; Activity and Search passes still open.**
 
 ## Scope of verification
 
-The review used source inspection and phone views of Watchlist, Search, product detail and Settings. It does not establish TalkBack behavior, contrast compliance, dark mode, or layout quality on all phone sizes. Product imagery and retailer data vary by source.
+The review used source inspection and phone views of Watchlist, Search, product detail and Settings. It does not establish TalkBack behaviour, contrast compliance for every future surface, dark mode, or layout quality on all phone sizes. Product imagery and retailer data vary by source.

@@ -112,7 +112,7 @@ Page background is `colors.background` (#F8FAFC); inline cards are flat white (`
 
 ## Inputs
 
-Agreed input role: 52 high, radius 8, 1px border, body-role text, with the same 1.3 scaling cap as other text. **Shipped:** 1px borders and radius 8 are in use, and many `TextInput`s set `maxFontSizeMultiplier={1.3}`. **Intended:** there is no shared input primitive yet, existing input wrappers are taller than 52 (for example 68), input styling and scaling are local per screen, and several inputs (for example the discovery max-price field) do not set the cap yet.
+Agreed input role: 52 high, radius 8, 1px border, body-role text, with the same 1.3 scaling cap as other text. **Shipped:** 1px borders and radius 8 are in use, and every current `TextInput` sets `maxFontSizeMultiplier={1.3}`. **Intended:** there is no shared input primitive yet, existing input wrappers are taller than 52 (for example 68), and input styling and sizing remain local per screen.
 
 ## Status
 
