@@ -6,13 +6,13 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  TextInput,
   View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronRight, EyeOff, ImageOff, Plus, Sparkles, X } from 'lucide-react-native';
 
 import { AppText } from './AppText';
+import { AppTextInput } from './AppTextInput';
 import { PriceDirectionBadge } from './PriceDirectionBadge';
 import { PrimaryButton } from './PrimaryButton';
 import { formatRelativeTime } from '../domain/dates';
@@ -240,8 +240,8 @@ export function DiscoveryPreferencesSheet({
           <AppText muted style={styles.sheetCopy}>{copy}</AppText>
           {error ? <AppText>{error}</AppText> : null}
           {step === 0 ? DISCOVERY_CATEGORY_GROUPS.map((group) => <View key={group.id} style={styles.budgetList}><AppText weight="semibold">{group.label}</AppText><View style={styles.choiceWrap}>{group.categories.map((category) => <DiscoveryFilterChip key={category} label={DISCOVERY_CATEGORY_LABELS[category]} selected={categories.includes(category)} onPress={() => setCategories((current) => current.includes(category) ? current.filter((item) => item !== category) : [...current, category])} />)}</View></View>) : null}
-          {step === 1 ? <><TextInput accessibilityLabel="Search preferred brands" value={brandQuery} onChangeText={setBrandQuery} placeholder="Search brands…" placeholderTextColor={colors.textMuted} maxFontSizeMultiplier={1.3} style={styles.brandSearch} /><View style={styles.choiceWrap}><DiscoveryFilterChip label="No preference" selected={!brands.length} onPress={() => setBrands([])} />{brandChoices.length ? brandChoices.filter((brand) => brand.toLowerCase().includes(brandQuery.toLowerCase())).slice(0, 60).map((brand) => <DiscoveryFilterChip key={brand} label={brand} selected={brands.includes(brand)} onPress={() => setBrands((current) => current.includes(brand) ? current.filter((item) => item !== brand) : [...current, brand])} />) : <AppText muted>Select an interest first, or continue without brand preferences.</AppText>}</View>{brandChoices.length > 60 ? <AppText muted>Search to find more brands.</AppText> : null}</> : null}
-          {step === 2 ? <View style={styles.budgetList}>{categories.length ? categories.map((category) => <View key={category} style={styles.budgetRow}><AppText weight="semibold" style={styles.flex}>{DISCOVERY_CATEGORY_LABELS[category]}</AppText><View style={styles.budgetInput}><AppText muted>AED</AppText><TextInput value={budgets[category] ?? ''} onChangeText={(value) => setBudgets((current) => ({ ...current, [category]: value }))} keyboardType="decimal-pad" placeholder="Any" placeholderTextColor={colors.textMuted} maxFontSizeMultiplier={1.3} style={styles.budgetTextInput} /></View></View>) : <AppText muted>Continue without a spending preference to see the live catalogue.</AppText>}</View> : null}
+          {step === 1 ? <><AppTextInput accessibilityLabel="Search preferred brands" value={brandQuery} onChangeText={setBrandQuery} placeholder="Search brands…" /><View style={styles.choiceWrap}><DiscoveryFilterChip label="No preference" selected={!brands.length} onPress={() => setBrands([])} />{brandChoices.length ? brandChoices.filter((brand) => brand.toLowerCase().includes(brandQuery.toLowerCase())).slice(0, 60).map((brand) => <DiscoveryFilterChip key={brand} label={brand} selected={brands.includes(brand)} onPress={() => setBrands((current) => current.includes(brand) ? current.filter((item) => item !== brand) : [...current, brand])} />) : <AppText muted>Select an interest first, or continue without brand preferences.</AppText>}</View>{brandChoices.length > 60 ? <AppText muted>Search to find more brands.</AppText> : null}</> : null}
+          {step === 2 ? <View style={styles.budgetList}>{categories.length ? categories.map((category) => <View key={category} style={styles.budgetRow}><AppText weight="semibold" style={styles.flex}>{DISCOVERY_CATEGORY_LABELS[category]}</AppText><View style={styles.budgetInput}><AppText muted>AED</AppText><AppTextInput bare value={budgets[category] ?? ''} onChangeText={(value) => setBudgets((current) => ({ ...current, [category]: value }))} keyboardType="decimal-pad" placeholder="Any" inputStyle={styles.budgetTextInput} /></View></View>) : <AppText muted>Continue without a spending preference to see the live catalogue.</AppText>}</View> : null}
         </ScrollView>
         <View style={styles.sheetActions}>
           <PrimaryButton label="Skip" variant="outline" onPress={() => { if (step === 0) { setCategories([]); } else if (step === 1) { setBrands([]); } else { setBudgets({}); } if (step < 2) { setStep((current) => current + 1); } else { onSave({ completed: true, categories, favoriteBrands: brands, budgetsByCategory: {} }).catch(() => setError('Could not save preferences.')); } }} disabled={saving} style={styles.sheetBack} />
@@ -268,7 +268,6 @@ const styles = StyleSheet.create({
   emptyCopy: { textAlign: 'center', marginTop: 8 },
   emptyButton: { marginTop: 18 },
   filterChip: { minHeight: 44, justifyContent: 'center', borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, paddingHorizontal: 12, paddingVertical: 8 },
-  brandSearch: { minHeight: 48, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, paddingHorizontal: 12, color: colors.text, backgroundColor: colors.surface },
   filterChipSelected: { borderColor: colors.primary, backgroundColor: colors.blueSoft },
   filterChipText: { fontSize: 13 },
   filterChipTextSelected: { color: colors.primary },
@@ -303,7 +302,7 @@ const styles = StyleSheet.create({
   budgetList: { gap: 10, marginTop: 4 },
   budgetRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
   budgetInput: { flexDirection: 'row', alignItems: 'center', gap: 6, width: 112, paddingHorizontal: 10, borderRadius: radius.sm, backgroundColor: colors.surfaceMuted },
-  budgetTextInput: { flex: 1, minWidth: 0, paddingVertical: 8, color: colors.text, textAlign: 'right' },
+  budgetTextInput: { flex: 1, minWidth: 0, paddingVertical: 8, textAlign: 'right' },
   sheetActions: { flexDirection: 'row', gap: 10, padding: 16, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, backgroundColor: colors.surface },
   sheetBack: { flex: 0.6 }
 });
