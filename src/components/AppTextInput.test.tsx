@@ -51,7 +51,7 @@ describe('AppTextInput', () => {
 
   it('marks focus and errors on the field and announces the error', () => {
     const tree = render(<AppTextInput value="" onChangeText={jest.fn()} />);
-    expect(fieldBorderColor(tree)).toBe(colors.borderStrong);
+    expect(fieldBorderColor(tree)).toBe(colors.border);
     act(() => { tree.root.findByType(TextInput).props.onFocus({}); });
     expect(fieldBorderColor(tree)).toBe(colors.primary);
     act(() => { tree.root.findByType(TextInput).props.onBlur({}); });

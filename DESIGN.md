@@ -112,7 +112,7 @@ Page background is `colors.background` (#F8FAFC); inline cards are flat white (`
 
 ## Inputs
 
-Agreed input role: 52 high, radius 8, 1px border, body-role text, with the same 1.3 scaling cap as other text. **Shipped:** `AppTextInput` in `src/components/AppTextInput.tsx` implements the field role — 52-high bordered field, focused border in the primary colour, red border and announced error for invalid values, body-role text with the same manual 1.3 cap as `AppText`, optional label, hint, leading/trailing accessories, and a `bare` variant for inputs embedded in custom search rows. Every current `TextInput` renders through it. **Intended:** compact search rows and per-category budget fields still use their own container styling; unify those containers if a future pass needs a single field rhythm everywhere.
+Agreed input role: 52 high, radius 8, 1px `colors.border` (soft, matching Watchlist chips and cards; primary when focused, red on error), body-role text, with the same 1.3 scaling cap as other text. **Shipped:** `AppTextInput` in `src/components/AppTextInput.tsx` implements the field role, including optional label, hint, leading/trailing accessories and a `bare` variant for inputs embedded in custom search rows. Every current `TextInput` renders through it. **Intended:** compact search rows and per-category budget fields still use their own container styling; unify those containers if a future pass needs a single field rhythm everywhere.
 
 ## Status
 
