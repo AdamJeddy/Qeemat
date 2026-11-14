@@ -191,7 +191,7 @@ final result: passed with limits
 
 Final result: **passed for the implemented scope**, with the limits below.
 
-This follows the Search/Explore review feedback: first-search feedback, multi-source promotion, automatic continuation, watchlist duplicate suppression, price-sorted compare rows, faster department switching, and renaming the tab to Explore. The arm64 release was installed over the existing app on the Samsung SM-S928B and the journeys below were inspected.
+This follows the Search/Explore review feedback: first-search feedback, multi-source promotion, automatic continuation, watchlist duplicate suppression, price-sorted compare rows, faster department switching, and renaming the tab to Explore. The arm64 release was installed over the existing app on the Samsung SM-S928B and the journeys below were inspected. The complete screenshot set with captions is in [the Explore iteration gallery](assets/explore-iteration-2026-11-14/README.md).
 
 - **Explore feed.** The bottom tab and screen heading now read Explore. The feed shows watchlist-relevance reasons, and watchlist items only appear when another retailer is cheaper. [Explore feed](assets/search-redesign-2026-11-14/search-feed.png).
 - **First search feedback.** Submitting `kindle paperwhite` immediately showed a “Searching…” pill, an animated “Starting checks across 20 stores…” progress card, and “Checking 20 stores. Matches appear here as each store responds.” instead of zero results. [First-search progress](assets/search-redesign-2026-11-14/search-progress.png).
