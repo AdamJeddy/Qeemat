@@ -57,6 +57,23 @@ it('shows no direction badge when the product never changed price', () => {
   expect(text).not.toContain('higher');
 });
 
+it('includes the tracked variant in the card accessibility label', () => {
+  let tree: renderer.ReactTestRenderer;
+  act(() => {
+    tree = renderer.create(
+      <ProductCard
+        product={{ ...base, variant: { id: 'size-m', label: 'Size: M', attributes: [{ name: 'Size', value: 'M' }] } }}
+        onPress={jest.fn()}
+      />
+    );
+  });
+
+  const card = tree!.root.findAllByProps({ accessibilityRole: 'button' }).find((node) =>
+    typeof node.props.accessibilityLabel === 'string' && node.props.accessibilityLabel.startsWith('Running shoe')
+  );
+  expect(card?.props.accessibilityLabel).toContain('Running shoe');
+  expect(card?.props.accessibilityLabel).toContain('Size: M');
+});
 it('gives the card a clean label and the out-of-stock remove action a 44dp target', () => {
   let tree: renderer.ReactTestRenderer;
   act(() => {

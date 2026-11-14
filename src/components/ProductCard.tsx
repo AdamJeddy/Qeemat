@@ -47,6 +47,7 @@ export function ProductCard({ product, onPress, onRemove, onLongPress, selected 
 
   const cardLabel = [
     product.title,
+    product.variant?.label,
     formatPrice(product.currentPriceMinor, product.currency, product.priceBasis),
     isOos ? 'Out of stock' : showErrorPill ? 'Check failed' : undefined,
     site.shortName,
