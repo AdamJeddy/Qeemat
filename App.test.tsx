@@ -31,8 +31,11 @@ jest.mock('./src/domain/discoverySearchCatalog', () => ({ loadProductSearch: jes
 
 import { AddScreen, buildProductShareMessage, DetailScreen, getTrackedProductLink, OpportunityScreen, rotateDiscoveryProducts, TabsScreen } from './App';
 import { AppText } from './src/components/AppText';
-import { DiscoveryFilterChip, DiscoveryProductGrid } from './src/components/Discovery';
+import { DiscoveryFilterChip } from './src/components/Discovery';
+import { SearchCompareSheet } from './src/components/SearchCompareSheet';
+import { SearchProductRow } from './src/components/SearchProductRow';
 import { DiscoveryBrowseSheet } from './src/components/DiscoveryBrowseSheet';
+import { groupDiscoveryProducts } from './src/domain/discoveryGroups';
 import { DISCOVERY_SOURCE_MAPS } from './src/domain/discoverySources';
 import { ProductCard } from './src/components/ProductCard';
 import { PrimaryButton } from './src/components/PrimaryButton';
@@ -637,6 +640,47 @@ describe('Watchlist header', () => {
 });
 
 describe('OpportunityScreen', () => {
+  type DiscoveryGroup = import('./src/domain/types').DiscoveryProductGroup;
+  type DiscoveryItem = import('./src/domain/types').DiscoveryProduct;
+
+  function makeProduct(overrides: Partial<DiscoveryItem> & { id: string; title: string; url: string }): DiscoveryItem {
+    return {
+      siteKey: 'noon',
+      category: 'footwear',
+      brand: 'Brand',
+      currency: 'AED',
+      availability: 'in_stock',
+      observedAt: '2026-11-07T00:00:00Z',
+      priceMinor: 10000,
+      ...overrides
+    };
+  }
+
+  function makeTrackedProduct(overrides: Partial<TrackedProduct> & { id: number; title: string }): TrackedProduct {
+    return {
+      url: `https://www.noon.com/product-${overrides.id}`,
+      canonicalUrl: `https://www.noon.com/product-${overrides.id}`,
+      siteKey: 'noon',
+      currency: 'AED',
+      alertMode: 'price_drop',
+      checkPreference: 'daily',
+      isActive: true,
+      createdAt: '2026-11-01T00:00:00Z',
+      updatedAt: '2026-11-01T00:00:00Z',
+      ...overrides
+    };
+  }
+
+  function makeGroup(products: DiscoveryItem[], tracked: TrackedProduct[] = []): DiscoveryGroup {
+    const groups = groupDiscoveryProducts(products, { trackedProducts: tracked });
+    expect(groups.length).toBeGreaterThan(0);
+    return groups[0];
+  }
+
+  function rows(tree: renderer.ReactTestRenderer): DiscoveryGroup[] {
+    return tree.root.findAllByType(SearchProductRow).map((row) => row.props.group as DiscoveryGroup);
+  }
+
   it('keeps the search screen mounted when switching tabs', async () => {
     mockListProductsWithSnapshots.mockResolvedValue([]);
     mockGetDiscoveryPreferences.mockResolvedValue({ completed: false, categories: [], favoriteBrands: [], budgetsByCategory: {}, dismissedProductIds: [], seenProductIds: [] });
@@ -651,6 +695,7 @@ describe('OpportunityScreen', () => {
     expect(tree!.root.findByType(OpportunityScreen)).toBe(screen);
     await act(async () => tree!.unmount());
   });
+
   it('varies the first products without losing items or moving later results', () => {
     const products = Array.from({ length: 30 }, (_, index) => index);
     const rotated = rotateDiscoveryProducts(products, 5);
@@ -659,30 +704,45 @@ describe('OpportunityScreen', () => {
     expect([...rotated].sort((a, b) => a - b)).toEqual(products);
     expect(rotateDiscoveryProducts(products, 5)).toEqual(rotated);
   });
+
   it('shows the price change for a previously observed listing', () => {
-    const product = { id: 'shoe', siteKey: 'noon' as const, category: 'footwear' as const, brand: 'Brand', title: 'Shoe', url: 'https://www.noon.com/shoe', priceMinor: 8000, previousPriceMinor: 10000, currency: 'AED', availability: 'in_stock' as const, observedAt: '2026-11-07T00:00:00Z' };
+    const group = makeGroup([makeProduct({ id: 'shoe', title: 'Shoe', url: 'https://www.noon.com/shoe', priceMinor: 8000, previousPriceMinor: 10000 })]);
     let tree: renderer.ReactTestRenderer;
-    act(() => { tree = renderer.create(<DiscoveryProductGrid products={[product]} trackedProducts={[]} onTrack={jest.fn()} onDismiss={jest.fn()} onMoreLikeThis={jest.fn()} onViewAtRetailer={jest.fn()} />); });
+    act(() => { tree = renderer.create(<SearchProductRow group={group} onPress={jest.fn()} onTrack={jest.fn()} />); });
     const text = tree!.root.findAllByType(AppText).map(node => [node.props.children].flat().join('')).join(' ');
     expect(text).toContain('AED 20 lower');
     expect(text).not.toContain('was AED 100');
   });
+
   it('does not display a price change when the price is unchanged', () => {
-    const product = { id: 'shoe', siteKey: 'noon' as const, category: 'footwear' as const, brand: 'Brand', title: 'Shoe', url: 'https://www.noon.com/shoe', priceMinor: 8000, previousPriceMinor: 8000, currency: 'AED', availability: 'in_stock' as const, observedAt: '2026-11-07T00:00:00Z' };
+    const group = makeGroup([makeProduct({ id: 'shoe', title: 'Shoe', url: 'https://www.noon.com/shoe', priceMinor: 8000, previousPriceMinor: 8000 })]);
     let tree: renderer.ReactTestRenderer;
-    act(() => { tree = renderer.create(<DiscoveryProductGrid products={[product]} trackedProducts={[]} onTrack={jest.fn()} onDismiss={jest.fn()} onMoreLikeThis={jest.fn()} onViewAtRetailer={jest.fn()} />); });
+    act(() => { tree = renderer.create(<SearchProductRow group={group} onPress={jest.fn()} onTrack={jest.fn()} />); });
     const text = tree!.root.findAllByType(AppText).map(node => [node.props.children].flat().join('')).join(' ');
     expect(text).not.toContain('lower');
     expect(text).not.toContain('higher');
   });
+
+  it('shows a known brand without an unknown-brand placeholder', () => {
+    const unknownBrand = makeGroup([makeProduct({ id: '1', title: 'Shirt', brand: 'Other brands', category: 'clothing', url: 'https://ae.hm.com/en/buy-shirt' })]);
+    const knownBrand = makeGroup([makeProduct({ id: '2', title: 'Shoes', brand: 'Puma', url: 'https://www.noon.com/shoes' })]);
+    let tree: renderer.ReactTestRenderer;
+    act(() => { tree = renderer.create(<><SearchProductRow group={unknownBrand} onPress={jest.fn()} /><SearchProductRow group={knownBrand} onPress={jest.fn()} /></>); });
+    const labels = tree!.root.findAllByType(AppText).map((item) => item.props.children);
+    expect(labels).toEqual(expect.arrayContaining([expect.stringContaining('Puma')]));
+    expect(JSON.stringify(labels)).not.toContain('Other brands');
+  });
+
   it('uses an existing uncategorised watched product to show related products', async () => {
-    const listTracked = jest.spyOn(require('./src/data/database'), 'listTrackedProducts').mockResolvedValue([{ id: 1, title: 'Running sneakers', isActive: true, canonicalUrl: 'https://www.noon.com/watched', url: 'https://www.noon.com/watched' }]);
-    const base = { siteKey: 'noon', brand: 'Brand', currency: 'AED', availability: 'in_stock', observedAt: '2026-11-01T00:00:00Z', priceMinor: 10000 };
+    const listTracked = jest.spyOn(require('./src/data/database'), 'listTrackedProducts').mockResolvedValue([makeTrackedProduct({ id: 1, title: 'Running sneakers' })]);
     mockGetDiscoveryPreferences.mockResolvedValue({ completed: false, categories: [], favoriteBrands: [], budgetsByCategory: {}, dismissedProductIds: [], seenProductIds: [] });
-    mockLoadDiscoveryCatalog.mockResolvedValue({ products: [{ ...base, id: 'shoe', title: 'Shoe', category: 'footwear', url: 'https://www.noon.com/shoe' }, { ...base, id: 'shirt', title: 'Shirt', category: 'clothing', url: 'https://www.noon.com/shirt' }], stale: false });
+    mockLoadDiscoveryCatalog.mockResolvedValue({ products: [
+      makeProduct({ id: 'shoe', title: 'Shoe', url: 'https://www.noon.com/shoe' }),
+      makeProduct({ id: 'shirt', title: 'Shirt', category: 'clothing', url: 'https://www.noon.com/shirt' })
+    ], stale: false });
     let tree: renderer.ReactTestRenderer;
     await act(async () => { tree = renderer.create(<OpportunityScreen navigate={jest.fn()} />); await new Promise<void>(resolve => setImmediate(resolve)); });
-    expect(tree!.root.findByType(DiscoveryProductGrid).props.products.map((product: { id: string }) => product.id)).toEqual(['shoe']);
+    expect(rows(tree!).map((group) => group.title)).toEqual(['Shoe']);
     const text = tree!.root.findAllByType(AppText).map(node => [node.props.children].flat().join('')).join(' ');
     expect(text).toContain('Based on your watchlist');
     expect(text).toContain('Footwear');
@@ -690,34 +750,96 @@ describe('OpportunityScreen', () => {
     await act(async () => tree!.unmount());
     listTracked.mockRestore();
   });
-  it('shows the store without an unknown brand and preserves known brands', () => {
-    const base = { siteKey: 'hm_uae' as const, category: 'clothing' as const, currency: 'AED', availability: 'unknown' as const, observedAt: '2026-11-07T00:00:00Z', url: 'https://ae.hm.com/en/buy-shirt', priceMinor: 10000 };
+
+  it('ranks watchlist-related products first and explains the match', async () => {
+    const listTracked = jest.spyOn(require('./src/data/database'), 'listTrackedProducts').mockResolvedValue([
+      makeTrackedProduct({ id: 2, title: 'Nike Air Zoom Pegasus 41 Running Shoes', brand: 'Nike', category: 'footwear', currentPriceMinor: 49900 })
+    ]);
+    mockGetDiscoveryPreferences.mockResolvedValue({ completed: true, categories: [], favoriteBrands: [], budgetsByCategory: {}, dismissedProductIds: [], seenProductIds: [] });
+    mockLoadDiscoveryCatalog.mockResolvedValue({ products: [
+      makeProduct({ id: 'puma', title: 'Puma Velocity Nitro 3 Running Shoes', brand: 'Puma', url: 'https://www.noon.com/puma-velocity' }),
+      makeProduct({ id: 'nike', title: 'Nike Air Zoom Pegasus 41 Road Running Shoes', brand: 'Nike', url: 'https://www.noon.com/nike-pegasus' })
+    ], stale: false });
     let tree: renderer.ReactTestRenderer;
-    act(() => { tree = renderer.create(<DiscoveryProductGrid products={[{ ...base, id: '1', title: 'Shirt', brand: 'Other brands' }, { ...base, id: '2', title: 'Shoes', brand: 'Puma' }]} trackedProducts={[]} onTrack={jest.fn()} onDismiss={jest.fn()} onMoreLikeThis={jest.fn()} onViewAtRetailer={jest.fn()} />); });
-    const labels = tree!.root.findAllByType(AppText).map((item) => item.props.children);
-    expect(labels).toEqual(expect.arrayContaining(['H&M', 'Puma · H&M']));
-    expect(labels).not.toContain('Other brands · H&M');
+    await act(async () => { tree = renderer.create(<OpportunityScreen navigate={jest.fn()} />); await new Promise<void>(resolve => setImmediate(resolve)); });
+    const feedRows = rows(tree!);
+    expect(feedRows).toHaveLength(2);
+    expect(feedRows[0].brand).toBe('Nike');
+    expect(feedRows[0].relevance?.reason).toBeTruthy();
+    const text = tree!.root.findAllByType(AppText).map(node => [node.props.children].flat().join('')).join(' ');
+    expect(text).toContain(feedRows[0].relevance!.reason!);
+    await act(async () => tree!.unmount());
+    listTracked.mockRestore();
   });
-  it('retains expanded discovery results after searching and filtering results', async () => {
-    const base = { siteKey: 'noon', category: 'general', brand: 'Apple', currency: 'AED', availability: 'in_stock', observedAt: '2026-10-28T09:00:00Z', priceMinor: 1000 };
+
+  it('clubs the same product across stores and opens one comparison', async () => {
+    mockGetDiscoveryPreferences.mockResolvedValue({ completed: true, categories: [], favoriteBrands: [], budgetsByCategory: {}, dismissedProductIds: [], seenProductIds: [] });
+    mockLoadDiscoveryCatalog.mockResolvedValue({ products: [], stale: false });
+    const noon = makeProduct({ id: 'noon:air-force', siteKey: 'noon', category: 'general', title: "Nike Air Force 1 '07 Men's Shoes", brand: 'Nike', url: 'https://www.noon.com/air-force', priceMinor: 39900 });
+    const amazon = makeProduct({ id: 'amazon:air-force', siteKey: 'amazon_ae', category: 'general', title: 'Nike Air Force 1 07 Shoes', brand: 'Nike', url: 'https://www.amazon.ae/dp/air-force', priceMinor: 34900 });
+    mockLoadProductSearch.mockResolvedValue({ query: 'air force 1', products: [noon, amazon], sources: [] });
+    let tree: renderer.ReactTestRenderer;
+    await act(async () => { tree = renderer.create(<OpportunityScreen navigate={jest.fn()} />); await new Promise<void>(resolve => setImmediate(resolve)); });
+    const input = tree!.root.findByProps({ accessibilityLabel: 'Search products across stores' });
+    act(() => input.props.onChangeText('air force 1'));
+    await act(async () => { input.props.onSubmitEditing(); await new Promise<void>((resolve) => setImmediate(resolve)); });
+    const [group] = rows(tree!);
+    expect(rows(tree!)).toHaveLength(1);
+    expect(group.offers).toHaveLength(2);
+    expect(group.bestOffer?.product.siteKey).toBe('amazon_ae');
+    const text = tree!.root.findAllByType(AppText).map(node => [node.props.children].flat().join('')).join(' ');
+    expect(text).toContain('Lowest at Amazon');
+    expect(text).toContain('Save AED 50');
+    await act(async () => { tree!.root.findAllByProps({ accessibilityLabel: `Compare prices for ${group.title}` })[0].props.onPress(); });
+    expect(tree!.root.findByType(SearchCompareSheet).props.visible).toBe(true);
+    expect(tree!.root.findByType(SearchCompareSheet).props.group.offers).toHaveLength(2);
+    await act(async () => tree!.unmount());
+  });
+
+  it('annotates a grouped offer that matches a tracked product', async () => {
+    const trackedUrl = 'https://www.noon.com/tracked-air-force';
+    const listTracked = jest.spyOn(require('./src/data/database'), 'listTrackedProducts').mockResolvedValue([
+      makeTrackedProduct({ id: 3, title: "Nike Air Force 1 '07 Shoes", brand: 'Nike', url: trackedUrl, canonicalUrl: trackedUrl })
+    ]);
+    mockGetDiscoveryPreferences.mockResolvedValue({ completed: true, categories: [], favoriteBrands: [], budgetsByCategory: {}, dismissedProductIds: [], seenProductIds: [] });
+    mockLoadDiscoveryCatalog.mockResolvedValue({ products: [
+      makeProduct({ id: 'noon:tracked', siteKey: 'noon', title: "Nike Air Force 1 '07 Shoes", brand: 'Nike', url: trackedUrl, priceMinor: 39900 }),
+      makeProduct({ id: 'amazon:other', siteKey: 'amazon_ae', title: 'Nike Air Force 1 07 Shoes', brand: 'Nike', url: 'https://www.amazon.ae/dp/air-force', priceMinor: 34900 })
+    ], stale: false });
+    let tree: renderer.ReactTestRenderer;
+    await act(async () => { tree = renderer.create(<OpportunityScreen navigate={jest.fn()} />); await new Promise<void>(resolve => setImmediate(resolve)); });
+    const [group] = rows(tree!);
+    expect(group.trackedProduct?.id).toBe(3);
+    const text = tree!.root.findAllByType(AppText).map(node => [node.props.children].flat().join('')).join(' ');
+    expect(text).toContain('You track this at');
+    await act(async () => tree!.unmount());
+    listTracked.mockRestore();
+  });
+
+  it('retains expanded feed results after searching and clearing', async () => {
+    const base = { siteKey: 'noon' as const, category: 'general' as const, brand: 'Apple', currency: 'AED', availability: 'in_stock' as const, observedAt: '2026-10-28T09:00:00Z', priceMinor: 1000 };
     const products = Array.from({ length: 50 }, (_, index) => ({ ...base, id: `item-${index}`, title: `Product ${index}`, url: `https://www.noon.com/item-${index}` }));
     mockLoadDiscoveryCatalog.mockResolvedValue({ products, stale: false, failedCollectionIds: [] });
     mockLoadProductSearch.mockResolvedValue({ query: 'iphone', products, sources: [] });
     let tree: renderer.ReactTestRenderer;
     await act(async () => { tree = renderer.create(<OpportunityScreen navigate={jest.fn()} />); await new Promise<void>((resolve) => setImmediate(resolve)); });
-    act(() => tree!.root.findAllByType(PrimaryButton).find((button) => button.props.label === 'Show more (26 remaining)')!.props.onPress());
-    expect(tree!.root.findByType(DiscoveryProductGrid).props.products).toHaveLength(48);
+    expect(rows(tree!)).toHaveLength(12);
+    act(() => tree!.root.findAllByType(PrimaryButton).find((button) => button.props.label === 'Show more (38 remaining)')!.props.onPress());
+    expect(rows(tree!)).toHaveLength(24);
     const input = tree!.root.findByProps({ accessibilityLabel: 'Search products across stores' });
     act(() => input.props.onChangeText('iphone'));
     await act(async () => { input.props.onSubmitEditing(); await new Promise<void>((resolve) => setImmediate(resolve)); });
-    expect(tree!.root.findByType(DiscoveryProductGrid).props.products).toHaveLength(24);
+    expect(rows(tree!)).toHaveLength(12);
+    expect(tree!.root.findAllByType(DiscoveryFilterChip).map((chip) => chip.props.label)).toContain('Noon (50)');
     act(() => tree!.root.findAllByType(DiscoveryFilterChip).find((chip) => chip.props.label === 'Noon (50)')!.props.onPress());
+    expect(rows(tree!)).toHaveLength(12);
     await act(async () => { tree!.root.findByProps({ accessibilityLabel: 'Clear product search' }).props.onPress(); await new Promise<void>((resolve) => setImmediate(resolve)); });
-    expect(tree!.root.findByType(DiscoveryProductGrid).props.products).toHaveLength(48);
+    expect(rows(tree!)).toHaveLength(24);
     await act(async () => tree!.unmount());
   }, 20000);
+
   it('hides a search result when the matching catalogue product was dismissed', async () => {
-    const listing = { id: 'decathlon_uae:123', siteKey: 'decathlon_uae', category: 'footwear', brand: 'Kiprun', title: 'Running shoes', url: 'https://decathlon.ae/products/shoe', priceMinor: 9000, currency: 'AED', availability: 'in_stock', observedAt: '2026-10-28T09:00:00Z' };
+    const listing = { id: 'decathlon_uae:123', siteKey: 'decathlon_uae' as const, category: 'footwear' as const, brand: 'Kiprun', title: 'Running shoes', url: 'https://decathlon.ae/products/shoe', priceMinor: 9000, currency: 'AED', availability: 'in_stock' as const, observedAt: '2026-10-28T09:00:00Z' };
     mockGetDiscoveryPreferences.mockResolvedValue({ completed: true, categories: [], favoriteBrands: [], budgetsByCategory: {}, dismissedProductIds: [listing.id], seenProductIds: [] });
     mockLoadDiscoveryCatalog.mockResolvedValue({ products: [listing], stale: false, failedCollectionIds: [] });
     mockLoadProductSearch.mockResolvedValue({ query: 'running shoes', products: [{ ...listing, id: 'decathlon_uae:/products/shoe' }], sources: [] });
@@ -726,22 +848,22 @@ describe('OpportunityScreen', () => {
     const input = tree!.root.findByProps({ accessibilityLabel: 'Search products across stores' });
     act(() => input.props.onChangeText('running shoes'));
     await act(async () => { input.props.onSubmitEditing(); await new Promise<void>((resolve) => setImmediate(resolve)); });
-    expect(tree!.root.findByType(DiscoveryProductGrid).props.products).toHaveLength(0);
+    expect(rows(tree!)).toHaveLength(0);
     await act(async () => tree!.unmount());
   });
+
   it('browses a department without applying the old personalization budget', async () => {
     const navigate = jest.fn();
     mockGetDiscoveryPreferences.mockResolvedValue({ completed: true, categories: ['footwear'], favoriteBrands: [], budgetsByCategory: { footwear: 10000 }, dismissedProductIds: [], seenProductIds: [] });
-    const base = { siteKey: 'noon', category: 'footwear', brand: 'Brand', currency: 'AED', availability: 'in_stock', observedAt: '2026-10-28T09:00:00Z' };
     mockLoadDiscoveryCatalog.mockResolvedValue({ products: [
-      { ...base, id: 'shoe', title: 'Everyday shoe', url: 'https://www.noon.com/shoe', priceMinor: 9000 },
-      { ...base, id: 'expensive-shoe', title: 'Expensive shoe', url: 'https://www.noon.com/expensive-shoe', priceMinor: 20000 }
+      makeProduct({ id: 'shoe', title: 'Everyday shoe', url: 'https://www.noon.com/shoe', priceMinor: 9000 }),
+      makeProduct({ id: 'expensive-shoe', title: 'Expensive shoe', url: 'https://www.noon.com/expensive-shoe', priceMinor: 20000 })
     ], stale: false });
     let tree: renderer.ReactTestRenderer;
     await act(async () => { tree = renderer.create(<OpportunityScreen navigate={navigate} />); await new Promise<void>((resolve) => setImmediate(resolve)); });
     await act(async () => { tree!.root.findByProps({ accessibilityLabel: 'Browse Footwear' }).props.onPress(); await new Promise<void>((resolve) => setImmediate(resolve)); });
     expect(mockLoadDiscoveryCatalog).toHaveBeenLastCalledWith(undefined, expect.objectContaining({ scope: expect.objectContaining({ categories: ['footwear'] }) }));
-    expect(tree!.root.findByType(DiscoveryProductGrid).props.products.map((product: { id: string }) => product.id)).toEqual(['shoe', 'expensive-shoe']);
+    expect(rows(tree!).map((group) => group.title)).toEqual(['Everyday shoe', 'Expensive shoe']);
     expect(tree!.root.findByProps({ accessibilityLabel: 'Browse Footwear' }).props.accessibilityState.selected).toBe(true);
     await act(async () => { tree!.root.findByProps({ accessibilityLabel: 'Clear discovery filters' }).props.onPress(); await new Promise<void>((resolve) => setImmediate(resolve)); });
     expect(tree!.root.findByProps({ accessibilityLabel: 'Browse Footwear' }).props.accessibilityState.selected).toBe(false);
@@ -757,8 +879,9 @@ describe('OpportunityScreen', () => {
     expect(tree!.root.findByProps({ accessibilityLabel: 'Browse all departments and retailers' })).toBeDefined();
     await act(async () => tree!.unmount());
   });
+
   it('only offers search retailers with visible matches and removes an empty active filter', async () => {
-    const phone = { id: 'phone', title: 'iPhone 16', siteKey: 'noon', category: 'general', priceMinor: 300000, currency: 'AED', url: 'https://www.noon.com/phone/p/', observedAt: '2026-10-28T09:00:00Z', availability: 'unknown' };
+    const phone = makeProduct({ id: 'phone', title: 'iPhone 16', siteKey: 'noon', category: 'general', brand: 'Apple', priceMinor: 300000, url: 'https://www.noon.com/phone/p/', availability: 'unknown' });
     mockLoadProductSearch.mockResolvedValue({ query: 'iphone', products: [phone], sources: [] });
     let tree: renderer.ReactTestRenderer;
     await act(async () => { tree = renderer.create(<OpportunityScreen navigate={jest.fn()} />); await new Promise<void>((resolve) => setImmediate(resolve)); });
@@ -771,9 +894,10 @@ describe('OpportunityScreen', () => {
     mockLoadProductSearch.mockResolvedValue({ query: 'iphone', products: [], sources: [] });
     await act(async () => { input.props.onSubmitEditing(); await new Promise<void>((resolve) => setImmediate(resolve)); });
     expect(chips().map((chip) => chip.props.label)).toEqual(['All results (0)']);
-    expect(chips()[0].props.selected).toBe(true);
+    expect(rows(tree!)).toHaveLength(0);
     await act(async () => tree!.unmount());
   });
+
   it('offers a manual refresh that bypasses the daily discovery cache', async () => {
     let tree: renderer.ReactTestRenderer;
     await act(async () => { tree = renderer.create(<OpportunityScreen navigate={jest.fn()} />); await new Promise<void>((resolve) => setImmediate(resolve)); });
@@ -781,13 +905,14 @@ describe('OpportunityScreen', () => {
     expect(mockLoadDiscoveryCatalog).toHaveBeenLastCalledWith(undefined, expect.objectContaining({ force: true }));
     await act(async () => tree!.unmount());
   });
+
   it('ignores an older search response after a new query is submitted', async () => {
     let finishOlder!: (value: unknown) => void;
     mockLoadProductSearch.mockImplementationOnce(() => new Promise((resolve) => { finishOlder = resolve; }));
     mockLoadProductSearch.mockResolvedValueOnce({ query: 'new phone', products: [], sources: [] });
     let tree: renderer.ReactTestRenderer;
     await act(async () => { tree = renderer.create(<OpportunityScreen navigate={jest.fn()} />); await new Promise<void>((resolve) => setImmediate(resolve)); });
-    const input = tree!.root.findAllByType(TextInput).find((node) => node.props.accessibilityLabel === 'Search products across stores')!;
+    const input = tree!.root.findByProps({ accessibilityLabel: 'Search products across stores' });
     act(() => input.props.onChangeText('old phone'));
     await act(async () => { input.props.onSubmitEditing(); await new Promise<void>((resolve) => setImmediate(resolve)); });
     act(() => input.props.onChangeText('new phone'));
@@ -798,37 +923,26 @@ describe('OpportunityScreen', () => {
     expect(content).not.toContain('old phone');
     await act(async () => tree!.unmount());
   });
-  it('searches only on submission, ignores quiz budgets, and clears back to discovery', async () => {
+
+  it('searches only on submission, counts products and stores, and clears back to the feed', async () => {
     mockGetDiscoveryPreferences.mockResolvedValue({ completed: true, categories: ['fitness'], favoriteBrands: [], budgetsByCategory: { fitness: 1 }, dismissedProductIds: [], seenProductIds: [] });
     mockLoadDiscoveryCatalog.mockResolvedValue({ products: [], stale: false, failedCollectionIds: [] });
-    const phone = { id: 'phone', title: 'iPhone 16', siteKey: 'noon', brand: 'Apple', category: 'general', priceMinor: 300000, currency: 'AED', url: 'https://www.noon.com/phone/p/', observedAt: '2026-10-28T09:00:00Z', availability: 'unknown' };
+    const phone = makeProduct({ id: 'phone', title: 'iPhone 16', siteKey: 'noon', category: 'general', brand: 'Apple', priceMinor: 300000, url: 'https://www.noon.com/phone/p/', availability: 'unknown' });
     mockLoadProductSearch.mockResolvedValue({ query: 'iphone 16', products: [phone], sources: [] });
     let tree: renderer.ReactTestRenderer;
     await act(async () => { tree = renderer.create(<OpportunityScreen navigate={jest.fn()} />); await new Promise<void>((resolve) => setImmediate(resolve)); });
-    const input = tree!.root.findAllByType(TextInput).find((node) => node.props.accessibilityLabel === 'Search products across stores');
+    const input = tree!.root.findAllByProps({ accessibilityLabel: 'Search products across stores' })[0];
     expect(input).toBeDefined();
-    act(() => input!.props.onChangeText('iphone 16'));
+    act(() => input.props.onChangeText('iphone 16'));
     expect(mockLoadProductSearch).not.toHaveBeenCalled();
-    await act(async () => { input!.props.onSubmitEditing(); await new Promise<void>((resolve) => setImmediate(resolve)); });
+    await act(async () => { input.props.onSubmitEditing(); await new Promise<void>((resolve) => setImmediate(resolve)); });
     expect(mockLoadProductSearch).toHaveBeenCalledWith('iphone 16', expect.anything());
-    expect(tree!.root.findByType(DiscoveryProductGrid).props.products).toEqual([phone]);
-    expect(tree!.root.findAllByType(AppText).map((node) => [node.props.children].flat().join('')).join(' ')).toContain('1 title and brand match · 1 retailer');
+    expect(rows(tree!)).toHaveLength(1);
+    const content = () => tree!.root.findAllByType(AppText).map((node) => [node.props.children].flat().join('')).join(' ');
+    expect(content()).toContain('1 product · 1 store');
     await act(async () => { tree!.root.findByProps({ accessibilityLabel: 'Clear product search' }).props.onPress(); await new Promise<void>((resolve) => setImmediate(resolve)); });
-    expect(tree!.root.findAllByType(AppText).map((node) => [node.props.children].flat().join('')).join(' ')).not.toContain('Results for “iphone 16”');
+    expect(content()).not.toContain('Results for “iphone 16”');
     await act(async () => tree!.unmount());
-  });
-  beforeEach(() => {
-    mockGetDiscoveryPreferences.mockResolvedValue({
-      completed: true,
-      categories: [],
-      favoriteBrands: [],
-      budgetsByCategory: {},
-      dismissedProductIds: [],
-      seenProductIds: []
-    });
-    mockMarkDiscoveryProductsSeen.mockResolvedValue(undefined);
-    mockLoadProductSearch.mockReset();
-    mockLoadDiscoveryCatalog.mockResolvedValue({ products: [], stale: false });
   });
 
   it('does not render tracked price opportunities in the discovery feed', async () => {
@@ -892,7 +1006,7 @@ describe('OpportunityScreen', () => {
     expect(tree!.root.findAllByProps({ accessibilityLabel: 'Browse all departments and retailers' }).length).toBeGreaterThan(0);
   });
 
-  it('shows cached discovery products with a clear price-tracking action', async () => {
+  it('shows cached discovery products with compare and track actions', async () => {
     const navigate = jest.fn();
     mockListProductsWithSnapshots.mockResolvedValueOnce([]);
     mockGetDiscoveryPreferences.mockResolvedValueOnce({
@@ -928,10 +1042,10 @@ describe('OpportunityScreen', () => {
     });
 
     const text = tree!.root.findAllByType(AppText).map((node) => [node.props.children].flat().join('')).join(' ');
-    expect(text).toContain('Explore products');
+    expect(text).toContain('For you');
     expect(text).toContain('Domyos training mat');
     expect(text).toContain('AED 89');
-    expect(text).toContain('Track price');
+    expect(text).toContain('Track');
     expect(text).toContain('1 product');
 
     await act(async () => { tree!.root.findByType(DiscoveryBrowseSheet).props.onCategory('fitness'); await new Promise<void>((resolve) => setImmediate(resolve)); });
@@ -945,7 +1059,7 @@ describe('OpportunityScreen', () => {
     const navigate = jest.fn();
     const initial = { completed: true, categories: [], favoriteBrands: [], budgetsByCategory: {}, dismissedProductIds: [], seenProductIds: [] };
     mockGetDiscoveryPreferences.mockResolvedValueOnce(initial);
-    const base = { siteKey: 'faces_uae', category: 'skincare', brand: 'Dior', currency: 'AED', availability: 'in_stock', observedAt: '2026-10-25T10:00:00Z' };
+    const base = { siteKey: 'faces_uae' as const, category: 'skincare' as const, brand: 'Dior', currency: 'AED', availability: 'in_stock' as const, observedAt: '2026-10-25T10:00:00Z' };
     mockLoadDiscoveryCatalog.mockResolvedValue({ products: [
       { ...base, id: 'serum', title: 'Affordable serum', url: 'https://www.faces.ae/en/serum', priceMinor: 9000 },
       { ...base, id: 'premium-serum', title: 'Premium serum', url: 'https://www.faces.ae/en/premium-serum', priceMinor: 25000 },
@@ -956,17 +1070,30 @@ describe('OpportunityScreen', () => {
       tree = renderer.create(<OpportunityScreen navigate={navigate} />);
       await new Promise<void>((resolve) => setImmediate(resolve));
     });
-    expect(tree!.root.findByType(DiscoveryProductGrid).props.products).toHaveLength(3);
+    expect(rows(tree!)).toHaveLength(3);
     await act(async () => tree!.root.findByType(DiscoveryBrowseSheet).props.onCategory('footwear'));
-    expect(tree!.root.findByType(DiscoveryProductGrid).props.products.map((product: { id: string }) => product.id)).toEqual(['shoes']);
+    expect(rows(tree!).map((group) => group.title)).toEqual(['Running shoes']);
     expect(navigate).not.toHaveBeenCalled();
     const source = DISCOVERY_SOURCE_MAPS.find((item) => item.siteKey === 'carrefour_uae' && item.category === 'fresh_food')!;
     await act(async () => tree!.root.findByType(DiscoveryBrowseSheet).props.onCollection(source));
     expect(mockLoadDiscoveryCatalog).toHaveBeenLastCalledWith(undefined, expect.objectContaining({ scope: expect.objectContaining({ collectionId: source.id, siteKey: 'carrefour_uae' }) }));
     expect(navigate).not.toHaveBeenCalled();
   });
-});
 
+  beforeEach(() => {
+    mockGetDiscoveryPreferences.mockResolvedValue({
+      completed: true,
+      categories: [],
+      favoriteBrands: [],
+      budgetsByCategory: {},
+      dismissedProductIds: [],
+      seenProductIds: []
+    });
+    mockMarkDiscoveryProductsSeen.mockResolvedValue(undefined);
+    mockLoadProductSearch.mockReset();
+    mockLoadDiscoveryCatalog.mockResolvedValue({ products: [], stale: false });
+  });
+});
 describe('saved price freshness', () => {
   const product: TrackedProduct = {
     id: 53,

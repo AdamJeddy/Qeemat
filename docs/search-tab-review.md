@@ -1,0 +1,151 @@
+# Search tab review and redesign
+
+**Date:** 14 November 2026
+**Branch:** `feat/search-tab-redesign`
+**Scope:** the Search tab (`OpportunityScreen` in `App.tsx`, `src/components/Discovery*.tsx`, `src/domain/discovery*.ts`, `src/data/discovery*.ts`) compared with the Watchlist tab, plus the proposed cross-retailer comparison behaviour and UI upgrade. Source review, tests and the existing design/QA docs were used; device evidence is recorded in `design-qa.md` after verification.
+
+## 1. What the tab is today
+
+The tab is labelled **Search**, but it has two different jobs bolted together:
+
+1. **A discovery feed (default).** On open, `OpportunityScreen` loads cached retailer listings through `loadDiscoveryCatalog`, scopes the fetch to source collections that match the categories inferred from active watchlist products, then renders a 2-column grid of listing cards under **Explore products**.
+2. **A product-name search (secondary).** Submitting a query calls `loadProductSearch`, which queries 18 retailer search endpoints with three HTTP workers plus a native-browser fallback, streams per-store results, and replaces the grid with ranked matches and per-retailer filter chips.
+
+Supporting surfaces: department tiles (`DiscoveryDepartments`), a full browse sheet (`DiscoveryBrowseSheet`) for departments/stores/store categories with source status and URLs, a source coverage sheet, an inline filters panel (retailer/brand/max price), listing preview modal with up to 5 observations, and direct tracking with variant selection.
+
+### Data and ranking today
+
+- A listing is the unit of everything: `DiscoveryProduct` is one retailer's observation (`siteKey` + retailer product id + URL + title/brand/price/availability). The same product at three retailers is three unrelated records.
+- Cache: 24-hour per-collection cache (`qeemat.discovery.source.v2.*`), parser-version invalidation, 24-item display batches, failed-source retry after 24 hours.
+- Observations: each listing keeps up to 30 local observations (`qeemat.discovery.history.v1.*`). `recordDiscoveryObservations` attaches `previousPriceMinor` when the same listing was seen before with the same currency, price basis and range status. A WorkManager job rotates small batches of previously discovered sources roughly every six hours.
+- Feed ordering (`buildDiscoverySections` in `src/domain/discovery.ts`): filter out dismissed products and out-of-stock listings, keep products in the `DiscoveryPreferences.categories`, score with a four-line `discoveryScore` (only `+1000` if the category is in preferences, `+50` for a favourite brand), then round-robin categories and retailers within each score tier. `OpportunityScreen.effectivePreferences` then overrides `favoriteBrands` to `[]` and `budgetsByCategory` to `{}`, so in practice the only personalization is **the category set**.
+- The first 24 feed cards are deliberately rotated at each app launch (`rotateDiscoveryProducts`, session offset persisted in `advanceDiscoveryOffset`). The first products a shopper sees are therefore *intentionally randomized*, not the most relevant ones.
+- Search result ranking (`rankSearchMatches`) is a title/brand token match with a phrase bonus and an accessory penalty. It is a good relevance rank for the query, but it is still listing-level: the same iPhone found at Noon, Amazon and Carrefour is three cards with no comparison.
+- Price history exists per listing and is already displayed in the preview modal, but it is never aggregated across retailers.
+
+### UI today
+
+- Plain light page: 28px **Search** heading, subtitle “Discover it. Track the price.”, search field, department tile rail, count/refresh/filters toolbar, 2-column grid cards (120px image, 11–14px text, “Observed 3h ago”, repeated outline **Track price** button per card), preview modal with secondary actions.
+- The Watchlist uses a blue banner with the Qeemat lockup, white title, count pill, a toolbar in the banner language and flat divided product rows. Search does not use that language: it is a separate visual system with a grid, smaller labels and action repetition.
+- The old personalization quiz is dead code: `DiscoverySetupCard` and `DiscoveryPreferencesSheet` are not rendered anywhere; saved `categories`, `favoriteBrands` and `budgetsByCategory` no longer influence the feed.
+
+## 2. Findings
+
+| Severity | Finding | Consequence |
+|---|---|---|
+| Critical | The feed's first products are randomized (`rotateDiscoveryProducts`) and category-filtered only; the watchlist's brands, product names and price level have no effect on order | The tab does not feel personal even though it is labelled as being based on the watchlist; a shopper tracking running shoes can see an arbitrary mix of footwear first |
+| Critical | No cross-retailer identity. `mergeDiscoveryProducts` only de-duplicates the same retailer listing id | The same product is shown 2–3 times as separate cards; the shopper has to compare prices manually and cannot see which store is cheapest |
+| High | Retailer prices are never compared or ranked. `hasPriceRange` and `priceBasis` are captured, but no best-source logic exists | The app stores exactly the data needed for a comparison feature but exposes none of it |
+| High | Tracked products are not connected to discovery/search listings | A shopper who tracks an item at Noon cannot see that the same item is cheaper at Amazon even when both are in the catalogue |
+| High | Search and discovery are visually and structurally two products in one tab; search results keep listing cards and listing counts | Searching for a product gives no price comparison, which is the main reason to search across 18 stores |
+| High | UI is a separate design system from Watchlist (grid instead of flat rows, no blue banner, tiny metadata, repeated Track buttons) | Feels like a secondary prototype inside an otherwise coherent app; harder to scan and compare |
+| Medium | Counts are listing counts, not products or stores; “1 title and brand match · 1 retailer” describes rows, not comparison value | Understates/overstates what the user is seeing and gets worse once grouping exists |
+| Medium | Filters are inline expandable rails, unlike the Watchlist filter sheet; no sort control | Inconsistent interaction with the rest of the app and harder to manage on a phone |
+| Medium | “Observed 3h ago” is surface metadata on every card; freshness is not tied to the price being compared | Creates noise without explaining whether a comparison is fresh |
+| Medium | Dead personalization UI/data (`DiscoverySetupCard`, `DiscoveryPreferencesSheet`, budgets/favourite brands ignored) | Confusing code and product model; saved preferences imply control that no longer exists |
+| Low | Dismissed-product identity uses `discoveryFeedbackId`; feedback aliases depend on cache availability | Existing behaviour works; grouping must preserve dismissal by all offer identities |
+| Low | `DiscoveryProductGrid` preview modal holds its own history fetch and five secondary actions | Fine for browsing but the wrong container for comparison |
+
+### What to keep
+
+- Local-first storage and the existing per-listing observation history; no backend is needed.
+- Streaming per-store search with coverage/status, cached queries and failure handling. This is genuinely useful and should stay.
+- The browse/coverage sheet's source URLs, counts and failure states.
+- Direct tracking with page verification and exact variant selection.
+- Dismiss feedback, “Show more”, “Load more”, tab state persistence and pull-to-refresh.
+- Truthful empty, unavailable and request-failure states.
+
+## 3. Agreed product direction
+
+**Search & compare first.** A prominent cross-store search leads; the default screen becomes a watchlist-relevant price feed where one item represents the same product across retailers, with all source prices and the best source. Search results use the same grouped rows. The tab keeps the name **Search**.
+
+**Watchlist-only relevance, with explanations.** The taste profile is derived from active tracked products: inferred categories, brands (tracker brand or source metadata), distinctive title keywords, and typical price bands. Each row can show one honest reason such as “Because you track running shoes” or “More from Nike”. The dead quiz UI is removed; the stored preferences continue to serve dismissal state only.
+
+**Conservative cross-retailer clubbing.** There is no cross-retailer product id, so grouping is a local inference:
+
+- Require a matching brand (exact normalized key or a token-prefix extension such as `adidas` / `adidas originals`).
+- Require the same canonical product type.
+- Require exactly equal numeric/model/pack hard tokens (`iPhone 16` ≠ `iPhone 15`, `128GB` ≠ `256GB`, `Air Force 1` ≠ `Air Force 1 07`).
+- Require strong signature similarity after removing brand, gender, colour, filler and type-synonym noise.
+- One offer per retailer; best offer only when at least two offers are genuinely comparable (single price, in stock, same currency and pack/weight basis). “From” range prices and out-of-stock offers are shown but never used for the “lowest price” claim.
+- Group-level previous-best price is only shown when every compared offer had a previous observation, so the saving cannot be inflated by a partial comparison.
+
+**Tracked-product annotation.** When a group matches an active tracked product (exact URL first, then conservative brand+signature), the row and compare sheet say “You track this at Noon” and can open the tracker. This is display-only and makes no new claim about the tracker itself.
+
+## 4. Proposed behaviour
+
+### Default (no query) — “For you” price feed
+
+1. Blue banner in the Watchlist language: Qeemat lockup, **Search** title with a live count pill (`N products · M stores`), coverage and refresh actions, and a permanent white cross-store search field with a filter button.
+2. A compact department rail: **For you** (default), watchlist categories first, then popular departments, plus “All departments” which opens the existing browse sheet.
+3. Relevance summary line: `Based on your watchlist: Footwear, Beauty` or, with no trackers, `Track a product to personalise this feed`.
+4. Flat grouped rows ordered by relevance: image, brand · category, 2-line title, best price with direction badge, source icons + `Lowest at Noon` / `3 stores`, honest saving line, reason line, and compact **Compare** / **Track** actions. Tapping the row opens the compare sheet.
+5. Progressively revealed content: 12 grouped rows initially, `Show more` for the already-fetched groups, `Load more listings` for the next collection batch, then freshness and failed-source status.
+6. Pull-to-refresh reuses the existing force refresh; the freshness line says when observed prices were checked and whether cached results are stale.
+7. Empty states: no tracker yet (explain relevance and offer Explore all), loading stream, filtered-to-nothing, refresh failure with saved listings.
+
+### Search mode — “find it, compare it”
+
+1. The same banner search field; explicit submit only; typing does not fetch.
+2. Progress line (`8 of 18 stores checked · Searching…`) and a Coverage action; store chips stay for narrowing.
+3. Results heading counts **products across stores** after grouping, not listings.
+4. Grouped result rows use the same row component and compare sheet. Search rank still favors exact brand/model matches; grouping is applied after matching.
+5. `Show more` for returned groups, `Load more search results` for provider cursors, failed-source copy preserved, clearing restores the feed and scroll position.
+
+### Compare sheet
+
+- Product image, brand/category, full title; lowest price and best store; saving across comparable offers; observed time.
+- Per-store rows: site icon, store, price, availability, “From” marker, previous observed price with direction, relative check time, and a short “not directly comparable” explanation where relevant.
+- Tracked annotation with **Open tracker** when matched.
+- Actions: **Track lowest price**, per-store **Track**/**Open**, **Not interested**, **More like this**.
+- Truthful single-offer state: price shown, no “lowest” claim.
+- Variant-selection and page-verification flows remain the existing ones.
+
+### Filters
+
+A bottom sheet matching the Watchlist **Filter & sort** interaction: departments, stores with counts, brands, maximum price, active-filter summary, **Clear filters**, applied immediately, closed with Show results. Search-mode store chips remain available for quick narrowing.
+
+### Accessibility and layout
+
+- 44dp minimum touch targets, row/action accessibility labels that state price, best store, store count and reason, separate Compare/Track labels, header role on section titles, live-region notices.
+- Flat rows at normal width; stacked row at compact width / large font scale; no information hidden behind colour alone.
+- Keep the tab mounted and preserve scroll/search state.
+
+## 5. Truth and data constraints
+
+- Grouping and tracked-product matching are local heuristics over retailer titles. The compare sheet always shows each retailer's own title so a shopper can verify the offer; the UI says “Lowest listed price”, not “identical item”.
+- Comparability rules: defined single price, not `hasPriceRange`, not `out_of_stock`, same currency, same `priceBasis` (kg or pack signature). Out-of-stock and range offers remain visible but cannot win the lowest-price claim.
+- Prices are observations, not live quotes. The UI states when they were checked and keeps stale/failed source states; tracking a product still re-fetches and verifies the page before saving.
+- Dismissal is matched against every offer identity in a group, so dismissing a product hides it regardless of the source shown.
+- No new network calls, backend, analytics or fake popularity/deal claims are introduced.
+
+## 6. Implementation outline
+
+| Area | Change |
+|---|---|
+| `src/domain/productTokens.ts` | New shared title normalizer: filler/colour/gender/brand removal, product-type synonyms, unit folding, hard tokens, relevance keywords |
+| `src/domain/types.ts` | New `DiscoveryOffer`, `DiscoveryRelevance`, `DiscoveryProductGroup` types |
+| `src/domain/discoveryGroups.ts` | New conservative grouping, one-offer-per-retailer, comparable best offer, price spread, previous best, tracked-product match |
+| `src/domain/discoveryRanking.ts` | New watchlist taste profile, group scoring with reasons, diversity-aware ranking, taste summary |
+| `src/components/SearchProductRow.tsx` | New grouped row |
+| `src/components/SearchCompareSheet.tsx` | New cross-store comparison sheet |
+| `src/components/SearchFilterSheet.tsx` | New filter sheet |
+| `src/components/Discovery.tsx` | Keep only the shared filter chip/empty state used by the new screen; remove dead quiz/setup/grid code once tests move |
+| `App.tsx` (`OpportunityScreen`) | Blue banner, grouped feed, relevance sections, department rail, filter sheet, grouped search, compare sheet wiring, tracked annotation, remove rotation for personalized feeds, remove dead quiz imports |
+| Tests | Domain tests for tokens/grouping/ranking; component tests for row/sheets; updated `App.test.tsx` Search flows |
+| Docs | This review, `current-state.md`, `DESIGN.md` and `design-qa.md` updated with shipped behaviour and device evidence |
+
+## 7. Verification plan
+
+1. `npm run typecheck`, `npm run lint`, `npm test -- --runInBand` clean.
+2. Build the arm64 release and install on the connected Samsung SM-S928B; verify: banner and tab bar, newly installed feed with a real watchlist, relevance order and reasons, cross-store grouping on a real search query, best-source/saving claims, compare sheet, filters, empty/loading/failed states, dismiss, track-with-variant, clearing back to the feed, and tab/scroll persistence. Capture screenshots under `docs/assets/search-redesign-2026-11-14/`.
+3. Check compact width / 1.3 font scale for the new row and sheet; document remaining accessibility limits honestly.
+4. Keep existing parser, background and tracking behaviour unchanged; no regression in the full Jest suite.
+
+## 8. Risks and limits
+
+- Retailer titles are inconsistent; conservative grouping will miss some real duplicates (e.g. different model-year wording) and can still club different colourways. The compare sheet mitigates this by showing retailer titles. Grouping must not be described as a guaranteed identical-item match.
+- The feed only contains products from the source collections fetched for the selected scope; cross-store coverage in the default feed depends on which collections the 24-page batch includes. Search mode provides the broad comparison.
+- Freshness is per collection refresh (up to 24h) with best-effort background rotation; per-source observed times are shown instead of implying live prices.
+- Tracked-product matching is heuristic unless the exact URL is present; the annotation is a convenience, not a price guarantee.
+- Large catalogues (hundreds of listings) make grouping and ranking CPU work on device; the implementation should bucket candidates and stay deterministic.
