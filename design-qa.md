@@ -187,3 +187,19 @@ The `feat/search-tab-redesign` arm64 release was installed over the existing app
 - **Not verified in this pass.** Tracking from a grouped row (page verification + variant selection), TalkBack order/labels, landscape, larger font scales on the new rows/sheets, every retailer/query combination, and background freshness guarantees. Grouping remains a conservative local inference over retailer titles and can still miss or mis-club edge cases; the compare sheet shows each retailer’s own title precisely so the shopper can verify the offer. The device screenshots are evidence of these specific journeys only.
 
 final result: passed with limits
+## Explore experience iteration — device verification (14 November 2026)
+
+Final result: **passed for the implemented scope**, with the limits below.
+
+This follows the Search/Explore review feedback: first-search feedback, multi-source promotion, automatic continuation, watchlist duplicate suppression, price-sorted compare rows, faster department switching, and renaming the tab to Explore. The arm64 release was installed over the existing app on the Samsung SM-S928B and the journeys below were inspected.
+
+- **Explore feed.** The bottom tab and screen heading now read Explore. The feed shows watchlist-relevance reasons, and watchlist items only appear when another retailer is cheaper. [Explore feed](assets/search-redesign-2026-11-14/search-feed.png).
+- **First search feedback.** Submitting `kindle paperwhite` immediately showed a “Searching…” pill, an animated “Starting checks across 20 stores…” progress card, and “Checking 20 stores. Matches appear here as each store responds.” instead of zero results. [First-search progress](assets/search-redesign-2026-11-14/search-progress.png).
+- **Per-store progress.** While results streamed, the progress card showed an animated bar and per-store pills with checking/ready/empty states; cached matches stayed visible. [Grouped results while checking](assets/search-redesign-2026-11-14/search-grouped-results.png). A cached `airpods pro 2` search kept its grouped Noon + Carrefour row at the top with “Lowest at Noon · 2 stores · Save AED 150” while stores revalidated.
+- **Automatic continuation.** Scrolling to the bottom showed a compact “Checking more stores…” row and loaded further groups; the previous Show more and Load more buttons were absent.
+- **Compare sheet.** Store offers are listed lowest price first with a “Lowest price first” caption; the best comparable offer is highlighted. [Lowest-price-first compare](assets/search-redesign-2026-11-14/search-compare-sheet.png).
+- **Department switching.** Scope results are cached in memory for 24 hours. The integration test verifies that returning to a previously opened department does not call the catalog loader again; timed device verification of the cache was interrupted by a pull-to-refresh during the manual pass, so treat the device timing as unconfirmed.
+- **Automated gates.** `npm run typecheck` clean; ESLint 0 errors (one existing out-of-stock inline-style warning); Jest 61 suites / 570 passed / 1 skipped.
+- **Not verified in this pass.** Tracking from a grouped row, TalkBack order/labels and large text on the new progress card, landscape, slow-network infinite-scroll behaviour, and cross-device retailer/query coverage. The animated progress card is visual feedback only; it does not claim a store has no matches until that store has responded.
+
+final result: passed with limits
