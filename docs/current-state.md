@@ -114,14 +114,15 @@ WorkManager is best effort. Battery saver, device-vendor restrictions, connectiv
 
 ## Adding a Store
 
-1. Add the `SiteKey` in `src/domain/types.ts`.
-2. Add its `SupportedSite` registry entry in `src/domain/sites.ts`.
-3. Add a 32-64px PNG favicon in `assets/site-icons/` and register it with the site entry.
-4. Add a fallback colour in `src/components/SiteIcon.tsx`.
-5. Implement the parser in `src/domain/parser.ts` and add parser tests.
-6. Add OOS fixture coverage when practical, then run typecheck, lint, and Jest.
+Use the [source onboarding guide](adding-a-source.md) and the project-local `.zero/specialists/add-source.md` checklist; a source now touches tracking, discovery, search, UI, tests and docs. At minimum:
 
-`SiteIcon` automatically appears across existing UI surfaces; a new store does not need separate UI wiring.
+1. Add the `SiteKey` in `src/domain/types.ts`.
+2. Add its `SupportedSite` registry entry in `src/domain/sites.ts`, including hostnames, support status, icon and any interval/discovery flags.
+3. Add a 32-64px PNG favicon in `assets/site-icons/`, register it with the site entry, and add the fallback colour in `src/components/SiteIcon.tsx`.
+4. Implement the product parser and URL handling in `src/domain/parser.ts` / `sites.ts`; cover blocked pages, OOS, variants, price basis and ranges.
+5. Add or explicitly exclude discovery/search mappings (`src/domain/discoverySources/`, `src/domain/discoverySearch.ts`, `src/components/DiscoverySearch.tsx`).
+6. Add parser, discovery, search, variant and App tests as applicable, then run typecheck, lint and Jest.
+7. Update `README.md`, `docs/current-state.md`, `docs/site-icons.md` and the relevant discovery/search docs before release.
 
 ## Important Files
 
@@ -138,6 +139,7 @@ WorkManager is best effort. Battery saver, device-vendor restrictions, connectiv
 - `src/domain/discoveryFeed.ts` - hide watchlist copies from Explore unless another retailer is cheaper.
 - `src/theme/layout.ts` - compact layout helper.
 - `android/app/src/main/java/com/qeemat/` - Android WorkManager, notifications, and WebView modules.
+- `docs/adding-a-source.md` - end-to-end source onboarding checklist and file map.
 - `docs/bfl-integration.md` - BFL's current rendered parser and historical fetch limitations.
 
 ## Development and Validation

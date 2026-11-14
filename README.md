@@ -65,6 +65,7 @@ Current behavior and limits:
 - [Explore review and behaviour](docs/search-tab-review.md)
 - [Accessibility audit](docs/accessibility-audit.md)
 - [Product metadata audit](docs/product-metadata-audit.md)
+- [Adding a new source](docs/adding-a-source.md) and [source onboarding template](docs/source-onboarding-template.md)
 
 Discovery and tracking references:
 
