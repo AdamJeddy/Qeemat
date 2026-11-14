@@ -11,6 +11,7 @@ import {
   Modal,
   NativeEventEmitter,
   NativeModules,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -30,10 +31,12 @@ import {
   Bookmark,
   Check,
   ChevronDown,
+  ChevronRight,
   ChevronUp,
   CircleAlert,
   Clock,
   Copy,
+  Download,
   FolderInput,
   ImageOff,
   Link2,
@@ -67,6 +70,9 @@ import { StatusPill } from './src/components/StatusPill';
 import { VariantSelector } from './src/components/VariantSelector';
 import { UpdateNotice } from './src/components/UpdateNotice';
 import { clearUpdateNotificationHistory } from './src/domain/updateBackground';
+import { AvailableUpdate } from './src/domain/updates';
+import { checkForUpdateForDevice } from './src/domain/appUpdate';
+import { clearDismissedUpdateVersion, dismissUpdateVersion, getDismissedUpdateVersion, shouldBadgeUpdate } from './src/domain/updatePrompt';
 import {
   DiscoveryFilterChip,
   DiscoveryProductGrid,
@@ -180,6 +186,9 @@ export default function App() {
   const [ready, setReady] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const shareEventId = useRef(0);
+  const [availableUpdate, setAvailableUpdate] = useState<AvailableUpdate>();
+  const [dismissedUpdateVersion, setDismissedUpdateVersion] = useState<string>();
+  const [updatePopupVisible, setUpdatePopupVisible] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -215,6 +224,38 @@ export default function App() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    const installedVersion = Platform.OS === 'android' ? NativeModules.QeematBackgroundCheck?.getConstants?.()?.appVersion : undefined;
+    (async () => {
+      const [dismissedVersion, update] = await Promise.all([
+        getDismissedUpdateVersion(),
+        typeof installedVersion === 'string' ? checkForUpdateForDevice(installedVersion) : Promise.resolve(undefined)
+      ]);
+      if (!active) {
+        return;
+      }
+      setDismissedUpdateVersion(dismissedVersion);
+      if (update) {
+        setAvailableUpdate(update);
+        setUpdatePopupVisible(dismissedVersion !== update.version);
+      }
+    })().catch(() => undefined);
+    return () => { active = false; };
+  }, []);
+
+  const dismissUpdate = useCallback((version: string) => {
+    setUpdatePopupVisible(false);
+    setDismissedUpdateVersion(version);
+    dismissUpdateVersion(version).catch(() => undefined);
+  }, []);
+
+  const openUpdatePopup = useCallback(() => {
+    if (availableUpdate) {
+      setUpdatePopupVisible(true);
+    }
+  }, [availableUpdate]);
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -284,9 +325,17 @@ export default function App() {
       <StatusBar barStyle={blueStatusBar ? 'light-content' : 'dark-content'} backgroundColor={blueStatusBar ? colors.primary : colors.background} />
       <SafeAreaView edges={['top']} style={[styles.app, blueStatusBar && styles.watchlistSystemBar]}>
       <SafeAreaView edges={['bottom', 'left', 'right']} style={styles.app}>
-        <UpdateNotice visible={route.name === 'tabs' && route.tab !== 'activity'} />
+        <UpdateNotice update={availableUpdate} visible={updatePopupVisible && !showOnboarding} onDismiss={dismissUpdate} />
         <View style={route.name === 'tabs' ? styles.flex : styles.hiddenTab}>
-          <TabsScreen tab={activeTab} navigate={setRoute} discoveryOffset={discoveryOffset} refreshKey={tabsRefreshKey} />
+          <TabsScreen
+            tab={activeTab}
+            navigate={setRoute}
+            discoveryOffset={discoveryOffset}
+            refreshKey={tabsRefreshKey}
+            availableUpdate={availableUpdate}
+            showUpdateDot={shouldBadgeUpdate(availableUpdate, dismissedUpdateVersion)}
+            onOpenUpdate={openUpdatePopup}
+          />
         </View>
         {route.name === 'add' ? <AddScreen initialUrl={route.initialUrl} shareEventId={route.shareEventId} returnTab={route.returnTab} navigate={setRoute} /> : null}
         {route.name === 'detail' ? <DetailScreen productId={route.id} navigate={setRoute} /> : null}
@@ -395,33 +444,52 @@ function getBackRoute(route: Route): Route | undefined {
   return undefined;
 }
 
-export function TabsScreen({ tab, navigate, discoveryOffset, refreshKey = 0 }: { tab: TabKey; navigate: (route: Route) => void; discoveryOffset?: number; refreshKey?: number }) {
+export function TabsScreen({
+  tab,
+  navigate,
+  discoveryOffset,
+  refreshKey = 0,
+  availableUpdate,
+  showUpdateDot = false,
+  onOpenUpdate
+}: {
+  tab: TabKey;
+  navigate: (route: Route) => void;
+  discoveryOffset?: number;
+  refreshKey?: number;
+  availableUpdate?: AvailableUpdate;
+  showUpdateDot?: boolean;
+  onOpenUpdate?: () => void;
+}) {
   const [searchOpened, setSearchOpened] = useState(tab === 'opportunities');
   useEffect(() => { if (tab === 'opportunities') { setSearchOpened(true); } }, [tab]);
   return (
     <View style={styles.app}>
-      {tab === 'watchlist' ? <WatchlistScreen navigate={navigate} refreshKey={refreshKey} /> : null}
+      {tab === 'watchlist' ? <WatchlistScreen navigate={navigate} refreshKey={refreshKey} showUpdateDot={showUpdateDot} /> : null}
       {searchOpened || tab === 'opportunities' ? <View style={tab === 'opportunities' ? styles.flex : styles.hiddenTab}><OpportunityScreen navigate={navigate} active={tab === 'opportunities'} sessionOffset={discoveryOffset} /></View> : null}
-      {tab === 'activity' ? <ActivityScreen navigate={navigate} refreshKey={refreshKey} /> : null}
+      {tab === 'activity' ? <ActivityScreen navigate={navigate} refreshKey={refreshKey} availableUpdate={availableUpdate} onOpenUpdate={onOpenUpdate} /> : null}
       {tab === 'settings' ? <SettingsScreen refreshKey={refreshKey} /> : null}
       <View style={styles.tabBar}>
         <TabButton active={tab === 'watchlist'} label="Watchlist" icon={<Bookmark fill={tab === 'watchlist' ? colors.primary : 'none'} />} onPress={() => navigate({ name: 'tabs', tab: 'watchlist' })} />
         <TabButton active={tab === 'opportunities'} label="Search" icon={<Search />} onPress={() => navigate({ name: 'tabs', tab: 'opportunities' })} />
-        <TabButton active={tab === 'activity'} label="Activity" icon={<Clock />} onPress={() => navigate({ name: 'tabs', tab: 'activity' })} />
+        <TabButton active={tab === 'activity'} label="Activity" icon={<Clock />} onPress={() => navigate({ name: 'tabs', tab: 'activity' })} showDot={showUpdateDot} />
         <TabButton active={tab === 'settings'} label="Settings" icon={<SettingsIcon />} onPress={() => navigate({ name: 'tabs', tab: 'settings' })} />
       </View>
     </View>
   );
 }
 
-function TabButton({ active, label, icon, onPress }: { active: boolean; label: string; icon: React.ReactElement; onPress: () => void }) {
+function TabButton({ active, label, icon, onPress, showDot = false }: { active: boolean; label: string; icon: React.ReactElement; onPress: () => void; showDot?: boolean }) {
   return (
     <Pressable accessibilityRole="tab" accessibilityLabel={label} accessibilityState={{ selected: active }} style={styles.tabButton} onPress={onPress}>
       <View style={[styles.tabButtonContent, active && styles.tabButtonActive]}>
-      {React.cloneElement(icon as React.ReactElement<{ size: number; color: string }>, {
-        size: 22,
-        color: active ? colors.primary : colors.textMuted
-      })}
+      <View style={styles.tabIconWrap}>
+        {React.cloneElement(icon as React.ReactElement<{ size: number; color: string }>, {
+          size: 22,
+          color: active ? colors.primary : colors.textMuted
+        })}
+        {showDot ? <View style={styles.tabUpdateDot} /> : null}
+      </View>
       <AppText weight="semibold" style={[styles.tabLabel, active && styles.tabLabelActive]}>
         {label}
       </AppText>
@@ -646,7 +714,7 @@ function BulkEditSheet({ visible, folders, selectedCount, onClose, onApply }: {
   );
 }
 
-function WatchlistScreen({ navigate, refreshKey = 0 }: { navigate: (route: Route) => void; refreshKey?: number }) {
+function WatchlistScreen({ navigate, refreshKey = 0, showUpdateDot = false }: { navigate: (route: Route) => void; refreshKey?: number; showUpdateDot?: boolean }) {
   const [products, setProducts] = useState<TrackedProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -814,7 +882,10 @@ function WatchlistScreen({ navigate, refreshKey = 0 }: { navigate: (route: Route
               >
                 <Search size={23} color={colors.surface} />
               </Pressable>
-              <Pressable accessibilityRole="button" accessibilityLabel="Open recent activity" onPress={() => navigate({ name: 'tabs', tab: 'activity' })} style={styles.watchlistSearchButton}><Bell size={22} color={colors.surface} /></Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel={showUpdateDot ? 'Open recent activity, update available' : 'Open recent activity'} onPress={() => navigate({ name: 'tabs', tab: 'activity' })} style={styles.watchlistSearchButton}>
+                <Bell size={22} color={colors.surface} />
+                {showUpdateDot ? <View style={styles.watchlistUpdateDot} /> : null}
+              </Pressable>
             </View>
           </View>
         <View style={styles.titleRow}>
@@ -1938,7 +2009,17 @@ function TrackingSettingsScreen({ productId, navigate }: { productId: number; na
   );
 }
 
-function ActivityScreen({ navigate, refreshKey = 0 }: { navigate: (route: Route) => void; refreshKey?: number }) {
+function ActivityScreen({
+  navigate,
+  refreshKey = 0,
+  availableUpdate,
+  onOpenUpdate
+}: {
+  navigate: (route: Route) => void;
+  refreshKey?: number;
+  availableUpdate?: AvailableUpdate;
+  onOpenUpdate?: () => void;
+}) {
   const [events, setEvents] = useState<ActivityEvent[]>([]);
   const [products, setProducts] = useState<TrackedProduct[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1990,6 +2071,23 @@ function ActivityScreen({ navigate, refreshKey = 0 }: { navigate: (route: Route)
         Activity
       </AppText>
       <AppText muted>Recent price changes across all tracked products.</AppText>
+      {availableUpdate && onOpenUpdate ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Update available: Qeemat ${availableUpdate.version}. Open update dialog.`}
+          onPress={onOpenUpdate}
+          style={({ pressed }) => [styles.updatePinCard, pressed && styles.storeFilterButtonPressed]}
+        >
+          <View style={styles.updatePinBadge}>
+            <Download size={20} color={colors.primary} />
+          </View>
+          <View style={styles.flex}>
+            <AppText weight="semibold" style={styles.updatePinTitle}>Qeemat update available</AppText>
+            <AppText muted style={styles.updatePinBody}>Version {availableUpdate.version} is ready to download and install.</AppText>
+          </View>
+          <ChevronRight size={18} color={colors.textSoft} />
+        </Pressable>
+      ) : null}
       {events.length === 0 ? <EmptyActivity /> : null}
       {groupedEvents.map((group) => (
         <View key={group.label}>
@@ -2761,7 +2859,7 @@ function SettingsScreen({ refreshKey = 0 }: { refreshKey?: number }) {
         onPress={() =>
           Alert.alert('Delete local data?', 'This removes all tracked products and price history from this device.', [
             { text: 'Cancel', style: 'cancel' },
-            { text: 'Delete', style: 'destructive', onPress: () => Promise.all([deleteAllLocalData(), clearDiscoveryData(), clearUpdateNotificationHistory()]) }
+            { text: 'Delete', style: 'destructive', onPress: () => Promise.all([deleteAllLocalData(), clearDiscoveryData(), clearUpdateNotificationHistory(), clearDismissedUpdateVersion()]) }
           ])
         }
       />
@@ -2895,6 +2993,7 @@ const styles = StyleSheet.create({
   watchlistHeaderActions: { flexDirection: 'row', alignItems: 'center' },
   watchlistBrand: { color: colors.surface, fontSize: 20, lineHeight: 26 },
   watchlistSearchButton: { width: layoutMetrics.touchTarget, height: layoutMetrics.touchTarget, alignItems: 'center', justifyContent: 'center' },
+  watchlistUpdateDot: { position: 'absolute', top: 4, right: 6, width: 13, height: 13, borderRadius: 7, backgroundColor: colors.red, borderWidth: 2, borderColor: colors.primary },
   watchlistBannerTitle: { color: colors.surface, ...typography.screenTitle },
   watchlistBannerCount: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.primaryDark, borderRadius: radius.lg, paddingHorizontal: 12, paddingVertical: 7 },
   watchlistBannerCountText: { color: colors.surface, fontSize: 12 },
@@ -3240,6 +3339,8 @@ const styles = StyleSheet.create({
   },
   tabButtonContent: { alignItems: 'center', justifyContent: 'center', gap: 2, paddingHorizontal: 10, paddingVertical: 5 },
   tabButtonActive: { backgroundColor: colors.blueSoft, borderRadius: radius.lg },
+  tabIconWrap: { position: 'relative' },
+  tabUpdateDot: { position: 'absolute', top: -4, right: -9, width: 12, height: 12, borderRadius: 6, backgroundColor: colors.red, borderWidth: 2, borderColor: colors.background },
   tabLabel: {
     color: colors.textMuted,
     fontSize: 12
@@ -3775,6 +3876,33 @@ const styles = StyleSheet.create({
   listingCount: {
     fontSize: 13,
     marginTop: -2
+  },
+  updatePinCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 14,
+    marginBottom: 4,
+    padding: 14,
+    borderRadius: radius.md,
+    backgroundColor: colors.blueSoft
+  },
+  updatePinBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface
+  },
+  updatePinTitle: {
+    fontSize: 15,
+    lineHeight: 20
+  },
+  updatePinBody: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 2
   },
   activityCard: {
     flexDirection: 'row',
