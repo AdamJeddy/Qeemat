@@ -70,13 +70,19 @@ export function matchesProductSearch(product: DiscoveryProduct, query: string): 
 
 export function rankSearchMatches(products: DiscoveryProduct[], query: string): DiscoveryProduct[] {
   const phrase = searchTokens(query).join(' ');
-  const accessory = /\b(?:case|cover|protector|charger|cable|strap)\b/i;
+  const accessory = /\b(?:cases?|covers?|protectors?|chargers?|cables?|straps?|bands?|lenses?|lens caps?|sleeves?|skins?|ear\s*tips?|tips?|replacement|insoles?|soles?|laces?|charms?|cleaners?|care kits?|adapters?|stands?|holders?|mounts?|clips?|screen protectors?|films?|spare parts?|accessor(?:y|ies)|compatible)\b/i;
+  const mentionsAccessory = accessory.test(query);
   const score = (product: DiscoveryProduct) => {
     const title = searchTokens(product.title).join(' ');
     const phraseScore = title === phrase ? 300 : title.startsWith(`${phrase} `) ? 200 : title.includes(phrase) ? 100 : 0;
     // A case *with* magnets is still an accessory. A phone *with* a case is a bundle.
-    const primaryName = product.title.split(/\bwith\b/i)[0];
-    const accessoryPenalty = !accessory.test(query) && accessory.test(primaryName) ? 500 : 0;
+    // "X for <product>" is the common accessory pattern ("Ear Tips for AirPods"),
+    // while "with" describes what the main product includes.
+    const primaryName = product.title.split(/\b(?:with|for)\b/i)[0];
+    const isAccessory = accessory.test(primaryName) ||
+      (/\bfor\b/i.test(product.title) && accessory.test(product.title)) ||
+      /^(?:replacement|compatible)\b/i.test(product.title);
+    const accessoryPenalty = !mentionsAccessory && isAccessory ? 500 : 0;
     return phraseScore - accessoryPenalty - searchTokens(product.title).length;
   };
   return products.filter((product) => matchesProductSearch(product, query)).map((product, index) => ({ product, index, score: score(product) }))

@@ -58,6 +58,64 @@ export type DiscoveryPreferences = {
   seenProductIds: string[];
 };
 
+/** One retailer's offer inside a cross-retailer product group. */
+export type DiscoveryOffer = {
+  product: DiscoveryProduct;
+  /** Original position in the source list, used for stable tie-breaks. */
+  order: number;
+  /**
+   * True when this offer can be compared on price: it has a single AED price
+   * on the same pack/weight basis as the other comparable offers in its group.
+   */
+  comparable: boolean;
+  /** Difference from the group's lowest comparable price, in minor units. */
+  priceDeltaMinor?: number;
+};
+
+/** How strongly a grouped product relates to the shopper's watchlist. */
+export type DiscoveryRelevance = {
+  score: number;
+  /** 2 = brand, keyword or tracked-product match; 1 = category; 0 = no watchlist signal. */
+  tier: 0 | 1 | 2;
+  /** Short, honest explanation such as `Because you track running shoes`. */
+  reason?: string;
+};
+
+/**
+ * The same product observed at one or more retailers. Created locally from
+ * retailer listings; there is no cross-retailer product identifier, so grouping
+ * stays conservative (brand plus a matching product signature).
+ */
+export type DiscoveryProductGroup = {
+  /** Stable local key derived from brand and product signature. */
+  id: string;
+  title: string;
+  brand: string;
+  category: DiscoveryCategory;
+  categories: DiscoveryCategory[];
+  imageUrl?: string;
+  currency: string;
+  /** One offer per retailer, lowest comparable price first. */
+  offers: DiscoveryOffer[];
+  /**
+   * Lowest usable offer. Only set when at least two offers are comparable, so
+   * the UI never claims a "best source" from unrelated prices.
+   */
+  bestOffer?: DiscoveryOffer;
+  comparableOfferCount: number;
+  /** Saving between the lowest and highest comparable offer, in minor units. */
+  priceSpreadMinor?: number;
+  /**
+   * Lowest comparable price from the previous observation set, only when every
+   * compared offer had a previous observation (so the comparison is fair).
+   */
+  previousBestPriceMinor?: number;
+  observedAt: string;
+  /** Matched active watchlist product, when matched conservatively. */
+  trackedProduct?: TrackedProduct;
+  relevance?: DiscoveryRelevance;
+};
+
 export type DiscoveryFilter = {
   collectionId?: string;
   category?: DiscoveryCategory;

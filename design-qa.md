@@ -172,3 +172,34 @@ The initial device capture showed too much vertical space before products. The f
 The device check covered selecting Footwear, opening the full department browser, searching, clearing search back to the selected category, scrolling to Track price, and seeing 24 existing tracked items. No product was added or removed. No AndroidRuntime or ReactNativeJS errors appeared in sampled logs. These checks do not establish full accessibility or coverage across devices and retailers.
 
 final result: blocked
+
+## Search comparison redesign — device verification (14 November 2026)
+
+Final result: **passed for the implemented scope**, with the limits below.
+
+The `feat/search-tab-redesign` arm64 release was installed over the existing app on the Samsung SM-S928B (1440 × 3120). The existing 28-item watchlist, discovery cache and preferences remained; no tracker was added, edited or deleted during this pass.
+
+- **Feed.** The Search tab opens with the Watchlist-style blue banner (Qeemat lockup, product-count pill, permanent cross-store search field, coverage and refresh actions), a compact department rail and the relevance line “Based on your watchlist · Footwear, Clothing”. After the first visual review, the Search ScrollView was given the same base 20dp gutter as Watchlist so the full-bleed banner's content lines up on the normal content line instead of touching the screen edges; the body no longer double-pads. Grouped rows show the lowest comparable price, store icons, the best store and the saving, an honest reason or “On your watchlist” annotation, and compact Compare/Open or Compare/Track actions. Screenshot: [Search feed](assets/search-redesign-2026-11-14/search-feed.png).
+- **Cross-store search.** Searching `airpods pro 2` checked all 20 storefronts and reported 48 grouped products across 5 stores. The first item clubed Noon and Carrefour into one row at AED 699 with “Lowest at Noon · 2 stores” and “Save AED 150”. The retailer’s own title and availability remain visible in the compare sheet. Screenshot: [Grouped search results](assets/search-redesign-2026-11-14/search-grouped-results.png).
+- **Compare sheet.** The sheet showed the lowest offer and source, `Save AED 150 across 2 stores`, the previous cross-store best (“Lowest unchanged since the last check (AED 699)”), the observed time, and per-store rows with the retailer’s own title, price, availability, previous price and check age. Screenshot: [Compare prices](assets/search-redesign-2026-11-14/search-compare-sheet.png).
+- **Filters.** The bottom filter sheet exposed departments, stores with grouped counts, brands, maximum price, Clear filters and Show results, matching the Watchlist filter interaction. Screenshot: [Search filters](assets/search-redesign-2026-11-14/search-filters.png).
+- **Automated checks.** `npm run typecheck` clean; ESLint 0 errors (the one existing out-of-stock thumbnail inline-style warning remains); Jest 58 suites, 541 passed, 1 skipped. All new tokenizer, grouping, ranking, row, compare-sheet, filter-sheet and Search integration tests pass.
+- **Not verified in this pass.** Tracking from a grouped row (page verification + variant selection), TalkBack order/labels, landscape, larger font scales on the new rows/sheets, every retailer/query combination, and background freshness guarantees. Grouping remains a conservative local inference over retailer titles and can still miss or mis-club edge cases; the compare sheet shows each retailer’s own title precisely so the shopper can verify the offer. The device screenshots are evidence of these specific journeys only.
+
+final result: passed with limits
+## Explore experience iteration — device verification (14 November 2026)
+
+Final result: **passed for the implemented scope**, with the limits below.
+
+This follows the Search/Explore review feedback: first-search feedback, multi-source promotion, automatic continuation, watchlist duplicate suppression, price-sorted compare rows, faster department switching, and renaming the tab to Explore. The arm64 release was installed over the existing app on the Samsung SM-S928B and the journeys below were inspected. The complete screenshot set with captions is in [the Explore iteration gallery](assets/explore-iteration-2026-11-14/README.md).
+
+- **Explore feed.** The bottom tab and screen heading now read Explore. The feed shows watchlist-relevance reasons, and watchlist items only appear when another retailer is cheaper. [Explore feed](assets/search-redesign-2026-11-14/search-feed.png).
+- **First search feedback.** Submitting `kindle paperwhite` immediately showed a “Searching…” pill, an animated “Starting checks across 20 stores…” progress card, and “Checking 20 stores. Matches appear here as each store responds.” instead of zero results. [First-search progress](assets/search-redesign-2026-11-14/search-progress.png).
+- **Per-store progress.** While results streamed, the progress card showed an animated bar and per-store pills with checking/ready/empty states; cached matches stayed visible. [Grouped results while checking](assets/search-redesign-2026-11-14/search-grouped-results.png). A cached `airpods pro 2` search kept its grouped Noon + Carrefour row at the top with “Lowest at Noon · 2 stores · Save AED 150” while stores revalidated.
+- **Automatic continuation.** Scrolling to the bottom showed a compact “Checking more stores…” row and loaded further groups; the previous Show more and Load more buttons were absent.
+- **Compare sheet.** Store offers are listed lowest price first with a “Lowest price first” caption; the best comparable offer is highlighted. [Lowest-price-first compare](assets/search-redesign-2026-11-14/search-compare-sheet.png).
+- **Department switching.** Scope results are cached in memory for 24 hours. The integration test verifies that returning to a previously opened department does not call the catalog loader again; timed device verification of the cache was interrupted by a pull-to-refresh during the manual pass, so treat the device timing as unconfirmed.
+- **Automated gates.** `npm run typecheck` clean; ESLint 0 errors (one existing out-of-stock inline-style warning); Jest 61 suites / 570 passed / 1 skipped.
+- **Not verified in this pass.** Tracking from a grouped row, TalkBack order/labels and large text on the new progress card, landscape, slow-network infinite-scroll behaviour, and cross-device retailer/query coverage. The animated progress card is visual feedback only; it does not claim a store has no matches until that store has responded.
+
+final result: passed with limits
