@@ -61,6 +61,22 @@ describe('AppTextInput', () => {
     expect(tree.root.findAllByType(AppText).some((item) => item.props.accessibilityLiveRegion === 'polite')).toBe(true);
   });
 
+  it('fills the whole field so the visible control is the touch target', () => {
+    const tree = render(<AppTextInput value="" onChangeText={jest.fn()} />);
+    const field = tree.root.findAllByType(View).find((node) => {
+      const style = StyleSheet.flatten(node.props.style) as { minHeight?: number } | undefined;
+      return style?.minHeight === 52;
+    });
+    const fieldStyle = StyleSheet.flatten(field!.props.style) as { alignItems?: string };
+    const inputStyle = StyleSheet.flatten(tree.root.findByType(TextInput).props.style) as {
+      flex?: number;
+      textAlignVertical?: string;
+    };
+    expect(fieldStyle.alignItems).toBe('stretch');
+    expect(inputStyle.flex).toBe(1);
+    expect(inputStyle.textAlignVertical).toBe('center');
+  });
+
   it('renders leading and trailing accessories around the input', () => {
     const tree = render(
       <AppTextInput leading={<AppText>AED</AppText>} trailing={<AppText>Clear</AppText>} value="" onChangeText={jest.fn()} />

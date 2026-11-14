@@ -88,7 +88,7 @@ const styles = StyleSheet.create({
   field: {
     minHeight: 52,
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'stretch',
     gap: spacing.sm,
     paddingHorizontal: spacing.lg,
     borderWidth: 1,
@@ -98,7 +98,7 @@ const styles = StyleSheet.create({
   },
   fieldFocused: { borderColor: colors.primary },
   fieldError: { borderColor: colors.red },
-  input: { flex: 1, minWidth: 0, paddingVertical: 0, color: colors.text },
+  input: { flex: 1, minWidth: 0, paddingVertical: 0, color: colors.text, textAlignVertical: 'center' },
   accessory: { alignItems: 'center', justifyContent: 'center' },
   label: { fontSize: 15, lineHeight: 21, color: colors.text },
   hint: { fontSize: 13, lineHeight: 18 },
