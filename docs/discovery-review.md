@@ -1,5 +1,7 @@
 # For You UX and product review
 
+**Status: historical (25 October 2026).** This audit predates the Explore redesign. The personalization quiz, interests, category budgets and separate listing route described here have since been removed or superseded; search/grouped comparison and the current Explore behavior are documented in [current-state.md](current-state.md) and [search-tab-review.md](search-tab-review.md). The findings are retained as a record of the earlier discovery pass.
+
 Audit and implementation check: 25 October 2026, connected Galaxy S24 Ultra. The scope is discovery entry, personalization, filtering, source transparency, and adding a tracker. Screenshots below were captured during this audit; the initial screen was not inferred from source code alone.
 
 ## What was incomplete

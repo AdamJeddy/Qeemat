@@ -1,6 +1,8 @@
 # Product-name search across retailers
 
-Updated: 28 October 2026. Scope: the 19 UAE/GCC retailers in Qeemat's discovery registry. Search is implemented for 18 sources on `codex/search-across-retailers`; Sharaf DG is excluded. A physical-device search smoke test passed on Samsung SM-S928B; the full per-source/query matrix remains incomplete.
+**Status: historical feasibility and implementation evidence (28 October 2026).** Search is now shipped as part of the Explore tab: 20 storefronts, 27 weighted source requests, Sharaf DG excluded. The current behavior, grouping and limits are in [current-state.md](current-state.md#user-facing-behavior); this document preserves the source-by-source research and early smoke test.
+
+Updated: 28 October 2026. Scope: the 19 UAE/GCC retailers in Qeemat's discovery registry at that time. Search was implemented for 18 sources on `codex/search-across-retailers`; Sharaf DG was excluded. A physical-device search smoke test passed on Samsung SM-S928B; the full per-source/query matrix remains incomplete.
 
 ## Finding
 
