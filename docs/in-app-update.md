@@ -6,7 +6,7 @@ Qeemat can download and install a newer GitHub release without leaving the app. 
 
 1. On launch Qeemat asks the GitHub releases API for a newer version. For the chosen release it selects an APK asset, preferring `arm64-v8a`, then a universal build, then any APK.
 2. If a newer version exists, an **update popup** opens over the app: the version, **Download and install**, **Release notes** and a close button. It opens once per release; closing it remembers that version.
-3. Closing the popup adds a red badge to the Watchlist bell. Opening Activity clears the badge, and Activity keeps a pinned **Qeemat update available** item that opens the popup again. Both the popup and the pinned item disappear once a newer version is no longer offered (for example after installing the update).
+3. Closing the popup adds red badges to the Watchlist bell and the Activity tab. Activity also keeps a pinned **Qeemat update available** item that opens the popup again. The badges stay until the installed version is the latest, when the popup, badges and pinned item all disappear.
 4. Pressing **Download and install** downloads the APK inside the app to the app cache, over HTTPS only. GitHub hosts are allowlisted (`github.com` and `*.githubusercontent.com`); redirects are followed manually and each hop is re-checked.
 5. After the download, Qeemat verifies the byte count against GitHub's asset size and, when the API publishes a digest, the SHA-256 against the downloaded bytes. A mismatch deletes the file and reports an error instead of opening the installer.
 6. If Android has not been allowed to install apps from Qeemat, the popup explains this and opens **Settings → Install unknown apps → Qeemat**; the downloaded file is retained so **Install update** continues without downloading again.
@@ -32,12 +32,12 @@ Both the background update notification and the in-app popup refer to the same i
 Samsung SM-S928B, Android 17 / API 37, 1440 × 3120, connected via wireless debugging. Verification builds use `versionName` `0.5.5-alpha` and `versionCode` 4 so a real `0.6.0-alpha` release is offered while the signing key and version code stay compatible:
 
 - The update popup appeared over the Watchlist for `0.6.0-alpha` with **Download and install** and **Release notes**. [screenshot](assets/app-update-2026-11-14/update-available.png)
-- Closing the popup added a red badge to the bell. [Watchlist](assets/app-update-2026-11-14/update-bell-badge.png)
-- Opening Activity showed the pinned update item; opening Activity also cleared the bell badge on the return to Watchlist. [pinned item](assets/app-update-2026-11-14/activity-pinned-update.png), [badge cleared](assets/app-update-2026-11-14/bell-badge-cleared.png)
+- Closing the popup added red badges to the bell and the Activity tab. [Watchlist](assets/app-update-2026-11-14/update-bell-badge.png)
+- Activity showed the pinned update item; the Activity badge stayed visible while the update was pending. [pinned item](assets/app-update-2026-11-14/activity-pinned-update.png)
 - The pinned item reopened the popup. Downloading from it streamed the 25,621,040-byte release APK with live progress, size and percentage. [screenshot](assets/app-update-2026-11-14/download-progress.png)
 - Windows Android settings: **Install unknown apps → Qeemat → Allow permission** was reached from the popup's permission hand-off. [screenshot](assets/app-update-2026-11-14/install-permission.png)
 - The standard Android install prompt opened; Google Play Protect offered its usual pre-install scan for a sideloaded APK. [screenshot](assets/app-update-2026-11-14/install-prompt.png)
-- After the install, `dumpsys package com.qeemat` reported `versionName=0.6.0-alpha` and a fresh `lastUpdateTime`; Qeemat relaunched on the new version with no popup, no bell badge and no pinned Activity item.
+- After the install, `dumpsys package com.qeemat` reported `versionName=0.6.0-alpha` and a fresh `lastUpdateTime`; Qeemat relaunched on the new version with no popup, no bell or Activity badges and no pinned Activity item. [screenshot](assets/app-update-2026-11-14/badges-after-update.png)
 
 The download's SHA-256 digest matched GitHub's published `sha256:ff8f90db…`, and the same debug signing certificate as the installed build let Android apply the update. Automated coverage: `src/domain/__tests__/updates.test.ts`, `src/domain/__tests__/appUpdate.test.ts`, `src/domain/__tests__/updatePrompt.test.ts`, `src/components/UpdateNotice.test.tsx`.
 
@@ -45,6 +45,6 @@ The download's SHA-256 digest matched GitHub's published `sha256:ff8f90db…`, a
 
 - The download runs while Qeemat's process is alive; there is no foreground service and no resume after the process dies. If the app is killed, pressing the action again downloads the APK again.
 - Closing the popup during a download cancels it; completed downloads are not persisted across app restarts.
-- A dismissed release stays dismissed until the next newer release; the bell badge and pinned item keep the update reachable in the meantime.
+- A dismissed release stays dismissed until the update is installed; the bell and Activity badges and the pinned item keep the update reachable in the meantime.
 - Play Protect or device-vendor install screens may add their own prompts for sideloaded APKs; Qeemat cannot bypass them and should not try to.
 - The GitHub release must include an APK asset; releases without one are ignored by the update check, as before.
