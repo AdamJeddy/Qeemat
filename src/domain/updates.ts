@@ -2,7 +2,31 @@ const RELEASES_URL = 'https://api.github.com/repos/AdamJeddy/Qeemat/releases?per
 const RELEASE_PAGE = 'https://github.com/AdamJeddy/Qeemat/releases/tag/';
 
 type Version = { numbers: number[]; prerelease: string[] };
-export type AvailableUpdate = { version: string; url: string };
+export type UpdateApk = { url: string; name: string; size: number; sha256?: string };
+export type AvailableUpdate = { version: string; url: string; apk?: UpdateApk };
+
+type RawAsset = { name?: unknown; browser_download_url?: unknown; size?: unknown; digest?: unknown };
+
+function apkRank(name: string): number {
+  if (/arm64-v8a/i.test(name)) { return 0; }
+  if (/universal/i.test(name)) { return 1; }
+  if (/armeabi|x86/i.test(name)) { return 3; }
+  return 2;
+}
+
+export function selectUpdateApk(assets: unknown): UpdateApk | undefined {
+  if (!Array.isArray(assets)) { return undefined; }
+  const candidates: UpdateApk[] = [];
+  for (const asset of assets as RawAsset[]) {
+    if (!asset || typeof asset !== 'object' || typeof asset.name !== 'string' || !/\.apk$/i.test(asset.name) ||
+      typeof asset.browser_download_url !== 'string' || typeof asset.size !== 'number' ||
+      !Number.isFinite(asset.size) || asset.size <= 0) { continue; }
+    const digest = typeof asset.digest === 'string' ? /^sha256:([0-9a-f]{64})$/i.exec(asset.digest)?.[1] : undefined;
+    candidates.push({ url: asset.browser_download_url, name: asset.name, size: asset.size, sha256: digest?.toLowerCase() });
+  }
+  candidates.sort((a, b) => apkRank(a.name) - apkRank(b.name));
+  return candidates[0];
+}
 
 function parseVersion(value: string): Version | undefined {
   const match = /^v?(\d+)\.(\d+)(?:\.(\d+))?(?:-([0-9A-Za-z.-]+))?$/.exec(value);
@@ -43,7 +67,11 @@ export function findNewerRelease(installedVersion: string, releases: unknown): A
     const version = parseVersion(item.tag_name);
     if (!version || compareVersions(version, newest) <= 0) { continue; }
     newest = version;
-    result = { version: item.tag_name.replace(/^v/, ''), url: RELEASE_PAGE + encodeURIComponent(item.tag_name) };
+    result = {
+      version: item.tag_name.replace(/^v/, ''),
+      url: RELEASE_PAGE + encodeURIComponent(item.tag_name),
+      apk: selectUpdateApk(item.assets)
+    };
   }
   return result;
 }
