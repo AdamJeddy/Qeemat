@@ -125,15 +125,22 @@ describe('PriceChart', () => {
     // Three price levels (10,000 -> 9,000 -> 10,500), not six checks.
     expect(tree!.root.findAllByType(Circle)).toHaveLength(3);
   });
-  it('marks the high and low with dashed guide lines and a range readout', () => {
+  it('marks the high and low with dashed guide lines and on-chart price labels', () => {
     let tree: renderer.ReactTestRenderer;
     act(() => { tree = renderer.create(<PriceChart snapshots={snapshots} currency="AED" />); });
+    act(() => {
+      tree!.root.findByProps({ accessibilityLabel: 'Price history chart' }).props.onLayout({
+        nativeEvent: { layout: { width: 320, height: 172 } }
+      });
+    });
 
     const guides = tree!.root.findAllByType(Line).filter((line) => line.props.strokeDasharray === '4 5');
     expect(guides).toHaveLength(2);
     expect(guides.map((line) => line.props.stroke)).toEqual([colors.red, colors.green]);
-    expect(renderedText(tree!)).toContain('High AED 105');
-    expect(renderedText(tree!)).toContain('Low AED 90');
+    const labelText = tree!.root.findAllByType(AppText).map((node) => [node.props.children].flat().join(''));
+    expect(labelText).toContain('AED 105');
+    expect(labelText).toContain('AED 97.50');
+    expect(labelText).toContain('AED 90');
   });
   it('uses the shared direction colors for chart points', () => {
     let tree: renderer.ReactTestRenderer;

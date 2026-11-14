@@ -137,6 +137,29 @@ export function PriceChart({ snapshots, currency }: PriceChartProps) {
           onPress={(event) => selectPointAt(event.nativeEvent.locationX)}
           style={styles.canvas}
         >
+          {max > min && chartSize.height > 0 ? (
+            <View pointerEvents="none" style={styles.priceLabels}>
+              {[
+                { key: 'high', y: padding },
+                { key: 'mid', y: height / 2 },
+                { key: 'low', y: height - padding }
+              ].map((tick) => {
+                const scale = Math.min(chartSize.width / width, chartSize.height / height);
+                const offset = (chartSize.height - height * scale) / 2;
+                const top = Math.max(0, Math.min(chartSize.height - 14, offset + tick.y * scale - 7));
+                const value = tick.key === 'high' ? max : tick.key === 'low' ? min : Math.round((max + min) / 2);
+                return (
+                  <AppText
+                    key={tick.key}
+                    muted
+                    style={[styles.axisPrice, { top }]}
+                  >
+                    {formatPrice(value, currency)}
+                  </AppText>
+                );
+              })}
+            </View>
+          ) : null}
         <Svg pointerEvents="none" viewBox={`0 0 ${width} ${height}`} width="100%" height="100%">
           <Defs>
             <LinearGradient id="priceFill" x1="0" y1="0" x2="0" y2="1">
@@ -213,18 +236,7 @@ export function PriceChart({ snapshots, currency }: PriceChartProps) {
         <AppText muted style={styles.axisLabel}>{formatAxisDate(points[0].checkedAt)}</AppText>
         <AppText muted style={styles.axisLabel}>{formatAxisDate(points[points.length - 1].checkedAt)}</AppText>
       </View>
-      {max > min ? (
-        <View style={styles.rangeRow}>
-          <View style={styles.rangeItem}>
-            <View style={[styles.rangeSwatch, styles.rangeHighSwatch]} />
-            <AppText muted style={[styles.rangeText, styles.rangeHighText]}>High {formatPrice(max, currency)}</AppText>
-          </View>
-          <View style={styles.rangeItem}>
-            <View style={[styles.rangeSwatch, styles.rangeLowSwatch]} />
-            <AppText muted style={[styles.rangeText, styles.rangeLowText]}>Low {formatPrice(min, currency)}</AppText>
-          </View>
-        </View>
-      ) : null}
+
       <AppText muted style={styles.hint}>Only points where the price changed are plotted. Dashed lines mark the high and low; drag across the chart to scrub through them; tap a point to inspect it.</AppText>
     </View>
   );
@@ -348,14 +360,15 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: 'right'
   },
-  rangeRow: { flexDirection: 'row', alignItems: 'center', gap: 16, marginTop: 6 },
-  rangeItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  rangeSwatch: { width: 14, height: 2, borderRadius: 1 },
-  rangeHighSwatch: { backgroundColor: colors.red },
-  rangeLowSwatch: { backgroundColor: colors.green },
-  rangeText: { fontSize: 12 },
-  rangeHighText: { color: colors.red },
-  rangeLowText: { color: colors.green },  canvas: {
+  priceLabels: { ...StyleSheet.absoluteFillObject, alignItems: 'flex-end', justifyContent: 'flex-start' },
+  axisPrice: {
+    position: 'absolute',
+    right: 2,
+    backgroundColor: colors.surface,
+    borderRadius: 3,
+    paddingHorizontal: 3,
+    fontSize: 10
+  },  canvas: {
     height: 172
   },
   axis: {
