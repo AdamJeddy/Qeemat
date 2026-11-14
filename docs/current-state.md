@@ -80,6 +80,7 @@ The site registry is `src/domain/sites.ts`. It controls hostnames, enabled statu
 
 - Non-Amazon product URLs remove known tracking parameters and fragments before save and fetch.
 - Recognized Amazon `/dp/<ASIN>` and `/gp/product/<ASIN>` links normalize to `https://<amazon-host>/dp/<ASIN>`. Product detail copies this clean URL.
+- Amazon Renewed and return offers expose `/clp/<ASIN>` canonical URLs that render a modal shell without a buy box. These are rewritten to `/dp/<ASIN>?th=1&psc=1` before fetching (and stored that way after a successful check), so those products keep checking. Short bare `/dp/<ASIN>` links receive the same query to avoid Amazon's checkpoint page, and checkpoint interstitials are reported as blocked so the existing WebView fallback handles them.
 - Parsers return title, image, price, currency, availability, canonical URL, and SKU when available.
 - Confirmed out-of-stock products can parse successfully without a price. Storage preserves the last known product price and the UI shows an OOS state.
 - Confirmed Amazon OOS pages deliberately leave price unset: recommendation carousels can contain prices belonging to other products.

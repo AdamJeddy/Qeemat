@@ -95,8 +95,14 @@ export async function fetchAndParseProduct(rawUrl: string, selectedVariant?: Var
     };
   }
 
+  // Amazon canonical links on Renewed/return offers point at /clp/ASIN pages,
+  // which render a modal shell without a buy box. Short /dp/ASIN URLs can also
+  // be answered with Amazon's checkpoint page. Normalize both before fetching so
+  // a saved product keeps resolving to a real product page.
+  const productUrl = site.key === 'amazon_ae' ? normalizeAmazonProductUrl(normalizedUrl) : normalizedUrl;
+
   // Primary path: standard fetch (fast, works for most sites)
-  let fetchResult = await fetchAndParseWithFetch(normalizedUrl, site.key, selectedVariant);
+  let fetchResult = await fetchAndParseWithFetch(productUrl, site.key, selectedVariant);
 
   // Sephora's CDN can reject one request and accept the same product URL on
   // the next attempt. Amazon and Decathlon also reset the React Native client
@@ -107,7 +113,7 @@ export async function fetchAndParseProduct(rawUrl: string, selectedVariant?: Var
     !fetchResult.ok &&
     (fetchResult.code === 'blocked' || fetchResult.code === 'network_error')
   ) {
-    fetchResult = await fetchAndParseWithFetch(normalizedUrl, site.key, selectedVariant);
+    fetchResult = await fetchAndParseWithFetch(productUrl, site.key, selectedVariant);
   }
 
   // Sephora, Faces, Salomon, and The Deal can reject the React Native networking client
@@ -121,7 +127,7 @@ export async function fetchAndParseProduct(rawUrl: string, selectedVariant?: Var
   }
 
   const shouldUseWebViewFallback = fetchResult.code === 'blocked' ||
-    (site.key === 'amazon_ae' && (fetchResult.code === 'network_error' || fetchResult.code === 'site_parser_failed')) ||
+    (site.key === 'amazon_ae' && (fetchResult.code === 'network_error' || fetchResult.code === 'site_parser_failed' || fetchResult.code === 'price_not_found')) ||
     (site.key === 'decathlon_uae' && (fetchResult.code === 'network_error' || fetchResult.code === 'site_parser_failed')) ||
     (site.key === 'hm_uae' && (fetchResult.code === 'network_error' || fetchResult.code === 'site_parser_failed' || fetchResult.code === 'price_not_found')) ||
     (site.key === 'zara_uae' && (fetchResult.code === 'network_error' || fetchResult.code === 'site_parser_failed' || fetchResult.code === 'price_not_found')) ||
@@ -133,7 +139,7 @@ export async function fetchAndParseProduct(rawUrl: string, selectedVariant?: Var
   }
 
   // Fetch was blocked — try WebView fallback for Cloudflare-protected sites
-  const webViewHtml = await fetchPageHtmlViaWebView(normalizedUrl);
+  const webViewHtml = await fetchPageHtmlViaWebView(productUrl);
   if (!webViewHtml) {
     return fetchResult; // WebView unavailable, return original block error
   }
@@ -146,7 +152,7 @@ export async function fetchAndParseProduct(rawUrl: string, selectedVariant?: Var
     };
   }
 
-  const parsed = parseProductHtml(site.key, normalizedUrl, webViewHtml, selectedVariant);
+  const parsed = parseProductHtml(site.key, productUrl, webViewHtml, selectedVariant);
 
   if (!parsed?.title) {
     return {
@@ -267,7 +273,7 @@ async function fetchAndParseWithFetch(
 
   const html = await response.text();
 
-  if (isBlockedHtml(html)) {
+  if (isBlockedHtml(html) || (siteKey === 'amazon_ae' && isAmazonCheckpointHtml(html))) {
     return {
       ok: false,
       code: 'blocked',
@@ -843,6 +849,12 @@ function parseAmazonProduct(siteKey: SiteKey, inputUrl: string, html: string): P
   const rawPriceText = availability === 'out_of_stock' ? undefined : matchAmazonPriceText(html);
   const sku = extractAmazonAsin(inputUrl) ?? matchString(html, /data-csa-c-asin=["']([A-Z0-9]{10})["']/i);
   const currency = inferAmazonCurrency(inputUrl, rawPriceText, meta.currency);
+  // Amazon labels Renewed/return pages with a /clp/ASIN canonical. Storing that
+  // URL makes later checks read a modal page with no price, so keep the fetched
+  // product URL instead when the canonical points at /clp/.
+  const canonicalUrl = meta.canonicalUrl && !/\/clp\/[A-Z0-9]{10}(?:[/?#]|$)/i.test(meta.canonicalUrl)
+    ? meta.canonicalUrl
+    : normalizeAmazonProductUrl(inputUrl);
 
   if (!title && !rawPriceText) {
     return undefined;
@@ -850,7 +862,7 @@ function parseAmazonProduct(siteKey: SiteKey, inputUrl: string, html: string): P
 
   return {
     siteKey,
-    canonicalUrl: meta.canonicalUrl ?? inputUrl,
+    canonicalUrl,
     title: cleanText(title ?? 'Amazon product'),
     imageUrl,
     priceMinor: parsePriceToMinor(rawPriceText),
@@ -2626,6 +2638,17 @@ function findProductJsonLd(html: string): JsonRecord | undefined {
   return undefined;
 }
 
+function isAmazonCheckpointHtml(html: string): boolean {
+  // Amazon answers bot-flagged requests with HTTP 200 either on
+  // /checkpoint/continue or on an "Oops!" interstitial that has no product data.
+  return (
+    /\/checkpoint\/continue/i.test(html) ||
+    /<title[^>]*>\s*Oops!\s*<\/title>/i.test(html) ||
+    /id=["']captchacharacters["']/i.test(html) ||
+    /api-services-support@amazon\.com/i.test(html)
+  );
+}
+
 function isBlockedHtml(html: string): boolean {
   const normalized = html.toLowerCase();
 
@@ -3021,8 +3044,42 @@ function extractAmazonDynamicImageUrl(html: string): string | undefined {
 }
 
 function extractAmazonAsin(inputUrl: string): string | undefined {
-  const match = inputUrl.match(/\/(?:dp|gp\/product)\/([A-Z0-9]{10})(?:[/?]|$)/i);
+  const match = inputUrl.match(/\/(?:dp|gp\/product|clp)\/([A-Z0-9]{10})(?:[/?]|$)/i);
   return match?.[1]?.toUpperCase();
+}
+
+/**
+ * Amazon Renewed and return offers use /clp/ASIN canonical URLs that render a
+ * modal shell without product data, and short /dp/ASIN links can hit Amazon's
+ * checkpoint page. Rewrite both to the direct product path with Amazon's
+ * variant query, which serves the full product page. Slugged /dp/ URLs are kept
+ * so Amazon's own canonical product URL survives a check.
+ */
+function normalizeAmazonProductUrl(inputUrl: string): string {
+  if (!/(?:^|\/\/[^/]*\bamazon\.)/i.test(inputUrl)) {
+    return inputUrl;
+  }
+
+  const asin = extractAmazonAsin(inputUrl);
+  if (!asin) {
+    return inputUrl;
+  }
+
+  const origin = inputUrl.match(/^(https?:\/\/[^/?#]+)/i)?.[1];
+  if (!origin) {
+    return inputUrl;
+  }
+
+  const path = inputUrl.slice(origin.length).split(/[?#]/)[0].replace(/\/+$/, '');
+  if (/^\/clp\/[A-Z0-9]{10}$/i.test(path)) {
+    return `${origin}/dp/${asin}?th=1&psc=1`;
+  }
+
+  if (/^\/(?:dp|gp\/product)\/[A-Z0-9]{10}$/i.test(path) && !inputUrl.includes('?')) {
+    return `${origin}/dp/${asin}?th=1&psc=1`;
+  }
+
+  return inputUrl;
 }
 
 function inferAmazonCurrency(inputUrl: string, rawPriceText?: string, fallbackCurrency?: string): string {

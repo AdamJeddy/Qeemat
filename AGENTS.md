@@ -41,6 +41,7 @@ assets/site-icons/— per-store favicon PNGs
 - **Tracked products** carry `lastAvailability` (from most recent successful check), used by UI components to render OOS state. Defaults to `'unknown'` for legacy data.
 - **OOS detection** is handled per-site in `src/domain/parser.ts`. When a product is OOS with no price, `fetchAndParseProduct` still succeeds — the last known price is preserved on the product record. OOS test fixtures live in `src/domain/__tests__/fixtures/oos/` (gitignored).
 - **Commit messages** follow conventional commits. When work corresponds to a GitHub issue, append `(#N)` — e.g. `feat: add adidas store (#18)`. Standalone or trivial changes (docs tweaks, formatting, tooling) don't require an issue number.
+- **Pull requests:** talk to the repo owner (`AdamJeddy`) and always add them as an **assignee** on every PR, in addition to any review request.
 
 ## Adding a New Store
 
