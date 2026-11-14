@@ -48,6 +48,18 @@ The Activity tab was rebuilt as a calendar-day history rather than a list of rel
 - Device checks on the Samsung SM-S928B: populated list, 1.3 font scale (rows reflow, meta wraps instead of truncating) and landscape (rows use the full width, badges stay right-aligned). [1.3](docs/assets/activity-redesign/activity-font-scale-1-3.png), [landscape](docs/assets/activity-redesign/activity-landscape.png)
 - Full plan and design rationale: [activity redesign](docs/activity-redesign-plan.md).
 
+## Product detail compact pass: device verification 14 November
+
+The product detail page now follows the Watchlist language instead of a separate large-title hero layout:
+
+- A full-width **blue banner** with the Qeemat lockup, back control and copy/settings actions; the status bar turns blue with it.
+- A compact **summary card** with the image, 2-line title, current or last-known price with direction badge, retailer, variant/folder line and check status. The old full-width title/meta/hero block was removed.
+- **Price insights** is one flat card with divided Lowest/Highest/Average rows and the priced-check count in its header, replacing three separate stat cards.
+- **About this item** is collapsed by default behind a summary disclosure (e.g. "Brand: ADIDAS · Store category: Short-sleeve jersey"); expanding shows the full field rows.
+- **Price snapshots** show the three most recent groups with **Show all N price groups** (and Show fewer), keeping the first view short while retaining full history.
+- Removed the legacy 18-unit top margin from the detail captions; spacing inside the summary now follows the same 4-unit stack used by Watchlist cards.
+- Evidence: [before](docs/assets/product-detail-2026-11-14/before.png), [after](docs/assets/product-detail-2026-11-14/after.png), [expanded fields](docs/assets/product-detail-2026-11-14/about-expanded.png).
+- Verified on the Samsung SM-S928B release build: first view now shows the summary, insights and the start of the price chart without scrolling; About expands and collapses; Show all snapshots reveals the full grouped list.
 **Palette follow-up (14 November 2026):** price rises switched from amber to red following the Activity review (the amber badge read as orange). `colors.red`/`redSoft` now use `#B91C1C`/`#FEE2E2` — the same red is used for negative price movement and failures, while amber remains reserved for out-of-stock warnings. This supersedes the 13 November amber-rise notes above. Red on red-soft measures 5.30:1 (WCAG AA), and the change applies to `PriceDirectionBadge`, Activity, Watchlist/Search cards, product-detail snapshots and the chart legend. [Watchlist rise badge](docs/assets/activity-redesign/price-rise-red-watchlist.png)
 
 ## Accessibility and device matrix: 13 November
