@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { PanResponder, Pressable, StyleSheet, View } from 'react-native';
 import Svg, { Circle, Defs, Line, LinearGradient, Path, Stop } from 'react-native-svg';
 
 import { formatPrice } from '../domain/price';
@@ -26,15 +26,37 @@ const width = 320;
 const height = 154;
 const padding = 18;
 
+function selectedPointIndexAt(locationX: number, chartSize: { width: number; height: number }, pointCount: number): number {
+  const scale = Math.min(chartSize.width / width, chartSize.height / height);
+  const renderedWidth = width * scale;
+  const horizontalOffset = (chartSize.width - renderedWidth) / 2;
+  const horizontalPadding = padding * scale;
+  const usableWidth = Math.max(1, renderedWidth - horizontalPadding * 2);
+  const offset = Math.max(0, Math.min(usableWidth, locationX - horizontalOffset - horizontalPadding));
+  return Math.round((offset / usableWidth) * (pointCount - 1));
+}
+
 export function PriceChart({ snapshots, currency }: PriceChartProps) {
-  const points = useMemo(
-    () => snapshots
+  const { points, pricedCount, latestPriceMinor } = useMemo(() => {
+    const priced = snapshots
       .filter((snapshot): snapshot is PricedSnapshot => snapshot.priceMinor !== undefined)
       .slice()
-      .sort((left, right) => left.checkedAt.localeCompare(right.checkedAt))
-      .slice(-MAX_POINTS),
-    [snapshots]
-  );
+      .sort((left, right) => left.checkedAt.localeCompare(right.checkedAt));
+    // One point per actual price level: repeated checks at the same price would
+    // otherwise add scrubbing stops that carry no new information.
+    const changes: PricedSnapshot[] = [];
+    for (const snapshot of priced) {
+      const last = changes[changes.length - 1];
+      if (!last || snapshot.priceMinor !== last.priceMinor) {
+        changes.push(snapshot);
+      }
+    }
+    return {
+      points: changes.slice(-MAX_POINTS),
+      pricedCount: priced.length,
+      latestPriceMinor: priced[priced.length - 1]?.priceMinor
+    };
+  }, [snapshots]);
   const [selectedId, setSelectedId] = useState<number | undefined>();
   const [chartSize, setChartSize] = useState({ width: 0, height: 0 });
 
@@ -42,10 +64,32 @@ export function PriceChart({ snapshots, currency }: PriceChartProps) {
     setSelectedId(points[points.length - 1]?.id);
   }, [points]);
 
-  if (points.length < 2) {
+  // Horizontal drags scrub the selected point without blocking vertical page scroll.
+  const panResponder = useMemo(() => {
+    const selectAt = (locationX: number) => {
+      if (chartSize.width <= 0 || points.length < 2) {
+        return;
+      }
+      const index = selectedPointIndexAt(locationX, chartSize, points.length);
+      setSelectedId(points[index].id);
+    };
+    return PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_event, gesture) => Math.abs(gesture.dx) > 6 && Math.abs(gesture.dx) > Math.abs(gesture.dy),
+      onPanResponderGrant: (event) => selectAt(event.nativeEvent.locationX),
+      onPanResponderMove: (event) => selectAt(event.nativeEvent.locationX),
+      onPanResponderTerminationRequest: () => false
+    });
+  }, [chartSize, points]);
+
+  if (!points.length) {
     return (
       <View style={styles.empty}>
-        <AppText muted style={styles.emptyText}>Price history appears after two priced checks.</AppText>
+        <AppText muted style={styles.emptyText}>
+          {pricedCount === 0
+            ? 'Price history appears after a priced check.'
+            : `No price changes yet — ${pricedCount} ${pricedCount === 1 ? 'check' : 'checks'} at ${formatPrice(latestPriceMinor, currency)}.`}
+        </AppText>
       </View>
     );
   }
@@ -61,18 +105,11 @@ export function PriceChart({ snapshots, currency }: PriceChartProps) {
     x: padding + (index / Math.max(1, values.length - 1)) * (width - padding * 2),
     y: height - padding - ((value - min) / range) * (height - padding * 2)
   }));
-  const linePath = coords.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ');
-  const areaPath = `${linePath} L ${coords[coords.length - 1].x} ${height - padding} L ${coords[0].x} ${height - padding} Z`;
+  const linePath = coords.length > 1 ? coords.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ') : `M ${coords[0].x} ${coords[0].y}`;
+  const areaPath = coords.length > 1 ? `${linePath} L ${coords[coords.length - 1].x} ${height - padding} L ${coords[0].x} ${height - padding} Z` : undefined;
   const selectedCoord = coords[selectedIndex];
   const selectPointAt = (locationX: number) => {
-    const scale = Math.min(chartSize.width / width, chartSize.height / height);
-    const renderedWidth = width * scale;
-    const horizontalOffset = (chartSize.width - renderedWidth) / 2;
-    const horizontalPadding = padding * scale;
-    const usableWidth = Math.max(1, renderedWidth - horizontalPadding * 2);
-    const offset = Math.max(0, Math.min(usableWidth, locationX - horizontalOffset - horizontalPadding));
-    const index = Math.round((offset / usableWidth) * (points.length - 1));
-
+    const index = selectedPointIndexAt(locationX, chartSize, points.length);
     setSelectedId(points[index].id);
   };
 
@@ -90,15 +127,39 @@ export function PriceChart({ snapshots, currency }: PriceChartProps) {
         </View>
       </View>
 
-      <Pressable
-        accessible
-        accessibilityRole="button"
-        accessibilityLabel="Price history chart"
-        accessibilityHint="Tap a point to view its price and date"
-        onLayout={(event) => setChartSize(event.nativeEvent.layout)}
-        onPress={(event) => selectPointAt(event.nativeEvent.locationX)}
-        style={styles.canvas}
-      >
+      <View testID="price-chart-canvas" {...panResponder.panHandlers}>
+        <Pressable
+          accessible
+          accessibilityRole="button"
+          accessibilityLabel="Price history chart"
+          accessibilityHint="Drag across the chart to scrub through prices, or tap a point to view its price and date"
+          onLayout={(event) => setChartSize(event.nativeEvent.layout)}
+          onPress={(event) => selectPointAt(event.nativeEvent.locationX)}
+          style={styles.canvas}
+        >
+          {max > min && chartSize.height > 0 ? (
+            <View pointerEvents="none" style={styles.priceLabels}>
+              {[
+                { key: 'high', y: padding },
+                { key: 'mid', y: height / 2 },
+                { key: 'low', y: height - padding }
+              ].map((tick) => {
+                const scale = Math.min(chartSize.width / width, chartSize.height / height);
+                const offset = (chartSize.height - height * scale) / 2;
+                const top = Math.max(0, Math.min(chartSize.height - 14, offset + tick.y * scale - 7));
+                const value = tick.key === 'high' ? max : tick.key === 'low' ? min : Math.round((max + min) / 2);
+                return (
+                  <AppText
+                    key={tick.key}
+                    muted
+                    style={[styles.axisPrice, { top }]}
+                  >
+                    {formatPrice(value, currency)}
+                  </AppText>
+                );
+              })}
+            </View>
+          ) : null}
         <Svg pointerEvents="none" viewBox={`0 0 ${width} ${height}`} width="100%" height="100%">
           <Defs>
             <LinearGradient id="priceFill" x1="0" y1="0" x2="0" y2="1">
@@ -117,7 +178,29 @@ export function PriceChart({ snapshots, currency }: PriceChartProps) {
               strokeDasharray="3 5"
             />
           ))}
-          <Path d={areaPath} fill="url(#priceFill)" />
+          {max > min ? (
+            <>
+              <Line
+                x1={padding}
+                x2={width - padding}
+                y1={padding}
+                y2={padding}
+                stroke={colors.red}
+                strokeOpacity={0.35}
+                strokeDasharray="4 5"
+              />
+              <Line
+                x1={padding}
+                x2={width - padding}
+                y1={height - padding}
+                y2={height - padding}
+                stroke={colors.green}
+                strokeOpacity={0.35}
+                strokeDasharray="4 5"
+              />
+            </>
+          ) : null}
+          {areaPath ? <Path d={areaPath} fill="url(#priceFill)" /> : null}
           <Path d={linePath} fill="none" stroke={colors.primary} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
           <Line
             x1={selectedCoord.x}
@@ -145,14 +228,16 @@ export function PriceChart({ snapshots, currency }: PriceChartProps) {
               />
             );
           })}
-        </Svg>
-      </Pressable>
+          </Svg>
+        </Pressable>
+      </View>
 
       <View style={styles.axis}>
         <AppText muted style={styles.axisLabel}>{formatAxisDate(points[0].checkedAt)}</AppText>
         <AppText muted style={styles.axisLabel}>{formatAxisDate(points[points.length - 1].checkedAt)}</AppText>
       </View>
-      <AppText muted style={styles.hint}>Tap a point to view its date and price. Green marks a drop; red marks an increase.</AppText>
+
+      <AppText muted style={styles.hint}>Only points where the price changed are plotted. Dashed lines mark the high and low; drag across the chart to scrub through them; tap a point to inspect it.</AppText>
     </View>
   );
 }
@@ -275,7 +360,15 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: 'right'
   },
-  canvas: {
+  priceLabels: { ...StyleSheet.absoluteFillObject, alignItems: 'flex-end', justifyContent: 'flex-start' },
+  axisPrice: {
+    position: 'absolute',
+    right: 2,
+    backgroundColor: colors.surface,
+    borderRadius: 3,
+    paddingHorizontal: 3,
+    fontSize: 10
+  },  canvas: {
     height: 172
   },
   axis: {
