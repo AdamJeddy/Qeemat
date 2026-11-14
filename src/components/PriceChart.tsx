@@ -37,14 +37,26 @@ function selectedPointIndexAt(locationX: number, chartSize: { width: number; hei
 }
 
 export function PriceChart({ snapshots, currency }: PriceChartProps) {
-  const points = useMemo(
-    () => snapshots
+  const { points, pricedCount, latestPriceMinor } = useMemo(() => {
+    const priced = snapshots
       .filter((snapshot): snapshot is PricedSnapshot => snapshot.priceMinor !== undefined)
       .slice()
-      .sort((left, right) => left.checkedAt.localeCompare(right.checkedAt))
-      .slice(-MAX_POINTS),
-    [snapshots]
-  );
+      .sort((left, right) => left.checkedAt.localeCompare(right.checkedAt));
+    // One point per actual price level: repeated checks at the same price would
+    // otherwise add scrubbing stops that carry no new information.
+    const changes: PricedSnapshot[] = [];
+    for (const snapshot of priced) {
+      const last = changes[changes.length - 1];
+      if (!last || snapshot.priceMinor !== last.priceMinor) {
+        changes.push(snapshot);
+      }
+    }
+    return {
+      points: changes.slice(-MAX_POINTS),
+      pricedCount: priced.length,
+      latestPriceMinor: priced[priced.length - 1]?.priceMinor
+    };
+  }, [snapshots]);
   const [selectedId, setSelectedId] = useState<number | undefined>();
   const [chartSize, setChartSize] = useState({ width: 0, height: 0 });
 
@@ -70,10 +82,14 @@ export function PriceChart({ snapshots, currency }: PriceChartProps) {
     });
   }, [chartSize, points]);
 
-  if (points.length < 2) {
+  if (!points.length) {
     return (
       <View style={styles.empty}>
-        <AppText muted style={styles.emptyText}>Price history appears after two priced checks.</AppText>
+        <AppText muted style={styles.emptyText}>
+          {pricedCount === 0
+            ? 'Price history appears after a priced check.'
+            : `No price changes yet — ${pricedCount} ${pricedCount === 1 ? 'check' : 'checks'} at ${formatPrice(latestPriceMinor, currency)}.`}
+        </AppText>
       </View>
     );
   }
@@ -89,8 +105,8 @@ export function PriceChart({ snapshots, currency }: PriceChartProps) {
     x: padding + (index / Math.max(1, values.length - 1)) * (width - padding * 2),
     y: height - padding - ((value - min) / range) * (height - padding * 2)
   }));
-  const linePath = coords.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ');
-  const areaPath = `${linePath} L ${coords[coords.length - 1].x} ${height - padding} L ${coords[0].x} ${height - padding} Z`;
+  const linePath = coords.length > 1 ? coords.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ') : `M ${coords[0].x} ${coords[0].y}`;
+  const areaPath = coords.length > 1 ? `${linePath} L ${coords[coords.length - 1].x} ${height - padding} L ${coords[0].x} ${height - padding} Z` : undefined;
   const selectedCoord = coords[selectedIndex];
   const selectPointAt = (locationX: number) => {
     const index = selectedPointIndexAt(locationX, chartSize, points.length);
@@ -139,7 +155,7 @@ export function PriceChart({ snapshots, currency }: PriceChartProps) {
               strokeDasharray="3 5"
             />
           ))}
-          <Path d={areaPath} fill="url(#priceFill)" />
+          {areaPath ? <Path d={areaPath} fill="url(#priceFill)" /> : null}
           <Path d={linePath} fill="none" stroke={colors.primary} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
           <Line
             x1={selectedCoord.x}
@@ -175,7 +191,7 @@ export function PriceChart({ snapshots, currency }: PriceChartProps) {
         <AppText muted style={styles.axisLabel}>{formatAxisDate(points[0].checkedAt)}</AppText>
         <AppText muted style={styles.axisLabel}>{formatAxisDate(points[points.length - 1].checkedAt)}</AppText>
       </View>
-      <AppText muted style={styles.hint}>Drag across the chart to scrub through prices; tap a point to inspect it. Green marks a drop; red marks an increase.</AppText>
+      <AppText muted style={styles.hint}>Only points where the price changed are plotted. Drag across the chart to scrub through them; tap a point to inspect it. Green marks a drop; red marks an increase.</AppText>
     </View>
   );
 }

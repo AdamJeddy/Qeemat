@@ -105,9 +105,26 @@ describe('PriceChart', () => {
       tree = renderer.create(<PriceChart snapshots={snapshots} currency="AED" />);
     });
 
-    expect(renderedText(tree!)).toContain('Drag across the chart to scrub through prices; tap a point to inspect it. Green marks a drop; red marks an increase.');
+    expect(renderedText(tree!)).toContain('Only points where the price changed are plotted. Drag across the chart to scrub through them; tap a point to inspect it. Green marks a drop; red marks an increase.');
   });
 
+  it('plots only the points where the price actually changed', () => {
+    const repeatedPrices: PriceSnapshot[] = [10000, 10000, 9000, 9000, 9000, 10500].map((priceMinor, index) => ({
+      id: index + 1,
+      trackedProductId: 1,
+      priceMinor,
+      currency: 'AED',
+      availability: 'in_stock',
+      status: index === 0 ? 'ok' : 'price_changed',
+      source: 'background',
+      checkedAt: `2026-10-${String(index + 1).padStart(2, '0')}T08:30:00.000Z`
+    }));
+    let tree: renderer.ReactTestRenderer;
+    act(() => { tree = renderer.create(<PriceChart snapshots={repeatedPrices} currency="AED" />); });
+
+    // Three price levels (10,000 -> 9,000 -> 10,500), not six checks.
+    expect(tree!.root.findAllByType(Circle)).toHaveLength(3);
+  });
   it('uses the shared direction colors for chart points', () => {
     let tree: renderer.ReactTestRenderer;
     act(() => { tree = renderer.create(<PriceChart snapshots={snapshots} currency="AED" />); });
