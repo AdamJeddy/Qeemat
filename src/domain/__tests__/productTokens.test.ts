@@ -3,8 +3,10 @@ import {
   normalizeBrandKey,
   normalizeProductTokens,
   productHardTokens,
+  productModelTokens,
   productSignatureTokens,
   productTypeKey,
+  productVariantHardTokens,
   relevanceKeywords,
   tokenizeProductTitle
 } from '../productTokens';
@@ -35,6 +37,9 @@ describe('product title tokens', () => {
 
   it('keeps numeric model/pack tokens as hard tokens', () => {
     expect(productHardTokens(productSignatureTokens('iPhone 16 Pro 128 GB', 'Apple'))).toEqual(['128gb', '16']);
+    expect(productModelTokens(productSignatureTokens('iPhone 16 Pro 128 GB', 'Apple'))).toEqual(['16']);
+    expect(productVariantHardTokens(productSignatureTokens('iPhone 16 Pro 128 GB', 'Apple'))).toEqual(['128gb']);
+    expect(productModelTokens(productSignatureTokens('Sony WH-1000XM5 Wireless Headphones', 'Sony'))).toEqual(['1000xm5']);
   });
 
   it('builds brand identities and treats placeholders as unknown', () => {
@@ -43,6 +48,13 @@ describe('product title tokens', () => {
     expect(isUnknownBrand('Other brands')).toBe(true);
     expect(isUnknownBrand(undefined)).toBe(true);
     expect(isUnknownBrand('Samsung')).toBe(false);
+  });
+
+  it('normalizes ordinals and generation wording', () => {
+    expect(tokenizeProductTitle('AirPods Pro 2nd Generation')).toEqual(['airpods', 'pro', '2', 'generation']);
+    expect(productSignatureTokens('AirPods Pro 2nd Generation With USB-C MagSafe Case', 'Apple')).toEqual([
+      '2', 'airpods', 'c', 'case', 'magsafe', 'pro', 'usb'
+    ]);
   });
 
   it('exposes relevance keywords without the brand', () => {

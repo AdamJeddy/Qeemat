@@ -15,7 +15,14 @@
  */
 
 import type { PriceBasis } from './priceBasis';
-import { normalizeBrandKey, productHardTokens, productSignatureTokens, productTypeKey } from './productTokens';
+import {
+  normalizeBrandKey,
+  normalizeProductTokens,
+  productHardTokens,
+  productSignatureTokens,
+  productTypeKey,
+  productVariantHardTokens
+} from './productTokens';
 import { cleanUrl } from './sites';
 import type {
   DiscoveryCategory,
@@ -37,6 +44,14 @@ type ListingIdentity = {
   typeKey: string;
   /** Numeric model/pack tokens, sorted. */
   hard: string[];
+  /** Capacity/pack tokens such as 128gb or 3x500ml, which must match exactly. */
+  variant: string[];
+  /** Pure-number model tokens such as 16 or 2. */
+  numericModel: string[];
+  /** Alphanumeric model codes such as 1000xm5 or h2. */
+  codeModel: string[];
+  /** First normalized title words, used to infer a missing brand conservatively. */
+  leading: string[];
 };
 
 type Listing = {
@@ -60,6 +75,14 @@ type ComparableBasis = {
 const UNKNOWN_BUCKET = '\u0000unknown';
 const UNKNOWN_GROUP_BRAND = 'unknown';
 const CANONICAL_TYPE_TOKEN = 'other';
+/** An accessory title mentioning a brand is not that brand's product. */
+const ACCESSORY_TOKENS = new Set([
+  'case', 'cases', 'cover', 'covers', 'protector', 'protectors', 'charger', 'chargers', 'cable', 'cables',
+  'strap', 'straps', 'band', 'bands', 'lens', 'lenses', 'sleeve', 'sleeves', 'skin', 'skins', 'tip', 'tips',
+  'replacement', 'insoles', 'insole', 'laces', 'lace', 'charms', 'charm', 'cleaner', 'cleaners', 'adapters',
+  'adapter', 'stand', 'stands', 'holder', 'holders', 'mount', 'mounts', 'clip', 'clips', 'spare', 'parts',
+  'accessory', 'accessories', 'compatible', 'compatibility'
+]);
 
 export function groupDiscoveryProducts(
   products: DiscoveryProduct[],
@@ -208,58 +231,103 @@ function isUsableProduct(product: DiscoveryProduct): boolean {
 /* Identity and conservative matching                                         */
 /* -------------------------------------------------------------------------- */
 
-function buildListingIdentity(product: DiscoveryProduct): ListingIdentity {
-  const brand = typeof product.brand === 'string' ? product.brand : undefined;
-  const title = typeof product.title === 'string' ? product.title : '';
+function buildIdentity(title: string, brand?: string): ListingIdentity {
   const brandKey = normalizeBrandKey(brand);
   const signature = productSignatureTokens(title, brand);
+  const ordered = normalizeProductTokens(title);
+  // "2 Years" / "5.3 Bluetooth" are specification copy, not model numbers.
+  const ignoredSpecs = new Set<string>();
+  for (let index = 0; index < ordered.length - 1; index++) {
+    if (/^\d+(?:\.\d+)?$/.test(ordered[index]) && /^years?$/.test(ordered[index + 1])) {
+      ignoredSpecs.add(ordered[index]);
+    }
+  }
+  const hard = productHardTokens(signature)
+    .filter((token) => !ignoredSpecs.has(token) && !/^\d+\.\d+$/.test(token));
+  const variant = productVariantHardTokens(signature).filter((token) => !ignoredSpecs.has(token));
+  const variantSet = new Set(variant);
   return {
     brandKey,
     signature,
     signatureSet: new Set(signature),
     typeKey: productTypeKey(signature),
-    hard: productHardTokens(signature)
+    hard,
+    variant,
+    numericModel: hard.filter((token) => /^\d+$/.test(token) && !variantSet.has(token)),
+    codeModel: hard.filter((token) => /[a-z]/.test(token) && !variantSet.has(token)),
+    leading: ordered.slice(0, 3)
   };
 }
 
+function buildListingIdentity(product: DiscoveryProduct): ListingIdentity {
+  const brand = typeof product.brand === 'string' ? product.brand : undefined;
+  const title = typeof product.title === 'string' ? product.title : '';
+  return buildIdentity(title, brand);
+}
+
 /**
- * Candidates are bucketed by primary brand token and canonical type so that a
- * prefixed brand (`adidas` / `adidas originals`) can still be compared; the
- * full compatibility rules below stay authoritative.
+ * Candidates are bucketed by primary brand token so that a prefixed brand
+ * (`adidas` / `adidas originals`) can still be compared. An unknown brand is
+ * also indexed under the title words that lead it, so a retailer search card
+ * that omits the brand can still meet the brand-named listing; the full
+ * compatibility rules below stay authoritative.
  */
 function bucketListings(listings: Listing[]): GroupState[] {
   const groups: GroupState[] = [];
   const buckets = new Map<string, GroupState[]>();
   for (const listing of listings) {
-    const key = bucketKey(listing.identity);
-    const candidates = buckets.get(key) ?? [];
+    const keys = candidateBucketKeys(listing.identity);
+    const seen = new Set<GroupState>();
+    const candidates: GroupState[] = [];
+    for (const key of keys) {
+      for (const group of buckets.get(key) ?? []) {
+        if (!seen.has(group)) {
+          seen.add(group);
+          candidates.push(group);
+        }
+      }
+    }
     const target = candidates.find((candidate) =>
       candidate.listings.every((member) => identitiesMatch(member.identity, listing.identity))
     );
     if (target) {
       target.listings.push(listing);
+      for (const key of keys) {
+        const bucket = buckets.get(key) ?? [];
+        if (!bucket.includes(target)) { bucket.push(target); buckets.set(key, bucket); }
+      }
     } else {
       const group: GroupState = { listings: [listing] };
       groups.push(group);
-      candidates.push(group);
-      buckets.set(key, candidates);
+      for (const key of keys) {
+        const bucket = buckets.get(key) ?? [];
+        bucket.push(group);
+        buckets.set(key, bucket);
+      }
     }
   }
   return groups;
 }
 
-function bucketKey(identity: ListingIdentity): string {
-  const brandBucket = identity.brandKey ? identity.brandKey.split(' ')[0] : UNKNOWN_BUCKET;
-  return `${brandBucket}\u0000${identity.typeKey}`;
+function candidateBucketKeys(identity: ListingIdentity): string[] {
+  if (identity.brandKey) {
+    return [identity.brandKey.split(' ')[0]];
+  }
+  // Unknown brand: also try the leading title words as potential brand tokens.
+  return [...new Set([UNKNOWN_BUCKET, ...identity.leading.slice(0, 2)])];
 }
 
 /**
  * The single conservative match rule shared by grouping and watchlist
- * matching: compatible brand, identical type, identical hard tokens, enough
- * shared signature tokens and strong similarity.
+ * matching: compatible brand, compatible model/pack identity, enough shared
+ * signature tokens and strong similarity. A title with no product-type word
+ * (for example a marketing-style "AirPods Pro 2nd Generation" heading) can
+ * match a typed listing when brand, model number and at least three tokens
+ * agree. A retailer-appended model code ("WH1000XM5B165935990") still matches
+ * the shorter model token when one contains the other.
  */
 function identitiesMatch(left: ListingIdentity, right: ListingIdentity): boolean {
-  if (!brandKeysCompatible(left.brandKey, right.brandKey)) {
+  if (!brandKeysCompatible(left.brandKey, right.brandKey) && !inferredBrandCompatible(left, right)) {
     return false;
   }
   // Unknown brands carry no identity of their own, so only identical
@@ -267,22 +335,54 @@ function identitiesMatch(left: ListingIdentity, right: ListingIdentity): boolean
   if (left.brandKey === undefined && right.brandKey === undefined && !sameTokens(left.signature, right.signature)) {
     return false;
   }
-  if (left.typeKey !== right.typeKey) {
+  const oneSideUntyped = left.typeKey === CANONICAL_TYPE_TOKEN || right.typeKey === CANONICAL_TYPE_TOKEN;
+  if (!oneSideUntyped && left.typeKey !== right.typeKey) {
     return false;
   }
-  if (left.typeKey === CANONICAL_TYPE_TOKEN) {
-    return sameTokens(left.signature, right.signature) && sharedTokenCount(left, right) >= 3;
+  const bothUntyped = left.typeKey === CANONICAL_TYPE_TOKEN && right.typeKey === CANONICAL_TYPE_TOKEN;
+  // Different capacities or pack sizes are different products.
+  if (!sameTokens(left.variant, right.variant)) {
+    return false;
   }
-  if (!sameTokens(left.hard, right.hard)) {
+  const modelMatch = strongestModelMatch(left, right);
+  if (!modelMatch.matched) {
     return false;
   }
   const shared = sharedTokenCount(left, right);
   const minimumSize = Math.min(left.signature.length, right.signature.length);
-  const minimumShared = left.hard.length > 0 ? 2 : 3;
-  if (minimumSize === 0 || shared < minimumShared) {
+  const unionSize = left.signature.length + right.signature.length - shared;
+  if (minimumSize === 0) {
     return false;
   }
-  const unionSize = left.signature.length + right.signature.length - shared;
+  if (modelMatch.strong) {
+    // A long model code embedded in one title (retailer SKU suffix) plus the
+    // same brand is already distinctive; require the product words to overlap.
+    return shared >= 2 && sharesNonTypeToken(left, right);
+  }
+  if (bothUntyped) {
+    // Neither title names a product type, so brand + model + title overlap
+    // carry the match. Marketing copy makes the overlap noisier, hence the
+    // slightly lower ratio threshold than the typed path.
+    return shared >= 3 && sharesNonTypeToken(left, right) &&
+      (shared / minimumSize >= 0.6 || shared / unionSize >= 0.5);
+  }
+  const minimumShared = left.numericModel.length + left.codeModel.length > 0 ? 2 : 3;
+  if (shared < minimumShared) {
+    return false;
+  }
+  if (oneSideUntyped) {
+    // The typed side names the product; the untyped side is marketing copy.
+    // Require the model number and its neighbours to agree instead of a high
+    // whole-title overlap, which marketing words would always defeat.
+    const hasSharedModelToken = [...left.numericModel, ...left.codeModel]
+      .some((token) => right.signatureSet.has(token));
+    return shared >= 3 && hasSharedModelToken && sharesNonTypeToken(left, right);
+  }
+  if (shared >= 4 && sharesNonTypeToken(left, right)) {
+    // Same brand, same product type and the same model numbers are strong
+    // evidence even when one retailer's marketing title is much longer.
+    return true;
+  }
   if (shared / minimumSize < 0.8 && shared / unionSize < 0.7) {
     return false;
   }
@@ -290,11 +390,77 @@ function identitiesMatch(left: ListingIdentity, right: ListingIdentity): boolean
   return shared >= 4 || sharesNonTypeToken(left, right);
 }
 
+/**
+ * Model compatibility: pure-number model tokens must be identical (2 ≠ 3,
+ * 16 ≠ 15), capacity tokens are checked separately. Alphanumeric codes match
+ * exactly or by containment, which tolerates a retailer-appended SKU suffix.
+ * Extra code/specification tokens in one title do not block the match.
+ */
+function strongestModelMatch(left: ListingIdentity, right: ListingIdentity): { matched: boolean; strong: boolean } {
+  if (!left.numericModel.length && !right.numericModel.length && !left.codeModel.length && !right.codeModel.length) {
+    return { matched: true, strong: false };
+  }
+  if (left.numericModel.length || right.numericModel.length) {
+    if (!sameTokens(left.numericModel, right.numericModel)) {
+      return { matched: false, strong: false };
+    }
+  }
+  let exactCode = false;
+  let strong = false;
+  for (const leftToken of left.codeModel) {
+    for (const rightToken of right.codeModel) {
+      if (leftToken === rightToken) {
+        exactCode = true;
+        continue;
+      }
+      const longer = leftToken.length >= rightToken.length ? leftToken : rightToken;
+      const shorter = leftToken.length >= rightToken.length ? rightToken : leftToken;
+      if (shorter.length >= 5 && /\d/.test(shorter) && longer.includes(shorter)) {
+        strong = true;
+      }
+    }
+  }
+  if (left.numericModel.length) {
+    return { matched: true, strong };
+  }
+  if (!left.codeModel.length || !right.codeModel.length) {
+    return { matched: false, strong: false };
+  }
+  return { matched: exactCode || strong, strong };
+}
+
 function brandKeysCompatible(left?: string, right?: string): boolean {
   if (left === undefined || right === undefined) {
     return left === undefined && right === undefined;
   }
   return left === right || left.startsWith(`${right} `) || right.startsWith(`${left} `);
+}
+
+/**
+ * Some retailer search cards omit the brand field even though the title starts
+ * with it ("Apple AirPods Pro 3..."). Only infer the brand when it leads the
+ * title; "Case for Apple AirPods" must not become an Apple product.
+ */
+function inferredBrandCompatible(left: ListingIdentity, right: ListingIdentity): boolean {
+  if (left.brandKey && !right.brandKey && !hasAccessoryToken(right)) {
+    return brandNameLeadsTitle(left.brandKey, right.leading);
+  }
+  if (right.brandKey && !left.brandKey && !hasAccessoryToken(left)) {
+    return brandNameLeadsTitle(right.brandKey, left.leading);
+  }
+  return false;
+}
+
+function hasAccessoryToken(identity: ListingIdentity): boolean {
+  for (const token of identity.signatureSet) {
+    if (ACCESSORY_TOKENS.has(token)) { return true; }
+  }
+  return false;
+}
+
+function brandNameLeadsTitle(brandKey: string, leading: string[]): boolean {
+  const tokens = brandKey.split(' ').filter((token) => token.length >= 3);
+  return tokens.length > 0 && tokens.every((token) => leading.includes(token));
 }
 
 function sameTokens(left: string[], right: string[]): boolean {
@@ -601,14 +767,7 @@ function matchTrackedProduct(
       continue;
     }
     const title = typeof tracked.title === 'string' ? tracked.title : '';
-    const signature = productSignatureTokens(title, brand);
-    const identity: ListingIdentity = {
-      brandKey,
-      signature,
-      signatureSet: new Set(signature),
-      typeKey: productTypeKey(signature),
-      hard: productHardTokens(signature)
-    };
+    const identity = buildIdentity(title, brand);
     const match = offerIdentities.find((offer) =>
       offer.identity.brandKey === brandKey &&
       offer.identity.typeKey === identity.typeKey &&

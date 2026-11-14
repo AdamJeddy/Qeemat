@@ -364,6 +364,73 @@ describe('group identity and ordering', () => {
     ).toEqual([]);
   });
 
+  it('clubs an untyped marketing title with a typed listing from another retailer', () => {
+    const groups = groupDiscoveryProducts([
+      product('noon-airpods', 'noon', 'Apple AirPods Pro 2 Wireless Earbuds, Bluetooth Headphones, Active Noise Cancellation', 69900, { brand: 'Apple' }),
+      product('carrefour-airpods', 'carrefour_uae', 'Apple AirPods Pro 2nd Generation With USB-C MagSafe Case', 84900, { brand: 'Apple' })
+    ]);
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0].offers).toHaveLength(2);
+    expect(groups[0].bestOffer?.product.siteKey).toBe('noon');
+    expect(groups[0].priceSpreadMinor).toBe(15000);
+  });
+
+  it('normalizes colour words when clubbing the same retailer offer', () => {
+    const groups = groupDiscoveryProducts([
+      product('carrefour-clear', 'carrefour_uae', 'Elago Clear designed for AirPods Pro 2 case cover with Strap - Transparent', 9900, { brand: 'Elago' }),
+      product('carrefour-lavender', 'carrefour_uae', 'Elago Clear designed for AirPods Pro 2 case cover with Strap - Lavender', 9900, { brand: 'Elago' })
+    ]);
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0].offers).toHaveLength(1);
+  });
+
+  it('clubs a retailer-appended model code with the shorter model token', () => {
+    const groups = groupDiscoveryProducts([
+      product('amazon-sony', 'amazon_ae', 'Sony WH-1000XM5 Wireless Noise Canceling Headphones', 129900, { brand: 'Sony' }),
+      product('centrepoint-sony-black', 'centrepoint_uae', 'Sony True Wireless Over Ear Headphone|WH1000XM5B165935990', 129900, { brand: 'Sony' })
+    ]);
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0].offers).toHaveLength(2);
+    expect(groups[0].bestOffer?.product.siteKey).toBe('amazon_ae');
+  });
+
+  it('clubs a listing whose longer title adds specification numbers', () => {
+    const groups = groupDiscoveryProducts([
+      product('noon-airpods-3', 'noon', 'AirPods Pro 3 Wireless Earbuds, Bluetooth Headphones, Active Noise Cancellation', 72900, { brand: 'Apple' }),
+      product('amazon-airpods-3', 'amazon_ae', 'Apple AirPods Pro 3 Wireless Earbuds, Active Noise Cancellation, H2 Chip, Bluetooth 5.3, USB-C', 88797, { brand: 'Apple' })
+    ]);
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0].offers).toHaveLength(2);
+    expect(groups[0].bestOffer?.product.siteKey).toBe('noon');
+    expect(groups[0].priceSpreadMinor).toBe(15897);
+  });
+
+  it('infers a missing brand only when it leads the title', () => {
+    const groups = groupDiscoveryProducts([
+      product('noon-airpods-uk', 'noon', 'AirPods Pro 3 Wireless Earbuds, Active Noise Cancellation', 72900, { brand: 'Apple' }),
+      product('amazon-airpods-unknown', 'amazon_ae', 'Apple AirPods Pro 3 Wireless Earbuds, Active Noise Cancellation, H2 Chip, USB-C', 88797, { brand: 'Other brands' }),
+      product('amazon-case-unknown', 'amazon_ae', 'Case for Apple AirPods Pro 3 Protective Cover', 3900, { brand: 'Other brands' })
+    ]);
+
+    expect(groups.find((group) => group.offers.some((offer) => offer.product.id === 'amazon-airpods-unknown'))?.offers).toHaveLength(2);
+    expect(groups.find((group) => group.offers.some((offer) => offer.product.id === 'amazon-case-unknown'))?.offers).toHaveLength(1);
+  });
+
+  it('does not club different models or storage capacities', () => {
+    const groups = groupDiscoveryProducts([
+      product('airpods-2', 'noon', 'Apple AirPods Pro 2 Wireless Earbuds', 69900, { brand: 'Apple' }),
+      product('airpods-3', 'amazon_ae', 'Apple AirPods Pro 3 Wireless Earbuds', 88797, { brand: 'Apple' }),
+      product('iphone-128', 'noon', 'Apple iPhone 16 Pro 128 GB', 450000, { brand: 'Apple', category: 'phones' }),
+      product('iphone-256', 'amazon_ae', 'Apple iPhone 16 Pro 256 GB', 500000, { brand: 'Apple', category: 'phones' })
+    ]);
+
+    expect(groups).toHaveLength(4);
+  });
+
   it('falls back to the retailer listing identity when an unknown brand has no signature', () => {
     const groups = groupDiscoveryProducts([
       product('noon:17', 'noon', 'Black', undefined, { brand: 'Other brands' })

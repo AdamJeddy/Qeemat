@@ -12,7 +12,7 @@ const FILLER_WORDS = new Set([
   'the', 'a', 'an', 'and', 'or', 'with', 'without', 'for', 'of', 'in', 'on', 'by', 'to', 'from', 'at', 'de', 'eau',
   'new', 'latest', 'official', 'original', 'authentic', 'genuine', 'online', 'buy', 'shop', 'shopping',
   'free', 'delivery', 'shipping', 'uae', 'dubai', 'abu', 'dhabi', 'gcc', 'ksa', 'sale', 'offer', 'offers',
-  'deal', 'deals', 'discount', 'clearance', 'outlet', 'exclusive',
+  'deal', 'deals', 'discount', 'clearance', 'outlet', 'exclusive', 'generation', 'gen',
   'men', 'mens', 'man', 'women', 'womens', 'woman', 'kids', 'kid', 'boys', 'boy', 'girls', 'girl',
   'unisex', 'adult', 'adults', 'male', 'female'
 ]);
@@ -20,7 +20,10 @@ const FILLER_WORDS = new Set([
 const COLOR_WORDS = new Set([
   'black', 'white', 'blue', 'navy', 'red', 'green', 'grey', 'gray', 'beige', 'brown', 'pink', 'purple',
   'yellow', 'orange', 'gold', 'silver', 'multicolor', 'multicolour', 'ivory', 'cream', 'tan', 'khaki',
-  'burgundy', 'maroon', 'teal', 'olive', 'nude', 'rose', 'clear', 'transparent'
+  'burgundy', 'maroon', 'teal', 'olive', 'nude', 'rose', 'clear', 'transparent',
+  'lavender', 'lilac', 'violet', 'mint', 'sage', 'coral', 'peach', 'turquoise', 'cyan', 'magenta',
+  'charcoal', 'stone', 'sand', 'taupe', 'chocolate', 'mustard', 'lime', 'aqua', 'sky', 'apricot',
+  'fuchsia', 'indigo', 'plum', 'wine', 'rust', 'amber', 'emerald', 'sapphire', 'opal', 'pearl'
 ]);
 
 const UNIT_ALIASES: Record<string, string> = {
@@ -106,7 +109,13 @@ export function tokenizeProductTitle(value: string | undefined): string[] {
     .toLowerCase()
     .split(/[^a-z0-9]+/g)
     .filter(Boolean)
-    .map((token) => (/^0+\d+$/.test(token) ? String(Number(token)) : token));
+    .map((token) => {
+      // Ordinals describe the same generation across retailer wording:
+      // "2nd generation" / "2nd Gen" / "2" should compare on the same number.
+      const ordinal = token.match(/^(\d+)(?:st|nd|rd|th)$/);
+      const normalized = ordinal ? ordinal[1] : token;
+      return /^0+\d+$/.test(normalized) ? String(Number(normalized)) : normalized;
+    });
 }
 
 /**
@@ -114,9 +123,13 @@ export function tokenizeProductTitle(value: string | undefined): string[] {
  * `3 x 500 ml` -> `3x500ml`, `Pack of 3` stays `pack`, `3`.
  */
 export function normalizeProductTokens(value: string | undefined): string[] {
-  const prepared = (value ?? '').replace(NUMBER_UNIT_PATTERN, (_match, first: string, second: string, unit: string) =>
-    `${first}x${second}${UNIT_ALIASES[unit.toLowerCase()] ?? unit.toLowerCase()}`
-  );
+  const prepared = (value ?? '')
+    .replace(NUMBER_UNIT_PATTERN, (_match, first: string, second: string, unit: string) =>
+      `${first}x${second}${UNIT_ALIASES[unit.toLowerCase()] ?? unit.toLowerCase()}`
+    )
+    // A standalone decimal is specification copy (Bluetooth 5.3, 2.4 GHz), not
+    // a model number; capacities like "1.5 L" were protected above.
+    .replace(/(?<![a-z0-9])\d+\.\d+(?![a-z0-9])/gi, ' ');
   const raw = tokenizeProductTitle(prepared);
   const tokens: string[] = [];
   for (let index = 0; index < raw.length; index++) {
@@ -186,6 +199,23 @@ export function productTypeKey(signature: readonly string[]): string {
 /** Numeric model/pack tokens. Equal sets are required before grouping. */
 export function productHardTokens(signature: readonly string[]): string[] {
   return [...new Set(signature.filter((token) => /\d/.test(token)))].sort();
+}
+
+const VARIANT_UNIT_TOKEN = /(?:\d(?:ml|cl|l|kg|g|mg|gb|tb|mb|oz|cm|mm|inch|ft|w|kw|mah|wh|hz|ghz|pcs|pack)$)|(?:\d+x\d+(?:ml|l|kg|g|gb|tb|mb))$/;
+
+/** Capacity/pack tokens such as 128gb or 3x500ml must match exactly. */
+export function productVariantHardTokens(signature: readonly string[]): string[] {
+  return productHardTokens(signature).filter((token) => VARIANT_UNIT_TOKEN.test(token));
+}
+
+/**
+ * Model numbers and model-like codes (16, 1000xm5, h2). Retailers often add
+ * extra specification numbers to one title ("H2 chip"), so a shared model
+ * token is stronger evidence than an identical whole list.
+ */
+export function productModelTokens(signature: readonly string[]): string[] {
+  const variant = new Set(productVariantHardTokens(signature));
+  return productHardTokens(signature).filter((token) => !variant.has(token));
 }
 
 /** Tokens useful for matching a listing against the shopper's tracked products. */
