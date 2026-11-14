@@ -97,7 +97,7 @@ describe('PriceChart', () => {
       tree = renderer.create(<PriceChart snapshots={snapshots} currency="AED" />);
     });
 
-    expect(renderedText(tree!)).toContain('Tap a point to view its date and price. Green marks a drop; amber marks an increase.');
+    expect(renderedText(tree!)).toContain('Tap a point to view its date and price. Green marks a drop; red marks an increase.');
   });
 
   it('uses the shared direction colors for chart points', () => {
@@ -111,8 +111,8 @@ describe('PriceChart', () => {
     const fills = tree!.root.findAllByType(Circle).map((circle) => circle.props.fill);
     // Sorted oldest → newest: 100, 90 (drop) and 105 (increase); the oldest point is selected (white fill).
     expect(fills).toContain(colors.green);
-    expect(fills).toContain(colors.amber);
-    expect(fills).not.toContain(colors.red);
+    expect(fills).toContain(colors.red);
+    expect(fills).not.toContain(colors.amber);
   });
 
   it('maps a tap on the first visible point correctly in a wide layout', () => {

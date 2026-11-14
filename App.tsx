@@ -39,22 +39,19 @@ import {
   FolderInput,
   ImageOff,
   Link2,
-  PackageX,
   Pause,
   Plus,
   RefreshCcw,
   Search,
   Settings as SettingsIcon,
   SlidersHorizontal,
-  Store,
   Trash2,
-  TrendingDown,
-  TrendingUp,
   X
 } from 'lucide-react-native';
 
 import { AppText } from './src/components/AppText';
 import { AppTextInput } from './src/components/AppTextInput';
+import { ActivityList } from './src/components/ActivityList';
 import { Surface } from './src/components/Surface';
 import { FontScaleContext } from './src/theme/FontScaleContext';
 import { OptionGroup } from './src/components/OptionGroup';
@@ -2034,21 +2031,7 @@ function ActivityScreen({
     return () => { active = false; };
   }, [refreshKey]);
 
-  const existingProductIds = useMemo(() => new Set(products.map((p) => p.id)), [products]);
-
-  const groupedEvents = useMemo(() => {
-    const groups: { label: string; events: ActivityEvent[] }[] = [];
-    for (const event of events) {
-      const label = formatRelativeTime(event.checkedAt);
-      const lastGroup = groups[groups.length - 1];
-      if (lastGroup && lastGroup.label === label) {
-        lastGroup.events.push(event);
-      } else {
-        groups.push({ label, events: [event] });
-      }
-    }
-    return groups;
-  }, [events]);
+  const productsById = useMemo(() => new Map(products.map((product) => [product.id, product])), [products]);
 
   if (loading) {
     return (
@@ -2063,7 +2046,7 @@ function ActivityScreen({
       <AppText weight="bold" accessibilityRole="header" style={styles.heading}>
         Activity
       </AppText>
-      <AppText muted>Recent price changes across all tracked products.</AppText>
+      <AppText muted>Price and stock changes from your watchlist.</AppText>
       {availableUpdate && onOpenUpdate ? (
         <Pressable
           accessibilityRole="button"
@@ -2081,116 +2064,13 @@ function ActivityScreen({
           <ChevronRight size={18} color={colors.textSoft} />
         </Pressable>
       ) : null}
-      {events.length === 0 ? <EmptyActivity /> : null}
-      {groupedEvents.map((group) => (
-        <View key={group.label}>
-          <View style={styles.activityDateHeader}>
-            <AppText weight="semibold" style={styles.activityDateHeaderText}>
-              {group.label}
-            </AppText>
-          </View>
-          <View style={styles.cardList}>
-            {group.events.map((event) => {
-              const productExists = existingProductIds.has(event.trackedProductId);
-              const cardContent = (
-                <View style={styles.activityCard}>
-                  {event.productImageUrl ? (
-                    <Image source={{ uri: event.productImageUrl }} style={styles.activityThumb} resizeMode="contain" />
-                  ) : (
-                    <View style={styles.activityThumbPlaceholder}>
-                      <Store size={18} color={colors.textMuted} />
-                    </View>
-                  )}
-                  <View style={styles.activityBody}>
-                    <AppText weight="semibold" numberOfLines={2} style={styles.activityTitle}>
-                      {event.productTitle}
-                    </AppText>
-                    <View style={styles.activityPriceRow}>
-                      {event.availability === 'out_of_stock' ? (
-                        <>
-                          <PackageX size={18} color={colors.amber} />
-                          <AppText weight="semibold" style={styles.oosActivityLabel}>
-                            Out of stock
-                          </AppText>
-                          {event.previousPriceMinor !== undefined ? (
-                            <AppText muted style={styles.activityOldPrice}>
-                              {formatPrice(event.previousPriceMinor, event.currency, event.priceBasis)}
-                            </AppText>
-                          ) : null}
-                        </>
-                      ) : event.availability === 'in_stock' ? (
-                        <>
-                          <Check size={18} color={colors.primary} />
-                          <AppText weight="semibold" style={styles.restockActivityLabel}>Back in stock</AppText>
-                          <AppText weight="bold" style={styles.activityNewPrice}>{formatPrice(event.newPriceMinor, event.currency, event.priceBasis)}</AppText>
-                        </>
-                      ) : (
-                        <>
-                          {event.previousPriceMinor !== undefined ? (
-                            <AppText muted style={styles.activityOldPrice}>
-                              {formatPrice(event.previousPriceMinor, event.currency, event.priceBasis)}
-                            </AppText>
-                          ) : null}
-                          <View style={styles.activityDirectionIcon}>
-                            {event.priceDirection === 'down' ? (
-                              <TrendingDown size={16} color={colors.green} />
-                            ) : event.priceDirection === 'up' ? (
-                              <TrendingUp size={16} color={colors.amber} />
-                            ) : (
-                              <View style={styles.activityFirstDot} />
-                            )}
-                          </View>
-                          {event.priceDirection === 'first' ? (
-                            <AppText weight="bold" style={styles.activityFirstPrice}>
-                              {formatPrice(event.newPriceMinor, event.currency, event.priceBasis)}
-                            </AppText>
-                          ) : (
-                            <AppText weight="bold" style={[
-                              styles.activityNewPrice,
-                              event.priceDirection === 'down' && styles.activityPriceDown,
-                              event.priceDirection === 'up' && styles.activityPriceUp
-                            ]}>
-                              {formatPrice(event.newPriceMinor, event.currency, event.priceBasis)}
-                            </AppText>
-                          )}
-                        </>
-                      )}
-                    </View>
-                    <View style={styles.activityMetaRow}>
-                      {event.priceDirection === 'first' && !event.availability ? (
-                        <View style={styles.activityFirstBadge}>
-                          <AppText weight="semibold" style={styles.activityFirstBadgeText}>
-                            Started tracking
-                          </AppText>
-                        </View>
-                      ) : null}
-                      <SourceLabel source={event.source} />
-                    </View>
-                  </View>
-                </View>
-              );
-
-              if (!productExists) {
-                return (
-                  <View key={event.id}>
-                    {cardContent}
-                  </View>
-                );
-              }
-
-              return (
-                <Pressable
-                  key={event.id}
-                  onPress={() => navigate({ name: 'detail', id: event.trackedProductId })}
-                  style={({ pressed }) => pressed && { opacity: 0.7 }}
-                >
-                  {cardContent}
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
-      ))}
+      {events.length === 0 ? <EmptyActivity /> : (
+        <ActivityList
+          events={events}
+          productsById={productsById}
+          onOpenProduct={(productId) => navigate({ name: 'detail', id: productId })}
+        />
+      )}
     </ScrollView>
   );
 }
@@ -3240,9 +3120,6 @@ const styles = StyleSheet.create({
   storeFilterButtonPressed: {
     opacity: 0.78
   },
-  cardList: {
-    gap: 12
-  },
   watchlistCardList: { gap: 0 },
   oosSection: {
     backgroundColor: colors.blueSoft,
@@ -3681,11 +3558,7 @@ const styles = StyleSheet.create({
     color: colors.green
   },
   snapshotPriceUp: {
-    color: colors.amber
-  },
-  restockActivityLabel: {
-    color: colors.primary,
-    fontSize: 14
+    color: colors.red
   },
   snapshotList: {
     backgroundColor: colors.surface,
@@ -3849,99 +3722,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
     marginTop: 2
-  },
-  activityCard: {
-    flexDirection: 'row',
-    gap: 12,
-    padding: 14,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface
-  },
-  activityThumb: {
-    width: 48,
-    height: 56,
-    borderRadius: radius.sm,
-    backgroundColor: colors.surfaceMuted
-  },
-  activityThumbPlaceholder: {
-    width: 48,
-    height: 56,
-    borderRadius: radius.sm,
-    backgroundColor: colors.surfaceMuted,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  activityBody: {
-    flex: 1,
-    minWidth: 0,
-    gap: 6
-  },
-  activityTitle: {
-    fontSize: 15,
-    lineHeight: 20
-  },
-  activityPriceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6
-  },
-  activityOldPrice: {
-    fontSize: 13,
-    textDecorationLine: 'line-through'
-  },
-  activityNewPrice: {
-    fontSize: 16
-  },
-  activityFirstPrice: {
-    fontSize: 16,
-    color: colors.primary
-  },
-  activityPriceDown: {
-    color: colors.green
-  },
-  activityPriceUp: {
-    color: colors.amber
-  },
-  activityMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6
-  },
-  activityDirectionIcon: {
-    width: 18,
-    alignItems: 'center'
-  },
-  activityFirstDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.primary
-  },
-  activityFirstBadge: {
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    backgroundColor: colors.blueSoft
-  },
-  activityFirstBadgeText: {
-    fontSize: 11,
-    color: colors.primary
-  },
-  activityDateHeader: {
-    paddingVertical: 10,
-    paddingHorizontal: 2,
-    marginTop: 4
-  },
-  activityDateHeaderText: {
-    fontSize: 13,
-    color: colors.textMuted
-  },
-  oosActivityLabel: {
-    fontSize: 13,
-    color: colors.amber,
-    flex: 1
   },
   settingsCard: {
     padding: 20,

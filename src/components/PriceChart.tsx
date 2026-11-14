@@ -152,7 +152,7 @@ export function PriceChart({ snapshots, currency }: PriceChartProps) {
         <AppText muted style={styles.axisLabel}>{formatAxisDate(points[0].checkedAt)}</AppText>
         <AppText muted style={styles.axisLabel}>{formatAxisDate(points[points.length - 1].checkedAt)}</AppText>
       </View>
-      <AppText muted style={styles.hint}>Tap a point to view its date and price. Green marks a drop; amber marks an increase.</AppText>
+      <AppText muted style={styles.hint}>Tap a point to view its date and price. Green marks a drop; red marks an increase.</AppText>
     </View>
   );
 }
@@ -167,7 +167,7 @@ function getPointColor(point: PricedSnapshot, previous: PricedSnapshot | undefin
   }
 
   if (point.priceMinor > previous.priceMinor) {
-    return colors.amber;
+    return colors.red;
   }
 
   return colors.borderStrong;
@@ -255,7 +255,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.greenSoft
   },
   changeBadgeUp: {
-    backgroundColor: colors.amberSoft
+    backgroundColor: colors.redSoft
   },
   changeBadgeMuted: {
     backgroundColor: colors.surfaceMuted
@@ -266,7 +266,7 @@ const styles = StyleSheet.create({
     textAlign: 'right'
   },
   changeTextUp: {
-    color: colors.amber,
+    color: colors.red,
     fontSize: 12,
     textAlign: 'right'
   },

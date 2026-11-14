@@ -14,8 +14,8 @@ colors:
   text-soft: "#94A3B8"
   green: "#16833A"
   green-soft: "#ECFDF3"
-  red: "#C2410C"
-  red-soft: "#FFEDD5"
+  red: "#B91C1C"
+  red-soft: "#FEE2E2"
   amber: "#B45309"
   amber-soft: "#FEF3C7"
   blue-soft: "#DBEAFE"
@@ -59,7 +59,7 @@ This document records the agreed system and its implementation. Semantic type an
 
 ## Colors
 
-Use the existing blue for primary actions, selection and links. Light neutrals separate the page, surfaces and borders. Green, orange-red and amber communicate price or check states; pair colors with descriptive text or icons. The palette ships as `colors` and defines a light appearance only; a dark theme has not been specified or validated.
+Use the existing blue for primary actions, selection and links. Light neutrals separate the page, surfaces and borders. Green, red and amber communicate price or check states: red marks negative price movement and failures, amber warns about availability, and green marks a price drop. Pair colors with descriptive text or icons. The palette ships as `colors` and defines a light appearance only; a dark theme has not been specified or validated.
 
 Foreground/background pairs are checked for WCAG AA contrast: body and muted text on page/surface, primary on white and blue-soft, green/amber/red text on their soft tints, and placeholders use `textMuted` rather than `textSoft`. The Watchlist count pill uses `primaryDark` behind white text (8.5:1) instead of a translucent overlay.
 
@@ -121,25 +121,25 @@ Treat check freshness, price direction, availability and failure as separate sig
 
 - **Freshness:** neutral blue for a successful check; a check is not itself a price drop.
 - **Price drop:** green.
-- **Price rise:** amber.
+- **Price rise:** red (the same red as errors; the label and trend icon distinguish them).
 - **Out of stock:** amber.
 - **Error:** red.
 - **Provenance:** muted text, never green.
 
-- **Shipped:** the status primitives use the agreed colors: `StatusPill` renders `ok` and `price_changed` as a neutral blue check, out-of-stock as amber and failures as red; `PriceDirectionBadge` renders a drop green and a rise amber; `SourceLabel` (backed by `snapshotSourceLabel` in `src/domain/snapshotSource.ts`) renders provenance as muted text with no colored badge; `ProductCard`, the product-detail snapshot list, Activity and the price-history chart use the same direction colors (green drop, amber rise). Snapshot prices on product detail are tinted by direction rather than every `price_changed` row being green.
+- **Shipped:** the status primitives use the agreed colors: `StatusPill` renders `ok` and `price_changed` as a neutral blue check, out-of-stock as amber and failures as red; `PriceDirectionBadge` renders a drop green and a rise red; `SourceLabel` (backed by `snapshotSourceLabel` in `src/domain/snapshotSource.ts`) renders provenance as muted text with no colored badge; `ProductCard`, the product-detail snapshot list, Activity and the price-history chart use the same direction colors (green drop, red rise). Snapshot prices on product detail are tinted by direction rather than every `price_changed` row being green.
 - **Intended:** one shared status treatment applied consistently across every surface. `StatusPill` remains product-detail only, and the price-history chart keeps its own change indicator styling. Do not treat full unification as shipped.
 
 ## Components
 
-`PrimaryButton`, `ProductCard`, `StatusPill`, `SiteIcon` and `AppText` are the shared components today, alongside the status primitives `PriceDirectionBadge` and `SourceLabel`. Semantic tokens ship, but there is no shared input or surface primitive and screens do not yet apply the full action/input/state role set; that consolidation is intended, not shipped.
+`PrimaryButton`, `ProductCard`, `StatusPill`, `SiteIcon` and `AppText` are the shared components today, alongside the status primitives `PriceDirectionBadge` and `SourceLabel`, the shared field primitive `AppTextInput` and the flat-surface primitive `Surface`. Semantic tokens ship; the remaining consolidation is the action/state role set and the compact chip/surface adoptions marked intended below.
 
 - **Buttons:** `PrimaryButton` supplies primary, outline and danger variants, a 58-unit minimum height, disabled opacity and a loading state. Use the primary action where it helps the user complete the screen's main task. Screens still style some controls locally, so button roles are not fully consolidated.
 - **Tracked-product cards:** `ProductCard` presents the product, retailer, selected variant, current or last-known price, price change and check state where available. **Shipped:** compact, flat divided rows without the shared shadow; the change badge reflects the most recent actual price change and keeps showing through later unchanged checks (its accessibility label includes when the change happened). Improve density without hiding variant or failure context.
 - **Floating add button:** **Shipped:** Watchlist uses a circular add button floating over the list (`12aaa66`). The user explicitly chose it over a separate white dock; it can cover list content, and that overlap is an accepted tradeoff, not a defect to fix by restoring a dock. Keep enough bottom scroll padding for the final product to be scrolled clear.
 - **Navigation:** the app has a manual Android tab and route stack. Preserve established navigation and Android back behavior.
-- **Search cards:** listing cards serve discovery, while Watchlist cards serve monitoring. Share underlying visual principles without forcing identical layouts. **Shipped (13 November 2026):** discovery cards use a compact outline Track action instead of a solid primary button on every card, so the card content leads, and missing or failed listing images fall back to a neutral placeholder. A previously observed price change renders as the same green/amber direction badge used by Watchlist cards. A fuller Search hierarchy pass remains **intended**.
+- **Search cards:** listing cards serve discovery, while Watchlist cards serve monitoring. Share underlying visual principles without forcing identical layouts. **Shipped (13 November 2026):** discovery cards use a compact outline Track action instead of a solid primary button on every card, so the card content leads, and missing or failed listing images fall back to a neutral placeholder. A previously observed price change renders as the same green/red direction badge used by Watchlist cards. A fuller Search hierarchy pass remains **intended**.
 - **Task-first flows:** **Shipped (13 November 2026):** Add keeps **Find product** directly after the URL field and collapses the supported-store list behind a disclosure; Settings keeps notifications, battery and background time first and collapses run diagnostics and the supported-store list; tracking settings exposes a per-product **Active** switch, and the tab stack stays mounted so Watchlist and Search keep their state after opening a product or the Add flow.
-- **Product detail:** **Shipped (13 November 2026):** the product title spans the full width without a line clamp, the image and price/status block sit below it, insight cards are flat and equal-weight (no emphasized average price), and snapshots color a lower price green and a higher price amber. Further insight/chart hierarchy refinement is **intended**.
+- **Product detail:** **Shipped (13 November 2026):** the product title spans the full width without a line clamp, the image and price/status block sit below it, insight cards are flat and equal-weight (no emphasized average price), and snapshots color a lower price green and a higher price red. Further insight/chart hierarchy refinement is **intended**.
 
 ## Accessibility
 

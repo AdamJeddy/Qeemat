@@ -22,7 +22,7 @@ Reviewed 13 November 2026 against the current React Native code and Watchlist, S
 
 | # | Status | Evidence and remaining work |
 | --- | --- | --- |
-| 1 | Mostly shipped | `StatusPill` renders a neutral blue check (`16019c1`), `PriceDirectionBadge` renders green drops and amber rises, and `SourceLabel` renders provenance as muted text instead of a coloured badge (`6794cec`); snapshot prices are tinted by direction. Full unification is still intended: `StatusPill` remains product-detail only and the price-history chart keeps its own change indicator. |
+| 1 | Mostly shipped | `StatusPill` renders a neutral blue check (`16019c1`), `PriceDirectionBadge` renders green drops and red rises, and `SourceLabel` renders provenance as muted text instead of a coloured badge (`6794cec`); snapshot prices are tinted by direction. Full unification is still intended: `StatusPill` remains product-detail only and the price-history chart keeps its own change indicator. |
 | 2 | Partial | Settings, Watchlist rows, product-detail insight cards and the update surfaces use flat bordered surfaces. Form fields share the 52-high `AppTextInput` role with focus/error states, and `Surface` now provides the shared card/muted/accent surface role used by Search discovery cards, empty states and detail insight cards. Search filter chips and some remaining local card styles still carry their own treatment (`DESIGN.md` marks chip consolidation **intended**). |
 | 3 | Mostly shipped | Add puts **Find product** after the URL field and collapses supported stores; Settings is task-first; Search discovery cards use a compact outline Track action plus direction badges; product detail has the full title, image/price/status block and equal-weight flat insight cards. A fuller Search hierarchy and further detail insight/chart refinement remain **intended**. |
 | 4 | Tokens shipped, adoption partial | Semantic `typography` and `layoutMetrics` roles ship in `src/theme/theme.ts`, and `AppText` renders on the body role. Screens still set many local font sizes and spacing values, so app-wide adoption is incomplete. |
@@ -34,7 +34,7 @@ Reviewed 13 November 2026 against the current React Native code and Watchlist, S
 1. Define status semantics and fix the misleading direction indicator. **Done.**
 2. Establish type, spacing, surface and action roles, using real examples from all four screens. **Tokens done; screen adoption partial.**
 3. Build a small set of shared primitives and state examples, including large-text and error cases. **Status, input and surface primitives done; chip/action consolidation still intended.**
-4. Apply them screen by screen, beginning with Watchlist and product detail, followed by Search and Settings; validate on device. **Watchlist, product detail, Add and Settings done; Activity and Search passes still open.**
+4. Apply them screen by screen, beginning with Watchlist and product detail, followed by Search and Settings; validate on device. **Watchlist, product detail, Add, Settings and Activity done; a fuller Search hierarchy is still open.**
 
 ## Scope of verification
 
