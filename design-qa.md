@@ -172,3 +172,18 @@ The initial device capture showed too much vertical space before products. The f
 The device check covered selecting Footwear, opening the full department browser, searching, clearing search back to the selected category, scrolling to Track price, and seeing 24 existing tracked items. No product was added or removed. No AndroidRuntime or ReactNativeJS errors appeared in sampled logs. These checks do not establish full accessibility or coverage across devices and retailers.
 
 final result: blocked
+
+## Search comparison redesign — device verification (14 November 2026)
+
+Final result: **passed for the implemented scope**, with the limits below.
+
+The `feat/search-tab-redesign` arm64 release was installed over the existing app on the Samsung SM-S928B (1440 × 3120). The existing 28-item watchlist, discovery cache and preferences remained; no tracker was added, edited or deleted during this pass.
+
+- **Feed.** The Search tab opens with the Watchlist-style blue banner (Qeemat lockup, product-count pill, permanent cross-store search field, coverage and refresh actions), a compact department rail and the relevance line “Based on your watchlist · Footwear, Clothing”. Grouped rows show the lowest comparable price, store icons, the best store and the saving, an honest reason or “On your watchlist at …” annotation, and compact Compare/Open or Compare/Track actions. Screenshot: [Search feed](assets/search-redesign-2026-11-14/search-feed.png).
+- **Cross-store search.** Searching `airpods pro 2` checked all 20 storefronts and reported 48 grouped products across 5 stores. The first item clubed Noon and Carrefour into one row at AED 699 with “Lowest at Noon · 2 stores” and “Save AED 150”. The retailer’s own title and availability remain visible in the compare sheet. Screenshot: [Grouped search results](assets/search-redesign-2026-11-14/search-grouped-results.png).
+- **Compare sheet.** The sheet showed the lowest offer and source, `Save AED 150 across 2 stores`, the previous cross-store best (“Lowest unchanged since the last check (AED 699)”), the observed time, and per-store rows with the retailer’s own title, price, availability, previous price and check age. Screenshot: [Compare prices](assets/search-redesign-2026-11-14/search-compare-sheet.png).
+- **Filters.** The bottom filter sheet exposed departments, stores with grouped counts, brands, maximum price, Clear filters and Show results, matching the Watchlist filter interaction. Screenshot: [Search filters](assets/search-redesign-2026-11-14/search-filters.png).
+- **Automated checks.** `npm run typecheck` clean; ESLint 0 errors (the one existing out-of-stock thumbnail inline-style warning remains); Jest 58 suites, 541 passed, 1 skipped. All new tokenizer, grouping, ranking, row, compare-sheet, filter-sheet and Search integration tests pass.
+- **Not verified in this pass.** Tracking from a grouped row (page verification + variant selection), TalkBack order/labels, landscape, larger font scales on the new rows/sheets, every retailer/query combination, and background freshness guarantees. Grouping remains a conservative local inference over retailer titles and can still miss or mis-club edge cases; the compare sheet shows each retailer’s own title precisely so the shopper can verify the offer. The device screenshots are evidence of these specific journeys only.
+
+final result: passed with limits

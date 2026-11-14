@@ -61,13 +61,15 @@ Supporting surfaces: department tiles (`DiscoveryDepartments`), a full browse sh
 
 **Watchlist-only relevance, with explanations.** The taste profile is derived from active tracked products: inferred categories, brands (tracker brand or source metadata), distinctive title keywords, and typical price bands. Each row can show one honest reason such as “Because you track running shoes” or “More from Nike”. The dead quiz UI is removed; the stored preferences continue to serve dismissal state only.
 
-**Conservative cross-retailer clubbing.** There is no cross-retailer product id, so grouping is a local inference:
+**Conservative cross-retailer clubbing.** There is no cross-retailer product id, so grouping is a local inference. The shipped rules were tightened after checking real retailer titles:
 
-- Require a matching brand (exact normalized key or a token-prefix extension such as `adidas` / `adidas originals`).
-- Require the same canonical product type.
-- Require exactly equal numeric/model/pack hard tokens (`iPhone 16` ≠ `iPhone 15`, `128GB` ≠ `256GB`, `Air Force 1` ≠ `Air Force 1 07`).
-- Require strong signature similarity after removing brand, gender, colour, filler and type-synonym noise.
-- One offer per retailer; best offer only when at least two offers are genuinely comparable (single price, in stock, same currency and pack/weight basis). “From” range prices and out-of-stock offers are shown but never used for the “lowest price” claim.
+- Require a compatible brand. A search card that omits its brand may still match when the brand word leads its title (`Apple AirPods…`); an accessory title such as `Case for Apple AirPods…` does not gain the brand.
+- Require the same canonical product type, or accept one title without a product type word (for example a marketing `AirPods Pro 2nd Generation` heading) when brand, model and at least three tokens agree.
+- Numeric model numbers must match exactly (`iPhone 16` ≠ `iPhone 15`, `AirPods Pro 2` ≠ `AirPods Pro 3`); capacity and pack tokens must match exactly (`128GB` ≠ `256GB`, `1L` ≠ `500ml`).
+- Alphanumeric model codes may match by containment so a retailer-appended SKU (`WH1000XM5B165935990`) still matches `WH-1000XM5`; extra specification numbers (`H2`, `Bluetooth 5.3`, `2 years`) do not block a match.
+- Ordinals are normalized (`2nd Generation` = `2`), common colour words are ignored, and brand, gender, filler and unit noise are removed before comparison.
+- One offer per retailer, so repeated colour variants from the same store collapse to the retailer's cheapest offer; the compare sheet still shows the offer title that was kept.
+- Best offer only when at least two offers are genuinely comparable (single price, in stock, same currency and pack/weight basis). “From” range prices and out-of-stock offers are shown but never used for the “lowest price” claim.
 - Group-level previous-best price is only shown when every compared offer had a previous observation, so the saving cannot be inflated by a partial comparison.
 
 **Tracked-product annotation.** When a group matches an active tracked product (exact URL first, then conservative brand+signature), the row and compare sheet say “You track this at Noon” and can open the tracker. This is display-only and makes no new claim about the tracker itself.
@@ -123,29 +125,35 @@ A bottom sheet matching the Watchlist **Filter & sort** interaction: departments
 
 | Area | Change |
 |---|---|
-| `src/domain/productTokens.ts` | New shared title normalizer: filler/colour/gender/brand removal, product-type synonyms, unit folding, hard tokens, relevance keywords |
+| `src/domain/productTokens.ts` | New shared title normalizer: filler/colour/gender/brand removal, product-type synonyms, ordinal and unit folding, decimal-spec removal, numeric and model tokens, variant pack/capacity tokens, relevance keywords |
 | `src/domain/types.ts` | New `DiscoveryOffer`, `DiscoveryRelevance`, `DiscoveryProductGroup` types |
-| `src/domain/discoveryGroups.ts` | New conservative grouping, one-offer-per-retailer, comparable best offer, price spread, previous best, tracked-product match |
+| `src/domain/discoveryGroups.ts` | New conservative grouping, one-offer-per-retailer, comparable best offer, price spread, previous best, tracked-product match, inferred missing brand, model-code containment |
 | `src/domain/discoveryRanking.ts` | New watchlist taste profile, group scoring with reasons, diversity-aware ranking, taste summary |
-| `src/components/SearchProductRow.tsx` | New grouped row |
-| `src/components/SearchCompareSheet.tsx` | New cross-store comparison sheet |
-| `src/components/SearchFilterSheet.tsx` | New filter sheet |
-| `src/components/Discovery.tsx` | Keep only the shared filter chip/empty state used by the new screen; remove dead quiz/setup/grid code once tests move |
-| `App.tsx` (`OpportunityScreen`) | Blue banner, grouped feed, relevance sections, department rail, filter sheet, grouped search, compare sheet wiring, tracked annotation, remove rotation for personalized feeds, remove dead quiz imports |
-| Tests | Domain tests for tokens/grouping/ranking; component tests for row/sheets; updated `App.test.tsx` Search flows |
-| Docs | This review, `current-state.md`, `DESIGN.md` and `design-qa.md` updated with shipped behaviour and device evidence |
+| `src/components/SearchProductRow.tsx` | New grouped row (price, direction, source icons, saving, reason, compare/open/track) |
+| `src/components/SearchCompareSheet.tsx` | New cross-store comparison sheet: lowest source, saving, previous cross-store best, per-store prices/check age, tracked annotation |
+| `src/components/SearchFilterSheet.tsx` | New filter sheet for department/store/brand/maximum price |
+| `src/components/Discovery*.tsx` | Department rail and search progress rebuilt; old grid, preview modal and dead quiz components removed; shared filter chip retained |
+| `App.tsx` (`OpportunityScreen`) | Blue Watchlist-style banner, grouped feed, relevance reasons, filter sheet, grouped search with product/store counts, tracked annotation, accessory-aware result ranking, compare sheet wiring |
+| `src/domain/discoverySearch.ts` | Broader accessory penalty (`for`-pattern, tips, insoles, charms, replacement) so the named product leads results |
+| Tests | Tokenizer 10, grouping 25, ranking 12, row 6, compare 7, filter 4, plus updated `App.test.tsx` Search integration flows |
+| Docs | This review, `current-state.md`, `DESIGN.md`, `design-qa.md`, `discovery-search-feasibility.md` |
 
-## 7. Verification plan
+## 7. Verification
 
-1. `npm run typecheck`, `npm run lint`, `npm test -- --runInBand` clean.
-2. Build the arm64 release and install on the connected Samsung SM-S928B; verify: banner and tab bar, newly installed feed with a real watchlist, relevance order and reasons, cross-store grouping on a real search query, best-source/saving claims, compare sheet, filters, empty/loading/failed states, dismiss, track-with-variant, clearing back to the feed, and tab/scroll persistence. Capture screenshots under `docs/assets/search-redesign-2026-11-14/`.
-3. Check compact width / 1.3 font scale for the new row and sheet; document remaining accessibility limits honestly.
-4. Keep existing parser, background and tracking behaviour unchanged; no regression in the full Jest suite.
+1. `npm run typecheck` clean; `npm run lint` 0 errors (the known out-of-stock thumbnail inline-style warning remains); Jest 58 suites / 541 passed / 1 skipped.
+2. The arm64 release was installed over the existing app on the connected Samsung SM-S928B (1440 × 3120) with the existing 28-item watchlist and cache preserved. The Search feed, grouped cross-store search, compare sheet and filter sheet were inspected:
+   - [Search feed](assets/search-redesign-2026-11-14/search-feed.png) — blue banner, 790 grouped products, watchlist relevance line, tracked-group annotation and saving.
+   - [Grouped search results](assets/search-redesign-2026-11-14/search-grouped-results.png) — `airpods pro 2` across 20 stores, first item grouped across Noon and Carrefour, `Lowest at Noon · 2 stores`, `Save AED 150`.
+   - [Compare sheet](assets/search-redesign-2026-11-14/search-compare-sheet.png) — lowest source, saving, previous cross-store best, per-store title/price/availability/previous price/check age.
+   - [Filter sheet](assets/search-redesign-2026-11-14/search-filters.png) — departments, stores with grouped counts, brands and maximum price.
+3. Not covered by this pass: tracking a grouped offer through page verification and variant selection, TalkBack order/labels, landscape, larger font scales, every retailer/query combination, and background freshness guarantees. Grouping remains a local heuristic; the compare sheet shows each retailer's own title so the offer can be verified.
+
 
 ## 8. Risks and limits
 
-- Retailer titles are inconsistent; conservative grouping will miss some real duplicates (e.g. different model-year wording) and can still club different colourways. The compare sheet mitigates this by showing retailer titles. Grouping must not be described as a guaranteed identical-item match.
+- Retailer titles are inconsistent; conservative grouping will miss some real duplicates (for example one store omitting the model number) and can still club different colourways of the same model. The compare sheet mitigates this by showing retailer titles, and only same-pack/same-capacity single prices can win the lowest-price claim. Grouping must not be described as a guaranteed identical-item match.
 - The feed only contains products from the source collections fetched for the selected scope; cross-store coverage in the default feed depends on which collections the 24-page batch includes. Search mode provides the broad comparison.
 - Freshness is per collection refresh (up to 24h) with best-effort background rotation; per-source observed times are shown instead of implying live prices.
 - Tracked-product matching is heuristic unless the exact URL is present; the annotation is a convenience, not a price guarantee.
-- Large catalogues (hundreds of listings) make grouping and ranking CPU work on device; the implementation should bucket candidates and stay deterministic.
+- Large catalogues (hundreds of listings) make grouping and ranking CPU work on device; the grouping is bucketed and deterministic, but the first load can be slower with a large cached catalogue.
+- Amazon search cards frequently omit the brand field even when the title starts with it. The grouping now infers a leading brand conservatively, but cards that neither expose a brand nor lead with one remain ungrouped.
