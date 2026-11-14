@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Linking, Modal, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, AppState, Linking, Modal, Pressable, StyleSheet, View } from 'react-native';
 import { AlertTriangle, CheckCircle2, Download, X } from 'lucide-react-native';
 import { AppText } from './AppText';
 import { AvailableUpdate } from '../domain/updates';
@@ -42,7 +42,7 @@ export function UpdateNotice({ update, visible = true, onDismiss }: UpdateNotice
   const [totalBytes, setTotalBytes] = useState(0);
   const [error, setError] = useState<string>();
   const mounted = useRef(true);
-  const cancelled = useRef(false);
+  const downloadRun = useRef(0);
 
   useEffect(() => {
     mounted.current = true;
@@ -50,13 +50,32 @@ export function UpdateNotice({ update, visible = true, onDismiss }: UpdateNotice
   }, []);
 
   useEffect(() => {
-    cancelled.current = true;
+    downloadRun.current += 1;
     setPhase('idle');
     setProgress(0);
     setDownloadedBytes(0);
     setTotalBytes(0);
     setError(undefined);
   }, [update?.version]);
+
+  // Android keeps Qeemat in the background while the system installer is open.
+  // If the user cancels the prompt or it fails, bring the popup back to the
+  // install-ready state instead of leaving it stuck on "Installing update".
+  useEffect(() => {
+    if (phase !== 'installing') { return; }
+    let leftApp = false;
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'background' || nextState === 'inactive') {
+        leftApp = true;
+        return;
+      }
+      if (nextState === 'active' && leftApp) {
+        leftApp = false;
+        setPhase('ready');
+      }
+    });
+    return () => subscription.remove();
+  }, [phase]);
 
   function openReleasePage() {
     if (!update) { return; }
@@ -92,12 +111,12 @@ export function UpdateNotice({ update, visible = true, onDismiss }: UpdateNotice
     ]);
   }
 
-  async function waitForDownload(): Promise<void> {
+  async function waitForDownload(run: number): Promise<void> {
     const apk = update?.apk;
     const expectedTotal = apk?.size ?? 0;
     for (;;) {
       await delay(PROGRESS_POLL_MS);
-      if (!mounted.current || cancelled.current) { return; }
+      if (!mounted.current || downloadRun.current !== run) { return; }
       let state;
       try {
         state = await readInAppUpdateDownloadState();
@@ -143,33 +162,40 @@ export function UpdateNotice({ update, visible = true, onDismiss }: UpdateNotice
       openReleasePage();
       return;
     }
+    const run = downloadRun.current + 1;
+    downloadRun.current = run;
     setError(undefined);
     setProgress(0);
     setDownloadedBytes(0);
     setTotalBytes(apk.size);
-    cancelled.current = false;
     setPhase('downloading');
     try {
       await startInAppUpdateDownload(apk);
     } catch (startError) {
-      setPhase('idle');
-      Alert.alert('Could not start the download', errorMessage(startError));
+      if (downloadRun.current === run) {
+        setPhase('idle');
+        Alert.alert('Could not start the download', errorMessage(startError));
+      }
       return;
     }
-    await waitForDownload();
+    await waitForDownload(run);
   }
 
   function cancelDownload() {
-    cancelled.current = true;
+    downloadRun.current += 1;
     setPhase('idle');
     setProgress(0);
     cancelInAppUpdateDownload().catch(() => undefined);
   }
 
   function requestClose() {
-    if (!update || phase === 'installing') { return; }
+    if (!update) { return; }
     if (phase === 'downloading' || phase === 'verifying') {
       cancelDownload();
+    }
+    if (phase === 'installing') {
+      downloadRun.current += 1;
+      setPhase('ready');
     }
     onDismiss(update.version);
   }

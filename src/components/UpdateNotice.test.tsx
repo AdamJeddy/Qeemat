@@ -1,5 +1,5 @@
 import React from 'react';
-import { Alert, Linking } from 'react-native';
+import { Alert, AppState, Linking, type AppStateStatus } from 'react-native';
 import renderer, { act } from 'react-test-renderer';
 import { UpdateNotice } from './UpdateNotice';
 import { AppText } from './AppText';
@@ -173,5 +173,44 @@ describe('UpdateNotice', () => {
     expect(onDismiss).toHaveBeenCalledWith('0.6.1-alpha');
     act(() => { tree.update(<UpdateNotice update={update} visible={false} onDismiss={onDismiss} />); });
     expect(tree.toJSON()).toBeNull();
+  });
+});
+
+describe('installer recovery', () => {
+  it('does not revive an invalidated polling loop when a download is restarted', async () => {
+    readState.mockResolvedValue({ state: 'downloading', downloadedBytes: 100, totalBytes: 1000 });
+    const { tree } = await renderNotice();
+    await act(async () => { findButton(tree, 'Download and install Qeemat 0.6.1-alpha').props.onPress(); });
+    await act(async () => { await wait(150); });
+    await act(async () => { findButton(tree, 'Cancel update download').props.onPress(); });
+    readState.mockResolvedValue({ state: 'ready', downloadedBytes: 1000, totalBytes: 1000 });
+    startDownload.mockClear();
+    await act(async () => { findButton(tree, 'Download and install Qeemat 0.6.1-alpha').props.onPress(); });
+    await act(async () => { await wait(1200); });
+    expect(startDownload).toHaveBeenCalledTimes(1);
+    expect(install).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns to the install action when the system installer is dismissed', async () => {
+    const handlers: ((state: AppStateStatus) => void)[] = [];
+    const remove = jest.fn();
+    const addListener = (_type: string, handler: (state: AppStateStatus) => void) => {
+      handlers.push(handler);
+      return { remove };
+    };
+    const spy = jest.spyOn(AppState, 'addEventListener').mockImplementation(addListener as unknown as typeof AppState.addEventListener);
+    readState.mockResolvedValue({ state: 'ready', downloadedBytes: 1000, totalBytes: 1000 });
+    const { tree } = await renderNotice();
+    await act(async () => { findButton(tree, 'Download and install Qeemat 0.6.1-alpha').props.onPress(); });
+    await act(async () => { await wait(900); });
+    expect(tree.root.findAllByType(AppText).some((item) => item.props.children === 'Installing update')).toBe(true);
+
+    act(() => {
+      handlers.forEach((handler) => handler('background'));
+      handlers.forEach((handler) => handler('active'));
+    });
+    expect(tree.root.findAllByType(AppText).some((item) => item.props.children === 'Ready to install')).toBe(true);
+    expect(findButton(tree, 'Install Qeemat 0.6.1-alpha update')).toBeDefined();
+    spy.mockRestore();
   });
 });
