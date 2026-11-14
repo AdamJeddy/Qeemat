@@ -64,16 +64,18 @@ function priceLine(event: ActivityEvent) {
   }
   return (
     <>
-      {event.previousPriceMinor !== undefined ? (
-        <AppText muted style={styles.oldPrice}>{formatPrice(event.previousPriceMinor, event.currency, event.priceBasis)}</AppText>
-      ) : null}
-      <AppText muted style={styles.arrow}>→</AppText>
       <AppText
         weight="bold"
         style={[styles.newPrice, event.priceDirection === 'down' && styles.priceDown, event.priceDirection === 'up' && styles.priceUp]}
       >
         {formatPrice(event.newPriceMinor, event.currency, event.priceBasis)}
       </AppText>
+      {event.previousPriceMinor !== undefined ? (
+        <>
+          <AppText muted style={styles.arrow}>·</AppText>
+          <AppText muted style={styles.oldPrice}>{formatPrice(event.previousPriceMinor, event.currency, event.priceBasis)}</AppText>
+        </>
+      ) : null}
     </>
   );
 }
@@ -103,7 +105,9 @@ function eventLabel(event: ActivityEvent, meta: string): string {
   const oldPrice = event.previousPriceMinor !== undefined ? formatPrice(event.previousPriceMinor, event.currency, event.priceBasis) : undefined;
   return [
     title,
-    oldPrice ? `${oldPrice} to ${formatPrice(event.newPriceMinor, event.currency, event.priceBasis)}` : formatPrice(event.newPriceMinor, event.currency, event.priceBasis),
+    oldPrice
+      ? `${formatPrice(event.newPriceMinor, event.currency, event.priceBasis)} was ${oldPrice}`
+      : formatPrice(event.newPriceMinor, event.currency, event.priceBasis),
     deltaLabel(event),
     meta
   ].filter(Boolean).join(', ');
@@ -195,7 +199,7 @@ const styles = StyleSheet.create({
   arrow: { fontSize: 13 },
   newPrice: { fontSize: 16 },
   priceDown: { color: colors.green },
-  priceUp: { color: colors.amber },
+  priceUp: { color: colors.red },
   primaryLabel: { fontSize: 14, color: colors.primary },
   oosLabel: { fontSize: 14, color: colors.amber },
   meta: { fontSize: 12, lineHeight: 16 },

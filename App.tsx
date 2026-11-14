@@ -3552,7 +3552,7 @@ const styles = StyleSheet.create({
     color: colors.green
   },
   snapshotPriceUp: {
-    color: colors.amber
+    color: colors.red
   },
   snapshotList: {
     backgroundColor: colors.surface,

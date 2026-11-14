@@ -129,7 +129,7 @@ describe('ActivityList', () => {
     });
     const row = tree!.root.findAllByProps({}).find((node) => typeof node.props.onPress === 'function' && String(node.props.accessibilityLabel ?? '').includes('open product'));
     expect(row?.props.accessibilityLabel).toContain('Running shoe');
-    expect(row?.props.accessibilityLabel).toContain('AED 360 to AED 399');
+    expect(row?.props.accessibilityLabel).toContain('AED 399 was AED 360');
     expect(row?.props.accessibilityLabel).toContain('open product');
     act(() => { row?.props.onPress(); });
     expect(open).toHaveBeenCalledWith(1);

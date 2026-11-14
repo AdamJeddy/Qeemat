@@ -20,7 +20,7 @@ export function PriceDirectionBadge({ direction, text, accessibilityLabel }: Pri
       accessibilityLabel={accessibilityLabel}
       style={[styles.badge, isDown ? styles.down : styles.up]}
     >
-      <Icon size={13} color={isDown ? colors.green : colors.amber} />
+      <Icon size={13} color={isDown ? colors.green : colors.red} />
       <AppText weight="semibold" style={[styles.label, isDown ? styles.downText : styles.upText]}>
         {text}
       </AppText>
@@ -41,7 +41,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.greenSoft
   },
   up: {
-    backgroundColor: colors.amberSoft
+    backgroundColor: colors.redSoft
   },
   label: {
     fontSize: 12
@@ -50,6 +50,6 @@ const styles = StyleSheet.create({
     color: colors.green
   },
   upText: {
-    color: colors.amber
+    color: colors.red
   }
 });

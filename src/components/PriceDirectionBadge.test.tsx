@@ -31,18 +31,18 @@ it('renders a price drop in green with a down trend', () => {
   expect(StyleSheet.flatten(text.props.style)).toMatchObject({ color: colors.green, fontSize: 12, fontWeight: '600' });
 });
 
-it('renders a price rise in amber with an up trend', () => {
+it('renders a price rise in red with an up trend', () => {
   let tree: renderer.ReactTestRenderer;
   act(() => { tree = renderer.create(<PriceDirectionBadge direction="up" text="AED 25 higher" />); });
 
   const icon = tree!.root.findByType(TrendingUp);
-  expect(icon.props.color).toBe(colors.amber);
+  expect(icon.props.color).toBe(colors.red);
   expect(icon.props.size).toBe(13);
   expect(tree!.root.findAllByType(TrendingDown)).toHaveLength(0);
 
-  expect(StyleSheet.flatten(rootJSON(tree!).props.style).backgroundColor).toBe(colors.amberSoft);
+  expect(StyleSheet.flatten(rootJSON(tree!).props.style).backgroundColor).toBe(colors.redSoft);
 
   const text = tree!.root.findByType(Text);
   expect(text.props.children).toBe('AED 25 higher');
-  expect(StyleSheet.flatten(text.props.style)).toMatchObject({ color: colors.amber, fontSize: 12, fontWeight: '600' });
+  expect(StyleSheet.flatten(text.props.style)).toMatchObject({ color: colors.red, fontSize: 12, fontWeight: '600' });
 });
